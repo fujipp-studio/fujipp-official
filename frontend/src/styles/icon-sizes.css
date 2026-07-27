@@ -1,0 +1,22 @@
+/**
+ * Global icon size tokens.
+ *
+ * Numeric names keep usage unambiguous: `size-icon-16` always means 16px.
+ */
+:root {
+  --icon-size-16: 1rem;
+  --icon-size-32: 2rem;
+  --icon-size-64: 4rem;
+  --icon-size-128: 8rem;
+  --icon-size-256: 16rem;
+  --icon-size-512: 32rem;
+}
+
+@theme inline {
+  --spacing-icon-16: var(--icon-size-16);
+  --spacing-icon-32: var(--icon-size-32);
+  --spacing-icon-64: var(--icon-size-64);
+  --spacing-icon-128: var(--icon-size-128);
+  --spacing-icon-256: var(--icon-size-256);
+  --spacing-icon-512: var(--icon-size-512);
+}

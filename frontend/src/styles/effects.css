@@ -1,0 +1,83 @@
+/**
+ * Global effect tokens.
+ */
+:root {
+  /* Drop shadows: x-offset y-offset blur spread color */
+  --effect-shadow-sm: 0 1px 2px 0 var(--global-color-black-10);
+  --effect-shadow-md: 0 4px 6px -1px var(--global-color-black-10);
+  --effect-shadow-lg: 0 10px 15px -3px var(--global-color-black-10);
+  --effect-shadow-xl: 0 20px 25px -5px var(--global-color-black-10);
+
+  /* Inner shadow */
+  --effect-inner-shadow: inset 0 2px 4px 0 var(--global-color-black-10);
+
+  /* Background blur for glass surfaces */
+  --effect-backdrop-blur-sm: 8px;
+  --effect-backdrop-blur-md: 16px;
+  --effect-backdrop-blur-lg: 32px;
+
+  /* Layer blur used to create glow effects */
+  --effect-glow-blur-sm: 12px;
+  --effect-glow-blur-lg: 100px;
+
+  /* Semantic stacking order */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-toast: 600;
+  --z-tooltip: 700;
+}
+
+@theme inline {
+  --shadow-sm: var(--effect-shadow-sm);
+  --shadow-md: var(--effect-shadow-md);
+  --shadow-lg: var(--effect-shadow-lg);
+  --shadow-xl: var(--effect-shadow-xl);
+  --inset-shadow-md: var(--effect-inner-shadow);
+
+  --blur-glass-sm: var(--effect-backdrop-blur-sm);
+  --blur-glass-md: var(--effect-backdrop-blur-md);
+  --blur-glass-lg: var(--effect-backdrop-blur-lg);
+  --blur-glow-sm: var(--effect-glow-blur-sm);
+  --blur-glow-lg: var(--effect-glow-blur-lg);
+}
+
+@utility z-base {
+  z-index: var(--z-base);
+}
+
+@utility z-raised {
+  z-index: var(--z-raised);
+}
+
+@utility z-dropdown {
+  z-index: var(--z-dropdown);
+}
+
+@utility z-sticky {
+  z-index: var(--z-sticky);
+}
+
+@utility z-overlay {
+  z-index: var(--z-overlay);
+}
+
+@utility z-modal {
+  z-index: var(--z-modal);
+}
+
+@utility z-popover {
+  z-index: var(--z-popover);
+}
+
+@utility z-toast {
+  z-index: var(--z-toast);
+}
+
+@utility z-tooltip {
+  z-index: var(--z-tooltip);
+}

@@ -1,0 +1,113 @@
+/**
+ * Responsive font-size tokens
+ *
+ * Mobile is the default mode. Desktop values take effect from 64rem (1024px).
+ * Additional typography tokens such as line height, weight, and font family
+ * can be added to this file later.
+ */
+:root {
+  /* Font weight */
+  --typography-font-weight-regular: 400;
+  --typography-font-weight-medium: 500;
+  --typography-font-weight-semibold: 600;
+  --typography-font-weight-bold: 700;
+
+  /* Line height */
+  --line-height-display: 1.1; /* 110% */
+  --line-height-heading: 1.2; /* 120% */
+  --line-height-body: 1.5; /* 150% */
+  --line-height-label: 1; /* 100% */
+
+  /* Display */
+  --font-size-display-large: 2.5rem; /* 40px */
+  --font-size-display-medium: 2rem; /* 32px */
+  --font-size-display-small: 1.75rem; /* 28px */
+
+  /* Heading */
+  --font-size-heading-h1: 1.5rem; /* 24px */
+  --font-size-heading-h2: 1.25rem; /* 20px */
+  --font-size-heading-h3: 1.125rem; /* 18px */
+  --font-size-heading-h4: 1rem; /* 16px */
+
+  /* Body */
+  --font-size-body-large: 1rem; /* 16px */
+  --font-size-body-medium: 1rem; /* 16px */
+  --font-size-body-small: 0.875rem; /* 14px */
+
+  /* Label */
+  --font-size-label-large: 1rem; /* 16px */
+  --font-size-label-medium: 0.875rem; /* 14px */
+  --font-size-label-small: 0.75rem; /* 12px */
+}
+
+@media (min-width: 64rem) {
+  :root {
+    /* Display */
+    --font-size-display-large: 4rem; /* 64px */
+    --font-size-display-medium: 3rem; /* 48px */
+    --font-size-display-small: 2.5rem; /* 40px */
+
+    /* Heading */
+    --font-size-heading-h1: 2rem; /* 32px */
+    --font-size-heading-h2: 1.5rem; /* 24px */
+    --font-size-heading-h3: 1.25rem; /* 20px */
+    --font-size-heading-h4: 1.125rem; /* 18px */
+
+    /* Body */
+    --font-size-body-large: 1.125rem; /* 18px */
+  }
+}
+
+/**
+ * Tailwind utilities: `text-display-large`, `text-heading-h1`,
+ * `text-body-medium`, `text-label-small`, etc.
+ */
+@theme inline {
+  --text-display-large: var(--font-size-display-large);
+  --text-display-large--line-height: var(--line-height-display);
+  --text-display-large--font-weight: var(--typography-font-weight-bold);
+  --text-display-medium: var(--font-size-display-medium);
+  --text-display-medium--line-height: var(--line-height-display);
+  --text-display-medium--font-weight: var(--typography-font-weight-bold);
+  --text-display-small: var(--font-size-display-small);
+  --text-display-small--line-height: var(--line-height-display);
+  --text-display-small--font-weight: var(--typography-font-weight-bold);
+
+  --text-heading-h1: var(--font-size-heading-h1);
+  --text-heading-h1--line-height: var(--line-height-heading);
+  --text-heading-h1--font-weight: var(--typography-font-weight-bold);
+  --text-heading-h2: var(--font-size-heading-h2);
+  --text-heading-h2--line-height: var(--line-height-heading);
+  --text-heading-h2--font-weight: var(--typography-font-weight-bold);
+  --text-heading-h3: var(--font-size-heading-h3);
+  --text-heading-h3--line-height: var(--line-height-heading);
+  --text-heading-h3--font-weight: var(--typography-font-weight-semibold);
+  --text-heading-h4: var(--font-size-heading-h4);
+  --text-heading-h4--line-height: var(--line-height-heading);
+  --text-heading-h4--font-weight: var(--typography-font-weight-semibold);
+
+  --text-body-large: var(--font-size-body-large);
+  --text-body-large--line-height: var(--line-height-body);
+  --text-body-large--font-weight: var(--typography-font-weight-regular);
+  --text-body-medium: var(--font-size-body-medium);
+  --text-body-medium--line-height: var(--line-height-body);
+  --text-body-medium--font-weight: var(--typography-font-weight-regular);
+  --text-body-small: var(--font-size-body-small);
+  --text-body-small--line-height: var(--line-height-body);
+  --text-body-small--font-weight: var(--typography-font-weight-regular);
+
+  --text-label-large: var(--font-size-label-large);
+  --text-label-large--line-height: var(--line-height-label);
+  --text-label-large--font-weight: var(--typography-font-weight-medium);
+  --text-label-medium: var(--font-size-label-medium);
+  --text-label-medium--line-height: var(--line-height-label);
+  --text-label-medium--font-weight: var(--typography-font-weight-medium);
+  --text-label-small: var(--font-size-label-small);
+  --text-label-small--line-height: var(--line-height-label);
+  --text-label-small--font-weight: var(--typography-font-weight-medium);
+
+  --leading-display: var(--line-height-display);
+  --leading-heading: var(--line-height-heading);
+  --leading-body: var(--line-height-body);
+  --leading-label: var(--line-height-label);
+}

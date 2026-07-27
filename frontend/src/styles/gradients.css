@@ -1,0 +1,44 @@
+/**
+ * Global gradient tokens.
+ *
+ * Gradients flow from left to right, following the direction supplied in the
+ * design specification. Components may use these decorative tokens directly
+ * until more purpose-specific Semantic gradient tokens are introduced.
+ */
+:root {
+  /* Three-color gradients */
+  --gradient-three-color-1: linear-gradient(to right, #4da2ff, #1d4ed8, #fdba74);
+  --gradient-three-color-2: linear-gradient(to right, #7c3aed, #db2777, #f59e0b);
+  --gradient-three-color-3: linear-gradient(
+    to right,
+    var(--global-color-brand-secondary-purple),
+    var(--global-color-brand-secondary-red),
+    var(--global-color-brand-secondary-yellow)
+  );
+  --gradient-three-color-4: linear-gradient(to right, #06b6d4, #8b5cf6, #d946ef);
+
+  /* Two-color gradients */
+  --gradient-two-color-1: linear-gradient(
+    to right,
+    var(--global-color-brand-secondary-blue),
+    var(--global-color-brand-secondary-purple)
+  );
+  --gradient-two-color-2: linear-gradient(
+    to right,
+    var(--global-color-brand-secondary-cyan),
+    var(--global-color-brand-secondary-blue)
+  );
+
+  /* Intentionally aliases the duplicate Blue -> Magenta specification. */
+  --gradient-two-color-3: var(--gradient-two-color-1);
+}
+
+@theme inline {
+  --background-image-gradient-three-color-1: var(--gradient-three-color-1);
+  --background-image-gradient-three-color-2: var(--gradient-three-color-2);
+  --background-image-gradient-three-color-3: var(--gradient-three-color-3);
+  --background-image-gradient-three-color-4: var(--gradient-three-color-4);
+  --background-image-gradient-two-color-1: var(--gradient-two-color-1);
+  --background-image-gradient-two-color-2: var(--gradient-two-color-2);
+  --background-image-gradient-two-color-3: var(--gradient-two-color-3);
+}

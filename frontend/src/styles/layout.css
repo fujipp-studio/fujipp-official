@@ -1,0 +1,40 @@
+/**
+ * Responsive layout foundation.
+ *
+ * Mobile:  default
+ * Tablet:  48rem / 768px
+ * Desktop: 64rem / 1024px
+ * Wide:    80rem / 1280px
+ */
+:root {
+  --layout-page-gutter: 1rem; /* 16px */
+  --layout-content-max-width: 80rem; /* 1280px */
+  --layout-reading-max-width: 48rem; /* 768px */
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --layout-page-gutter: 1.5rem; /* 24px */
+  }
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --layout-page-gutter: 2rem; /* 32px */
+  }
+}
+
+@theme {
+  --breakpoint-tablet: 48rem;
+  --breakpoint-desktop: 64rem;
+  --breakpoint-wide: 80rem;
+  --container-content: 80rem;
+  --container-reading: 48rem;
+}
+
+@utility page-container {
+  width: 100%;
+  max-width: var(--layout-content-max-width);
+  margin-inline: auto;
+  padding-inline: var(--layout-page-gutter);
+}

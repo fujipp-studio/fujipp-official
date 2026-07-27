@@ -1,0 +1,30 @@
+/**
+ * Self-hosted font assets.
+ *
+ * Inter, Roboto Mono, and Caveat use variable font files. Kanit is loaded at
+ * the UI weights used most often; its Thai glyphs are selected automatically
+ * when Inter does not contain a character.
+ */
+@import '@fontsource-variable/inter/wght.css';
+@import '@fontsource/kanit/thai-300.css';
+@import '@fontsource/kanit/thai-400.css';
+@import '@fontsource/kanit/thai-500.css';
+@import '@fontsource/kanit/thai-600.css';
+@import '@fontsource/kanit/thai-700.css';
+@import '@fontsource-variable/roboto-mono/wght.css';
+@import '@fontsource-variable/caveat/wght.css';
+
+:root {
+  --font-family-sans:
+    'Inter Variable', 'Kanit', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+  --font-family-mono: 'Roboto Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-family-handwriting: 'Caveat Variable', cursive;
+}
+
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --font-mono: var(--font-family-mono);
+  --font-numeric: var(--font-family-mono);
+  --font-handwriting: var(--font-family-handwriting);
+}

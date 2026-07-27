@@ -1,0 +1,33 @@
+/**
+ * Application-level base styles.
+ *
+ * Tailwind Preflight owns the browser reset. This file only establishes the
+ * defaults shared by every page in the application.
+ */
+@layer base {
+  html {
+    min-width: 20rem;
+    min-height: 100%;
+    background-color: var(--semantic-color-background-bg-default);
+    color: var(--semantic-color-text-text-primary);
+    font-family: var(--font-family-sans);
+    font-synthesis: none;
+  }
+
+  body,
+  #app {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  body {
+    background-color: var(--semantic-color-background-bg-default);
+    color: var(--semantic-color-text-text-primary);
+    font-family: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--semantic-color-action-borders-border-focus);
+    outline-offset: 2px;
+  }
+}

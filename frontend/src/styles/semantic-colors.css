@@ -1,0 +1,218 @@
+/**
+ * Semantic color tokens
+ *
+ * Components should consume these tokens instead of Global tokens. Light is
+ * the default mode; set `data-theme="dark"` or class `dark` on an ancestor to
+ * enable Dark mode.
+ */
+
+@property --semantic-color-brand-rgb {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ff1744;
+}
+
+@keyframes brand-secondary-rgb {
+  0%,
+  100% {
+    --semantic-color-brand-rgb: var(--global-color-brand-secondary-red);
+  }
+  16.67% {
+    --semantic-color-brand-rgb: var(--global-color-brand-secondary-yellow);
+  }
+  33.33% {
+    --semantic-color-brand-rgb: var(--global-color-brand-secondary-green);
+  }
+  50% {
+    --semantic-color-brand-rgb: var(--global-color-brand-secondary-cyan);
+  }
+  66.67% {
+    --semantic-color-brand-rgb: var(--global-color-brand-secondary-blue);
+  }
+  83.33% {
+    --semantic-color-brand-rgb: var(--global-color-brand-secondary-purple);
+  }
+}
+
+:root {
+  animation: brand-secondary-rgb 12s linear infinite;
+}
+
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --semantic-color-background-bg-default: var(--global-color-white-100);
+  --semantic-color-background-bg-surface: var(--global-color-gray-50);
+  --semantic-color-background-bg-surface-hover: var(--global-color-gray-100);
+  --semantic-color-background-bg-surface-active: var(--global-color-gray-200);
+  --semantic-color-background-bg-surface-selected: var(--global-color-gray-100);
+  --semantic-color-background-bg-elevated: var(--global-color-brand-primary-0);
+  --semantic-color-background-bg-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-background-bg-inverse: var(--global-color-black-100);
+  --semantic-color-background-bg-overlay: var(--global-color-black-50);
+  --semantic-color-background-bg-glass: var(--global-color-white-70);
+
+  --semantic-color-border-border-subtle: var(--global-color-gray-200);
+  --semantic-color-border-border-default: var(--global-color-gray-300);
+  --semantic-color-border-border-strong: var(--global-color-black-100);
+  --semantic-color-border-border-disabled: var(--global-color-gray-200);
+  --semantic-color-border-border-accent: var(--semantic-color-brand-rgb);
+
+  --semantic-color-text-text-primary: var(--global-color-black-100);
+  --semantic-color-text-text-secondary: var(--global-color-gray-700);
+  --semantic-color-text-text-muted: var(--global-color-gray-400);
+  --semantic-color-text-text-disabled: var(--global-color-gray-300);
+  --semantic-color-text-text-inverse: var(--global-color-white-100);
+  --semantic-color-text-text-accent: var(--semantic-color-brand-rgb);
+
+  --semantic-color-action-backgrounds-bg-primary: var(--global-color-white-100);
+  --semantic-color-action-backgrounds-bg-primary-hover: var(--global-color-white-100);
+  --semantic-color-action-backgrounds-bg-secondary: var(--global-color-black-100);
+  --semantic-color-action-backgrounds-bg-secondary-hover: var(--global-color-gray-900);
+  --semantic-color-action-backgrounds-bg-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-action-backgrounds-bg-disabled: var(--global-color-gray-100);
+
+  --semantic-color-action-text-text-on-primary: var(--global-color-black-100);
+  --semantic-color-action-text-text-on-secondary: var(--global-color-white-100);
+  --semantic-color-action-text-text-disabled: var(--global-color-gray-400);
+  --semantic-color-action-text-text-link: var(--global-color-black-100);
+  --semantic-color-action-text-text-link-hover: var(--global-color-gray-600);
+
+  --semantic-color-action-borders-border-outline: var(--global-color-gray-300);
+  --semantic-color-action-borders-border-focus: var(--semantic-color-brand-rgb);
+
+  --semantic-color-success-success-bg: var(--global-color-success-50);
+  --semantic-color-success-success-text: var(--global-color-success-700);
+  --semantic-color-success-success-border: var(--global-color-success-300);
+  --semantic-color-error-error-bg: var(--global-color-error-50);
+  --semantic-color-error-error-text: var(--global-color-error-700);
+  --semantic-color-error-error-border: var(--global-color-error-300);
+  --semantic-color-warning-warning-bg: var(--global-color-warning-50);
+  --semantic-color-warning-warning-text: var(--global-color-warning-700);
+  --semantic-color-warning-warning-border: var(--global-color-warning-300);
+  --semantic-color-info-info-bg: var(--global-color-info-50);
+  --semantic-color-info-info-text: var(--global-color-info-700);
+  --semantic-color-info-info-border: var(--global-color-info-300);
+}
+
+[data-theme='dark'],
+.dark {
+  color-scheme: dark;
+
+  --semantic-color-background-bg-default: var(--global-color-black-100);
+  --semantic-color-background-bg-surface: var(--global-color-gray-900);
+  --semantic-color-background-bg-surface-hover: var(--global-color-gray-800);
+  --semantic-color-background-bg-surface-active: var(--global-color-gray-700);
+  --semantic-color-background-bg-surface-selected: var(--global-color-gray-800);
+  --semantic-color-background-bg-elevated: var(--global-color-gray-800);
+  --semantic-color-background-bg-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-background-bg-inverse: var(--global-color-white-100);
+  --semantic-color-background-bg-overlay: var(--global-color-black-80);
+  --semantic-color-background-bg-glass: var(--global-color-black-70);
+
+  --semantic-color-border-border-subtle: var(--global-color-gray-800);
+  --semantic-color-border-border-default: var(--global-color-gray-700);
+  --semantic-color-border-border-strong: var(--global-color-white-100);
+  --semantic-color-border-border-disabled: var(--global-color-gray-800);
+  --semantic-color-border-border-accent: var(--semantic-color-brand-rgb);
+
+  --semantic-color-text-text-primary: var(--global-color-white-100);
+  --semantic-color-text-text-secondary: var(--global-color-gray-300);
+  --semantic-color-text-text-muted: var(--global-color-gray-500);
+  --semantic-color-text-text-disabled: var(--global-color-gray-600);
+  --semantic-color-text-text-inverse: var(--global-color-black-100);
+  --semantic-color-text-text-accent: var(--semantic-color-brand-rgb);
+
+  --semantic-color-action-backgrounds-bg-primary: var(--global-color-white-100);
+  --semantic-color-action-backgrounds-bg-primary-hover: var(--global-color-white-100);
+  --semantic-color-action-backgrounds-bg-secondary: var(--global-color-white-100);
+  --semantic-color-action-backgrounds-bg-secondary-hover: var(--global-color-gray-200);
+  --semantic-color-action-backgrounds-bg-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-action-backgrounds-bg-disabled: var(--global-color-gray-800);
+
+  --semantic-color-action-text-text-on-primary: var(--global-color-white-100);
+  --semantic-color-action-text-text-on-secondary: var(--global-color-black-100);
+  --semantic-color-action-text-text-disabled: var(--global-color-gray-500);
+  --semantic-color-action-text-text-link: var(--global-color-white-100);
+  --semantic-color-action-text-text-link-hover: var(--global-color-gray-300);
+
+  --semantic-color-action-borders-border-outline: var(--global-color-gray-600);
+  --semantic-color-action-borders-border-focus: var(--semantic-color-brand-rgb);
+
+  --semantic-color-success-success-bg: var(--global-color-success-900);
+  --semantic-color-success-success-text: var(--global-color-success-400);
+  --semantic-color-success-success-border: var(--global-color-success-700);
+  --semantic-color-error-error-bg: var(--global-color-error-900);
+  --semantic-color-error-error-text: var(--global-color-error-400);
+  --semantic-color-error-error-border: var(--global-color-error-700);
+  --semantic-color-warning-warning-bg: var(--global-color-warning-900);
+  --semantic-color-warning-warning-text: var(--global-color-warning-400);
+  --semantic-color-warning-warning-border: var(--global-color-warning-700);
+  --semantic-color-info-info-bg: var(--global-color-info-900);
+  --semantic-color-info-info-text: var(--global-color-info-400);
+  --semantic-color-info-info-border: var(--global-color-info-700);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    animation: none;
+  }
+}
+
+/**
+ * Tailwind exposes only Semantic tokens as utilities. Examples:
+ * `bg-bg-default`, `text-text-primary`, `border-border-default`.
+ */
+@theme inline {
+  --color-bg-default: var(--semantic-color-background-bg-default);
+  --color-bg-surface: var(--semantic-color-background-bg-surface);
+  --color-bg-surface-hover: var(--semantic-color-background-bg-surface-hover);
+  --color-bg-surface-active: var(--semantic-color-background-bg-surface-active);
+  --color-bg-surface-selected: var(--semantic-color-background-bg-surface-selected);
+  --color-bg-elevated: var(--semantic-color-background-bg-elevated);
+  --color-bg-accent: var(--semantic-color-background-bg-accent);
+  --color-bg-inverse: var(--semantic-color-background-bg-inverse);
+  --color-bg-overlay: var(--semantic-color-background-bg-overlay);
+  --color-bg-glass: var(--semantic-color-background-bg-glass);
+
+  --color-border-subtle: var(--semantic-color-border-border-subtle);
+  --color-border-default: var(--semantic-color-border-border-default);
+  --color-border-strong: var(--semantic-color-border-border-strong);
+  --color-border-disabled: var(--semantic-color-border-border-disabled);
+  --color-border-accent: var(--semantic-color-border-border-accent);
+
+  --color-text-primary: var(--semantic-color-text-text-primary);
+  --color-text-secondary: var(--semantic-color-text-text-secondary);
+  --color-text-muted: var(--semantic-color-text-text-muted);
+  --color-text-disabled: var(--semantic-color-text-text-disabled);
+  --color-text-inverse: var(--semantic-color-text-text-inverse);
+  --color-text-accent: var(--semantic-color-text-text-accent);
+
+  --color-action-bg-primary: var(--semantic-color-action-backgrounds-bg-primary);
+  --color-action-bg-primary-hover: var(--semantic-color-action-backgrounds-bg-primary-hover);
+  --color-action-bg-secondary: var(--semantic-color-action-backgrounds-bg-secondary);
+  --color-action-bg-secondary-hover: var(--semantic-color-action-backgrounds-bg-secondary-hover);
+  --color-action-bg-accent: var(--semantic-color-action-backgrounds-bg-accent);
+  --color-action-bg-disabled: var(--semantic-color-action-backgrounds-bg-disabled);
+  --color-action-text-on-primary: var(--semantic-color-action-text-text-on-primary);
+  --color-action-text-on-secondary: var(--semantic-color-action-text-text-on-secondary);
+  --color-action-text-disabled: var(--semantic-color-action-text-text-disabled);
+  --color-action-text-link: var(--semantic-color-action-text-text-link);
+  --color-action-text-link-hover: var(--semantic-color-action-text-text-link-hover);
+  --color-action-border-outline: var(--semantic-color-action-borders-border-outline);
+  --color-action-border-focus: var(--semantic-color-action-borders-border-focus);
+
+  --color-success-bg: var(--semantic-color-success-success-bg);
+  --color-success-text: var(--semantic-color-success-success-text);
+  --color-success-border: var(--semantic-color-success-success-border);
+  --color-error-bg: var(--semantic-color-error-error-bg);
+  --color-error-text: var(--semantic-color-error-error-text);
+  --color-error-border: var(--semantic-color-error-error-border);
+  --color-warning-bg: var(--semantic-color-warning-warning-bg);
+  --color-warning-text: var(--semantic-color-warning-warning-text);
+  --color-warning-border: var(--semantic-color-warning-warning-border);
+  --color-info-bg: var(--semantic-color-info-info-bg);
+  --color-info-text: var(--semantic-color-info-info-text);
+  --color-info-border: var(--semantic-color-info-info-border);
+}
