@@ -1,0 +1,112 @@
+/**
+ * Global (primitive) color tokens exported from Figma.
+ *
+ * Do not use these tokens directly in components. Semantic tokens should alias
+ * them with names that describe their purpose, such as background, text, or
+ * border.
+ *
+ * Source names normalized:
+ * - `beand-primary` -> `brand-primary`
+ * - `info.warning-*` -> `info-*`
+ */
+:root {
+  --global-color-brand-primary-0: #ffffff;
+  --global-color-brand-primary-50: #fafafa;
+  --global-color-brand-primary-100: #f5f5f5;
+  --global-color-brand-primary-200: #e6e6e6;
+  --global-color-brand-primary-300: #d6d6d6;
+  --global-color-brand-primary-400: #a5a5a5;
+  --global-color-brand-primary-500: #767676;
+  --global-color-brand-primary-600: #575757;
+  --global-color-brand-primary-700: #434343;
+  --global-color-brand-primary-800: #292929;
+  --global-color-brand-primary-900: #1a1a1a;
+  --global-color-brand-primary-950: #000000;
+
+  --global-color-brand-secondary-red: #ff1744;
+  --global-color-brand-secondary-yellow: #ffea00;
+  --global-color-brand-secondary-green: #00e676;
+  --global-color-brand-secondary-cyan: #00e5ff;
+  --global-color-brand-secondary-blue: #2979ff;
+  --global-color-brand-secondary-purple: #d500f9;
+
+  --global-color-black-10: #0000001a;
+  --global-color-black-20: #00000033;
+  --global-color-black-30: #0000004d;
+  --global-color-black-40: #00000066;
+  --global-color-black-50: #00000080;
+  --global-color-black-70: #000000b3;
+  --global-color-black-80: #000000cc;
+  --global-color-black-90: #000000e6;
+  --global-color-black-100: #000000;
+
+  --global-color-white-10: #ffffff1a;
+  --global-color-white-20: #ffffff33;
+  --global-color-white-30: #ffffff4d;
+  --global-color-white-40: #ffffff66;
+  --global-color-white-50: #ffffff80;
+  --global-color-white-60: #ffffff99;
+  --global-color-white-70: #ffffffb3;
+  --global-color-white-80: #ffffffcc;
+  --global-color-white-90: #ffffffe6;
+  --global-color-white-100: #ffffff;
+
+  --global-color-gray-50: #f8fafc;
+  --global-color-gray-100: #f1f5f9;
+  --global-color-gray-200: #e2e8f0;
+  --global-color-gray-300: #cbd5e1;
+  --global-color-gray-400: #94a3b8;
+  --global-color-gray-500: #64748b;
+  --global-color-gray-600: #475b69;
+  --global-color-gray-700: #334155;
+  --global-color-gray-800: #1e293b;
+  --global-color-gray-900: #0f172a;
+
+  --global-color-success-50: #edffe4;
+  --global-color-success-100: #d7ffc4;
+  --global-color-success-200: #b1ff90;
+  --global-color-success-300: #81ff50;
+  --global-color-success-400: #44ff00;
+  --global-color-success-500: #39e600;
+  --global-color-success-600: #2bb800;
+  --global-color-success-700: #1e8b00;
+  --global-color-success-800: #1c6d07;
+  --global-color-success-900: #1a5c0b;
+  --global-color-success-950: #083400;
+
+  --global-color-error-50: #fff0f0;
+  --global-color-error-100: #ffdddd;
+  --global-color-error-200: #ffc0c0;
+  --global-color-error-300: #ff9494;
+  --global-color-error-400: #ff5757;
+  --global-color-error-500: #ff2323;
+  --global-color-error-600: #ff0000;
+  --global-color-error-700: #d70000;
+  --global-color-error-800: #b10303;
+  --global-color-error-900: #920a0a;
+  --global-color-error-950: #500000;
+
+  --global-color-warning-50: #fffdea;
+  --global-color-warning-100: #fff9c5;
+  --global-color-warning-200: #fff385;
+  --global-color-warning-300: #ffe746;
+  --global-color-warning-400: #ffd71b;
+  --global-color-warning-500: #ffbb00;
+  --global-color-warning-600: #e29100;
+  --global-color-warning-700: #bb6602;
+  --global-color-warning-800: #984e08;
+  --global-color-warning-900: #7c400b;
+  --global-color-warning-950: #482100;
+
+  --global-color-info-50: #e8f4ff;
+  --global-color-info-100: #d5eaff;
+  --global-color-info-200: #b3d7ff;
+  --global-color-info-300: #85bcff;
+  --global-color-info-400: #5694ff;
+  --global-color-info-500: #2f6dff;
+  --global-color-info-600: #0c41ff;
+  --global-color-info-700: #0033ff;
+  --global-color-info-800: #0631cd;
+  --global-color-info-900: #10329f;
+  --global-color-info-950: #0a1b5c;
+}

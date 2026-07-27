@@ -1,0 +1,22 @@
+/**
+ * Global corner radius tokens exported from Figma.
+ */
+:root {
+  --corner-radius-none: 0;
+  --corner-radius-sm: 0.25rem; /* 4px */
+  --corner-radius-md: 0.5rem; /* 8px */
+  --corner-radius-lg: 1rem; /* 16px */
+  --corner-radius-full: 9999px;
+}
+
+/**
+ * Tailwind utilities: `rounded-none`, `rounded-sm`, `rounded-md`,
+ * `rounded-lg`, and `rounded-full`.
+ */
+@theme inline {
+  --radius-none: var(--corner-radius-none);
+  --radius-sm: var(--corner-radius-sm);
+  --radius-md: var(--corner-radius-md);
+  --radius-lg: var(--corner-radius-lg);
+  --radius-full: var(--corner-radius-full);
+}
