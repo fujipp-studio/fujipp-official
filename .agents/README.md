@@ -17,4 +17,5 @@ Read only the rules relevant to the assigned task.
 | --- | --- |
 | GitHub | `.agents/github.md` |
 | Database | `.agents/scopes/database.md` |
+| Frontend | `.agents/scopes/frontend.md` |
 | Docs and changelog | `.agents/docs.md` |

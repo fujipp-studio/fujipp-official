@@ -50,7 +50,14 @@
 
 ## Validation
 
-- Run `bun run build` before committing frontend changes.
-- Run relevant unit tests with `bun run test:unit --run` when behavior changes.
-- Run `bun run lint` and review any automatic fixes before committing.
+- Do not run the full validation suite or capture screenshots after every implementation
+  step unless the user explicitly requests it. During iteration, run only focused checks
+  needed to diagnose risk or verify the current change.
+- Before committing or pushing frontend changes, run `bun run build`,
+  `bun run test:unit --run`, and `bun run lint`, then review any automatic fixes.
+- Before committing or pushing user-interface changes, open the affected page, verify
+  its interactions, responsive layouts, and Light/Dark themes, and capture screenshots
+  of the relevant Desktop and Mobile states for visual QA.
+- Do not report a frontend change as ready to commit or push until the required
+  validation and visual QA have passed.
 - Do not weaken TypeScript, lint, or test configuration to bypass a failure.
