@@ -1,0 +1,16 @@
+<svg width="104" height="32" viewBox="0 0 104 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M12.5 6L23 27H2L12.5 6Z" fill="white"/>
+<path d="M19.5 6L30 27H9L19.5 6Z" fill="url(#paint0_linear_51_90)"/>
+<path d="M40 25.5V16M46.5 8.875H43.0377C41.36 8.875 40 10.235 40 11.9127V16M40 16H44.5" stroke="white" stroke-width="3"/>
+<path d="M68.5 13.625V20.9623C68.5 22.64 67.14 24 65.4623 24H64.4127C62.735 24 61.375 22.64 61.375 20.9623V18.375" stroke="white" stroke-width="3"/>
+<path d="M49.5 13.625V20.9623C49.5 22.64 50.86 24 52.5377 24H53.5873C55.265 24 56.625 22.64 56.625 20.9623V13.625" stroke="white" stroke-width="3"/>
+<path d="M73.25 25.5V18.375V13.625M73.25 6.5V9.53772" stroke="white" stroke-width="3"/>
+<path d="M78.0023 25.5L78 21.746M78 21.746V18.0377C78 16.36 79.36 15 81.0377 15H84.4634C86.1411 15 87.5011 16.36 87.5011 18.0377L87.5011 18.7083C87.5011 20.386 86.1411 21.746 84.4634 21.746H78Z" stroke="white" stroke-width="3"/>
+<path d="M92.2523 25.5L92.25 21.746M92.25 21.746L92.2519 18.0361C92.2528 16.3591 93.6126 15 95.2896 15H98.7153C100.394 15 101.754 16.361 101.753 18.0393L101.753 18.7098C101.752 20.3869 100.392 21.746 98.715 21.746H92.25Z" stroke="white" stroke-width="3"/>
+<defs>
+<linearGradient id="paint0_linear_51_90" x1="19.5" y1="6" x2="19.5" y2="27" gradientUnits="userSpaceOnUse">
+<stop stop-color="#00E5FF"/>
+<stop offset="1" stop-color="#2979FF"/>
+</linearGradient>
+</defs>
+</svg>

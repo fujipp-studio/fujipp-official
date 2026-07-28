@@ -5,18 +5,34 @@
  */
 :root {
   --icon-size-16: 1rem;
+  --icon-size-24: 1.5rem;
   --icon-size-32: 2rem;
   --icon-size-64: 4rem;
   --icon-size-128: 8rem;
   --icon-size-256: 16rem;
   --icon-size-512: 32rem;
+
+  /* Brand assets use their native SVG proportions. */
+  --brand-logo-size: var(--icon-size-32);
+  --brand-icon-size: var(--icon-size-32);
+  --brand-lockup-width: 6.5rem;
+  --brand-lockup-height: var(--icon-size-32);
+  --brand-wordmark-width: 2.125rem;
+  --brand-wordmark-height: var(--icon-size-32);
 }
 
 @theme inline {
   --spacing-icon-16: var(--icon-size-16);
+  --spacing-icon-24: var(--icon-size-24);
   --spacing-icon-32: var(--icon-size-32);
   --spacing-icon-64: var(--icon-size-64);
   --spacing-icon-128: var(--icon-size-128);
   --spacing-icon-256: var(--icon-size-256);
   --spacing-icon-512: var(--icon-size-512);
+  --spacing-brand-logo: var(--brand-logo-size);
+  --spacing-brand-icon: var(--brand-icon-size);
+  --spacing-brand-lockup-width: var(--brand-lockup-width);
+  --spacing-brand-lockup-height: var(--brand-lockup-height);
+  --spacing-brand-wordmark-width: var(--brand-wordmark-width);
+  --spacing-brand-wordmark-height: var(--brand-wordmark-height);
 }

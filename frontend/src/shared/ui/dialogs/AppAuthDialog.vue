@@ -1,0 +1,509 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+
+import { icons } from '../../../config'
+import AppButton from '../buttons/AppButton.vue'
+import AppTextField from '../fields/AppTextField.vue'
+import type { TextFieldState } from '../fields/types'
+import AuthMark from './AuthMark.vue'
+import type { AuthDialogMode } from './types'
+
+const props = withDefaults(
+  defineProps<{
+    open?: boolean
+    mode?: AuthDialogMode
+  }>(),
+  {
+    open: false,
+    mode: 'login',
+  },
+)
+
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  'update:mode': [value: AuthDialogMode]
+}>()
+
+const username = ref('')
+const password = ref('')
+const confirmPassword = ref('')
+const acceptedTerms = ref(false)
+const sheetDrag = ref(0)
+const isDragging = ref(false)
+const isExpanded = ref(false)
+let pointerId: number | undefined
+let startY = 0
+
+const isRegister = computed(() => props.mode === 'register')
+const title = computed(() => (isRegister.value ? 'Sign up to' : 'Sign in to'))
+const hasUsername = computed(() => username.value.trim().length > 0)
+const hasPassword = computed(() => password.value.length > 0)
+const hasConfirmPassword = computed(() => confirmPassword.value.length > 0)
+const passwordsMatch = computed(
+  () => hasConfirmPassword.value && password.value === confirmPassword.value,
+)
+const isFormValid = computed(() => {
+  if (!hasUsername.value || !hasPassword.value) return false
+  if (!isRegister.value) return true
+  return passwordsMatch.value && acceptedTerms.value
+})
+const confirmPasswordState = computed<TextFieldState>(() =>
+  hasConfirmPassword.value && !passwordsMatch.value ? 'error' : 'default',
+)
+const confirmPasswordSupport = computed(() =>
+  hasConfirmPassword.value && !passwordsMatch.value ? 'Passwords do not match.' : '',
+)
+
+function close() {
+  emit('update:open', false)
+  sheetDrag.value = 0
+  isDragging.value = false
+  isExpanded.value = false
+  pointerId = undefined
+}
+
+function switchMode(mode: AuthDialogMode) {
+  emit('update:mode', mode)
+}
+
+function startDrag(event: PointerEvent) {
+  if (!window.matchMedia('(max-width: 47.99rem)').matches) return
+  pointerId = event.pointerId
+  startY = event.clientY
+  sheetDrag.value = 0
+  isDragging.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function moveDrag(event: PointerEvent) {
+  if (!isDragging.value || event.pointerId !== pointerId) return
+  const distance = event.clientY - startY
+
+  if (distance <= -48) {
+    isExpanded.value = true
+    sheetDrag.value = 0
+    return
+  }
+
+  if (isExpanded.value) {
+    if (distance >= 48) {
+      isExpanded.value = false
+      startY = event.clientY
+    }
+    return
+  }
+
+  sheetDrag.value = Math.max(0, distance)
+}
+
+function finishDrag(event: PointerEvent) {
+  if (!isDragging.value || event.pointerId !== pointerId) return
+  const shouldClose = sheetDrag.value >= 96
+  isDragging.value = false
+  pointerId = undefined
+  if (shouldClose) close()
+  else sheetDrag.value = 0
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && props.open) close()
+}
+
+watch(
+  () => props.open,
+  (open) => {
+    document.body.style.overflow = open ? 'hidden' : ''
+  },
+)
+
+onMounted(() => document.addEventListener('keydown', handleKeydown))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleKeydown)
+  document.body.style.overflow = ''
+})
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="auth-backdrop">
+      <button
+        v-if="open"
+        class="auth-dialog__backdrop"
+        type="button"
+        aria-label="Close authentication dialog"
+        @click="close"
+      />
+    </Transition>
+
+    <Transition name="auth-dialog">
+      <section
+        v-if="open"
+        class="auth-dialog"
+        :class="{
+          'auth-dialog--dragging': isDragging,
+          'auth-dialog--expanded': isExpanded,
+        }"
+        :style="{ '--auth-sheet-drag': `${sheetDrag}px` }"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="isRegister ? 'Create an account' : 'Sign in'"
+      >
+        <div
+          class="auth-dialog__drag-area"
+          @pointerdown="startDrag"
+          @pointermove="moveDrag"
+          @pointerup="finishDrag"
+          @pointercancel="finishDrag"
+        >
+          <span class="auth-dialog__indicator" aria-hidden="true" />
+          <div class="auth-dialog__header">
+            <span class="auth-dialog__header-spacer" />
+            <AuthMark class="auth-dialog__mark" />
+            <button class="auth-dialog__close" type="button" aria-label="Close" @click="close">
+              <span
+                :style="{ '--auth-icon': `url(${icons.base.close})` }"
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        </div>
+
+        <h2 class="auth-dialog__title">
+          <strong>{{ title }}</strong>
+          <span> Fujipp</span>
+        </h2>
+
+        <form class="auth-dialog__form" @submit.prevent>
+          <AppTextField
+            v-model="username"
+            label="Username"
+            placeholder="Placeholder"
+            :required="isRegister"
+          />
+          <AppTextField
+            v-model="password"
+            variant="secret"
+            label="Password"
+            placeholder="Enter password"
+            :required="isRegister"
+          />
+          <AppTextField
+            v-if="isRegister"
+            v-model="confirmPassword"
+            variant="secret"
+            label="Confirm Password"
+            placeholder="Confirm password"
+            :state="confirmPasswordState"
+            :support-text="confirmPasswordSupport"
+            required
+          />
+
+          <label v-if="isRegister" class="auth-dialog__terms">
+            <input v-model="acceptedTerms" type="checkbox" required />
+            <span>
+              Do you agree to our <a href="/terms">Terms</a> and
+              <a href="/privacy">Privacy Policy</a>.
+            </span>
+          </label>
+
+          <AppButton type="submit" :disabled="!isFormValid">
+            {{ isRegister ? 'Create account' : 'Sign in' }}
+          </AppButton>
+        </form>
+
+        <div class="auth-dialog__separator">
+          <span />
+          <small>or</small>
+          <span />
+        </div>
+
+        <div class="auth-dialog__socials">
+          <AppButton :left-icon="icons.social.google">Google</AppButton>
+          <AppButton :left-icon="icons.social.discord">Discord</AppButton>
+          <AppButton :left-icon="icons.social.github">Github</AppButton>
+        </div>
+
+        <p class="auth-dialog__switch">
+          <span>{{ isRegister ? 'Already have an account?' : 'New here?' }}</span>
+          <button
+            type="button"
+            @click="switchMode(isRegister ? 'login' : 'register')"
+          >
+            {{ isRegister ? 'Sign in' : 'Create an account' }}
+          </button>
+        </p>
+      </section>
+    </Transition>
+  </Teleport>
+</template>
+
+<style scoped>
+.auth-dialog__backdrop {
+  position: fixed;
+  z-index: calc(var(--z-popover) + 10);
+  inset: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: var(--global-color-black-10);
+  backdrop-filter: blur(var(--effect-backdrop-blur-sm));
+}
+
+.auth-dialog {
+  position: fixed;
+  z-index: calc(var(--z-popover) + 11);
+  top: 50%;
+  left: 50%;
+  box-sizing: border-box;
+  display: flex;
+  width: min(42.5rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  overflow-y: auto;
+  border-radius: 0.75rem;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--semantic-color-background-bg-default);
+  box-shadow: var(--effect-shadow-lg);
+  color: var(--semantic-color-text-text-primary);
+  font-family: var(--font-family-sans);
+  transform: translate(-50%, -50%);
+}
+
+.auth-dialog__drag-area,
+.auth-dialog__header {
+  width: 100%;
+}
+
+.auth-dialog__indicator {
+  display: none;
+}
+
+.auth-dialog__header {
+  display: grid;
+  height: var(--icon-size-32);
+  grid-template-columns: var(--icon-size-32) 1fr var(--icon-size-32);
+  align-items: center;
+}
+
+.auth-dialog__mark {
+  width: var(--icon-size-32);
+  height: var(--icon-size-32);
+  justify-self: center;
+}
+
+.auth-dialog__close {
+  display: grid;
+  width: var(--icon-size-32);
+  height: var(--icon-size-32);
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.auth-dialog__close span {
+  width: var(--icon-size-32);
+  height: var(--icon-size-32);
+  background: currentcolor;
+  mask: var(--auth-icon) center / contain no-repeat;
+}
+
+.auth-dialog__title {
+  margin: 0;
+  padding: 0 0.15em 0.12em;
+  font-size: 2.5rem;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.auth-dialog__title span {
+  display: inline-block;
+  padding-right: 0.18em;
+  background: linear-gradient(180deg, #00e5ff, #2979ff);
+  background-clip: text;
+  color: transparent;
+  font-family: var(--font-family-handwriting);
+  font-size: 3rem;
+  line-height: 1.2;
+}
+
+.auth-dialog__form {
+  display: grid;
+  width: min(100%, 30rem);
+  gap: var(--space-xs);
+}
+
+.auth-dialog__terms {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-body-small);
+  line-height: var(--line-height-body);
+}
+
+.auth-dialog__terms input {
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
+  flex-shrink: 0;
+  accent-color: var(--semantic-color-text-text-primary);
+}
+
+.auth-dialog__terms a,
+.auth-dialog__switch button {
+  color: var(--semantic-color-text-text-primary);
+  text-decoration: underline;
+  text-underline-offset: 0.2rem;
+}
+
+.auth-dialog__separator {
+  display: flex;
+  width: min(100%, 23.125rem);
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--semantic-color-text-text-muted);
+}
+
+.auth-dialog__separator span {
+  height: 1px;
+  flex: 1;
+  background: var(--semantic-color-border-border-default);
+}
+
+.auth-dialog__separator small {
+  font: inherit;
+  line-height: var(--line-height-body);
+}
+
+.auth-dialog__socials {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, 8.6875rem);
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.auth-dialog__switch {
+  display: flex;
+  margin: 0;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--semantic-color-text-text-muted);
+  font-size: var(--font-size-body-small);
+  line-height: var(--line-height-body);
+}
+
+.auth-dialog__switch button {
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+}
+
+.auth-backdrop-enter-active,
+.auth-backdrop-leave-active {
+  transition: opacity 220ms ease;
+}
+
+.auth-backdrop-enter-from,
+.auth-backdrop-leave-to {
+  opacity: 0;
+}
+
+.auth-dialog-enter-active,
+.auth-dialog-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-dialog-enter-from,
+.auth-dialog-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -48%) scale(0.96);
+}
+
+@media (max-width: 47.99rem) {
+  .auth-dialog {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 78dvh;
+    max-height: 78dvh;
+    border-radius: 0.75rem 0.75rem 0 0;
+    padding-bottom: 2rem;
+    transform: translateY(var(--auth-sheet-drag, 0));
+    transition:
+      height 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      max-height 280ms cubic-bezier(0.22, 1, 0.36, 1),
+      transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .auth-dialog--expanded {
+    height: 88dvh;
+    max-height: 88dvh;
+  }
+
+  .auth-dialog--dragging {
+    transition: none;
+  }
+
+  .auth-dialog__drag-area {
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+  }
+
+  .auth-dialog__indicator {
+    display: block;
+    width: 1.5rem;
+    height: 0.25rem;
+    margin: 0 auto var(--space-xxs);
+    border-radius: var(--corner-radius-full);
+    background: currentcolor;
+  }
+
+  .auth-dialog__title {
+    font-size: 1.75rem;
+  }
+
+  .auth-dialog__title span {
+    font-size: 2rem;
+  }
+
+  .auth-dialog__form {
+    width: 100%;
+  }
+
+  .auth-dialog__socials {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-xs);
+  }
+
+  .auth-dialog__switch {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .auth-dialog-enter-from,
+  .auth-dialog-leave-to {
+    opacity: 1;
+    transform: translateY(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-dialog,
+  .auth-dialog-enter-active,
+  .auth-dialog-leave-active,
+  .auth-backdrop-enter-active,
+  .auth-backdrop-leave-active {
+    transition: none;
+  }
+}
+</style>
