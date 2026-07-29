@@ -16,6 +16,7 @@ const props = withDefaults(
     unit?: string
     options?: readonly TextFieldOption[]
     name?: string
+    autocomplete?: string
     inputType?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url'
     disabled?: boolean
     required?: boolean
@@ -30,6 +31,7 @@ const props = withDefaults(
     unit: '',
     options: () => [],
     name: undefined,
+    autocomplete: undefined,
     inputType: 'text',
     disabled: false,
     required: false,
@@ -175,6 +177,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
         :value="modelValue"
         :type="resolvedInputType"
         :name="name"
+        :autocomplete="autocomplete"
         :placeholder="placeholder"
         :disabled="disabled"
         :required="required"

@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 
 import { icons } from '../../../config'
+import { useAuthStore } from '../../../stores'
 import AppButton from '../buttons/AppButton.vue'
 import AppTextField from '../fields/AppTextField.vue'
 import type { TextFieldState } from '../fields/types'
+import AppTurnstile from '../security/AppTurnstile.vue'
 import AuthMark from './AuthMark.vue'
 import type { AuthDialogMode } from './types'
 
@@ -19,15 +22,22 @@ const props = withDefaults(
   },
 )
 
+const turnstileSiteKey =
+  import.meta.env.VITE_TURNSTILE_SITE_KEY ??
+  (import.meta.env.DEV ? '1x00000000000000000000AA' : '')
+
 const emit = defineEmits<{
   'update:open': [value: boolean]
   'update:mode': [value: AuthDialogMode]
 }>()
 
-const username = ref('')
+const email = ref('')
 const password = ref('')
 const confirmPassword = ref('')
 const acceptedTerms = ref(false)
+const captchaToken = ref('')
+const captchaResetKey = ref(0)
+const feedback = ref('')
 const sheetDrag = ref(0)
 const isDragging = ref(false)
 const isExpanded = ref(false)
@@ -36,16 +46,19 @@ let startY = 0
 
 const isRegister = computed(() => props.mode === 'register')
 const title = computed(() => (isRegister.value ? 'Sign up to' : 'Sign in to'))
-const hasUsername = computed(() => username.value.trim().length > 0)
+const authStore = useAuthStore()
+const { error, loading } = storeToRefs(authStore)
+const hasValidEmail = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
 const hasPassword = computed(() => password.value.length > 0)
+const hasValidRegistrationPassword = computed(() => password.value.length >= 6)
 const hasConfirmPassword = computed(() => confirmPassword.value.length > 0)
 const passwordsMatch = computed(
   () => hasConfirmPassword.value && password.value === confirmPassword.value,
 )
 const isFormValid = computed(() => {
-  if (!hasUsername.value || !hasPassword.value) return false
+  if (!hasValidEmail.value || !hasPassword.value || !captchaToken.value) return false
   if (!isRegister.value) return true
-  return passwordsMatch.value && acceptedTerms.value
+  return hasValidRegistrationPassword.value && passwordsMatch.value && acceptedTerms.value
 })
 const confirmPasswordState = computed<TextFieldState>(() =>
   hasConfirmPassword.value && !passwordsMatch.value ? 'error' : 'default',
@@ -53,17 +66,68 @@ const confirmPasswordState = computed<TextFieldState>(() =>
 const confirmPasswordSupport = computed(() =>
   hasConfirmPassword.value && !passwordsMatch.value ? 'Passwords do not match.' : '',
 )
+const passwordSupport = computed(() =>
+  isRegister.value && hasPassword.value && !hasValidRegistrationPassword.value
+    ? 'Password must contain at least 6 characters.'
+    : '',
+)
 
 function close() {
   emit('update:open', false)
+  resetCaptcha()
   sheetDrag.value = 0
   isDragging.value = false
   isExpanded.value = false
   pointerId = undefined
+  feedback.value = ''
+  authStore.clearError()
 }
 
 function switchMode(mode: AuthDialogMode) {
+  feedback.value = ''
+  resetCaptcha()
+  authStore.clearError()
   emit('update:mode', mode)
+}
+
+async function submitEmailAuth() {
+  feedback.value = ''
+  const result = isRegister.value
+    ? await authStore.signUp(email.value, password.value, captchaToken.value)
+    : await authStore.signIn(email.value, password.value, captchaToken.value)
+
+  resetCaptcha()
+
+  if (!result.success) return
+  if (result.requiresEmailConfirmation) {
+    feedback.value = result.message ?? 'Check your email to confirm your account.'
+    return
+  }
+
+  resetForm()
+  close()
+}
+
+async function submitOAuth(provider: 'google' | 'discord' | 'github') {
+  feedback.value = ''
+  await authStore.signInWithOAuth(provider)
+}
+
+function resetForm() {
+  email.value = ''
+  password.value = ''
+  confirmPassword.value = ''
+  acceptedTerms.value = false
+}
+
+function resetCaptcha() {
+  captchaToken.value = ''
+  captchaResetKey.value += 1
+}
+
+function handleCaptchaError() {
+  captchaToken.value = ''
+  feedback.value = 'Security verification failed. Please try again.'
 }
 
 function startDrag(event: PointerEvent) {
@@ -173,19 +237,26 @@ onBeforeUnmount(() => {
           <span> Fujipp</span>
         </h2>
 
-        <form class="auth-dialog__form" @submit.prevent>
+        <form class="auth-dialog__form" @submit.prevent="submitEmailAuth">
           <AppTextField
-            v-model="username"
-            label="Username"
-            placeholder="Placeholder"
-            :required="isRegister"
+            v-model="email"
+            input-type="email"
+            name="email"
+            autocomplete="email"
+            label="Email"
+            placeholder="you@example.com"
+            required
           />
           <AppTextField
             v-model="password"
             variant="secret"
+            name="password"
+            :autocomplete="isRegister ? 'new-password' : 'current-password'"
             label="Password"
             placeholder="Enter password"
-            :required="isRegister"
+            :support-text="passwordSupport"
+            :state="passwordSupport ? 'error' : 'default'"
+            required
           />
           <AppTextField
             v-if="isRegister"
@@ -206,8 +277,20 @@ onBeforeUnmount(() => {
             </span>
           </label>
 
-          <AppButton type="submit" :disabled="!isFormValid">
-            {{ isRegister ? 'Create account' : 'Sign in' }}
+          <AppTurnstile
+            :site-key="turnstileSiteKey"
+            :reset-key="captchaResetKey"
+            @verify="captchaToken = $event"
+            @expired="resetCaptcha"
+            @error="handleCaptchaError"
+          />
+
+          <p v-if="error || feedback" class="auth-dialog__feedback" aria-live="polite">
+            {{ error ?? feedback }}
+          </p>
+
+          <AppButton type="submit" :disabled="!isFormValid || loading">
+            {{ loading ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in' }}
           </AppButton>
         </form>
 
@@ -218,9 +301,27 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="auth-dialog__socials">
-          <AppButton :left-icon="icons.social.google">Google</AppButton>
-          <AppButton :left-icon="icons.social.discord">Discord</AppButton>
-          <AppButton :left-icon="icons.social.github">Github</AppButton>
+          <AppButton
+            :left-icon="icons.social.google"
+            :disabled="loading"
+            @click="submitOAuth('google')"
+          >
+            Google
+          </AppButton>
+          <AppButton
+            :left-icon="icons.social.discord"
+            :disabled="loading"
+            @click="submitOAuth('discord')"
+          >
+            Discord
+          </AppButton>
+          <AppButton
+            :left-icon="icons.social.github"
+            :disabled="loading"
+            @click="submitOAuth('github')"
+          >
+            GitHub
+          </AppButton>
         </div>
 
         <p class="auth-dialog__switch">
@@ -278,6 +379,13 @@ onBeforeUnmount(() => {
 
 .auth-dialog__indicator {
   display: none;
+}
+
+.auth-dialog__feedback {
+  color: var(--semantic-color-text-text-secondary);
+  font-size: var(--font-size-body-small);
+  line-height: var(--line-height-body);
+  text-align: center;
 }
 
 .auth-dialog__header {

@@ -5,7 +5,7 @@ import { storeToRefs } from 'pinia'
 import { authenticatedNavbarLinks, guestNavbarLinks, icons, ThemeApp } from '../../../config'
 import type { NavbarLink } from '../../../config'
 import type { ThemeMode } from '../../../config/theme'
-import { useThemeStore } from '../../../stores'
+import { useAuthStore, useThemeStore } from '../../../stores'
 import { AppAuthDialog, AppButton } from '../../ui'
 import type { AuthDialogMode } from '../../ui'
 
@@ -20,11 +20,11 @@ const props = withDefaults(
   }>(),
   {
     activeItem: 'Home',
-    authenticated: false,
-    profileSrc: '/images/profile/avatar-placeholder.png',
-    walletBalance: 1234567.89,
-    username: 'username',
-    email: 'admin@gmail.com',
+    authenticated: undefined,
+    profileSrc: undefined,
+    walletBalance: undefined,
+    username: undefined,
+    email: undefined,
   },
 )
 
@@ -48,8 +48,22 @@ let suppressNavigationClick = false
 let profileSheetPointerId: number | undefined
 let profileSheetStartY = 0
 const navbarLinks = computed<readonly NavbarLink[]>(() =>
-  props.authenticated ? authenticatedNavbarLinks : guestNavbarLinks,
+  resolvedAuthenticated.value ? authenticatedNavbarLinks : guestNavbarLinks,
 )
+const authStore = useAuthStore()
+const { currentUser, isAuthenticated } = storeToRefs(authStore)
+const resolvedAuthenticated = computed(() => props.authenticated ?? isAuthenticated.value)
+const resolvedProfileSrc = computed(
+  () =>
+    props.profileSrc ??
+    currentUser.value?.avatarUrl ??
+    '/images/profile/avatar-placeholder.png',
+)
+const resolvedUsername = computed(
+  () => props.username ?? currentUser.value?.username ?? currentUser.value?.displayName ?? 'User',
+)
+const resolvedEmail = computed(() => props.email ?? currentUser.value?.email ?? '')
+const resolvedWalletBalance = computed(() => props.walletBalance ?? 0)
 const themeStore = useThemeStore()
 const { currentTheme, isDarkTheme, selectedTheme } = storeToRefs(themeStore)
 const brandLockup = computed(() =>
@@ -57,7 +71,7 @@ const brandLockup = computed(() =>
 )
 const formattedWalletBalance = computed(
   () =>
-    `${props.walletBalance.toLocaleString('en-US', {
+    `${resolvedWalletBalance.value.toLocaleString('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })} THB`,
@@ -161,6 +175,11 @@ function closeProfileMenu() {
   isProfileSheetDragging.value = false
   isProfileSheetExpanded.value = false
   profileSheetPointerId = undefined
+}
+
+async function signOut() {
+  closeProfileMenu()
+  await authStore.signOut()
 }
 
 function toggleProfileMenu(event: MouseEvent) {
@@ -315,8 +334,8 @@ onBeforeUnmount(() => {
         </button>
       </nav>
 
-      <div class="actions" :class="{ 'actions--authenticated': authenticated }">
-        <template v-if="!authenticated">
+      <div class="actions" :class="{ 'actions--authenticated': resolvedAuthenticated }">
+        <template v-if="!resolvedAuthenticated">
           <button
             class="action-button action-button--text"
             type="button"
@@ -351,7 +370,7 @@ onBeforeUnmount(() => {
             <span>{{ formattedWalletBalance }}</span>
           </span>
           <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="profileSrc" alt="" />
+            <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
           </span>
         </button>
 
@@ -394,7 +413,7 @@ onBeforeUnmount(() => {
 
       <div class="mobile-navbar__actions">
         <button
-          v-if="!authenticated"
+          v-if="!resolvedAuthenticated"
           class="mobile-sign-in"
           type="button"
           @click="openAuthDialog('login')"
@@ -411,7 +430,7 @@ onBeforeUnmount(() => {
           @click.stop="toggleProfileMenu"
         >
           <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="profileSrc" alt="" />
+            <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
           </span>
         </button>
 
@@ -486,11 +505,11 @@ onBeforeUnmount(() => {
 
           <div class="profile-dialog__user">
           <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="profileSrc" alt="" />
+            <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
           </span>
           <span class="profile-dialog__identity">
-            <span class="profile-dialog__username">{{ username }}</span>
-            <span class="profile-dialog__email">{{ email }}</span>
+            <span class="profile-dialog__username">{{ resolvedUsername }}</span>
+            <span class="profile-dialog__email">{{ resolvedEmail }}</span>
           </span>
           </div>
 
@@ -553,7 +572,7 @@ onBeforeUnmount(() => {
           />
           </button>
 
-          <AppButton variant="secondary">Sign out</AppButton>
+          <AppButton variant="secondary" @click="signOut">Sign out</AppButton>
         </aside>
       </Transition>
 
@@ -620,7 +639,7 @@ onBeforeUnmount(() => {
           </nav>
 
             <AppButton
-              v-if="!authenticated"
+              v-if="!resolvedAuthenticated"
               variant="secondary"
               @click="openAuthDialog('register')"
             >
