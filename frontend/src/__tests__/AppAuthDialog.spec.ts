@@ -42,6 +42,11 @@ describe('AppAuthDialog', () => {
       'password123',
       'captcha-test-token',
     )
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[type="submit"]').text()).toContain('Email sent')
+
+    await wrapper.find('form').trigger('submit')
+    expect(signUp).toHaveBeenCalledTimes(1)
   })
 
   it('starts GitHub OAuth from the existing social button', async () => {
@@ -62,6 +67,11 @@ describe('AppAuthDialog', () => {
     const githubButton = wrapper
       .findAll('button')
       .find((button) => button.text().trim() === 'GitHub')
+
+    expect(githubButton?.attributes('disabled')).toBeDefined()
+    wrapper.findComponent(AppTurnstile).vm.$emit('verify', 'captcha-oauth-token')
+    await wrapper.vm.$nextTick()
+    expect(githubButton?.attributes('disabled')).toBeUndefined()
 
     await githubButton?.trigger('click')
 

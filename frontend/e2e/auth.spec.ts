@@ -42,6 +42,9 @@ test.describe('email authentication', () => {
     await expect(signupDialog).toContainText(
       'Check your email to confirm your account before signing in.',
     )
+    await expect(
+      signupDialog.getByRole('button', { name: 'Email sent', exact: true }),
+    ).toBeDisabled()
 
     const confirmationURL = await waitForConfirmationURL(request, email)
     await page.goto(confirmationURL)
