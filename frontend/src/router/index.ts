@@ -12,6 +12,11 @@ const router = createRouter({
       name: 'design-system',
       component: () => import('../views/DesignSystemView.vue'),
     },
+    {
+      path: '/auth/callback',
+      name: 'auth-callback',
+      component: () => import('../views/AuthCallbackView.vue'),
+    },
   ],
 })
 
