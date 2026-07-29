@@ -161,6 +161,8 @@ site_url = "http://127.0.0.1:5173"
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
 additional_redirect_urls = [
+  "http://localhost:5173/auth/callback",
+  "http://localhost:5174/auth/callback",
   "http://127.0.0.1:5173/auth/callback",
   "http://127.0.0.1:5174/auth/callback",
 ]

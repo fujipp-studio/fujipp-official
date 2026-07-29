@@ -38,6 +38,7 @@ const acceptedTerms = ref(false)
 const captchaToken = ref('')
 const captchaResetKey = ref(0)
 const feedback = ref('')
+const awaitingEmailConfirmation = ref(false)
 const sheetDrag = ref(0)
 const isDragging = ref(false)
 const isExpanded = ref(false)
@@ -56,6 +57,7 @@ const passwordsMatch = computed(
   () => hasConfirmPassword.value && password.value === confirmPassword.value,
 )
 const isFormValid = computed(() => {
+  if (awaitingEmailConfirmation.value) return false
   if (!hasValidEmail.value || !hasPassword.value || !captchaToken.value) return false
   if (!isRegister.value) return true
   return hasValidRegistrationPassword.value && passwordsMatch.value && acceptedTerms.value
@@ -74,6 +76,7 @@ const passwordSupport = computed(() =>
 
 function close() {
   emit('update:open', false)
+  awaitingEmailConfirmation.value = false
   resetCaptcha()
   sheetDrag.value = 0
   isDragging.value = false
@@ -85,12 +88,15 @@ function close() {
 
 function switchMode(mode: AuthDialogMode) {
   feedback.value = ''
+  awaitingEmailConfirmation.value = false
   resetCaptcha()
   authStore.clearError()
   emit('update:mode', mode)
 }
 
 async function submitEmailAuth() {
+  if (loading.value || awaitingEmailConfirmation.value) return
+
   feedback.value = ''
   const result = isRegister.value
     ? await authStore.signUp(email.value, password.value, captchaToken.value)
@@ -100,6 +106,7 @@ async function submitEmailAuth() {
 
   if (!result.success) return
   if (result.requiresEmailConfirmation) {
+    awaitingEmailConfirmation.value = true
     feedback.value = result.message ?? 'Check your email to confirm your account.'
     return
   }
@@ -109,6 +116,8 @@ async function submitEmailAuth() {
 }
 
 async function submitOAuth(provider: 'google' | 'discord' | 'github') {
+  if (loading.value || awaitingEmailConfirmation.value || !captchaToken.value) return
+
   feedback.value = ''
   await authStore.signInWithOAuth(provider)
 }
@@ -245,6 +254,7 @@ onBeforeUnmount(() => {
             autocomplete="email"
             label="Email"
             placeholder="you@example.com"
+            :disabled="awaitingEmailConfirmation"
             required
           />
           <AppTextField
@@ -256,6 +266,7 @@ onBeforeUnmount(() => {
             placeholder="Enter password"
             :support-text="passwordSupport"
             :state="passwordSupport ? 'error' : 'default'"
+            :disabled="awaitingEmailConfirmation"
             required
           />
           <AppTextField
@@ -266,11 +277,17 @@ onBeforeUnmount(() => {
             placeholder="Confirm password"
             :state="confirmPasswordState"
             :support-text="confirmPasswordSupport"
+            :disabled="awaitingEmailConfirmation"
             required
           />
 
           <label v-if="isRegister" class="auth-dialog__terms">
-            <input v-model="acceptedTerms" type="checkbox" required />
+            <input
+              v-model="acceptedTerms"
+              type="checkbox"
+              :disabled="awaitingEmailConfirmation"
+              required
+            />
             <span>
               Do you agree to our <a href="/terms">Terms</a> and
               <a href="/privacy">Privacy Policy</a>.
@@ -278,6 +295,7 @@ onBeforeUnmount(() => {
           </label>
 
           <AppTurnstile
+            v-if="!awaitingEmailConfirmation"
             :site-key="turnstileSiteKey"
             :reset-key="captchaResetKey"
             @verify="captchaToken = $event"
@@ -289,8 +307,19 @@ onBeforeUnmount(() => {
             {{ error ?? feedback }}
           </p>
 
-          <AppButton type="submit" :disabled="!isFormValid || loading">
-            {{ loading ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in' }}
+          <AppButton
+            type="submit"
+            :disabled="!isFormValid || loading || awaitingEmailConfirmation"
+          >
+            {{
+              loading
+                ? 'Please wait…'
+                : awaitingEmailConfirmation
+                  ? 'Email sent'
+                  : isRegister
+                    ? 'Create account'
+                    : 'Sign in'
+            }}
           </AppButton>
         </form>
 
@@ -303,21 +332,21 @@ onBeforeUnmount(() => {
         <div class="auth-dialog__socials">
           <AppButton
             :left-icon="icons.social.google"
-            :disabled="loading"
+            :disabled="loading || awaitingEmailConfirmation || !captchaToken"
             @click="submitOAuth('google')"
           >
             Google
           </AppButton>
           <AppButton
             :left-icon="icons.social.discord"
-            :disabled="loading"
+            :disabled="loading || awaitingEmailConfirmation || !captchaToken"
             @click="submitOAuth('discord')"
           >
             Discord
           </AppButton>
           <AppButton
             :left-icon="icons.social.github"
-            :disabled="loading"
+            :disabled="loading || awaitingEmailConfirmation || !captchaToken"
             @click="submitOAuth('github')"
           >
             GitHub
