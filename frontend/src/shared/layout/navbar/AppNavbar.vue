@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRouter } from 'vue-router'
 
 import { authenticatedNavbarLinks, guestNavbarLinks, icons, ThemeApp } from '../../../config'
 import type { NavbarLink } from '../../../config'
@@ -29,6 +30,8 @@ const props = withDefaults(
 )
 
 const selectedItem = ref(props.activeItem)
+const router = useRouter()
+const isAtPageTop = ref(true)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
 const isAuthDialogOpen = ref(false)
@@ -47,6 +50,7 @@ let navigationDragStartItem: string | undefined
 let suppressNavigationClick = false
 let profileSheetPointerId: number | undefined
 let profileSheetStartY = 0
+let navbarScrollFrame: number | undefined
 const navbarLinks = computed<readonly NavbarLink[]>(() =>
   resolvedAuthenticated.value ? authenticatedNavbarLinks : guestNavbarLinks,
 )
@@ -124,7 +128,7 @@ function moveNavigationDrag(event: PointerEvent) {
 function finishNavigationDrag() {
   if (!isNavigationDragging.value) return
   suppressNavigationClick = draggedNavigationItem.value !== navigationDragStartItem
-  if (draggedNavigationItem.value) selectedItem.value = draggedNavigationItem.value
+  if (draggedNavigationItem.value) navigateToItem(draggedNavigationItem.value)
   isNavigationDragging.value = false
   draggedNavigationItem.value = undefined
   navigationDragStartItem = undefined
@@ -136,7 +140,23 @@ function selectNavigationItem(label: string) {
     suppressNavigationClick = false
     return
   }
+  navigateToItem(label)
+}
+
+function navigateToItem(label: string) {
+  const item = navbarLinks.value.find((link) => link.label === label)
+  if (!item) return
+
+  const targetRoute = router.resolve(item.path)
+  if (targetRoute.matched.length === 0) return
+
   selectedItem.value = label
+  if (router.currentRoute.value.path !== targetRoute.path) void router.push(targetRoute)
+}
+
+function navigateHome() {
+  selectedItem.value = 'Home'
+  if (router.currentRoute.value.path !== '/') void router.push('/')
 }
 
 function resetNavigationPreview() {
@@ -145,6 +165,16 @@ function resetNavigationPreview() {
 
 function handleNavigationResize() {
   moveNavigationPill()
+}
+
+function updateNavbarScrollState() {
+  navbarScrollFrame = undefined
+  isAtPageTop.value = window.scrollY <= 16
+}
+
+function requestNavbarScrollUpdate() {
+  if (navbarScrollFrame !== undefined) return
+  navbarScrollFrame = window.requestAnimationFrame(updateNavbarScrollState)
 }
 
 function toggleQuickTheme(event: MouseEvent) {
@@ -258,7 +288,7 @@ function handleDocumentClick() {
 }
 
 function selectMobileItem(label: string) {
-  selectedItem.value = label
+  navigateToItem(label)
   closeMobileMenu()
 }
 
@@ -277,10 +307,19 @@ watch([selectedItem, navbarLinks], () => {
   void nextTick(() => moveNavigationPill())
 })
 
+watch(
+  () => props.activeItem,
+  (activeItem) => {
+    selectedItem.value = activeItem
+  },
+)
+
 onMounted(() => {
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('resize', handleNavigationResize)
+  window.addEventListener('scroll', requestNavbarScrollUpdate, { passive: true })
+  updateNavbarScrollState()
   void nextTick(() => moveNavigationPill())
 })
 
@@ -288,14 +327,16 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', handleEscape)
   document.removeEventListener('click', handleDocumentClick)
   window.removeEventListener('resize', handleNavigationResize)
+  window.removeEventListener('scroll', requestNavbarScrollUpdate)
+  if (navbarScrollFrame !== undefined) window.cancelAnimationFrame(navbarScrollFrame)
   document.body.style.overflow = ''
 })
 </script>
 
 <template>
-  <header class="navbar">
+  <header class="navbar" :class="{ 'navbar--at-top': isAtPageTop }">
     <div class="desktop-navbar">
-      <button class="brand" type="button" aria-label="Fujipp home">
+      <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
         <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
       </button>
 
@@ -406,7 +447,7 @@ onBeforeUnmount(() => {
           />
         </button>
 
-        <button class="brand" type="button" aria-label="Fujipp home">
+        <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
           <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
         </button>
       </div>
@@ -665,6 +706,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   width: 100%;
   max-width: 80rem;
+  margin-inline: auto;
   background: transparent;
   color: var(--semantic-color-text-text-primary);
 }
@@ -691,13 +733,21 @@ onBeforeUnmount(() => {
 .brand__lockup {
   width: var(--brand-lockup-width);
   height: var(--brand-lockup-height);
+  transform-origin: left top;
+  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.navbar--at-top .desktop-navbar > .brand .brand__lockup {
+  transform: scale(2.75);
 }
 
 .navigation {
   position: relative;
   isolation: isolate;
   display: flex;
-  height: 2rem;
+  height: 2.5rem;
+  margin-right: clamp(1.5rem, 4vw, 4rem);
+  margin-left: auto;
   align-items: center;
   gap: var(--space-md);
   font-family: var(--font-family-display);
@@ -711,28 +761,30 @@ onBeforeUnmount(() => {
   z-index: -1;
   top: 0;
   left: 0;
+  display: block;
   width: var(--navigation-pill-width);
   height: 100%;
-  border: 1px solid color-mix(in srgb, var(--semantic-color-border-border-default) 55%, transparent);
-  border-radius: var(--corner-radius-full);
+  border: 1px solid color-mix(
+    in srgb,
+    var(--semantic-color-border-border-default) 60%,
+    transparent
+  );
+  border-radius: var(--corner-radius-lg);
   background:
-    radial-gradient(
-      circle at 28% 18%,
-      color-mix(in srgb, var(--semantic-color-background-bg-default) 90%, transparent),
-      transparent 38%
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--semantic-color-background-bg-glass) 80%, transparent),
+      color-mix(in srgb, var(--semantic-color-background-bg-glass) 60%, transparent)
     ),
-    color-mix(in srgb, var(--semantic-color-background-bg-glass) 72%, transparent);
-  box-shadow:
-    inset 0 1px 1px color-mix(in srgb, var(--global-color-white-100) 75%, transparent),
-    inset 0 -1px 1px color-mix(in srgb, var(--semantic-color-text-text-primary) 12%, transparent),
-    var(--effect-shadow-sm);
+    transparent;
+  box-shadow: var(--effect-glass-highlight), var(--effect-shadow-button);
   pointer-events: none;
   transform: translateX(var(--navigation-pill-left)) scale(1);
   transform-origin: center;
-  backdrop-filter: blur(var(--effect-backdrop-blur-sm)) saturate(1.35);
+  backdrop-filter: blur(0) saturate(1.5);
   transition:
-    width 360ms cubic-bezier(0.22, 1.35, 0.36, 1),
-    transform 360ms cubic-bezier(0.22, 1.35, 0.36, 1);
+    width 420ms cubic-bezier(0.22, 1.35, 0.36, 1),
+    transform 420ms cubic-bezier(0.22, 1.35, 0.36, 1);
 }
 
 .navigation--dragging {
@@ -755,7 +807,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--corner-radius-full);
   padding-inline: var(--space-sm);
   background: transparent;
@@ -764,6 +816,9 @@ onBeforeUnmount(() => {
   text-decoration: none;
   touch-action: none;
   transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease,
     color 160ms ease,
     transform 160ms ease;
 }
@@ -778,6 +833,11 @@ onBeforeUnmount(() => {
 
 .navigation__link:hover {
   transform: translateY(-1px);
+}
+
+.navigation__link--active {
+  border-color: transparent;
+  background: transparent;
 }
 
 .actions {

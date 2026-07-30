@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { AppFooter, AppNavbar } from '../../../shared/layout'
+import { AppFooter } from '../../../shared/layout'
 import {
   AboutUsSection,
   ProblemSolutionSection,
@@ -27,8 +27,6 @@ onBeforeUnmount(() => document.documentElement.classList.remove('home-section-sc
     </div>
 
     <ScrollProgressIndicator />
-    <AppNavbar active-item="Home" />
-
     <main class="home-main">
       <section id="home-hero" ref="heroSection" class="home-hero">
         <div class="home-hero__copy" :style="heroFadeStyle">

@@ -40,17 +40,20 @@
     outline-offset: 2px;
   }
 
+  html.about-section-scroll,
   html.home-section-scroll {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
     scrollbar-gutter: auto;
     scrollbar-width: none;
   }
 
+  html.about-section-scroll::-webkit-scrollbar,
   html.home-section-scroll::-webkit-scrollbar {
     display: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
+    html.about-section-scroll,
     html.home-section-scroll {
       scroll-behavior: auto;
     }
