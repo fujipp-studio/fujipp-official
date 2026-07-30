@@ -14,6 +14,9 @@ const props = withDefaults(
     leftIcon?: IconSource
     rightIcon?: IconSource
     disabled?: boolean
+    href?: string
+    target?: '_blank' | '_self'
+    rel?: string
   }>(),
   {
     variant: 'primary',
@@ -21,10 +24,13 @@ const props = withDefaults(
     leftIcon: undefined,
     rightIcon: undefined,
     disabled: false,
+    href: undefined,
+    target: undefined,
+    rel: undefined,
   },
 )
 
-const buttonElement = ref<HTMLButtonElement>()
+const buttonElement = ref<HTMLButtonElement | HTMLAnchorElement>()
 
 function updatePointerTilt(event: PointerEvent) {
   if (props.disabled || !buttonElement.value) return
@@ -42,12 +48,18 @@ function resetPointerTilt() {
 </script>
 
 <template>
-  <button
+  <component
+    :is="href ? 'a' : 'button'"
     ref="buttonElement"
     class="app-button"
     :class="`app-button--${variant}`"
-    :type="type"
-    :disabled="disabled"
+    :type="href ? undefined : type"
+    :disabled="href ? undefined : disabled"
+    :href="disabled ? undefined : href"
+    :target="href ? target : undefined"
+    :rel="href ? rel : undefined"
+    :aria-disabled="href && disabled ? 'true' : undefined"
+    :tabindex="href && disabled ? -1 : undefined"
     @pointermove="updatePointerTilt"
     @pointerleave="resetPointerTilt"
   >
@@ -80,7 +92,7 @@ function resetPointerTilt() {
       :style="{ '--button-icon': `url(${rightIcon})` }"
       aria-hidden="true"
     />
-  </button>
+  </component>
 </template>
 
 <style scoped>
@@ -106,6 +118,7 @@ function resetPointerTilt() {
   font-size: var(--font-size-label-large);
   line-height: var(--line-height-label);
   text-align: center;
+  text-decoration: none;
   transition:
     background-color 160ms ease,
     box-shadow 160ms ease,
