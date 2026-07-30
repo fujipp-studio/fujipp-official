@@ -659,10 +659,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .navbar {
+  position: sticky;
+  z-index: var(--z-sticky);
+  top: 0;
   box-sizing: border-box;
   width: 100%;
   max-width: 80rem;
-  background: var(--semantic-color-background-bg-default);
+  background: transparent;
   color: var(--semantic-color-text-text-primary);
 }
 

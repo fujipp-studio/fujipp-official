@@ -96,7 +96,7 @@ const brandLockup = computed(() =>
   align-items: stretch;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
-  background: var(--semantic-color-background-bg-default);
+  background: transparent;
   color: var(--semantic-color-text-text-primary);
   font-family: var(--font-family-sans);
   font-size: var(--font-size-body-medium);

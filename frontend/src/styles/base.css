@@ -12,6 +12,15 @@
     color: var(--semantic-color-text-text-primary);
     font-family: var(--font-family-sans);
     font-synthesis: none;
+    scrollbar-color:
+      color-mix(
+        in srgb,
+        var(--semantic-color-text-text-primary) 72%,
+        var(--semantic-color-background-bg-default)
+      )
+      transparent;
+    scrollbar-gutter: stable;
+    scrollbar-width: thin;
   }
 
   body,
@@ -29,5 +38,43 @@
   :focus-visible {
     outline: 2px solid var(--semantic-color-action-borders-border-focus);
     outline-offset: 2px;
+  }
+
+  html.home-section-scroll {
+    scroll-behavior: smooth;
+    scrollbar-gutter: auto;
+    scrollbar-width: none;
+  }
+
+  html.home-section-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html.home-section-scroll {
+      scroll-behavior: auto;
+    }
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: var(--corner-radius-full);
+    background-color: color-mix(
+      in srgb,
+      var(--semantic-color-text-text-primary) 72%,
+      var(--semantic-color-background-bg-default)
+    );
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--semantic-color-text-text-primary);
   }
 }
