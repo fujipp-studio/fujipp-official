@@ -1,6 +1,6 @@
 export interface HomeFeature {
-  title: string
-  description: string
+  titleKey: string
+  descriptionKey: string
 }
 
 export interface TrustedCommunity {
@@ -10,14 +10,12 @@ export interface TrustedCommunity {
 
 export const homeFeatures = [
   {
-    title: 'Custom Bot Features',
-    description:
-      'Upgrade your server with our pre-built or custom-made features. Choose exactly what your community needs.',
+    titleKey: 'home.services.customTitle',
+    descriptionKey: 'home.services.customDescription',
   },
   {
-    title: 'Flexible Runtime Plans',
-    description:
-      'Keep your bot online 24/7. We offer flexible runtime subscriptions tailored to your needs available in 1, 2, or 3 month plans.',
+    titleKey: 'home.services.runtimeTitle',
+    descriptionKey: 'home.services.runtimeDescription',
   },
 ] satisfies readonly HomeFeature[]
 

@@ -1,2 +1,5 @@
+export { default as AppFileField } from './AppFileField.vue'
+export { default as AppMultiSelect } from './AppMultiSelect.vue'
 export { default as AppTextField } from './AppTextField.vue'
+export { default as AppTextArea } from './AppTextArea.vue'
 export type { TextFieldOption, TextFieldState, TextFieldVariant } from './types'

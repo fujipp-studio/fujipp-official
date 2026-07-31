@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { aboutSections } from '../config'
 
 const activeSection = ref(0)
+const { t } = useI18n()
 let animationFrame: number | undefined
 let scrollAnimationFrame: number | undefined
 let previousScrollBehavior = ''
@@ -103,12 +105,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <nav class="about-section-navigation" aria-label="About sections">
+  <nav class="about-section-navigation" :aria-label="t('about.sections.navigationLabel')">
     <button
       v-for="(section, index) in aboutSections"
       :key="section.id"
       type="button"
-      :aria-label="`Go to ${section.label}`"
+      :aria-label="t('about.sections.goTo', { section: t(section.labelKey) })"
       :aria-current="index === activeSection ? 'step' : undefined"
       :class="{ 'about-section-navigation__button--active': index === activeSection }"
       @click="goToSection(section.id)"

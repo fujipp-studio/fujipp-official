@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { homeFeatures } from '../config'
 import { useScrollFade } from '../composables/useScrollFade'
 
 const section = ref<HTMLElement>()
 const fadeStyle = useScrollFade(section, 'both')
+const { t } = useI18n()
 </script>
 
 <template>
@@ -16,15 +18,15 @@ const fadeStyle = useScrollFade(section, 'both')
     aria-labelledby="services-features-title"
   >
     <div class="services-features-section__content" :style="fadeStyle">
-      <h2 id="services-features-title">Premium Bot Features &amp; Reliable Hosting</h2>
+      <h2 id="services-features-title">{{ t('home.services.title') }}</h2>
 
       <article
         v-for="feature in homeFeatures"
-        :key="feature.title"
+        :key="feature.titleKey"
         class="services-features-section__feature"
       >
-        <h3>{{ feature.title }}</h3>
-        <p>{{ feature.description }}</p>
+        <h3>{{ t(feature.titleKey) }}</h3>
+        <p>{{ t(feature.descriptionKey) }}</p>
       </article>
     </div>
   </section>

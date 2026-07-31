@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 import { authenticatedNavbarLinks, guestNavbarLinks, icons, ThemeApp } from '../../../config'
 import type { NavbarLink } from '../../../config'
 import type { ThemeMode } from '../../../config/theme'
+import { setAppLocale } from '../../../i18n'
 import { useAuthStore, useThemeStore } from '../../../stores'
 import { AppAuthDialog, AppButton } from '../../ui'
 import type { AuthDialogMode } from '../../ui'
@@ -30,13 +32,15 @@ const props = withDefaults(
 )
 
 const selectedItem = ref(props.activeItem)
+const route = useRoute()
 const router = useRouter()
+const { locale, t } = useI18n()
 const isAtPageTop = ref(true)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
 const isAuthDialogOpen = ref(false)
 const authDialogMode = ref<AuthDialogMode>('login')
-const selectedLanguage = ref<'TH' | 'EN'>('TH')
+const selectedLanguage = ref<'TH' | 'EN'>(locale.value === 'th' ? 'TH' : 'EN')
 const profileMenuPosition = ref({ top: 0, right: 12 })
 const profileSheetDrag = ref(0)
 const isProfileSheetDragging = ref(false)
@@ -147,16 +151,50 @@ function navigateToItem(label: string) {
   const item = navbarLinks.value.find((link) => link.label === label)
   if (!item) return
 
-  const targetRoute = router.resolve(item.path)
+  const targetRoute = router.resolve({ path: item.path, query: localeQuery() })
   if (targetRoute.matched.length === 0) return
 
   selectedItem.value = label
-  if (router.currentRoute.value.path !== targetRoute.path) void router.push(targetRoute)
+  if (router.currentRoute.value.path !== targetRoute.path) {
+    void router.push({ path: targetRoute.path, query: localeQuery() })
+    return
+  }
+
+  scrollToPageTop()
 }
 
 function navigateHome() {
   selectedItem.value = 'Home'
-  if (router.currentRoute.value.path !== '/') void router.push('/')
+  if (router.currentRoute.value.path !== '/') {
+    void router.push({ path: '/', query: localeQuery() })
+    return
+  }
+
+  scrollToPageTop()
+}
+
+function localeQuery() {
+  return locale.value === 'th' ? { locale: 'th' } : {}
+}
+
+function navigationLabel(item: NavbarLink) {
+  const keyByPath: Record<string, string> = {
+    '/': 'navigation.home',
+    '/work': 'navigation.work',
+    '/about': 'navigation.about',
+    '/store': 'navigation.store',
+    '/my-bot': 'navigation.myBot',
+    '/add-credit': 'navigation.addCredit',
+  }
+  return t(keyByPath[item.path] ?? item.label)
+}
+
+function scrollToPageTop() {
+  window.scrollTo({
+    top: 0,
+    left: 0,
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+  })
 }
 
 function resetNavigationPreview() {
@@ -237,6 +275,17 @@ function selectTheme(mode: ThemeMode, event: MouseEvent) {
   })
 }
 
+async function selectLanguage(language: 'TH' | 'EN') {
+  if (selectedLanguage.value === language) return
+  selectedLanguage.value = language
+  setAppLocale(language === 'TH' ? 'th' : 'en')
+  const query = { ...route.query }
+  if (language === 'TH') query.locale = 'th'
+  else delete query.locale
+  await router.replace({ query })
+  closeProfileMenu()
+}
+
 function startProfileSheetDrag(event: PointerEvent) {
   if (!window.matchMedia('(max-width: 47.99rem)').matches) return
 
@@ -314,6 +363,15 @@ watch(
   },
 )
 
+watch(
+  () => route.query.locale,
+  (value) => {
+    const nextLocale = value === 'th' ? 'th' : 'en'
+    selectedLanguage.value = nextLocale === 'th' ? 'TH' : 'EN'
+    setAppLocale(nextLocale)
+  },
+)
+
 onMounted(() => {
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('click', handleDocumentClick)
@@ -371,7 +429,7 @@ onBeforeUnmount(() => {
           @pointerenter="previewNavigationItem(item.label)"
           @pointerdown="startNavigationDrag($event, item.label)"
         >
-          {{ item.label }}
+          {{ navigationLabel(item) }}
         </button>
       </nav>
 
@@ -382,14 +440,14 @@ onBeforeUnmount(() => {
             type="button"
             @click="openAuthDialog('login')"
           >
-            Sign in
+            {{ t('navigation.signIn') }}
           </button>
           <button
             class="action-button action-button--outline"
             type="button"
             @click="openAuthDialog('register')"
           >
-            <span>Sign up</span>
+            <span>{{ t('navigation.signUp') }}</span>
           </button>
         </template>
 
@@ -459,7 +517,7 @@ onBeforeUnmount(() => {
           type="button"
           @click="openAuthDialog('login')"
         >
-          Sign in
+          {{ t('navigation.signIn') }}
         </button>
         <button
           v-else
@@ -528,7 +586,7 @@ onBeforeUnmount(() => {
           <span class="profile-dialog__indicator" aria-hidden="true" />
           <div class="profile-dialog__title-row">
             <span class="profile-dialog__title-spacer" aria-hidden="true" />
-            <strong>Setting</strong>
+            <strong>{{ t('navigation.setting') }}</strong>
             <button
               class="mobile-icon-button"
               type="button"
@@ -557,7 +615,7 @@ onBeforeUnmount(() => {
           <div class="profile-dialog__divider" />
 
           <div class="profile-dialog__row">
-          <span class="profile-dialog__label">Theme</span>
+          <span class="profile-dialog__label">{{ t('navigation.theme') }}</span>
           <div class="profile-dialog__options" aria-label="Theme">
             <button
               v-for="theme in ThemeApp"
@@ -579,7 +637,7 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="profile-dialog__row">
-          <span class="profile-dialog__label">Language</span>
+          <span class="profile-dialog__label">{{ t('navigation.language') }}</span>
           <div class="profile-dialog__options" aria-label="Language">
             <button
               class="profile-dialog__language-button"
@@ -587,7 +645,7 @@ onBeforeUnmount(() => {
               type="button"
               aria-label="Thai"
               :aria-pressed="selectedLanguage === 'TH'"
-              @click="selectedLanguage = 'TH'"
+              @click="selectLanguage('TH')"
             >
               <img :src="icons.language.thai" alt="" />
             </button>
@@ -597,7 +655,7 @@ onBeforeUnmount(() => {
               type="button"
               aria-label="English"
               :aria-pressed="selectedLanguage === 'EN'"
-              @click="selectedLanguage = 'EN'"
+              @click="selectLanguage('EN')"
             >
               <img :src="icons.language.english" alt="" />
             </button>
@@ -605,7 +663,7 @@ onBeforeUnmount(() => {
           </div>
 
           <button class="profile-dialog__row profile-dialog__manage" type="button">
-          <span class="profile-dialog__label">Manage Account</span>
+          <span class="profile-dialog__label">{{ t('navigation.manageAccount') }}</span>
           <span
             class="profile-dialog__arrow"
             :style="{ '--dialog-icon': `url(${icons.base.arrowRight})` }"
@@ -613,7 +671,7 @@ onBeforeUnmount(() => {
           />
           </button>
 
-          <AppButton variant="secondary" @click="signOut">Sign out</AppButton>
+          <AppButton variant="secondary" @click="signOut">{{ t('navigation.signOut') }}</AppButton>
         </aside>
       </Transition>
 
@@ -668,7 +726,7 @@ onBeforeUnmount(() => {
                   :style="{ '--mobile-icon': `url(${item.icon})` }"
                   aria-hidden="true"
                 />
-                <span>{{ item.label }}</span>
+                <span>{{ navigationLabel(item) }}</span>
               </span>
 
               <span
@@ -684,7 +742,7 @@ onBeforeUnmount(() => {
               variant="secondary"
               @click="openAuthDialog('register')"
             >
-              Sign up
+              {{ t('navigation.signUp') }}
             </AppButton>
           </aside>
         </div>

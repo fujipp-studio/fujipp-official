@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { AppFooter } from '../../../shared/layout'
 import {
@@ -13,6 +14,7 @@ import { useScrollFade } from '../composables/useScrollFade'
 
 const heroSection = ref<HTMLElement>()
 const heroFadeStyle = useScrollFade(heroSection, 'exit')
+const { t } = useI18n()
 
 onMounted(() => document.documentElement.classList.add('home-section-scroll'))
 onBeforeUnmount(() => document.documentElement.classList.remove('home-section-scroll'))
@@ -30,12 +32,9 @@ onBeforeUnmount(() => document.documentElement.classList.remove('home-section-sc
     <main class="home-main">
       <section id="home-hero" ref="heroSection" class="home-hero">
         <div class="home-hero__copy" :style="heroFadeStyle">
-          <h1>Building ideas into</h1>
-          <p class="home-hero__accent">real experiences.</p>
-          <p class="home-hero__summary">
-            A personal platform for thoughtful software, practical projects, and Discord bot
-            services built to run reliably.
-          </p>
+          <h1>{{ t('home.hero.title') }}</h1>
+          <p class="home-hero__accent">{{ t('home.hero.accent') }}</p>
+          <p class="home-hero__summary">{{ t('home.hero.summary') }}</p>
         </div>
       </section>
 

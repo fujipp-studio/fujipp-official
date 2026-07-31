@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { trustedCommunities } from '../config'
 import { useScrollFade } from '../composables/useScrollFade'
 
 const section = ref<HTMLElement>()
 const fadeStyle = useScrollFade(section, 'both')
+const { t } = useI18n()
 </script>
 
 <template>
@@ -17,14 +19,11 @@ const fadeStyle = useScrollFade(section, 'both')
   >
     <div class="trusted-by-section__container" :style="fadeStyle">
       <div class="trusted-by-section__copy">
-        <h2 id="trusted-by-title">Trusted by Real Server Owners</h2>
-        <p>
-          Join our growing community! Currently powering custom bots and delivering smooth
-          experiences for 3 active Discord communities.
-        </p>
+        <h2 id="trusted-by-title">{{ t('home.trusted.title') }}</h2>
+        <p>{{ t('home.trusted.description') }}</p>
       </div>
 
-      <ul class="trusted-by-section__communities" aria-label="Trusted communities">
+      <ul class="trusted-by-section__communities" :aria-label="t('home.trusted.listLabel')">
         <li v-for="community in trustedCommunities" :key="community.name">
           <img :src="community.image" :alt="community.name" />
         </li>
