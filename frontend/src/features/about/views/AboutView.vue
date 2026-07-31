@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 
 import { AppFooter } from '../../../shared/layout'
 import { AppButton } from '../../../shared/ui'
@@ -10,13 +11,15 @@ import { AboutSectionNavigation, SkillGroupCard } from '../components'
 import { experienceHighlights, skillGroups } from '../config'
 
 const { isDarkTheme } = storeToRefs(useThemeStore())
+const { t } = useI18n()
 const profileImageSrc = computed(() =>
   isDarkTheme.value
     ? '/images/about/anawat-grudtoop-profile-cropped.png'
     : '/images/about/anawat-grudtoop-profile-512.png',
 )
 const birthDate = { year: 2003, month: 10, day: 26 }
-const liveAge = ref(formatLiveAge())
+const ageClock = ref(new Date())
+const liveAge = computed(() => formatLiveAge(ageClock.value))
 const backgroundCanvas = ref<HTMLCanvasElement>()
 let ageTimer: number | undefined
 let backgroundResizeObserver: ResizeObserver | undefined
@@ -153,7 +156,7 @@ function formatLiveAge(now = new Date()) {
   const lastBirthdayUtc = Date.UTC(lastBirthdayYear, birthDate.month, birthDate.day)
   const days = Math.floor((todayUtc - lastBirthdayUtc) / 86_400_000)
 
-  return `${years} Years ${days} Days`
+  return t('about.profile.age', { years, days })
 }
 
 onMounted(() => {
@@ -174,7 +177,7 @@ onMounted(() => {
     drawBackground()
   }
   ageTimer = window.setInterval(() => {
-    liveAge.value = formatLiveAge()
+    ageClock.value = new Date()
   }, 60_000)
 })
 
@@ -201,7 +204,7 @@ onBeforeUnmount(() => {
             <div class="about-profile__image">
               <img
                 :src="profileImageSrc"
-                alt="Portrait of Anawat Grudtoop"
+                :alt="t('about.profile.portraitAlt')"
                 width="512"
                 height="512"
                 decoding="async"
@@ -211,19 +214,16 @@ onBeforeUnmount(() => {
             </div>
             <div class="about-profile__details">
               <p class="about-profile__age">{{ liveAge }}</p>
-              <p class="about-profile__location">Thai · Bangkok</p>
+              <p class="about-profile__location">{{ t('about.profile.location') }}</p>
             </div>
           </div>
 
           <div class="about-copy">
               <h1>Anawat Grudtoop</h1>
-              <p>
-                I turn complex requirements into practical, maintainable software through thoughtful
-                system design and clear collaboration.
-              </p>
-              <h2 class="about-copy__education">Education</h2>
-              <p>King Mongkut&apos;s University of Technology Thonburi</p>
-              <div class="about-profile__links" aria-label="Contact links">
+              <p>{{ t('about.profile.introduction') }}</p>
+              <h2 class="about-copy__education">{{ t('about.profile.education') }}</h2>
+              <p>{{ t('about.profile.university') }}</p>
+              <div class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
                 <AppButton
                   href="https://github.com/Fujipp"
                   target="_blank"
@@ -244,7 +244,7 @@ onBeforeUnmount(() => {
                   href="mailto:anawat.grudtoop@gmail.com"
                   :left-icon="icons.social.email"
                 >
-                  Mail
+                  {{ t('about.profile.mail') }}
                 </AppButton>
               </div>
           </div>
@@ -253,33 +253,32 @@ onBeforeUnmount(() => {
       <section id="about-skills" class="about-section about-skills">
         <header class="about-skills__heading">
           <div>
-            <h2>Built across the stack</h2>
+            <h2>{{ t('about.skills.title') }}</h2>
           </div>
           <p class="about-skills__statement">
-            A practical toolkit shaped by shipping complete products—from interface to
-            infrastructure.
+            {{ t('about.skills.description') }}
           </p>
         </header>
 
         <div class="about-skills__grid">
-          <SkillGroupCard v-for="group in skillGroups" :key="group.title" :group="group" />
+          <SkillGroupCard v-for="group in skillGroups" :key="group.titleKey" :group="group" />
         </div>
       </section>
 
       <section id="about-experience" class="about-section about-experience">
         <div class="about-experience__heading">
-          <h2>Build with ownership.<br />Learn for a lifetime.</h2>
+          <h2>{{ t('about.experience.title') }}</h2>
           <div class="about-experience__role">
-            <strong>Programmer (Full Stack Developer)</strong>
-            <span>6 month internship</span>
+            <strong>{{ t('about.experience.role') }}</strong>
+            <span>{{ t('about.experience.duration') }}</span>
           </div>
-          <p>Yip In Tsoi &amp; Co., Ltd.</p>
+          <p>{{ t('about.experience.company') }}</p>
         </div>
 
         <div class="about-experience__grid">
-          <article v-for="highlight in experienceHighlights" :key="highlight.title">
-            <h3>{{ highlight.title }}</h3>
-            <p>{{ highlight.description }}</p>
+          <article v-for="highlight in experienceHighlights" :key="highlight.titleKey">
+            <h3>{{ t(highlight.titleKey) }}</h3>
+            <p>{{ t(highlight.descriptionKey) }}</p>
           </article>
         </div>
       </section>
@@ -297,18 +296,15 @@ onBeforeUnmount(() => {
           />
 
           <div class="about-copy">
-            <h2>Could I be a fit for your team?</h2>
-            <p>
-              I&apos;m exploring software development opportunities across frontend, backend,
-              full-stack, automation, and application development.
-            </p>
+            <h2>{{ t('about.contact.title') }}</h2>
+            <p>{{ t('about.contact.description') }}</p>
             <div class="about-contact__button">
               <AppButton
                 variant="primary"
                 href="mailto:anawat.grudtoop@gmail.com"
                 :left-icon="icons.social.email"
               >
-                Contact me
+                {{ t('about.contact.action') }}
               </AppButton>
             </div>
           </div>
@@ -746,6 +742,7 @@ onBeforeUnmount(() => {
   font-weight: var(--typography-font-weight-medium);
   letter-spacing: -0.055em;
   line-height: 0.94;
+  white-space: pre-line;
 }
 
 .about-experience .about-eyebrow,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import { icons } from '../../../config'
@@ -9,9 +10,10 @@ import { useScrollFade } from '../composables/useScrollFade'
 const section = ref<HTMLElement>()
 const fadeStyle = useScrollFade(section, 'both')
 const router = useRouter()
+const { locale, t } = useI18n()
 
 function viewProjects() {
-  void router.push('/work')
+  void router.push({ path: '/work', query: locale.value === 'th' ? { locale: 'th' } : {} })
 }
 </script>
 
@@ -23,12 +25,8 @@ function viewProjects() {
     aria-labelledby="about-us-title"
   >
     <div class="about-us-section__content" :style="fadeStyle">
-      <h2 id="about-us-title">The Developer Behind the Bots</h2>
-      <p>
-        More than just a bot shop, this platform is my personal web application and portfolio. I
-        built this space to showcase my development skills while providing top-tier Discord bot
-        services for server creators. Let&apos;s build something awesome together!
-      </p>
+      <h2 id="about-us-title">{{ t('home.about.title') }}</h2>
+      <p>{{ t('home.about.description') }}</p>
 
       <div class="about-us-section__button">
         <AppButton
@@ -36,7 +34,7 @@ function viewProjects() {
           :right-icon="icons.base.arrowRight"
           @click="viewProjects"
         >
-          View all my projects
+          {{ t('home.about.action') }}
         </AppButton>
       </div>
     </div>

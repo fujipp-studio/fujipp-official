@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { useScrollFade } from '../composables/useScrollFade'
 
 const section = ref<HTMLElement>()
 const fadeStyle = useScrollFade(section, 'both')
+const { t } = useI18n()
 </script>
 
 <template>
@@ -15,19 +17,18 @@ const fadeStyle = useScrollFade(section, 'both')
     aria-labelledby="problem-solution-title"
   >
     <h2 id="problem-solution-title" class="problem-solution-section__title" :style="fadeStyle">
-      Say Goodbye to Complicated Bot Setup.
+      {{ t('home.problem.title') }}
     </h2>
 
     <div class="problem-solution-section__visual" :style="fadeStyle">
       <img
         src="/images/home/developer-portal-display.png"
-        alt="Discord developer portal displayed on a floating Studio Display"
+        :alt="t('home.problem.imageAlt')"
       />
     </div>
 
     <p class="problem-solution-section__description" :style="fadeStyle">
-      Building and hosting a Discord bot used to be a headache. Not anymore. We make it
-      effortless to set up, customize, and run your dream bot without the technical hassle.
+      {{ t('home.problem.description') }}
     </p>
   </section>
 </template>

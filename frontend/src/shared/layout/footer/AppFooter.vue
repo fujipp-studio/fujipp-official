@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 
 import { icons } from '../../../config'
 import { useThemeStore } from '../../../stores'
 import type { FooterLink, FooterSocialLink } from './types'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     tagline?: string
     copyright?: string
@@ -32,9 +33,26 @@ withDefaults(
 )
 
 const themeStore = useThemeStore()
+const { t } = useI18n()
 const { isDarkTheme } = storeToRefs(themeStore)
 const brandLockup = computed(() =>
   isDarkTheme.value ? icons.brand.lockupDark : icons.brand.lockup,
+)
+const resolvedTagline = computed(() =>
+  props.tagline === 'Building ideas, one commit at a time.' ? t('footer.tagline') : props.tagline,
+)
+const resolvedLinks = computed(() =>
+  props.links.map((link) => ({
+    ...link,
+    label:
+      link.href === '/terms'
+        ? t('footer.terms')
+        : link.href === '/privacy'
+          ? t('footer.privacy')
+          : link.href === '/changelog'
+            ? t('footer.changelog')
+            : link.label,
+  })),
 )
 </script>
 
@@ -45,11 +63,11 @@ const brandLockup = computed(() =>
     <div class="footer__company">
       <div class="footer__brand">
         <img class="footer__logo" :src="brandLockup" alt="Fujipp" />
-        <p class="footer__tagline">{{ tagline }}</p>
+        <p class="footer__tagline">{{ resolvedTagline }}</p>
       </div>
 
-      <nav class="footer__legal-links" aria-label="Legal">
-        <a v-for="link in links" :key="link.href" :href="link.href">
+      <nav class="footer__legal-links" :aria-label="t('footer.legalLabel')">
+        <a v-for="link in resolvedLinks" :key="link.href" :href="link.href">
           {{ link.label }}
         </a>
       </nav>
@@ -58,7 +76,11 @@ const brandLockup = computed(() =>
     <div class="footer__bottom">
       <p>{{ copyright }}</p>
 
-      <nav v-if="socialLinks.length" class="footer__social-links" aria-label="Social media">
+      <nav
+        v-if="socialLinks.length"
+        class="footer__social-links"
+        :aria-label="t('footer.socialLabel')"
+      >
         <template v-for="link in socialLinks" :key="link.label">
           <a
             v-if="link.href"
@@ -92,6 +114,7 @@ const brandLockup = computed(() =>
   display: flex;
   width: 100%;
   max-width: 80rem;
+  margin-inline: auto;
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-xs);

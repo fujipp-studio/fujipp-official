@@ -17,7 +17,9 @@ const props = withDefaults(
     options?: readonly TextFieldOption[]
     name?: string
     autocomplete?: string
-    inputType?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url'
+    inputType?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'date'
+    maxlength?: number
+    pattern?: string
     disabled?: boolean
     required?: boolean
   }>(),
@@ -33,6 +35,8 @@ const props = withDefaults(
     name: undefined,
     autocomplete: undefined,
     inputType: 'text',
+    maxlength: undefined,
+    pattern: undefined,
     disabled: false,
     required: false,
   },
@@ -179,6 +183,8 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
         :name="name"
         :autocomplete="autocomplete"
         :placeholder="placeholder"
+        :maxlength="maxlength"
+        :pattern="pattern"
         :disabled="disabled"
         :required="required"
         :aria-invalid="state === 'error'"

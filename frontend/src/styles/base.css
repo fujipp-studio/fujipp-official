@@ -41,20 +41,26 @@
   }
 
   html.about-section-scroll,
-  html.home-section-scroll {
+  html.home-section-scroll,
+  html.section-scroll,
+  html.work-section-scroll {
     scroll-behavior: auto;
     scrollbar-gutter: auto;
     scrollbar-width: none;
   }
 
   html.about-section-scroll::-webkit-scrollbar,
-  html.home-section-scroll::-webkit-scrollbar {
+  html.home-section-scroll::-webkit-scrollbar,
+  html.section-scroll::-webkit-scrollbar,
+  html.work-section-scroll::-webkit-scrollbar {
     display: none;
   }
 
   @media (prefers-reduced-motion: reduce) {
     html.about-section-scroll,
-    html.home-section-scroll {
+    html.home-section-scroll,
+    html.section-scroll,
+    html.work-section-scroll {
       scroll-behavior: auto;
     }
   }

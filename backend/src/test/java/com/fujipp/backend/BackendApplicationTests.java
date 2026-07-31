@@ -10,8 +10,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fujipp.backend.auth.CurrentUserRepository;
 import com.fujipp.backend.security.SecurityAuditService;
+import com.fujipp.backend.work.WorkRepository;
+import com.fujipp.backend.work.admin.AdminWorkRepository;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
@@ -27,6 +31,12 @@ class BackendApplicationTests {
 
     @MockitoBean
     private CurrentUserRepository currentUserRepository;
+
+    @MockitoBean
+    private WorkRepository workRepository;
+
+    @MockitoBean
+    private AdminWorkRepository adminWorkRepository;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -48,6 +58,18 @@ class BackendApplicationTests {
     void apiRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/private"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void localFrontendOriginsAreAllowedByCors() throws Exception {
+        mockMvc.perform(options("/api/v1/works")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Access-Control-Allow-Origin",
+                        "http://localhost:5173"
+                ));
     }
 
 }

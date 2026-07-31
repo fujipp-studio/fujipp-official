@@ -34,21 +34,21 @@ export interface SkillItem {
 }
 
 export interface SkillGroup {
-  title: string
+  titleKey: string
   category: 'language' | 'frontend' | 'backend' | 'database' | 'infra'
   skills: readonly SkillItem[]
 }
 
 export const aboutSections = [
-  { id: 'about-profile', label: 'About me' },
-  { id: 'about-skills', label: 'Skills' },
-  { id: 'about-experience', label: 'Experience' },
-  { id: 'about-contact', label: 'Contact' },
+  { id: 'about-profile', labelKey: 'about.sections.profile' },
+  { id: 'about-skills', labelKey: 'about.sections.skills' },
+  { id: 'about-experience', labelKey: 'about.sections.experience' },
+  { id: 'about-contact', labelKey: 'about.sections.contact' },
 ] as const
 
 export const skillGroups = [
   {
-    title: 'Language',
+    titleKey: 'about.skills.language',
     category: 'language',
     skills: [
       { label: 'HTML', icon: siHtml5 },
@@ -61,7 +61,7 @@ export const skillGroups = [
     ],
   },
   {
-    title: 'Frontend',
+    titleKey: 'about.skills.frontend',
     category: 'frontend',
     skills: [
       { label: 'Vue.js', icon: siVuedotjs },
@@ -71,7 +71,7 @@ export const skillGroups = [
     ],
   },
   {
-    title: 'Backend',
+    titleKey: 'about.skills.backend',
     category: 'backend',
     skills: [
       { label: 'Node.js', icon: siNodedotjs },
@@ -81,7 +81,7 @@ export const skillGroups = [
     ],
   },
   {
-    title: 'Database',
+    titleKey: 'about.skills.database',
     category: 'database',
     skills: [
       { label: 'MySQL', icon: siMysql },
@@ -91,7 +91,7 @@ export const skillGroups = [
     ],
   },
   {
-    title: 'Infra',
+    titleKey: 'about.skills.infra',
     category: 'infra',
     skills: [
       { label: 'GitHub Actions', icon: siGithubactions },
@@ -107,20 +107,19 @@ export const skillGroups = [
 
 export const experienceHighlights = [
   {
-    title: 'Automation workflow',
-    description: 'Automated email-based document intake, protection, and delivery.',
+    titleKey: 'about.experience.automationTitle',
+    descriptionKey: 'about.experience.automationDescription',
   },
   {
-    title: 'Document generation',
-    description: 'Generated A3 PDFs for water bills and receipts.',
+    titleKey: 'about.experience.documentTitle',
+    descriptionKey: 'about.experience.documentDescription',
   },
   {
-    title: 'Production stack',
-    description: 'Built collaborating services with Apache NiFi, Spring Boot, and Oracle.',
+    titleKey: 'about.experience.productionTitle',
+    descriptionKey: 'about.experience.productionDescription',
   },
   {
-    title: 'Handoff',
-    description:
-      'Documented operations so the organization could maintain and continue the work.',
+    titleKey: 'about.experience.handoffTitle',
+    descriptionKey: 'about.experience.handoffDescription',
   },
 ] as const

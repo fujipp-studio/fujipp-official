@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Box, Code2, Database, Monitor, Server } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 import type { SkillGroup } from '../config'
 import TechnologyIcon from './TechnologyIcon.vue'
@@ -7,6 +8,8 @@ import TechnologyIcon from './TechnologyIcon.vue'
 defineProps<{
   group: SkillGroup
 }>()
+
+const { t } = useI18n()
 
 const categoryIcons = {
   language: Code2,
@@ -21,7 +24,7 @@ const categoryIcons = {
   <article class="skill-group-card" :class="`skill-group-card--${group.category}`">
     <h3>
       <component :is="categoryIcons[group.category]" :size="24" :stroke-width="1.75" />
-      <span>{{ group.title }}</span>
+      <span>{{ t(group.titleKey) }}</span>
     </h3>
 
     <ul>

@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 const sections = [
-  { id: 'home-hero', label: 'Introduction' },
-  { id: 'problem-solution', label: 'Bot setup' },
-  { id: 'services-features', label: 'Services and hosting' },
-  { id: 'trusted-by', label: 'Trusted communities' },
-  { id: 'about-us', label: 'About the developer' },
+  { id: 'home-hero', labelKey: 'home.sections.introduction' },
+  { id: 'problem-solution', labelKey: 'home.sections.botSetup' },
+  { id: 'services-features', labelKey: 'home.sections.services' },
+  { id: 'trusted-by', labelKey: 'home.sections.communities' },
+  { id: 'about-us', labelKey: 'home.sections.developer' },
 ] as const
 
 const activeSection = ref(0)
+const { t } = useI18n()
 let animationFrame: number | undefined
 
 function updateProgress() {
@@ -62,7 +64,7 @@ onBeforeUnmount(() => {
 <template>
   <nav
     class="scroll-progress"
-    aria-label="Home sections"
+    :aria-label="t('home.sections.navigationLabel')"
   >
     <button
       v-for="(section, index) in sections"
@@ -70,7 +72,7 @@ onBeforeUnmount(() => {
       type="button"
       class="scroll-progress__button"
       :class="{ 'scroll-progress__button--active': index === activeSection }"
-      :aria-label="`Go to ${section.label}`"
+      :aria-label="t('home.sections.goTo', { section: t(section.labelKey) })"
       :aria-current="index === activeSection ? 'step' : undefined"
       @click="goToSection(section.id)"
     >
