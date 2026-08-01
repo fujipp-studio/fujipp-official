@@ -1,0 +1,77 @@
+services:
+  backend:
+    build:
+      context: ../backend
+    restart: unless-stopped
+    init: true
+    mem_limit: 2g
+    environment:
+      SPRING_PROFILES_ACTIVE: production
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx1400m -XX:MaxMetaspaceSize=256m
+      SUPABASE_URL: ${SUPABASE_URL:?SUPABASE_URL is required}
+      SUPABASE_JWT_AUDIENCE: ${SUPABASE_JWT_AUDIENCE:-authenticated}
+      DB_URL: ${DB_URL:?DB_URL is required}
+      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME is required}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      DB_POOL_SIZE: ${DB_POOL_SIZE:-5}
+      DB_MIN_IDLE: ${DB_MIN_IDLE:-1}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:?APP_CORS_ALLOWED_ORIGINS is required}
+      STORE_SECRET_KEY_BASE64: ${STORE_SECRET_KEY_BASE64:?STORE_SECRET_KEY_BASE64 is required}
+      STORE_SECRET_KEY_VERSION: ${STORE_SECRET_KEY_VERSION:-v1}
+      RUNNER_API_TOKEN: ${RUNNER_API_TOKEN:?RUNNER_API_TOKEN is required}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - internal
+
+  bot-runner:
+    build:
+      context: ../bot-runner
+    restart: unless-stopped
+    init: true
+    mem_limit: 1500m
+    environment:
+      NODE_OPTIONS: --max-old-space-size=1152
+      BACKEND_API_URL: http://backend:8080
+      RUNNER_API_TOKEN: ${RUNNER_API_TOKEN:?RUNNER_API_TOKEN is required}
+      RUNTIME_POLL_INTERVAL_MS: ${RUNTIME_POLL_INTERVAL_MS:-30000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN is required}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
+
+volumes:
+  caddy_data:
+  caddy_config:

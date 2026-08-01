@@ -2,6 +2,7 @@ package com.fujipp.backend.config;
 
 import com.fujipp.backend.auth.AccountAccessFilter;
 import com.fujipp.backend.security.ApiRateLimitFilter;
+import com.fujipp.backend.runtime.RunnerAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,7 +29,8 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             AccountAccessFilter accountAccessFilter,
-            ApiRateLimitFilter apiRateLimitFilter
+            ApiRateLimitFilter apiRateLimitFilter,
+            RunnerAuthenticationFilter runnerAuthenticationFilter
     ) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -39,9 +41,14 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/works", "/api/v1/works/**")
                         .permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/store/features")
+                        .permitAll()
+                        .requestMatchers("/internal/v1/runtime/**")
+                        .hasRole("RUNNER")
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .addFilterBefore(runnerAuthenticationFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(accountAccessFilter, BearerTokenAuthenticationFilter.class)
                 .addFilterAfter(apiRateLimitFilter, AccountAccessFilter.class);
 

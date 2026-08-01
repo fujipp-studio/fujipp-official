@@ -37,12 +37,16 @@ public class CloudinaryService {
     }
 
     public UploadedMedia upload(MultipartFile file, String projectSlug) {
+        return uploadToFolder(file, folder + "/" + projectSlug);
+    }
+
+    public UploadedMedia uploadToFolder(MultipartFile file, String targetFolder) {
         requireConfigured();
         try {
             MultipartBodyBuilder body = new MultipartBodyBuilder();
             body.part("file", new NamedByteArrayResource(file.getBytes(), file.getOriginalFilename()))
                     .contentType(MediaType.parseMediaType(file.getContentType()));
-            body.part("folder", folder + "/" + projectSlug);
+            body.part("folder", targetFolder);
             body.part("use_filename", "true");
             body.part("unique_filename", "true");
             body.part("overwrite", "false");
