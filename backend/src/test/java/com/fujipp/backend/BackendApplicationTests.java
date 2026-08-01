@@ -10,6 +10,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.fujipp.backend.auth.CurrentUserRepository;
 import com.fujipp.backend.security.SecurityAuditService;
+import com.fujipp.backend.store.StoreRepository;
+import com.fujipp.backend.runtime.RuntimeRepository;
 import com.fujipp.backend.work.WorkRepository;
 import com.fujipp.backend.work.admin.AdminWorkRepository;
 
@@ -21,7 +23,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
         "spring.autoconfigure.exclude="
                 + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
-                + "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration"
+                + "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
+        "app.runtime.runner-token=test-runner-token"
 })
 @AutoConfigureMockMvc
 class BackendApplicationTests {
@@ -37,6 +40,12 @@ class BackendApplicationTests {
 
     @MockitoBean
     private AdminWorkRepository adminWorkRepository;
+
+    @MockitoBean
+    private StoreRepository storeRepository;
+
+    @MockitoBean
+    private RuntimeRepository runtimeRepository;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -58,6 +67,19 @@ class BackendApplicationTests {
     void apiRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/private"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void runtimeApiRejectsMissingRunnerToken() throws Exception {
+        mockMvc.perform(get("/internal/v1/runtime/bootstrap"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void runtimeApiAcceptsConfiguredRunnerToken() throws Exception {
+        mockMvc.perform(get("/internal/v1/runtime/bootstrap")
+                        .header("X-Runner-Token", "test-runner-token"))
+                .andExpect(status().isOk());
     }
 
     @Test
