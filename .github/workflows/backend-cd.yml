@@ -96,6 +96,9 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     environment:
       name: production
       url: https://api.fujipp.com
@@ -119,6 +122,18 @@ jobs:
           ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH'"
           scp deploy/compose.production.yml deploy/deploy-backend.sh \
             "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+      - name: Authenticate VPS to GHCR
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GHCR_TOKEN" | ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "install -d -m 700 '$DEPLOY_PATH/.docker' && \
+            docker --config '$DEPLOY_PATH/.docker' login ghcr.io \
+            --username '$GHCR_USER' --password-stdin"
       - name: Deploy parallel backend
         env:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
@@ -134,3 +149,12 @@ jobs:
             '$DEPLOY_PATH/deploy-backend.sh' \
             '$GITHUB_SHA' '$BACKEND_IMAGE' '$BOT_RUNNER_IMAGE' \
             '$BACKEND_PORT' '$HEALTHCHECK_URL'"
+      - name: Remove temporary GHCR credentials
+        if: always()
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "docker --config '$DEPLOY_PATH/.docker' logout ghcr.io || true"
