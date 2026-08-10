@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import { icons } from '../../../config'
 import { useThemeStore } from '../../../stores'
+import { AppIcon } from '../../ui'
 import type { FooterLink, FooterSocialLink } from './types'
 
 const props = withDefaults(
@@ -62,7 +63,13 @@ const resolvedLinks = computed(() =>
 
     <div class="footer__company">
       <div class="footer__brand">
-        <img class="footer__logo" :src="brandLockup" alt="Fujipp" />
+        <img
+          class="footer__logo"
+          :src="brandLockup"
+          alt="Fujipp"
+          loading="lazy"
+          decoding="async"
+        />
         <p class="footer__tagline">{{ resolvedTagline }}</p>
       </div>
 
@@ -89,17 +96,15 @@ const resolvedLinks = computed(() =>
             target="_blank"
             rel="noreferrer"
           >
-            <span
+            <AppIcon
               class="footer__social-icon"
-              :style="{ '--footer-icon': `url(${link.icon})` }"
-              aria-hidden="true"
+              :source="link.icon"
             />
           </a>
           <button v-else type="button" :aria-label="link.label">
-            <span
+            <AppIcon
               class="footer__social-icon"
-              :style="{ '--footer-icon': `url(${link.icon})` }"
-              aria-hidden="true"
+              :source="link.icon"
             />
           </button>
         </template>
@@ -237,8 +242,6 @@ const resolvedLinks = computed(() =>
   display: block;
   width: var(--icon-size-24);
   height: var(--icon-size-24);
-  background: currentcolor;
-  mask: var(--footer-icon) center / contain no-repeat;
   transition: transform 260ms cubic-bezier(0.22, 1.35, 0.36, 1);
 }
 

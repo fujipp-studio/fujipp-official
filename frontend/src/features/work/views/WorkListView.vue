@@ -390,6 +390,7 @@ onBeforeUnmount(() => {
                   :src="work.cover.url"
                   :alt="work.cover.altText ?? ''"
                   loading="eager"
+                  decoding="async"
                 />
                 <div v-else class="featured-card__placeholder" aria-hidden="true">
                   <span>{{ work.name }}</span>
@@ -476,6 +477,7 @@ onBeforeUnmount(() => {
               :src="work.cover.url"
               :alt="work.cover.altText ?? ''"
               loading="lazy"
+              decoding="async"
             />
             <div v-else class="work-card__placeholder" aria-hidden="true">
               <span>{{ work.name.slice(0, 1) }}</span>

@@ -11,6 +11,130 @@ export interface CurrentUser {
   lastName: string | null
   avatarUrl: string | null
   profileCompletedAt: string | null
+  walletBalanceSatang?: number
+  walletBalance?: number
+}
+
+export interface StoreOffer {
+  id: string
+  code: string
+  name: string
+  kind: string
+  priceSatang: number
+  currency: string
+  billingPeriodDays: number | null
+  installationLimit: number
+}
+
+export interface StoreFeature {
+  id: string
+  code: string
+  name: string
+  description: string
+  category: string
+  iconKey: string
+  image: { url: string; altText: string | null } | null
+  tutorialUrl: string | null
+  featured: boolean
+  version: string
+  offers: StoreOffer[]
+}
+
+export interface UserBot {
+  id: string
+  name: string
+  discordApplicationId: string | null
+  discordGuildId: string | null
+  discordUsername: string | null
+  discordAvatarUrl: string | null
+  status: string
+  desiredState: 'RUNNING' | 'STOPPED'
+  restartRevision: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface FeatureLicense {
+  id: string
+  featureProductId: string
+  featureCode: string
+  featureName: string
+  version: string
+  status: string
+  installationLimit: number
+  acquiredAt: string
+  expiresAt: string | null
+  installations: Array<{
+    id: string
+    botId: string
+    botName: string
+    status: string
+    installedAt: string
+  }>
+}
+
+export interface StoreOrder {
+  id: string
+  orderNumber: string
+  status: string
+  totalSatang: number
+  currency: string
+  paidAt: string | null
+  licenseIds: string[]
+}
+
+export interface RuntimeSubscription {
+  id: string
+  slotNumber: number
+  planId: string
+  planName: string
+  durationDays: number
+  priceSatang: number
+  currency: string
+  botId: string | null
+  botName: string | null
+  status: 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELLED'
+  autoRenew: boolean
+  currentPeriodEnd: string
+  graceUntil: string | null
+}
+
+export interface RuntimeAvailability {
+  totalSlots: number
+  usedSlots: number
+  availableSlots: number
+  slots: Array<{ slotNumber: number; occupancy: 'AVAILABLE' | 'OCCUPIED' }>
+}
+
+export type FeatureConfigValue = string | number | boolean | string[] | Record<string, unknown>
+
+export interface FeatureConfiguration {
+  licenseId: string
+  revision: number
+  validatedForBotId: string | null
+  fields: Array<{
+    key: string
+    label: string
+    description: string
+    type: string
+    required: boolean
+    secret: boolean
+    defaultValue: FeatureConfigValue | null
+    value: FeatureConfigValue | null
+    configured: boolean
+    validation: Record<string, unknown> | null
+    ui: Record<string, unknown> | null
+  }>
+  presentations: Array<{
+    slotId: string
+    key: string
+    label: string
+    description: string
+    type: string
+    availableVariables: string[]
+    defaultDefinition: Record<string, unknown>
+    overrideDefinition: Record<string, unknown> | null
+  }>
 }
 
 interface ProblemResponse {
@@ -175,7 +299,19 @@ export async function fetchCurrentUser(session: Session): Promise<CurrentUser> {
     },
   })
 
-  return readJson<CurrentUser>(response, 'Unable to load your account.')
+  const user = await readJson<CurrentUser>(response, 'Unable to load your account.')
+  const rawObj = user as unknown as Record<string, unknown>
+  const rawSatang = rawObj.walletBalanceSatang ?? rawObj.balanceSatang ?? rawObj.balance_satang
+  if (typeof rawSatang === 'number') {
+    user.walletBalanceSatang = rawSatang
+    user.walletBalance = rawSatang / 100
+  } else if (user.walletBalanceSatang !== undefined) {
+    user.walletBalance = user.walletBalanceSatang / 100
+  } else {
+    user.walletBalanceSatang = 0
+    user.walletBalance = 0
+  }
+  return user
 }
 
 export async function fetchWorks(locale: WorkLocale): Promise<WorkSummary[]> {
@@ -189,10 +325,9 @@ export async function fetchWorks(locale: WorkLocale): Promise<WorkSummary[]> {
 
 export async function fetchWork(slug: string, locale: WorkLocale): Promise<WorkDetail> {
   const query = new URLSearchParams({ locale })
-  const response = await fetch(
-    `${backendUrl}/api/v1/works/${encodeURIComponent(slug)}?${query}`,
-    { headers: { Accept: 'application/json' } },
-  )
+  const response = await fetch(`${backendUrl}/api/v1/works/${encodeURIComponent(slug)}?${query}`, {
+    headers: { Accept: 'application/json' },
+  })
 
   return readJson<WorkDetail>(response, 'Unable to load this portfolio project.')
 }
@@ -203,6 +338,215 @@ function adminHeaders(session: Session, contentType = true) {
     Authorization: `Bearer ${session.access_token}`,
     ...(contentType ? { 'Content-Type': 'application/json' } : {}),
   }
+}
+
+function authenticatedHeaders(session: Session, contentType = false) {
+  return {
+    Accept: 'application/json',
+    Authorization: `Bearer ${session.access_token}`,
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+  }
+}
+
+export async function fetchStoreFeatures(signal?: AbortSignal): Promise<StoreFeature[]> {
+  const response = await fetch(`${backendUrl}/api/v1/store/features`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+  return readJson<StoreFeature[]>(response, 'Unable to load the store.')
+}
+
+export async function checkoutStoreOffer(
+  offerId: string,
+  quantity: number,
+  session: Session,
+  idempotencyKey: string = crypto.randomUUID(),
+): Promise<StoreOrder> {
+  const response = await fetch(`${backendUrl}/api/v1/store/orders`, {
+    method: 'POST',
+    headers: authenticatedHeaders(session, true),
+    body: JSON.stringify({ offerId, quantity, idempotencyKey }),
+  })
+  return readJson<StoreOrder>(response, 'Unable to complete this purchase.')
+}
+
+export async function purchaseRuntime(planId: string, session: Session) {
+  const response = await fetch(`${backendUrl}/api/v1/runtime/subscriptions`, {
+    method: 'POST',
+    headers: authenticatedHeaders(session, true),
+    body: JSON.stringify({ planId }),
+  })
+  return readJson<RuntimeSubscription>(response, 'Unable to purchase this Runtime slot.')
+}
+
+export async function fetchRuntimeAvailability(signal?: AbortSignal) {
+  const response = await fetch(`${backendUrl}/api/v1/runtime/availability`, {
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+  return readJson<RuntimeAvailability>(response, 'Unable to load Runtime availability.')
+}
+
+export async function fetchRuntimeSubscriptions(session: Session) {
+  const response = await fetch(`${backendUrl}/api/v1/runtime/subscriptions`, {
+    headers: authenticatedHeaders(session),
+  })
+  return readJson<RuntimeSubscription[]>(response, 'Unable to load Runtime slots.')
+}
+
+export async function assignRuntime(subscriptionId: string, botId: string, session: Session) {
+  const response = await fetch(`${backendUrl}/api/v1/runtime/subscriptions/${subscriptionId}/bot`, {
+    method: 'PUT',
+    headers: authenticatedHeaders(session, true),
+    body: JSON.stringify({ botId }),
+  })
+  return readJson<RuntimeSubscription>(response, 'Unable to assign this Runtime slot.')
+}
+
+export async function updateRuntimeAutoRenew(
+  subscriptionId: string,
+  autoRenew: boolean,
+  session: Session,
+) {
+  const response = await fetch(
+    `${backendUrl}/api/v1/runtime/subscriptions/${subscriptionId}/auto-renew`,
+    {
+      method: 'PUT',
+      headers: authenticatedHeaders(session, true),
+      body: JSON.stringify({ autoRenew }),
+    },
+  )
+  return readJson<RuntimeSubscription>(response, 'Unable to update automatic renewal.')
+}
+
+export async function renewRuntime(subscriptionId: string, session: Session) {
+  const response = await fetch(
+    `${backendUrl}/api/v1/runtime/subscriptions/${subscriptionId}/renew`,
+    {
+      method: 'POST',
+      headers: authenticatedHeaders(session),
+    },
+  )
+  return readJson<RuntimeSubscription>(response, 'Unable to renew this Runtime slot.')
+}
+
+export async function fetchBots(session: Session): Promise<UserBot[]> {
+  const response = await fetch(`${backendUrl}/api/v1/bots`, {
+    headers: authenticatedHeaders(session),
+  })
+  return readJson<UserBot[]>(response, 'Unable to load your bots.')
+}
+
+export async function createBot(
+  input: { name: string; discordApplicationId: string | null; discordGuildId: string | null },
+  session: Session,
+): Promise<UserBot> {
+  const response = await fetch(`${backendUrl}/api/v1/bots`, {
+    method: 'POST',
+    headers: authenticatedHeaders(session, true),
+    body: JSON.stringify(input),
+  })
+  return readJson<UserBot>(response, 'Unable to create this bot.')
+}
+
+export async function updateBot(
+  botId: string,
+  input: { name: string; discordApplicationId: string | null; discordGuildId: string | null },
+  session: Session,
+): Promise<UserBot> {
+  const response = await fetch(`${backendUrl}/api/v1/bots/${encodeURIComponent(botId)}`, {
+    method: 'PUT',
+    headers: authenticatedHeaders(session, true),
+    body: JSON.stringify(input),
+  })
+  return readJson<UserBot>(response, 'Unable to update this bot.')
+}
+
+export async function updateBotDiscordToken(
+  botId: string,
+  token: string,
+  session: Session,
+): Promise<UserBot> {
+  const response = await fetch(
+    `${backendUrl}/api/v1/bots/${encodeURIComponent(botId)}/credentials/discord-token`,
+    {
+      method: 'PUT',
+      headers: authenticatedHeaders(session, true),
+      body: JSON.stringify({ token }),
+    },
+  )
+  return readJson<UserBot>(response, 'Unable to update the Discord token.')
+}
+
+export async function syncBotDiscordProfile(botId: string, session: Session): Promise<UserBot> {
+  const response = await fetch(
+    `${backendUrl}/api/v1/bots/${encodeURIComponent(botId)}/discord-profile/sync`,
+    { method: 'POST', headers: authenticatedHeaders(session) },
+  )
+  return readJson<UserBot>(response, 'Unable to sync the Discord bot profile.')
+}
+
+export async function controlBot(
+  botId: string,
+  action: 'start' | 'stop' | 'restart',
+  session: Session,
+): Promise<UserBot> {
+  const response = await fetch(`${backendUrl}/api/v1/bots/${encodeURIComponent(botId)}/${action}`, {
+    method: 'POST',
+    headers: authenticatedHeaders(session),
+  })
+  return readJson<UserBot>(response, `Unable to ${action} this bot.`)
+}
+
+export async function fetchFeatureLicenses(session: Session): Promise<FeatureLicense[]> {
+  const response = await fetch(`${backendUrl}/api/v1/feature-licenses`, {
+    headers: authenticatedHeaders(session),
+  })
+  return readJson<FeatureLicense[]>(response, 'Unable to load your items.')
+}
+
+export async function installFeatureLicense(
+  licenseId: string,
+  botId: string,
+  session: Session,
+): Promise<{ installationId: string }> {
+  const response = await fetch(
+    `${backendUrl}/api/v1/feature-licenses/${encodeURIComponent(licenseId)}/installations`,
+    {
+      method: 'POST',
+      headers: authenticatedHeaders(session, true),
+      body: JSON.stringify({ botId }),
+    },
+  )
+  return readJson(response, 'Unable to install this feature.')
+}
+
+export async function fetchFeatureConfiguration(licenseId: string, session: Session) {
+  const response = await fetch(
+    `${backendUrl}/api/v1/feature-licenses/${encodeURIComponent(licenseId)}/configuration`,
+    { headers: authenticatedHeaders(session) },
+  )
+  return readJson<FeatureConfiguration>(response, 'Unable to load feature settings.')
+}
+
+export async function updateFeatureConfiguration(
+  licenseId: string,
+  input: {
+    values: Record<string, FeatureConfigValue>
+    secrets: Record<string, string>
+    presentations: Record<string, Record<string, unknown>>
+  },
+  session: Session,
+) {
+  const response = await fetch(
+    `${backendUrl}/api/v1/feature-licenses/${encodeURIComponent(licenseId)}/configuration`,
+    {
+      method: 'PUT',
+      headers: authenticatedHeaders(session, true),
+      body: JSON.stringify(input),
+    },
+  )
+  return readJson<FeatureConfiguration>(response, 'Unable to save feature settings.')
 }
 
 export async function fetchAdminWork(id: string, session: Session): Promise<AdminWork> {
@@ -221,7 +565,11 @@ export async function createAdminWork(input: AdminWorkInput, session: Session): 
   return readJson<AdminWork>(response, 'Unable to create this work.')
 }
 
-export async function updateAdminWork(id: string, input: AdminWorkInput, session: Session): Promise<AdminWork> {
+export async function updateAdminWork(
+  id: string,
+  input: AdminWorkInput,
+  session: Session,
+): Promise<AdminWork> {
   const response = await fetch(`${backendUrl}/api/v1/admin/works/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: adminHeaders(session),
@@ -279,37 +627,116 @@ async function adminRequest<T>(
 }
 
 export const fetchAdminWorkLinks = (id: string, session: Session) =>
-  adminRequest<AdminWorkLink[]>(`/api/v1/admin/works/${id}/links`, session, { method: 'GET' }, 'Unable to load links.')
+  adminRequest<AdminWorkLink[]>(
+    `/api/v1/admin/works/${id}/links`,
+    session,
+    { method: 'GET' },
+    'Unable to load links.',
+  )
 
 export const fetchAdminWorkCatalog = (session: Session) =>
-  adminRequest<AdminWorkCatalog>('/api/v1/admin/works/catalog', session, { method: 'GET' }, 'Unable to load the work catalog.')
+  adminRequest<AdminWorkCatalog>(
+    '/api/v1/admin/works/catalog',
+    session,
+    { method: 'GET' },
+    'Unable to load the work catalog.',
+  )
 
-export const createAdminWorkLink = (id: string, input: Omit<AdminWorkLink, 'id'>, session: Session) =>
-  adminRequest<AdminWorkLink>(`/api/v1/admin/works/${id}/links`, session, { method: 'POST', body: JSON.stringify(input) }, 'Unable to create link.')
+export const createAdminWorkLink = (
+  id: string,
+  input: Omit<AdminWorkLink, 'id'>,
+  session: Session,
+) =>
+  adminRequest<AdminWorkLink>(
+    `/api/v1/admin/works/${id}/links`,
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to create link.',
+  )
 
-export const updateAdminWorkLink = (id: string, linkId: string, input: Omit<AdminWorkLink, 'id'>, session: Session) =>
-  adminRequest<AdminWorkLink>(`/api/v1/admin/works/${id}/links/${linkId}`, session, { method: 'PUT', body: JSON.stringify(input) }, 'Unable to update link.')
+export const updateAdminWorkLink = (
+  id: string,
+  linkId: string,
+  input: Omit<AdminWorkLink, 'id'>,
+  session: Session,
+) =>
+  adminRequest<AdminWorkLink>(
+    `/api/v1/admin/works/${id}/links/${linkId}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update link.',
+  )
 
 export const deleteAdminWorkLink = (id: string, linkId: string, session: Session) =>
-  adminRequest<void>(`/api/v1/admin/works/${id}/links/${linkId}`, session, { method: 'DELETE' }, 'Unable to delete link.')
+  adminRequest<void>(
+    `/api/v1/admin/works/${id}/links/${linkId}`,
+    session,
+    { method: 'DELETE' },
+    'Unable to delete link.',
+  )
 
 export const fetchAdminWorkContent = (id: string, session: Session) =>
-  adminRequest<AdminWorkContent[]>(`/api/v1/admin/works/${id}/content`, session, { method: 'GET' }, 'Unable to load content.')
+  adminRequest<AdminWorkContent[]>(
+    `/api/v1/admin/works/${id}/content`,
+    session,
+    { method: 'GET' },
+    'Unable to load content.',
+  )
 
-export const createAdminWorkContent = (id: string, input: Pick<AdminWorkContent, 'type' | 'sortOrder'>, session: Session) =>
-  adminRequest<AdminWorkContent>(`/api/v1/admin/works/${id}/content`, session, { method: 'POST', body: JSON.stringify(input) }, 'Unable to create content.')
+export const createAdminWorkContent = (
+  id: string,
+  input: Pick<AdminWorkContent, 'type' | 'sortOrder'>,
+  session: Session,
+) =>
+  adminRequest<AdminWorkContent>(
+    `/api/v1/admin/works/${id}/content`,
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to create content.',
+  )
 
-export const updateAdminWorkContent = (id: string, contentId: string, input: Pick<AdminWorkContent, 'type' | 'sortOrder'>, session: Session) =>
-  adminRequest<AdminWorkContent>(`/api/v1/admin/works/${id}/content/${contentId}`, session, { method: 'PUT', body: JSON.stringify(input) }, 'Unable to update content.')
+export const updateAdminWorkContent = (
+  id: string,
+  contentId: string,
+  input: Pick<AdminWorkContent, 'type' | 'sortOrder'>,
+  session: Session,
+) =>
+  adminRequest<AdminWorkContent>(
+    `/api/v1/admin/works/${id}/content/${contentId}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update content.',
+  )
 
-export const upsertAdminWorkContentTranslation = (id: string, contentId: string, locale: WorkLocale, input: { title: string; description: string }, session: Session) =>
-  adminRequest<AdminWorkContent>(`/api/v1/admin/works/${id}/content/${contentId}/translations/${locale}`, session, { method: 'PUT', body: JSON.stringify(input) }, 'Unable to save content translation.')
+export const upsertAdminWorkContentTranslation = (
+  id: string,
+  contentId: string,
+  locale: WorkLocale,
+  input: { title: string; description: string },
+  session: Session,
+) =>
+  adminRequest<AdminWorkContent>(
+    `/api/v1/admin/works/${id}/content/${contentId}/translations/${locale}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to save content translation.',
+  )
 
 export const deleteAdminWorkContent = (id: string, contentId: string, session: Session) =>
-  adminRequest<void>(`/api/v1/admin/works/${id}/content/${contentId}`, session, { method: 'DELETE' }, 'Unable to delete content.')
+  adminRequest<void>(
+    `/api/v1/admin/works/${id}/content/${contentId}`,
+    session,
+    { method: 'DELETE' },
+    'Unable to delete content.',
+  )
 
 export const fetchAdminWorkMedia = (id: string, session: Session) =>
-  adminRequest<AdminWorkMedia[]>(`/api/v1/admin/works/${id}/media`, session, { method: 'GET' }, 'Unable to load media.')
+  adminRequest<AdminWorkMedia[]>(
+    `/api/v1/admin/works/${id}/media`,
+    session,
+    { method: 'GET' },
+    'Unable to load media.',
+  )
 
 export async function uploadAdminWorkMedia(
   id: string,
@@ -321,14 +748,478 @@ export async function uploadAdminWorkMedia(
   body.append('sortOrder', String(input.sortOrder))
   if (input.altText.trim()) body.append('altText', input.altText.trim())
   body.append('file', input.file)
-  return adminRequest<AdminWorkMedia>(`/api/v1/admin/works/${id}/media`, session, { method: 'POST', body }, 'Unable to upload media.')
+  return adminRequest<AdminWorkMedia>(
+    `/api/v1/admin/works/${id}/media`,
+    session,
+    { method: 'POST', body },
+    'Unable to upload media.',
+  )
 }
 
 export const deleteAdminWorkMedia = (id: string, mediaId: string, session: Session) =>
-  adminRequest<void>(`/api/v1/admin/works/${id}/media/${mediaId}`, session, { method: 'DELETE' }, 'Unable to delete media.')
+  adminRequest<void>(
+    `/api/v1/admin/works/${id}/media/${mediaId}`,
+    session,
+    { method: 'DELETE' },
+    'Unable to delete media.',
+  )
 
-export const publishAdminWork = (id: string, input: { featured: boolean; featuredOrder: number | null }, session: Session) =>
-  adminRequest<AdminWork>(`/api/v1/admin/works/${id}/publish`, session, { method: 'POST', body: JSON.stringify(input) }, 'Unable to publish this work.')
+export const publishAdminWork = (
+  id: string,
+  input: { featured: boolean; featuredOrder: number | null },
+  session: Session,
+) =>
+  adminRequest<AdminWork>(
+    `/api/v1/admin/works/${id}/publish`,
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to publish this work.',
+  )
 
 export const unpublishAdminWork = (id: string, session: Session) =>
-  adminRequest<AdminWork>(`/api/v1/admin/works/${id}/unpublish`, session, { method: 'POST' }, 'Unable to unpublish this work.')
+  adminRequest<AdminWork>(
+    `/api/v1/admin/works/${id}/unpublish`,
+    session,
+    { method: 'POST' },
+    'Unable to unpublish this work.',
+  )
+
+export interface AdminUserSummary {
+  customerId: string
+  userId: string | null
+  customerCode: string
+  email: string | null
+  displayName: string | null
+  status: string
+  role: string
+  balanceSatang: number
+  createdAt: string
+}
+
+export interface AdminWalletHistoryEntry {
+  id: string
+  direction: 'CREDIT' | 'DEBIT'
+  entryType: string
+  amountSatang: number
+  balanceBeforeSatang: number
+  balanceAfterSatang: number
+  referenceType: string | null
+  referenceId: string | null
+  description: string | null
+  createdAt: string
+}
+
+export interface AdminWalletHistoryResponse {
+  customerId: string
+  walletId: string
+  currentBalanceSatang: number
+  entries: AdminWalletHistoryEntry[]
+}
+
+export async function fetchAdminUsers(
+  session: Session,
+  query?: string,
+): Promise<AdminUserSummary[]> {
+  const url = new URL(`${backendUrl}/api/v1/admin/users`)
+  if (query) url.searchParams.set('query', query)
+  const response = await fetch(url.toString(), {
+    headers: adminHeaders(session, false),
+  })
+  if (!response.ok) {
+    if (response.status === 403) {
+      throw new Error('บัญชีของคุณยังไม่มีสิทธิ์ ADMIN (HTTP 403 Forbidden)')
+    }
+    if (response.status === 401) {
+      throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่ (HTTP 401 Unauthorized)')
+    }
+    let bodyText = ''
+    try {
+      bodyText = await response.text()
+    } catch {}
+    throw new Error(
+      `โหลดรายการผู้ใช้ไม่สำเร็จ (HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''})`,
+    )
+  }
+  return response.json()
+}
+
+export async function adjustUserWallet(
+  customerId: string,
+  input: {
+    direction: 'CREDIT' | 'DEBIT'
+    entryType: string
+    amountSatang: number
+    description?: string
+    idempotencyKey: string
+  },
+  session: Session,
+): Promise<void> {
+  const response = await fetch(
+    `${backendUrl}/api/v1/admin/users/${encodeURIComponent(customerId)}/wallet/adjust`,
+    {
+      method: 'POST',
+      headers: adminHeaders(session),
+      body: JSON.stringify(input),
+    },
+  )
+  if (!response.ok) {
+    let bodyText = ''
+    try {
+      bodyText = await response.text()
+    } catch {}
+    throw new Error(
+      `ปรับปรุงยอดเงินไม่สำเร็จ (HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''})`,
+    )
+  }
+}
+
+export type AdminAccountRole = 'USER' | 'TESTER' | 'EDITOR' | 'ADMIN'
+export type AdminAccountStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'DEACTIVATED'
+
+export interface AdminFeatureLicense {
+  id: string
+  featureProductId: string
+  featureCode: string
+  featureName: string
+  version: string
+  status: string
+  installationLimit: number
+  acquiredAt: string
+  expiresAt: string | null
+}
+
+export interface AdminFeatureOffer {
+  id: string
+  code: string
+  name: string
+  kind: string
+  priceSatang: number
+  currency: string
+  billingPeriodDays: number | null
+  installationLimit: number
+  active: boolean
+  startsAt: string | null
+  endsAt: string | null
+}
+
+export interface AdminFeature {
+  id: string
+  code: string
+  name: string
+  description: string
+  category: string
+  iconKey: string | null
+  imageUrl: string | null
+  imageAltText: string | null
+  tutorialUrl: string | null
+  status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED'
+  featured: boolean
+  sortOrder: number
+  latestVersion: string | null
+  versionStatus: 'DRAFT' | 'PUBLISHED' | 'DEPRECATED' | null
+  publishedAt: string | null
+  offers: AdminFeatureOffer[]
+}
+
+export interface AdminBot {
+  id: string
+  ownerUserId: string
+  ownerDisplayName: string
+  name: string
+  status: string
+  desiredState: string
+  createdAt: string
+}
+
+export interface AdminRuntimePlan {
+  id: string
+  code: string
+  name: string
+  durationDays: number
+  priceSatang: number
+  currency: string
+  active: boolean
+  sortOrder: number
+}
+
+export interface AdminRuntimeSubscription {
+  id: string
+  slotNumber: number
+  ownerUserId: string
+  ownerDisplayName: string
+  planId: string
+  planName: string
+  botId: string | null
+  botName: string | null
+  status: 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELLED'
+  autoRenew: boolean
+  periodStart: string
+  periodEnd: string
+  graceUntil: string | null
+}
+
+export const updateAdminUser = (
+  userId: string,
+  input: {
+    role: AdminAccountRole
+    status: AdminAccountStatus
+    displayName?: string
+    firstName?: string
+    lastName?: string
+  },
+  session: Session,
+) =>
+  adminRequest<AdminUserSummary>(
+    `/api/v1/admin/users/${userId}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update user.',
+  )
+export const fetchAdminUserFeatures = (userId: string, session: Session) =>
+  adminRequest<AdminFeatureLicense[]>(
+    `/api/v1/admin/users/${userId}/features`,
+    session,
+    { method: 'GET' },
+    'Unable to load user features.',
+  )
+export const grantAdminUserFeature = (
+  userId: string,
+  input: { featureProductId: string; installationLimit: number; expiresAt?: string },
+  session: Session,
+) =>
+  adminRequest<AdminFeatureLicense>(
+    `/api/v1/admin/users/${userId}/features`,
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to grant feature.',
+  )
+export const updateAdminUserFeature = (
+  userId: string,
+  licenseId: string,
+  input: { status: string; installationLimit: number; expiresAt?: string | null },
+  session: Session,
+) =>
+  adminRequest<AdminFeatureLicense>(
+    `/api/v1/admin/users/${userId}/features/${licenseId}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update feature license.',
+  )
+
+export const fetchAdminFeatures = (session: Session) =>
+  adminRequest<AdminFeature[]>(
+    '/api/v1/admin/store/features',
+    session,
+    { method: 'GET' },
+    'Unable to load features.',
+  )
+export const updateAdminFeature = (
+  id: string,
+  input: Pick<
+    AdminFeature,
+    'name' | 'description' | 'category' | 'iconKey' | 'status' | 'featured' | 'sortOrder'
+  >,
+  session: Session,
+) =>
+  adminRequest<AdminFeature>(
+    `/api/v1/admin/store/features/${id}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update feature.',
+  )
+export const updateAdminFeatureOffer = (
+  featureId: string,
+  offerId: string,
+  input: {
+    name: string
+    priceSatang: number
+    installationLimit: number
+    active: boolean
+    startsAt?: string | null
+    endsAt?: string | null
+  },
+  session: Session,
+) =>
+  adminRequest<AdminFeature>(
+    `/api/v1/admin/store/features/${featureId}/offers/${offerId}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update offer.',
+  )
+export const createAdminFeatureOffer = (
+  featureId: string,
+  input: {
+    code: string
+    name: string
+    kind: 'ONE_TIME' | 'SUBSCRIPTION'
+    priceSatang: number
+    installationLimit: number
+    billingPeriodDays?: number | null
+    active: boolean
+    startsAt?: string | null
+    endsAt?: string | null
+  },
+  session: Session,
+) =>
+  adminRequest<AdminFeature>(
+    `/api/v1/admin/store/features/${featureId}/offers`,
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to create offer.',
+  )
+export const publishAdminFeature = (featureId: string, session: Session) =>
+  adminRequest<AdminFeature>(
+    `/api/v1/admin/store/features/${featureId}/publish`,
+    session,
+    { method: 'POST' },
+    'Unable to publish feature version.',
+  )
+export const updateAdminFeatureTutorial = (
+  featureId: string,
+  tutorialUrl: string | null,
+  session: Session,
+) =>
+  adminRequest<unknown>(
+    `/api/v1/admin/store/features/${featureId}/tutorial`,
+    session,
+    { method: 'PUT', body: JSON.stringify({ tutorialUrl }) },
+    'Unable to update tutorial.',
+  )
+export async function uploadAdminFeatureImage(
+  featureId: string,
+  file: File,
+  altText: string,
+  session: Session,
+) {
+  const body = new FormData()
+  if (altText.trim()) body.append('altText', altText.trim())
+  body.append('file', file)
+  return adminRequest<unknown>(
+    `/api/v1/admin/store/features/${featureId}/image`,
+    session,
+    { method: 'POST', body },
+    'Unable to upload feature image.',
+  )
+}
+export const deleteAdminFeatureImage = (featureId: string, session: Session) =>
+  adminRequest<void>(
+    `/api/v1/admin/store/features/${featureId}/image`,
+    session,
+    { method: 'DELETE' },
+    'Unable to delete feature image.',
+  )
+
+export async function fetchAdminBots(session: Session, query?: string) {
+  const suffix = query ? `?query=${encodeURIComponent(query)}` : ''
+  return adminRequest<AdminBot[]>(
+    `/api/v1/admin/bots${suffix}`,
+    session,
+    { method: 'GET' },
+    'Unable to load bots.',
+  )
+}
+export const transferAdminBot = (botId: string, newOwnerUserId: string, session: Session) =>
+  adminRequest<AdminBot>(
+    `/api/v1/admin/bots/${botId}/transfer`,
+    session,
+    { method: 'POST', body: JSON.stringify({ newOwnerUserId }) },
+    'Unable to transfer bot.',
+  )
+export const controlAdminBot = (botId: string, action: 'start' | 'stop' | 'restart', session: Session) =>
+  adminRequest<AdminBot>(
+    `/api/v1/admin/bots/${botId}/${action}`,
+    session,
+    { method: 'POST' },
+    `Unable to ${action} bot.`,
+  )
+export const fetchAdminBotSettings = (botId: string, session: Session) =>
+  adminRequest<UserBot>(`/api/v1/admin/bots/${botId}/settings`, session, { method: 'GET' }, 'Unable to load bot settings.')
+export const updateAdminBotSettings = (botId: string, input: { name: string; discordApplicationId: string | null; discordGuildId: string | null }, session: Session) =>
+  adminRequest<UserBot>(`/api/v1/admin/bots/${botId}/settings`, session, { method: 'PUT', body: JSON.stringify(input) }, 'Unable to update bot settings.')
+
+export const fetchAdminRuntimePlans = (session: Session) =>
+  adminRequest<AdminRuntimePlan[]>(
+    '/api/v1/admin/runtime/plans',
+    session,
+    { method: 'GET' },
+    'Unable to load runtime plans.',
+  )
+export const updateAdminRuntimePlan = (
+  id: string,
+  input: {
+    name: string
+    durationDays: number
+    priceSatang: number
+    active: boolean
+    sortOrder: number
+  },
+  session: Session,
+) =>
+  adminRequest<AdminRuntimePlan>(
+    `/api/v1/admin/runtime/plans/${id}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update runtime plan.',
+  )
+export const fetchAdminRuntimeSubscriptions = (session: Session, ownerUserId?: string) =>
+  adminRequest<AdminRuntimeSubscription[]>(
+    `/api/v1/admin/runtime/subscriptions${ownerUserId ? `?ownerUserId=${encodeURIComponent(ownerUserId)}` : ''}`,
+    session,
+    { method: 'GET' },
+    'Unable to load runtime subscriptions.',
+  )
+export const grantAdminRuntime = (
+  input: {
+    ownerUserId: string
+    planId: string
+    botId?: string
+    periodEnd?: string
+    autoRenew: boolean
+  },
+  session: Session,
+) =>
+  adminRequest<AdminRuntimeSubscription>(
+    '/api/v1/admin/runtime/subscriptions',
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to grant runtime.',
+  )
+export const updateAdminRuntime = (
+  id: string,
+  input: {
+    status: string
+    planId: string
+    botId?: string | null
+    periodEnd: string
+    autoRenew: boolean
+  },
+  session: Session,
+) =>
+  adminRequest<AdminRuntimeSubscription>(
+    `/api/v1/admin/runtime/subscriptions/${id}`,
+    session,
+    { method: 'PUT', body: JSON.stringify(input) },
+    'Unable to update runtime.',
+  )
+
+export async function fetchUserWalletHistory(
+  customerId: string,
+  session: Session,
+): Promise<AdminWalletHistoryResponse> {
+  const response = await fetch(
+    `${backendUrl}/api/v1/admin/users/${encodeURIComponent(customerId)}/wallet/history`,
+    {
+      headers: adminHeaders(session, false),
+    },
+  )
+  if (!response.ok) {
+    let bodyText = ''
+    try {
+      bodyText = await response.text()
+    } catch {}
+    throw new Error(
+      `โหลดประวัติกระเป๋าไม่สำเร็จ (HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''})`,
+    )
+  }
+  return response.json()
+}

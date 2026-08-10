@@ -1,9 +1,9 @@
-import { icons } from './icons'
+import { icons, type IconSource } from './icons'
 
 export interface NavbarLink {
   label: string
   path: string
-  icon?: string
+  icon?: IconSource
 }
 
 /**

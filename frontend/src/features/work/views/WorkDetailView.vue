@@ -264,6 +264,8 @@ onBeforeUnmount(() => {
             v-if="work.gallery[0]"
             :src="work.gallery[0].url"
             :alt="work.gallery[0].altText ?? ''"
+            decoding="async"
+            fetchpriority="high"
           />
           <div v-else class="detail-cover__placeholder" aria-hidden="true">
             <span>{{ work.name }}</span>
@@ -339,6 +341,7 @@ onBeforeUnmount(() => {
             :src="image.url"
             :alt="image.altText ?? ''"
             loading="lazy"
+            decoding="async"
           />
         </section>
 
@@ -348,6 +351,7 @@ onBeforeUnmount(() => {
             :src="work.architecture.url"
             :alt="work.architecture.altText ?? copy.architecture"
             loading="lazy"
+            decoding="async"
           />
         </section>
 

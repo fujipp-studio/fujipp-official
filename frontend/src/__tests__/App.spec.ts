@@ -30,7 +30,7 @@ describe('App', () => {
       })
 
       expect(wrapper.text()).toContain('Navbar')
-      expect(wrapper.text()).toContain('Sign in')
+      expect(wrapper.text()).toContain('Authentication: Off')
     },
     15_000,
   )

@@ -7,6 +7,7 @@ import { useAuthStore } from '../../../stores'
 import AppButton from '../buttons/AppButton.vue'
 import AppTextField from '../fields/AppTextField.vue'
 import type { TextFieldState } from '../fields/types'
+import AppIcon from '../icons/AppIcon.vue'
 import AppTurnstile from '../security/AppTurnstile.vue'
 import AuthMark from './AuthMark.vue'
 import type { AuthDialogMode } from './types'
@@ -23,8 +24,7 @@ const props = withDefaults(
 )
 
 const turnstileSiteKey =
-  import.meta.env.VITE_TURNSTILE_SITE_KEY ??
-  (import.meta.env.DEV ? '1x00000000000000000000AA' : '')
+  import.meta.env.VITE_TURNSTILE_SITE_KEY ?? (import.meta.env.DEV ? '1x00000000000000000000AA' : '')
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
@@ -233,10 +233,7 @@ onBeforeUnmount(() => {
             <span class="auth-dialog__header-spacer" />
             <AuthMark class="auth-dialog__mark" />
             <button class="auth-dialog__close" type="button" aria-label="Close" @click="close">
-              <span
-                :style="{ '--auth-icon': `url(${icons.base.close})` }"
-                aria-hidden="true"
-              />
+              <AppIcon :source="icons.base.close" />
             </button>
           </div>
         </div>
@@ -310,15 +307,10 @@ onBeforeUnmount(() => {
           <AppButton
             type="submit"
             :disabled="!isFormValid || loading || awaitingEmailConfirmation"
+            :loading="loading"
           >
             {{
-              loading
-                ? 'Please wait…'
-                : awaitingEmailConfirmation
-                  ? 'Email sent'
-                  : isRegister
-                    ? 'Create account'
-                    : 'Sign in'
+              awaitingEmailConfirmation ? 'Email sent' : isRegister ? 'Create account' : 'Sign in'
             }}
           </AppButton>
         </form>
@@ -355,10 +347,7 @@ onBeforeUnmount(() => {
 
         <p class="auth-dialog__switch">
           <span>{{ isRegister ? 'Already have an account?' : 'New here?' }}</span>
-          <button
-            type="button"
-            @click="switchMode(isRegister ? 'login' : 'register')"
-          >
+          <button type="button" @click="switchMode(isRegister ? 'login' : 'register')">
             {{ isRegister ? 'Sign in' : 'Create an account' }}
           </button>
         </p>
@@ -444,8 +433,6 @@ onBeforeUnmount(() => {
 .auth-dialog__close span {
   width: var(--icon-size-32);
   height: var(--icon-size-32);
-  background: currentcolor;
-  mask: var(--auth-icon) center / contain no-repeat;
 }
 
 .auth-dialog__title {
