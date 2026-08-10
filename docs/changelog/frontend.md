@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-10 | Redirected authentication callbacks to the home page and corrected profile menu icon rendering. |
 | 2026-08-10 | Fixed production authentication redirects and actionable verification feedback, and added a theme-aware authentication favicon. |
 | 2026-08-10 | Added shared-host routing fallback so direct navigation resolves through the Vue application. |
 | 2026-08-01 | Added bilingual portfolio browsing and project administration, reusable form and feedback controls, and site-wide EN/TH localization. |
