@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-10 | Added verified Explicit FTPS delivery for production Frontend releases on shared hosting. |
 | 2026-08-10 | Isolated temporary GHCR credentials for production image pulls without changing legacy registry access. |
 | 2026-08-10 | Added health-checked parallel Backend delivery with immutable container releases and automatic rollback. |
 | 2026-08-10 | Grouped non-major dependency updates by ecosystem and made Java and secret security scans organization-compatible. |
