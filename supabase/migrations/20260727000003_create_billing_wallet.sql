@@ -1,7 +1,3 @@
--- Billing wallet core with SlipOK top-up verification.
---
--- The billing schema is intentionally not exposed through the Supabase Data
--- API. Financial writes must go through a trusted backend using service_role.
 
 CREATE SCHEMA billing;
 
@@ -252,7 +248,6 @@ CREATE INDEX slip_verifications_invoice_created_idx
 CREATE INDEX slip_verifications_status_idx
     ON billing.slip_verifications (status);
 
--- Database-managed updated_at timestamps.
 CREATE FUNCTION billing.set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -288,7 +283,6 @@ $$;
 
 REVOKE ALL ON FUNCTION billing.set_updated_at() FROM PUBLIC;
 
--- Ledger entries are append-only, including for privileged database roles.
 CREATE FUNCTION billing.protect_wallet_entry()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -307,9 +301,6 @@ CREATE TRIGGER wallet_entries_immutable
 
 REVOKE ALL ON FUNCTION billing.protect_wallet_entry() FROM PUBLIC;
 
--- Atomically create an idempotent credit or debit while holding a row lock on
--- the wallet. The caller receives the existing entry when the same idempotency
--- key is retried with the same request.
 CREATE FUNCTION billing.apply_wallet_entry(
     p_wallet_id UUID,
     p_direction billing.wallet_direction,
@@ -454,8 +445,6 @@ GRANT EXECUTE ON FUNCTION billing.apply_wallet_entry(
     UUID
 ) TO service_role;
 
--- Credit a verified SlipOK top-up exactly once and complete its invoice in the
--- same transaction.
 CREATE FUNCTION billing.complete_slipok_topup(
     p_topup_invoice_id UUID,
     p_slip_verification_id UUID
@@ -538,8 +527,6 @@ REVOKE ALL ON FUNCTION billing.complete_slipok_topup(UUID, UUID)
 GRANT EXECUTE ON FUNCTION billing.complete_slipok_topup(UUID, UUID)
     TO service_role;
 
--- Create a billing customer and THB wallet after the corresponding profile is
--- created. Existing profiles are backfilled below.
 CREATE FUNCTION billing.handle_new_profile()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -604,7 +591,6 @@ SELECT
  WHERE customer.user_id IS NOT NULL
 ON CONFLICT (customer_id, currency) DO NOTHING;
 
--- Private schema permissions and defense-in-depth RLS.
 GRANT USAGE ON SCHEMA billing TO service_role;
 
 DO $$

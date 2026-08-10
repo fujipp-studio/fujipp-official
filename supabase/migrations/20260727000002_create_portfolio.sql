@@ -1,8 +1,3 @@
--- Portfolio domain
---
--- Public visitors can read published projects and active reference data.
--- All writes are reserved for the backend service role until application roles
--- and admin authorization are introduced.
 
 CREATE SCHEMA portfolio;
 
@@ -345,7 +340,6 @@ CREATE TABLE portfolio.project_content_translations (
 CREATE INDEX project_content_translations_item_id_idx
     ON portfolio.project_content_translations (content_item_id);
 
--- Keep mutable records' updated_at values under database control.
 CREATE FUNCTION portfolio.set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -387,7 +381,6 @@ $$;
 
 REVOKE ALL ON FUNCTION portfolio.set_updated_at() FROM PUBLIC;
 
--- A project can only be published after both supported translations exist.
 CREATE FUNCTION portfolio.prepare_project_publication()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -454,7 +447,6 @@ CREATE TRIGGER projects_prepare_publication
 
 REVOKE ALL ON FUNCTION portfolio.prepare_project_publication() FROM PUBLIC;
 
--- Unpublish a project before removing either of its required translations.
 CREATE FUNCTION portfolio.protect_published_project_translation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -494,7 +486,6 @@ REVOKE ALL ON FUNCTION
     portfolio.protect_published_project_translation()
     FROM PUBLIC;
 
--- Structural content changes require revalidation of both locales.
 CREATE FUNCTION portfolio.protect_published_project_content()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -566,7 +557,6 @@ REVOKE ALL ON FUNCTION
     portfolio.protect_published_project_content()
     FROM PUBLIC;
 
--- Reference data required in every environment.
 INSERT INTO portfolio.project_categories (
     code,
     name,
@@ -638,7 +628,6 @@ VALUES
     ('data-ai', 'Data & AI', 90),
     ('other', 'Other', 100);
 
--- Data API access. RLS remains authoritative for public reads.
 GRANT USAGE ON SCHEMA portfolio TO anon, authenticated, service_role;
 
 DO $$
