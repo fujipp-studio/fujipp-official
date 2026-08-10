@@ -21,7 +21,7 @@ onMounted(async () => {
 
   const result = await authStore.completeOAuthCallback()
   if (result.success) {
-    await router.replace('/design-system')
+    await router.replace('/')
     return
   }
   failed.value = true
@@ -64,7 +64,7 @@ function getCallbackError() {
       <div class="auth-callback__error" role="alert">
         <AuthMark class="auth-callback__error-mark" />
         <p>{{ message }}</p>
-        <button type="button" @click="router.replace('/design-system')">
+        <button type="button" @click="router.replace('/')">
           Return to sign in
         </button>
       </div>
