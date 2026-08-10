@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/admin/store/features")
@@ -54,5 +55,40 @@ public class AdminFeatureController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteImage(@PathVariable UUID featureId) {
         adminFeatureService.deleteImage(featureId);
+    }
+    @GetMapping
+    public List<AdminStoreResponses.Feature> list() {
+        return adminFeatureService.list();
+    }
+
+    @PutMapping("/{featureId}")
+    public AdminStoreResponses.Feature update(
+            @PathVariable UUID featureId,
+            @Valid @RequestBody AdminStoreRequests.UpdateFeatureRequest request
+    ) {
+        return adminFeatureService.update(featureId, request);
+    }
+
+    @PutMapping("/{featureId}/offers/{offerId}")
+    public AdminStoreResponses.Feature updateOffer(
+            @PathVariable UUID featureId,
+            @PathVariable UUID offerId,
+            @Valid @RequestBody AdminStoreRequests.UpdateOfferRequest request
+    ) {
+        return adminFeatureService.updateOffer(featureId, offerId, request);
+    }
+
+    @PostMapping("/{featureId}/offers")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminStoreResponses.Feature createOffer(
+            @PathVariable UUID featureId,
+            @Valid @RequestBody AdminStoreRequests.CreateOfferRequest request
+    ) {
+        return adminFeatureService.createOffer(featureId, request);
+    }
+
+    @PostMapping("/{featureId}/publish")
+    public AdminStoreResponses.Feature publish(@PathVariable UUID featureId) {
+        return adminFeatureService.publish(featureId);
     }
 }

@@ -5,13 +5,20 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.fujipp.backend.work.admin.CloudinaryException;
+import com.fujipp.backend.runtime.RuntimeSlotController;
+import com.fujipp.backend.runtime.AdminRuntimeController;
+import com.fujipp.backend.auth.AdminUserController;
 
 @RestControllerAdvice(assignableTypes = {
         StoreCatalogController.class,
         BotController.class,
         FeatureLicenseController.class,
         StoreOrderController.class,
-        AdminFeatureController.class
+        AdminFeatureController.class,
+        AdminBotController.class,
+        RuntimeSlotController.class
+        ,AdminRuntimeController.class
+        ,AdminUserController.class
 })
 public class StoreExceptionHandler {
 

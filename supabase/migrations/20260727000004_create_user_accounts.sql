@@ -1,7 +1,3 @@
--- Private application authorization and account-control data.
---
--- Authentication remains in auth.users, public profile data remains in
--- public.profiles, and no table in this schema is exposed through the Data API.
 
 CREATE SCHEMA private;
 
@@ -84,7 +80,6 @@ VALUES
     ('system', 'Reserved system account'),
     ('users', 'Reserved application route');
 
--- Protect system-controlled columns and maintain account lifecycle timestamps.
 CREATE FUNCTION private.prepare_user_account_write()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -129,8 +124,6 @@ CREATE TRIGGER user_accounts_prepare_write
 
 REVOKE ALL ON FUNCTION private.prepare_user_account_write() FROM PUBLIC;
 
--- Every application profile receives a private account row with the safe USER
--- and ACTIVE defaults. Existing profiles are backfilled below.
 CREATE FUNCTION private.handle_new_profile()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -158,8 +151,6 @@ SELECT profile.id
   FROM public.profiles AS profile
 ON CONFLICT (user_id) DO NOTHING;
 
--- The profile write trigger from the first migration normalizes usernames
--- before this trigger runs (PostgreSQL runs same-event triggers by name).
 CREATE FUNCTION private.reject_reserved_username()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -201,7 +192,6 @@ BEGIN
 END;
 $$;
 
--- Private schema permissions and defense-in-depth RLS.
 GRANT USAGE ON SCHEMA private TO service_role;
 
 ALTER TABLE private.user_accounts ENABLE ROW LEVEL SECURITY;

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -84,6 +85,29 @@ class StoreControllerTests {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"));
+    }
+
+    @Test
+    void updateBotValidatesDiscordIds() throws Exception {
+        authorizeUser();
+
+        mockMvc.perform(put("/api/v1/bots/11111111-1111-4111-8111-111111111111")
+                        .with(jwt().jwt(builder -> builder.subject(UUID.randomUUID().toString())))
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "name": "My Bot",
+                                  "discordGuildId": "invalid"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"));
+    }
+
+    @Test
+    void botControlsRequireAuthentication() throws Exception {
+        mockMvc.perform(post("/api/v1/bots/11111111-1111-4111-8111-111111111111/restart"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

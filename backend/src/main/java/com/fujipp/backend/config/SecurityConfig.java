@@ -43,7 +43,10 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/store/features")
                         .permitAll()
-                        .requestMatchers("/internal/v1/runtime/**")
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/api/v1/runtime/plans", "/api/v1/runtime/availability")
+                        .permitAll()
+                        .requestMatchers("/internal/v1/**")
                         .hasRole("RUNNER")
                         .anyRequest()
                         .authenticated())

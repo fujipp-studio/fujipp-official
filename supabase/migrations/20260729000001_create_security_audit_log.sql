@@ -1,6 +1,3 @@
--- Append-only security events written by trusted Backend operations.
--- Authentication secrets, access tokens, refresh tokens, and passwords must
--- never be stored in this table.
 
 CREATE TABLE private.security_audit_log (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

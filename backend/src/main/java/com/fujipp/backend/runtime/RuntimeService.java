@@ -34,19 +34,24 @@ public class RuntimeService {
                         feature.runtimeKey(), feature.revision(),
                         repository.findConfig(feature.configSetId()),
                         secrets,
-                        repository.findPresentations(feature.configSetId())
+                        repository.findPresentations(feature.configSetId()),
+                        repository.findState(feature.installationId())
                 );
             }).toList();
             return new RuntimeBootstrapResponse.RuntimeBot(
                     bot.id(), bot.name(), bot.applicationId(), bot.guildId(),
                     secretCipher.decrypt(bot.ciphertext(), bot.nonce(), bot.keyVersion()),
+                    bot.restartRevision(),
+                    new RuntimeBootstrapResponse.RuntimeSubscription(
+                            bot.runtimeSubscriptionId(), bot.currentPeriodEnd(), bot.autoRenew()
+                    ),
                     features
             );
         }).toList();
-        long revision = bots.stream()
-                .flatMap(bot -> bot.features().stream())
+        long revision = bots.stream().mapToLong(bot -> bot.restartRevision()
+                + bot.features().stream()
                 .mapToLong(RuntimeBootstrapResponse.RuntimeFeature::configRevision)
-                .sum();
+                .sum()).sum();
         return new RuntimeBootstrapResponse(revision, bots);
     }
 
@@ -59,5 +64,18 @@ public class RuntimeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid runtime status");
         }
         repository.updateStatus(request);
+    }
+
+    @Transactional
+    public void updateState(RuntimeStateRequest request) {
+        if (!request.state().isObject()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Runtime state must be a JSON object");
+        }
+        if (request.state().toString().length() > 16_384) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Runtime state is too large");
+        }
+        if (!repository.upsertState(request)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Active feature installation not found");
+        }
     }
 }

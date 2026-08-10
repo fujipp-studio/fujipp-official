@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { AppProgressiveImage } from '../../../shared/ui'
 import { useScrollFade } from '../composables/useScrollFade'
 
 const section = ref<HTMLElement>()
@@ -21,9 +22,20 @@ const { t } = useI18n()
     </h2>
 
     <div class="problem-solution-section__visual" :style="fadeStyle">
-      <img
-        src="/images/home/developer-portal-display.png"
+      <AppProgressiveImage
+        class="problem-solution-section__image"
+        src="/images/home/developer-portal-display-640.webp"
+        placeholder-src="/images/home/developer-portal-display-lqip.webp"
+        srcset="
+          /images/home/developer-portal-display-640.webp 640w,
+          /images/home/developer-portal-display-1024.webp 1024w
+        "
+        sizes="(max-width: 768px) calc(100vw - 2rem), 512px"
+        width="1024"
+        height="1054"
         :alt="t('home.problem.imageAlt')"
+        loading="lazy"
+        fit="contain"
       />
     </div>
 
@@ -77,13 +89,13 @@ const { t } = useI18n()
   flex-shrink: 0;
 }
 
-.problem-solution-section__visual img {
+.problem-solution-section__image {
   position: absolute;
   top: 0;
   left: 0.4375rem;
   width: min(31.30625rem, calc(100% - 0.875rem));
   height: min(28.76875rem, 100%);
-  object-fit: contain;
+  background: transparent;
   filter: drop-shadow(var(--effect-shadow-xl));
 }
 

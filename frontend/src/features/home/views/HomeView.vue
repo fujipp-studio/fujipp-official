@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { AppFooter } from '../../../shared/layout'
+import { AppProgressiveImage } from '../../../shared/ui'
 import {
   AboutUsSection,
   ProblemSolutionSection,
@@ -23,7 +24,22 @@ onBeforeUnmount(() => document.documentElement.classList.remove('home-section-sc
 <template>
   <div class="home-page">
     <div class="home-background" aria-hidden="true">
-      <img src="/images/home/hero-background-4k.png" alt="" />
+      <AppProgressiveImage
+        class="home-background__image"
+        src="/images/home/hero-background-1280.webp"
+        placeholder-src="/images/home/hero-background-lqip.webp"
+        srcset="
+          /images/home/hero-background-1280.webp 1280w,
+          /images/home/hero-background-2048.webp 2048w
+        "
+        sizes="100vw"
+        width="2048"
+        height="2048"
+        alt=""
+        loading="eager"
+        fetchpriority="high"
+        position="right center"
+      />
       <div class="home-background__blur" />
       <div class="home-background__fade" />
     </div>
@@ -69,11 +85,9 @@ onBeforeUnmount(() => document.documentElement.classList.remove('home-section-sc
   pointer-events: none;
 }
 
-.home-background img {
+.home-background__image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: right center;
 }
 
 .home-background__blur {
@@ -151,8 +165,8 @@ onBeforeUnmount(() => document.documentElement.classList.remove('home-section-sc
 }
 
 @media (max-width: 47.99rem) {
-  .home-background img {
-    object-position: 62% center;
+  .home-background__image {
+    --progressive-image-position: 62% center !important;
   }
 
   .home-background__blur {

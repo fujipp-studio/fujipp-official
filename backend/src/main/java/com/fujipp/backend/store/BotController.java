@@ -40,13 +40,44 @@ public class BotController {
         return storeService.createBot(jwt.getSubject(), request);
     }
 
+    @PutMapping("/{botId}")
+    public BotResponse update(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID botId,
+            @Valid @RequestBody UpdateBotRequest request
+    ) {
+        return storeService.updateBot(jwt.getSubject(), botId, request);
+    }
+
+    @PostMapping("/{botId}/start")
+    public BotResponse start(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID botId) {
+        return storeService.controlBot(jwt.getSubject(), botId, "start");
+    }
+
+    @PostMapping("/{botId}/stop")
+    public BotResponse stop(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID botId) {
+        return storeService.controlBot(jwt.getSubject(), botId, "stop");
+    }
+
+    @PostMapping("/{botId}/restart")
+    public BotResponse restart(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID botId) {
+        return storeService.controlBot(jwt.getSubject(), botId, "restart");
+    }
+
     @PutMapping("/{botId}/credentials/discord-token")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateDiscordToken(
+    public BotResponse updateDiscordToken(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID botId,
             @Valid @RequestBody UpdateDiscordTokenRequest request
     ) {
-        storeService.updateDiscordToken(jwt.getSubject(), botId, request);
+        return storeService.updateDiscordToken(jwt.getSubject(), botId, request);
+    }
+
+    @PostMapping("/{botId}/discord-profile/sync")
+    public BotResponse syncDiscordProfile(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID botId
+    ) {
+        return storeService.syncDiscordProfile(jwt.getSubject(), botId);
     }
 }

@@ -13,6 +13,7 @@ public record CurrentUser(
         String firstName,
         String lastName,
         String avatarUrl,
-        OffsetDateTime profileCompletedAt
+        OffsetDateTime profileCompletedAt,
+        long walletBalanceSatang
 ) {
 }

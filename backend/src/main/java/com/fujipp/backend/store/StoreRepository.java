@@ -119,6 +119,104 @@ public class StoreRepository {
         return rows.stream().findFirst();
     }
 
+    public List<AdminStoreResponses.Feature> findAdminFeatures() {
+        List<AdminFeatureRow> rows = jdbcTemplate.query(
+                """
+                SELECT product.id, product.code, product.name, product.description,
+                       product.category, product.icon_key, product.image_url,
+                       product.image_alt_text, product.tutorial_url, product.status::text,
+                       product.is_featured, product.sort_order,
+                       latest_version.version AS latest_version,
+                       latest_version.status::text AS version_status,
+                       latest_version.published_at,
+                       offer.id AS offer_id, offer.code AS offer_code, offer.name AS offer_name,
+                       offer.offer_kind::text AS offer_kind, offer.price_satang, offer.currency,
+                       offer.billing_period_days, offer.installation_limit, offer.is_active,
+                       offer.starts_at, offer.ends_at
+                  FROM shop.feature_products product
+                  LEFT JOIN LATERAL (
+                      SELECT version, status, published_at
+                        FROM shop.feature_versions
+                       WHERE feature_product_id = product.id
+                       ORDER BY created_at DESC, version DESC
+                       LIMIT 1
+                  ) latest_version ON true
+                  LEFT JOIN shop.feature_offers offer ON offer.feature_product_id = product.id
+                 ORDER BY product.sort_order, product.code, offer.created_at, offer.code
+                """,
+                (rs, rowNum) -> new AdminFeatureRow(
+                        rs.getObject("id", UUID.class), rs.getString("code"), rs.getString("name"),
+                        rs.getString("description"), rs.getString("category"), rs.getString("icon_key"),
+                        rs.getString("image_url"), rs.getString("image_alt_text"), rs.getString("tutorial_url"),
+                        rs.getString("status"), rs.getBoolean("is_featured"), rs.getInt("sort_order"),
+                        rs.getString("latest_version"), rs.getString("version_status"),
+                        rs.getObject("published_at", OffsetDateTime.class),
+                        rs.getObject("offer_id", UUID.class) == null ? null : new AdminStoreResponses.Offer(
+                                rs.getObject("offer_id", UUID.class), rs.getString("offer_code"),
+                                rs.getString("offer_name"), rs.getString("offer_kind"), rs.getLong("price_satang"),
+                                rs.getString("currency"), rs.getObject("billing_period_days", Integer.class),
+                                rs.getInt("installation_limit"), rs.getBoolean("is_active"),
+                                rs.getObject("starts_at", OffsetDateTime.class), rs.getObject("ends_at", OffsetDateTime.class))
+                ));
+        Map<UUID, AdminFeatureAccumulator> grouped = new LinkedHashMap<>();
+        for (AdminFeatureRow row : rows) {
+            AdminFeatureAccumulator item = grouped.computeIfAbsent(row.id(), ignored -> new AdminFeatureAccumulator(row));
+            if (row.offer() != null) item.offers.add(row.offer());
+        }
+        return grouped.values().stream().map(AdminFeatureAccumulator::response).toList();
+    }
+
+    public boolean updateFeature(UUID featureId, AdminStoreRequests.UpdateFeatureRequest request) {
+        return jdbcTemplate.update("""
+                UPDATE shop.feature_products
+                   SET name=?, description=?, category=upper(?), icon_key=?,
+                       status=?::shop.feature_product_status, is_featured=?, sort_order=?
+                 WHERE id=?
+                """, request.name().trim(), request.description().trim(), request.category().trim(),
+                normalize(request.iconKey()), request.status().toUpperCase(), request.featured(),
+                request.sortOrder(), featureId) == 1;
+    }
+
+    public boolean updateFeatureOffer(UUID featureId, UUID offerId, AdminStoreRequests.UpdateOfferRequest request) {
+        return jdbcTemplate.update("""
+                UPDATE shop.feature_offers
+                   SET name=?, price_satang=?, installation_limit=?, is_active=?, starts_at=?, ends_at=?
+                 WHERE id=? AND feature_product_id=?
+                """, request.name().trim(), request.priceSatang(), request.installationLimit(), request.active(),
+                request.startsAt(), request.endsAt(), offerId, featureId) == 1;
+    }
+
+    public void createFeatureOffer(UUID featureId, AdminStoreRequests.CreateOfferRequest request, String kind) {
+        jdbcTemplate.update("""
+                INSERT INTO shop.feature_offers(
+                    feature_product_id, code, name, offer_kind, price_satang, currency,
+                    billing_period_days, installation_limit, is_active, starts_at, ends_at
+                ) VALUES (?, ?, ?, ?::shop.feature_offer_kind, ?, 'THB', ?, ?, ?, ?, ?)
+                """, featureId, request.code().trim(), request.name().trim(), kind,
+                request.priceSatang(), request.billingPeriodDays(), request.installationLimit(),
+                request.active(), request.startsAt(), request.endsAt());
+    }
+
+    public boolean publishLatestFeatureVersion(UUID featureId) {
+        UUID versionId = jdbcTemplate.query("""
+                SELECT id FROM shop.feature_versions
+                 WHERE feature_product_id = ?
+                 ORDER BY created_at DESC, version DESC
+                 LIMIT 1
+                """, rs -> rs.next() ? rs.getObject("id", UUID.class) : null, featureId);
+        if (versionId == null) return false;
+        jdbcTemplate.update("""
+                UPDATE shop.feature_versions
+                   SET status = 'DEPRECATED'
+                 WHERE feature_product_id = ? AND status = 'PUBLISHED' AND id <> ?
+                """, featureId, versionId);
+        return jdbcTemplate.update("""
+                UPDATE shop.feature_versions
+                   SET status = 'PUBLISHED', published_at = COALESCE(published_at, now())
+                 WHERE id = ?
+                """, versionId) == 1;
+    }
+
     public void replaceFeatureImage(
             UUID featureId,
             String publicId,
@@ -215,6 +313,41 @@ public class StoreRepository {
         );
     }
 
+    public BotCredential findBotCredential(UUID botId, UUID ownerUserId, String key) {
+        return jdbcTemplate.query(
+                """
+                SELECT credential.ciphertext, credential.nonce, credential.encryption_key_version
+                  FROM private.bot_credentials AS credential
+                  JOIN bots.bot_instances AS bot ON bot.id = credential.bot_id
+                 WHERE credential.bot_id = ? AND bot.owner_user_id = ?
+                   AND credential.credential_key = ? AND bot.status <> 'DECOMMISSIONED'
+                """,
+                rs -> rs.next()
+                        ? new BotCredential(rs.getBytes(1), rs.getBytes(2), rs.getString(3))
+                        : null,
+                botId, ownerUserId, key
+        );
+    }
+
+    public BotResponse updateDiscordProfile(
+            UUID botId, UUID ownerUserId, String username, String avatarUrl
+    ) {
+        return jdbcTemplate.query(
+                """
+                UPDATE bots.bot_instances
+                   SET discord_username = ?, discord_avatar_url = ?
+                 WHERE id = ? AND owner_user_id = ? AND status <> 'DECOMMISSIONED'
+                RETURNING id, name, discord_application_id, discord_guild_id,
+                          discord_username, discord_avatar_url, status::text,
+                          desired_state::text, restart_revision, created_at, updated_at
+                """,
+                this::mapBot,
+                username, avatarUrl, botId, ownerUserId
+        ).stream().findFirst().orElseThrow(() -> new StoreNotFoundException("Bot was not found"));
+    }
+
+    public record BotCredential(byte[] ciphertext, byte[] nonce, String keyVersion) {}
+
     public List<BotResponse> findBots(UUID ownerUserId) {
         return jdbcTemplate.query(
                 """
@@ -225,6 +358,8 @@ public class StoreRepository {
                        discord_username,
                        discord_avatar_url,
                        status::text,
+                       desired_state::text,
+                       restart_revision,
                        created_at,
                        updated_at
                   FROM bots.bot_instances
@@ -259,6 +394,8 @@ public class StoreRepository {
                           discord_username,
                           discord_avatar_url,
                           status::text,
+                          desired_state::text,
+                          restart_revision,
                           created_at,
                           updated_at
                 """,
@@ -285,6 +422,50 @@ public class StoreRepository {
                 botId,
                 ownerUserId
         ));
+    }
+
+    public BotResponse updateBot(UUID botId, UUID ownerUserId, String name,
+                                 String discordApplicationId, String discordGuildId) {
+        List<BotResponse> rows = jdbcTemplate.query(
+                """
+                UPDATE bots.bot_instances
+                   SET name = ?,
+                       discord_application_id = ?,
+                       discord_guild_id = ?
+                 WHERE id = ?
+                   AND owner_user_id = ?
+                   AND status <> 'DECOMMISSIONED'
+                RETURNING id, name, discord_application_id, discord_guild_id,
+                          discord_username, discord_avatar_url, status::text,
+                          desired_state::text, restart_revision, created_at, updated_at
+                """,
+                this::mapBot,
+                name, discordApplicationId, discordGuildId, botId, ownerUserId
+        );
+        return rows.stream().findFirst()
+                .orElseThrow(() -> new StoreNotFoundException("Bot was not found"));
+    }
+
+    public BotResponse controlBot(UUID botId, UUID ownerUserId, String action) {
+        String desiredState = "stop".equals(action) ? "STOPPED" : "RUNNING";
+        boolean restart = "restart".equals(action);
+        List<BotResponse> rows = jdbcTemplate.query(
+                """
+                UPDATE bots.bot_instances
+                   SET desired_state = ?::bots.bot_desired_state,
+                       restart_revision = restart_revision + CASE WHEN ? THEN 1 ELSE 0 END
+                 WHERE id = ?
+                   AND owner_user_id = ?
+                   AND status NOT IN ('SUSPENDED', 'DECOMMISSIONED')
+                RETURNING id, name, discord_application_id, discord_guild_id,
+                          discord_username, discord_avatar_url, status::text,
+                          desired_state::text, restart_revision, created_at, updated_at
+                """,
+                this::mapBot,
+                desiredState, restart, botId, ownerUserId
+        );
+        return rows.stream().findFirst()
+                .orElseThrow(() -> new StoreNotFoundException("Controllable bot was not found"));
     }
 
     public Optional<OfferCheckoutRow> findOfferForCheckout(UUID offerId) {
@@ -689,6 +870,10 @@ public class StoreRepository {
                  WHERE id = ?
                    AND owner_user_id = ?
                    AND removed_at IS NULL
+                   AND feature_product_id NOT IN (
+                       SELECT id FROM shop.feature_products
+                WHERE code IN ('bot-presence', 'runtime-expiry-alert', 'bot-permissions')
+                   )
                 """,
                 installationId,
                 ownerUserId
@@ -761,6 +946,7 @@ public class StoreRepository {
                 SELECT slot.id,
                        slot.slot_key,
                        slot.label,
+                       slot.description,
                        slot.presentation_type::text,
                        slot.available_variables,
                        slot.default_definition::text,
@@ -776,6 +962,7 @@ public class StoreRepository {
                         resultSet.getObject("id", UUID.class),
                         resultSet.getString("slot_key"),
                         resultSet.getString("label"),
+                        resultSet.getString("description"),
                         resultSet.getString("presentation_type"),
                         readTextArray(resultSet, "available_variables"),
                         parseJson(resultSet.getString("default_definition")),
@@ -948,6 +1135,8 @@ public class StoreRepository {
                 resultSet.getString("discord_username"),
                 resultSet.getString("discord_avatar_url"),
                 resultSet.getString("status"),
+                resultSet.getString("desired_state"),
+                resultSet.getLong("restart_revision"),
                 resultSet.getObject("created_at", OffsetDateTime.class),
                 resultSet.getObject("updated_at", OffsetDateTime.class)
         );
@@ -1147,6 +1336,31 @@ public class StoreRepository {
             String altText,
             String tutorialUrl
     ) {
+    }
+
+    private static String normalize(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
+    private record AdminFeatureRow(
+            UUID id, String code, String name, String description, String category, String iconKey,
+            String imageUrl, String imageAltText, String tutorialUrl, String status,
+            boolean featured, int sortOrder, String latestVersion, String versionStatus,
+            OffsetDateTime publishedAt, AdminStoreResponses.Offer offer
+    ) {}
+
+    private static final class AdminFeatureAccumulator {
+        private final AdminFeatureRow row;
+        private final List<AdminStoreResponses.Offer> offers = new ArrayList<>();
+        private AdminFeatureAccumulator(AdminFeatureRow row) { this.row = row; }
+        private AdminStoreResponses.Feature response() {
+            return new AdminStoreResponses.Feature(row.id(), row.code(), row.name(), row.description(),
+                    row.category(), row.iconKey(), row.imageUrl(), row.imageAltText(), row.tutorialUrl(),
+                    row.status(), row.featured(), row.sortOrder(), row.latestVersion(), row.versionStatus(),
+                    row.publishedAt(), List.copyOf(offers));
+        }
     }
 
     private record CustomerWallet(UUID customerId, UUID walletId) {

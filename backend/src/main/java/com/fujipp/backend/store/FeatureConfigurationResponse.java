@@ -32,6 +32,7 @@ public record FeatureConfigurationResponse(
             UUID slotId,
             String key,
             String label,
+            String description,
             String type,
             List<String> availableVariables,
             JsonNode defaultDefinition,

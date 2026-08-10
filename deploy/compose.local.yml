@@ -1,0 +1,8 @@
+services:
+  backend:
+    environment:
+      # Local tokens are issued with this browser-facing URL, while JWKS is
+      # fetched through SUPABASE_URL=host.docker.internal from the container.
+      SUPABASE_JWT_ISSUER: http://127.0.0.1:54321/auth/v1
+    ports:
+      - "8080:8080"

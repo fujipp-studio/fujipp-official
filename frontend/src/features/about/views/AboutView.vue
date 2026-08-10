@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { AppFooter } from '../../../shared/layout'
-import { AppButton } from '../../../shared/ui'
+import { AppButton, AppProgressiveImage } from '../../../shared/ui'
 import { icons } from '../../../config'
 import { useThemeStore } from '../../../stores'
 import { AboutSectionNavigation, SkillGroupCard } from '../components'
@@ -14,8 +14,13 @@ const { isDarkTheme } = storeToRefs(useThemeStore())
 const { t } = useI18n()
 const profileImageSrc = computed(() =>
   isDarkTheme.value
-    ? '/images/about/anawat-grudtoop-profile-cropped.png'
-    : '/images/about/anawat-grudtoop-profile-512.png',
+    ? '/images/about/anawat-grudtoop-profile-cropped-768.webp'
+    : '/images/about/anawat-grudtoop-profile-512.webp',
+)
+const profilePlaceholderSrc = computed(() =>
+  isDarkTheme.value
+    ? '/images/about/anawat-grudtoop-profile-cropped-lqip.webp'
+    : '/images/about/anawat-grudtoop-profile-512-lqip.webp',
 )
 const birthDate = { year: 2003, month: 10, day: 26 }
 const ageClock = ref(new Date())
@@ -202,12 +207,14 @@ onBeforeUnmount(() => {
       <section id="about-profile" class="about-section about-profile">
           <div class="about-profile__portrait">
             <div class="about-profile__image">
-              <img
+              <AppProgressiveImage
+                class="about-profile__picture"
                 :src="profileImageSrc"
+                :placeholder-src="profilePlaceholderSrc"
                 :alt="t('about.profile.portraitAlt')"
                 width="512"
                 height="512"
-                decoding="async"
+                loading="eager"
                 fetchpriority="high"
               />
               <strong class="about-profile__name">Fuji</strong>
@@ -285,14 +292,14 @@ onBeforeUnmount(() => {
 
       <section id="about-contact" class="about-section about-contact">
         <div class="about-contact__container">
-          <img
+          <AppProgressiveImage
             class="about-contact__portrait"
             :src="profileImageSrc"
+            :placeholder-src="profilePlaceholderSrc"
             alt=""
             width="512"
             height="512"
             loading="lazy"
-            decoding="async"
           />
 
           <div class="about-copy">
@@ -430,7 +437,7 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
-.about-profile__portrait img {
+.about-profile__picture {
   display: block;
   width: 100%;
   height: 100%;
@@ -476,7 +483,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.about-profile__portrait:hover img {
+.about-profile__portrait:hover .about-profile__picture :deep(img) {
   filter: brightness(0.52);
   transform: scale(1.07);
 }

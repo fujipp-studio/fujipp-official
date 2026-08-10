@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import { getIconColorMode } from '../../../config'
 import type { IconSource } from '../../../config'
+import AppIcon from '../icons/AppIcon.vue'
 
 type ButtonVariant = 'primary' | 'secondary'
 type ButtonType = 'button' | 'submit' | 'reset'
@@ -14,6 +14,7 @@ const props = withDefaults(
     leftIcon?: IconSource
     rightIcon?: IconSource
     disabled?: boolean
+    loading?: boolean
     href?: string
     target?: '_blank' | '_self'
     rel?: string
@@ -24,6 +25,7 @@ const props = withDefaults(
     leftIcon: undefined,
     rightIcon: undefined,
     disabled: false,
+    loading: false,
     href: undefined,
     target: undefined,
     rel: undefined,
@@ -33,7 +35,7 @@ const props = withDefaults(
 const buttonElement = ref<HTMLButtonElement | HTMLAnchorElement>()
 
 function updatePointerTilt(event: PointerEvent) {
-  if (props.disabled || !buttonElement.value) return
+  if (props.disabled || props.loading || !buttonElement.value) return
 
   const bounds = buttonElement.value.getBoundingClientRect()
   const pointerRatio = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1)
@@ -54,44 +56,24 @@ function resetPointerTilt() {
     class="app-button"
     :class="`app-button--${variant}`"
     :type="href ? undefined : type"
-    :disabled="href ? undefined : disabled"
-    :href="disabled ? undefined : href"
+    :disabled="href ? undefined : disabled || loading"
+    :href="disabled || loading ? undefined : href"
     :target="href ? target : undefined"
     :rel="href ? rel : undefined"
-    :aria-disabled="href && disabled ? 'true' : undefined"
-    :tabindex="href && disabled ? -1 : undefined"
+    :aria-disabled="href && (disabled || loading) ? 'true' : undefined"
+    :aria-busy="loading || undefined"
+    :tabindex="href && (disabled || loading) ? -1 : undefined"
     @pointermove="updatePointerTilt"
     @pointerleave="resetPointerTilt"
   >
-    <img
-      v-if="leftIcon && getIconColorMode(leftIcon) === 'original'"
-      class="app-button__icon"
-      :src="leftIcon"
-      alt=""
-    />
-    <span
-      v-else-if="leftIcon"
-      class="app-button__icon app-button__icon--mask"
-      :style="{ '--button-icon': `url(${leftIcon})` }"
-      aria-hidden="true"
-    />
+    <AppIcon v-if="leftIcon" class="app-button__icon" :source="leftIcon" />
 
-    <span class="app-button__label">
+    <span v-if="loading" class="app-button__spinner" aria-hidden="true" />
+    <span class="app-button__label" :class="{ 'app-button__label--loading': loading }">
       <slot />
     </span>
 
-    <img
-      v-if="rightIcon && getIconColorMode(rightIcon) === 'original'"
-      class="app-button__icon"
-      :src="rightIcon"
-      alt=""
-    />
-    <span
-      v-else-if="rightIcon"
-      class="app-button__icon app-button__icon--mask"
-      :style="{ '--button-icon': `url(${rightIcon})` }"
-      aria-hidden="true"
-    />
+    <AppIcon v-if="rightIcon" class="app-button__icon" :source="rightIcon" />
   </component>
 </template>
 
@@ -180,8 +162,31 @@ function resetPointerTilt() {
 .app-button__label {
   position: relative;
   z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
   font-weight: var(--typography-font-weight-medium);
   white-space: nowrap;
+}
+.app-button__label--loading {
+  opacity: 0.65;
+}
+.app-button__spinner {
+  position: relative;
+  z-index: 1;
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
+  flex: none;
+  border: 2px solid currentcolor;
+  border-right-color: transparent;
+  border-radius: var(--radius-full);
+  animation: app-button-spin 650ms linear infinite;
+}
+@keyframes app-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .app-button__icon {
@@ -194,15 +199,13 @@ function resetPointerTilt() {
   object-fit: contain;
 }
 
-.app-button__icon--mask {
-  background-color: currentcolor;
-  mask: var(--button-icon) center / contain no-repeat;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .app-button {
     transition: none;
     transform: none;
+  }
+  .app-button__spinner {
+    animation: none;
   }
 }
 </style>

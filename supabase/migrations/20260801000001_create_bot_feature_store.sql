@@ -1,9 +1,3 @@
--- Bot feature store foundation.
---
--- Ownership (a license) is deliberately separate from assignment (an
--- installation). A purchased feature can therefore remain in a customer's
--- inventory while it is not assigned to any bot. Catalog, commerce, runtime
--- configuration, and encrypted secrets also live in separate schemas.
 
 CREATE SCHEMA shop;
 CREATE SCHEMA bots;
@@ -84,7 +78,6 @@ CREATE TYPE private.feature_installation_status AS ENUM (
     'REMOVED'
 );
 
--- Customer-owned Discord bots. Secrets are kept out of this registry.
 CREATE TABLE bots.bot_instances (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_user_id UUID NOT NULL
@@ -128,7 +121,6 @@ CREATE TABLE bots.bot_instances (
 CREATE INDEX bot_instances_owner_status_idx
     ON bots.bot_instances (owner_user_id, status);
 
--- Public product identity. Published behavior belongs to an immutable version.
 CREATE TABLE shop.feature_products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(80) NOT NULL UNIQUE,
@@ -252,7 +244,6 @@ CREATE TABLE shop.feature_offers (
 CREATE INDEX feature_offers_active_idx
     ON shop.feature_offers (feature_product_id, is_active);
 
--- Each definition drives both backend validation and the configuration UI.
 CREATE TABLE shop.feature_config_definitions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     feature_version_id UUID NOT NULL
@@ -321,7 +312,6 @@ CREATE TABLE shop.feature_presentation_slots (
         CHECK (sort_order >= 0)
 );
 
--- Store receipts. Financial debits remain append-only in billing.wallet_entries.
 CREATE TABLE billing.store_orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_number VARCHAR(40) NOT NULL UNIQUE,
@@ -417,7 +407,6 @@ CREATE TABLE billing.store_order_items (
 CREATE INDEX store_order_items_order_idx
     ON billing.store_order_items (order_id);
 
--- One row is one independently assignable copy in the customer's inventory.
 CREATE TABLE private.feature_licenses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     owner_user_id UUID NOT NULL
@@ -475,8 +464,6 @@ CREATE INDEX feature_licenses_expiry_idx
     ON private.feature_licenses (expires_at)
     WHERE status = 'ACTIVE' AND expires_at IS NOT NULL;
 
--- Historical assignments are retained. removed_at NULL means the assignment
--- still occupies a bot and counts against the license installation limit.
 CREATE TABLE private.bot_feature_installations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     license_id UUID NOT NULL,
@@ -525,8 +512,6 @@ CREATE INDEX bot_feature_installations_bot_status_idx
     ON private.bot_feature_installations (bot_id, status)
     WHERE removed_at IS NULL;
 
--- A configuration set survives detach/reattach because it belongs to a license,
--- not a bot. Bot-specific IDs must be revalidated by the backend after a move.
 CREATE TABLE private.feature_config_sets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     license_id UUID NOT NULL UNIQUE,
@@ -578,8 +563,6 @@ CREATE TABLE private.feature_config_values (
         ON DELETE RESTRICT
 );
 
--- Ciphertext, nonce, and fingerprints are produced by the trusted backend.
--- Plaintext secrets never enter a normal config table or a read response.
 CREATE TABLE private.feature_secret_values (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     config_set_id UUID NOT NULL,
@@ -636,8 +619,6 @@ CREATE TABLE private.feature_presentation_overrides (
     )
 );
 
--- Generic encrypted bot credentials keep Discord tokens and OAuth client
--- secrets out of the bot registry and make future credential kinds additive.
 CREATE TABLE private.bot_credentials (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     bot_id UUID NOT NULL,
@@ -669,7 +650,6 @@ CREATE TABLE private.bot_credentials (
     )
 );
 
--- Database-managed timestamps.
 CREATE FUNCTION shop.set_updated_at()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -759,8 +739,6 @@ BEGIN
 END;
 $$;
 
--- Validate immutable order identity, legal state transitions, exact line totals,
--- and the append-only wallet entries that settle purchases and refunds.
 CREATE FUNCTION billing.validate_store_order()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -863,7 +841,6 @@ CREATE TRIGGER store_orders_validate
     BEFORE INSERT OR UPDATE ON billing.store_orders
     FOR EACH ROW EXECUTE FUNCTION billing.validate_store_order();
 
--- Prevent accidental edits to receipt lines once checkout has left PENDING.
 CREATE FUNCTION billing.protect_store_order_item()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -889,8 +866,6 @@ CREATE TRIGGER store_order_items_protect
     BEFORE UPDATE OR DELETE ON billing.store_order_items
     FOR EACH ROW EXECUTE FUNCTION billing.protect_store_order_item();
 
--- A purchased license can only be minted from a paid line item. Locking the
--- line serializes concurrent grants and prevents quantity over-issuance.
 CREATE FUNCTION private.validate_feature_license_acquisition()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -970,8 +945,6 @@ CREATE TRIGGER feature_licenses_validate_acquisition
     ON private.feature_licenses
     FOR EACH ROW EXECUTE FUNCTION private.validate_feature_license_acquisition();
 
--- Lock the license before counting active assignments so concurrent installs
--- cannot exceed the purchased installation limit.
 CREATE FUNCTION private.validate_feature_installation()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1025,8 +998,6 @@ CREATE TRIGGER bot_feature_installations_validate
     BEFORE INSERT OR UPDATE ON private.bot_feature_installations
     FOR EACH ROW EXECUTE FUNCTION private.validate_feature_installation();
 
--- The table boundary, rather than an application boolean, decides whether a
--- value is a secret. This prevents secret definitions entering normal JSON.
 CREATE FUNCTION private.validate_feature_config_storage()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -1073,8 +1044,6 @@ REVOKE ALL ON FUNCTION private.validate_feature_license_acquisition() FROM PUBLI
 REVOKE ALL ON FUNCTION private.validate_feature_installation() FROM PUBLIC;
 REVOKE ALL ON FUNCTION private.validate_feature_config_storage() FROM PUBLIC;
 
--- These schemas are not exposed through the Supabase Data API. The backend is
--- the sole access path; RLS is enabled as defense in depth on every table.
 GRANT USAGE ON SCHEMA shop, bots TO service_role;
 
 DO $$

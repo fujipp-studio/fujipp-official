@@ -1,5 +1,3 @@
--- User authentication remains owned by Supabase Auth (`auth.users` and
--- `auth.identities`). This table contains application-facing profile data only.
 
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY
@@ -82,8 +80,6 @@ COMMENT ON COLUMN public.profiles.avatar_public_id IS
 COMMENT ON COLUMN public.profiles.avatar_source IS
     'PROVIDER for an OAuth image or CLOUDINARY for a user-uploaded image.';
 
--- Normalize editable text, make usernames immutable after their first assignment,
--- and protect timestamps managed by the database.
 CREATE FUNCTION public.prepare_profile_write()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -131,8 +127,6 @@ CREATE TRIGGER profiles_prepare_write
 
 REVOKE ALL ON FUNCTION public.prepare_profile_write() FROM PUBLIC;
 
--- Create the application profile after any supported Supabase Auth signup.
--- OAuth metadata is untrusted input, so it is trimmed and bounded before insert.
 CREATE FUNCTION public.handle_new_auth_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql

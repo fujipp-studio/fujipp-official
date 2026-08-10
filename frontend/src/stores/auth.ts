@@ -20,12 +20,20 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   let listenerRegistered = false
+  let initializationPromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => session.value !== null)
 
-  async function initialize() {
+  function initialize() {
     if (initialized.value) return
+    if (initializationPromise) return initializationPromise
+    initializationPromise = initializeAuth().finally(() => {
+      initializationPromise = null
+    })
+    return initializationPromise
+  }
 
+  async function initializeAuth() {
     try {
       const supabase = getSupabaseClient()
       const { data, error: sessionError } = await supabase.auth.getSession()
@@ -36,16 +44,14 @@ export const useAuthStore = defineStore('auth', () => {
 
       if (!listenerRegistered) {
         listenerRegistered = true
-        supabase.auth.onAuthStateChange(
-          (_event: AuthChangeEvent, nextSession: Session | null) => {
-            session.value = nextSession
-            if (!nextSession) {
-              currentUser.value = null
-              return
-            }
-            void loadCurrentUser(nextSession)
-          },
-        )
+        supabase.auth.onAuthStateChange((_event: AuthChangeEvent, nextSession: Session | null) => {
+          session.value = nextSession
+          if (!nextSession) {
+            currentUser.value = null
+            return
+          }
+          void loadCurrentUser(nextSession)
+        })
       }
     } catch (cause) {
       error.value = getErrorMessage(cause)
@@ -121,8 +127,7 @@ export const useAuthStore = defineStore('auth', () => {
     return runAuthAction(async () => {
       const code = new URL(window.location.href).searchParams.get('code')
       if (code) {
-        const { error: exchangeError } =
-          await getSupabaseClient().auth.exchangeCodeForSession(code)
+        const { error: exchangeError } = await getSupabaseClient().auth.exchangeCodeForSession(code)
         if (exchangeError) throw exchangeError
       }
 
@@ -146,9 +151,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser.value = await fetchCurrentUser(activeSession)
   }
 
-  async function runAuthAction(
-    action: () => Promise<AuthActionResult>,
-  ): Promise<AuthActionResult> {
+  async function runAuthAction(action: () => Promise<AuthActionResult>): Promise<AuthActionResult> {
     loading.value = true
     error.value = null
     try {
@@ -166,6 +169,12 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = null
   }
 
+  async function reloadCurrentUser() {
+    if (session.value) {
+      await loadCurrentUser(session.value)
+    }
+  }
+
   return {
     session,
     currentUser,
@@ -174,6 +183,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     initialize,
+    reloadCurrentUser,
     signIn,
     signUp,
     signInWithOAuth,

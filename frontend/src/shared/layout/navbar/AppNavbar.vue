@@ -9,7 +9,7 @@ import type { NavbarLink } from '../../../config'
 import type { ThemeMode } from '../../../config/theme'
 import { setAppLocale } from '../../../i18n'
 import { useAuthStore, useThemeStore } from '../../../stores'
-import { AppAuthDialog, AppButton } from '../../ui'
+import { AppAuthDialog, AppAuthLoadingOverlay, AppButton, AppIcon } from '../../ui'
 import type { AuthDialogMode } from '../../ui'
 
 const props = withDefaults(
@@ -36,6 +36,7 @@ const route = useRoute()
 const router = useRouter()
 const { locale, t } = useI18n()
 const isAtPageTop = ref(true)
+const showScrolledBackground = computed(() => route.path !== '/' && !isAtPageTop.value)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
 const isAuthDialogOpen = ref(false)
@@ -55,23 +56,37 @@ let suppressNavigationClick = false
 let profileSheetPointerId: number | undefined
 let profileSheetStartY = 0
 let navbarScrollFrame: number | undefined
-const navbarLinks = computed<readonly NavbarLink[]>(() =>
-  resolvedAuthenticated.value ? authenticatedNavbarLinks : guestNavbarLinks,
-)
+const prefetchedImages = new Set<string>()
+const prefetchedRoutes = new Set<string>()
+const navbarLinks = computed<readonly NavbarLink[]>(() => {
+  if (!resolvedAuthenticated.value) return guestNavbarLinks
+  return authenticatedNavbarLinks
+})
 const authStore = useAuthStore()
-const { currentUser, isAuthenticated } = storeToRefs(authStore)
+const {
+  currentUser,
+  initialized: authInitialized,
+  isAuthenticated,
+  loading: authLoading,
+} = storeToRefs(authStore)
 const resolvedAuthenticated = computed(() => props.authenticated ?? isAuthenticated.value)
+const authStateReady = computed(() => props.authenticated !== undefined || authInitialized.value)
 const resolvedProfileSrc = computed(
   () =>
-    props.profileSrc ??
-    currentUser.value?.avatarUrl ??
-    '/images/profile/avatar-placeholder.png',
+    props.profileSrc ?? currentUser.value?.avatarUrl ?? '/images/profile/avatar-placeholder.png',
 )
 const resolvedUsername = computed(
   () => props.username ?? currentUser.value?.username ?? currentUser.value?.displayName ?? 'User',
 )
 const resolvedEmail = computed(() => props.email ?? currentUser.value?.email ?? '')
-const resolvedWalletBalance = computed(() => props.walletBalance ?? 0)
+const resolvedWalletBalance = computed(
+  () =>
+    props.walletBalance ??
+    currentUser.value?.walletBalance ??
+    (currentUser.value?.walletBalanceSatang !== undefined
+      ? currentUser.value.walletBalanceSatang / 100
+      : 0),
+)
 const themeStore = useThemeStore()
 const { currentTheme, isDarkTheme, selectedTheme } = storeToRefs(themeStore)
 const brandLockup = computed(() =>
@@ -106,6 +121,41 @@ function moveNavigationPill(label = selectedItem.value) {
 function previewNavigationItem(label: string) {
   if (isNavigationDragging.value) return
   moveNavigationPill(label)
+  const item = navbarLinks.value.find((link) => link.label === label)
+  if (item) prefetchNavigationImages(item.path)
+}
+
+function prefetchImage(source: string, sourceSet?: string) {
+  if (prefetchedImages.has(source)) return
+  prefetchedImages.add(source)
+  const image = new Image()
+  image.decoding = 'async'
+  if (sourceSet) image.srcset = sourceSet
+  image.src = source
+}
+
+function prefetchNavigationImages(path: string) {
+  prefetchRoute(path)
+  if (path === '/') {
+    prefetchImage(
+      '/images/home/hero-background-1280.webp',
+      '/images/home/hero-background-1280.webp 1280w, /images/home/hero-background-2048.webp 2048w',
+    )
+  } else if (path === '/about') {
+    prefetchImage('/images/about/anawat-grudtoop-profile-cropped-768.webp')
+    prefetchImage('/images/about/anawat-grudtoop-profile-512.webp')
+  }
+}
+
+function prefetchRoute(path: string) {
+  if (prefetchedRoutes.has(path)) return
+  prefetchedRoutes.add(path)
+  const matched = router.resolve(path).matched
+  const component = matched[matched.length - 1]?.components?.default
+  if (typeof component === 'function') {
+    const loadRoute = component as () => unknown
+    void Promise.resolve(loadRoute()).catch(() => prefetchedRoutes.delete(path))
+  }
 }
 
 function startNavigationDrag(event: PointerEvent, label: string) {
@@ -246,8 +296,9 @@ function closeProfileMenu() {
 }
 
 async function signOut() {
-  closeProfileMenu()
-  await authStore.signOut()
+  if (authLoading.value) return
+  const result = await authStore.signOut()
+  if (result.success) closeProfileMenu()
 }
 
 function toggleProfileMenu(event: MouseEvent) {
@@ -372,7 +423,18 @@ watch(
   },
 )
 
+watch(
+  () => authStore.session,
+  async (newSession) => {
+    if (newSession && (!currentUser.value || currentUser.value.walletBalanceSatang === undefined)) {
+      await authStore.reloadCurrentUser()
+    }
+  },
+  { immediate: true },
+)
+
 onMounted(() => {
+  if (!authStore.initialized) void authStore.initialize()
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('resize', handleNavigationResize)
@@ -392,9 +454,22 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <header class="navbar" :class="{ 'navbar--at-top': isAtPageTop }">
+  <header
+    class="navbar"
+    :class="{
+      'navbar--at-top': isAtPageTop,
+      'navbar--scrolled': showScrolledBackground,
+    }"
+  >
     <div class="desktop-navbar">
-      <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
+      <button
+        class="brand"
+        type="button"
+        aria-label="Fujipp home"
+        @pointerenter="prefetchNavigationImages('/')"
+        @focus="prefetchNavigationImages('/')"
+        @click="navigateHome"
+      >
         <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
       </button>
 
@@ -434,7 +509,8 @@ onBeforeUnmount(() => {
       </nav>
 
       <div class="actions" :class="{ 'actions--authenticated': resolvedAuthenticated }">
-        <template v-if="!resolvedAuthenticated">
+        <div v-if="!authStateReady" class="auth-loading-placeholder" aria-label="Loading account" />
+        <template v-else-if="!resolvedAuthenticated">
           <button
             class="action-button action-button--text"
             type="button"
@@ -461,10 +537,9 @@ onBeforeUnmount(() => {
           @click.stop="toggleProfileMenu"
         >
           <span class="profile-navbar__wallet">
-            <span
+            <AppIcon
               class="profile-navbar__wallet-icon"
-              :style="{ '--profile-icon': `url(${icons.common.wallet})` }"
-              aria-hidden="true"
+              :source="icons.common.wallet"
             />
             <span>{{ formattedWalletBalance }}</span>
           </span>
@@ -479,10 +554,9 @@ onBeforeUnmount(() => {
           :aria-label="`Theme: ${selectedTheme.toLowerCase()}`"
           @click="toggleQuickTheme"
         >
-          <span
+          <AppIcon
             class="theme-toggle__icon"
-            :style="{ '--theme-icon': `url(${currentTheme.src})` }"
-            aria-hidden="true"
+            :source="currentTheme.src"
           />
         </button>
       </div>
@@ -498,10 +572,9 @@ onBeforeUnmount(() => {
           aria-controls="mobile-navigation"
           @click="isMobileMenuOpen = true"
         >
-          <span
+          <AppIcon
             class="mobile-icon mobile-icon--32"
-            :style="{ '--mobile-icon': `url(${icons.base.burger})` }"
-            aria-hidden="true"
+            :source="icons.base.burger"
           />
         </button>
 
@@ -511,8 +584,9 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="mobile-navbar__actions">
+        <span v-if="!authStateReady" class="mobile-auth-loading" aria-label="Loading account" />
         <button
-          v-if="!resolvedAuthenticated"
+          v-else-if="!resolvedAuthenticated"
           class="mobile-sign-in"
           type="button"
           @click="openAuthDialog('login')"
@@ -539,10 +613,9 @@ onBeforeUnmount(() => {
           :aria-label="`Theme: ${selectedTheme.toLowerCase()}`"
           @click="toggleQuickTheme"
         >
-          <span
+          <AppIcon
             class="theme-toggle__icon"
-            :style="{ '--theme-icon': `url(${currentTheme.src})` }"
-            aria-hidden="true"
+            :source="currentTheme.src"
           />
         </button>
       </div>
@@ -583,95 +656,94 @@ onBeforeUnmount(() => {
             @pointerup="finishProfileSheetDrag"
             @pointercancel="finishProfileSheetDrag"
           >
-          <span class="profile-dialog__indicator" aria-hidden="true" />
-          <div class="profile-dialog__title-row">
-            <span class="profile-dialog__title-spacer" aria-hidden="true" />
-            <strong>{{ t('navigation.setting') }}</strong>
-            <button
-              class="mobile-icon-button"
-              type="button"
-              aria-label="Close user settings"
-              @click="closeProfileMenu"
-            >
-              <span
-                class="mobile-icon mobile-icon--32"
-                :style="{ '--mobile-icon': `url(${icons.base.close})` }"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
+            <span class="profile-dialog__indicator" aria-hidden="true" />
+            <div class="profile-dialog__title-row">
+              <span class="profile-dialog__title-spacer" aria-hidden="true" />
+              <strong>{{ t('navigation.setting') }}</strong>
+              <button
+                class="mobile-icon-button"
+                type="button"
+                aria-label="Close user settings"
+                @click="closeProfileMenu"
+              >
+                <AppIcon
+                  class="mobile-icon mobile-icon--32"
+                  :source="icons.base.close"
+                />
+              </button>
+            </div>
           </div>
 
           <div class="profile-dialog__user">
-          <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
-          </span>
-          <span class="profile-dialog__identity">
-            <span class="profile-dialog__username">{{ resolvedUsername }}</span>
-            <span class="profile-dialog__email">{{ resolvedEmail }}</span>
-          </span>
+            <span class="profile-navbar__avatar-frame">
+              <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
+            </span>
+            <span class="profile-dialog__identity">
+              <span class="profile-dialog__username">{{ resolvedUsername }}</span>
+              <span class="profile-dialog__email">{{ resolvedEmail }}</span>
+            </span>
           </div>
 
           <div class="profile-dialog__divider" />
 
           <div class="profile-dialog__row">
-          <span class="profile-dialog__label">{{ t('navigation.theme') }}</span>
-          <div class="profile-dialog__options" aria-label="Theme">
-            <button
-              v-for="theme in ThemeApp"
-              :key="theme.mode"
-              class="profile-dialog__icon-button"
-              :class="{ 'profile-dialog__icon-button--active': selectedTheme === theme.mode }"
-              type="button"
-              :aria-label="`${theme.mode.toLowerCase()} theme`"
-              :aria-pressed="selectedTheme === theme.mode"
-              @click="selectTheme(theme.mode, $event)"
-            >
-              <span
-                class="profile-dialog__theme-icon"
-                :style="{ '--dialog-icon': `url(${theme.src})` }"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
+            <span class="profile-dialog__label">{{ t('navigation.theme') }}</span>
+            <div class="profile-dialog__options" aria-label="Theme">
+              <button
+                v-for="theme in ThemeApp"
+                :key="theme.mode"
+                class="profile-dialog__icon-button"
+                :class="{ 'profile-dialog__icon-button--active': selectedTheme === theme.mode }"
+                type="button"
+                :aria-label="`${theme.mode.toLowerCase()} theme`"
+                :aria-pressed="selectedTheme === theme.mode"
+                @click="selectTheme(theme.mode, $event)"
+              >
+                <AppIcon
+                  class="profile-dialog__theme-icon"
+                  :source="theme.src"
+                />
+              </button>
+            </div>
           </div>
 
           <div class="profile-dialog__row">
-          <span class="profile-dialog__label">{{ t('navigation.language') }}</span>
-          <div class="profile-dialog__options" aria-label="Language">
-            <button
-              class="profile-dialog__language-button"
-              :class="{ 'profile-dialog__icon-button--active': selectedLanguage === 'TH' }"
-              type="button"
-              aria-label="Thai"
-              :aria-pressed="selectedLanguage === 'TH'"
-              @click="selectLanguage('TH')"
-            >
-              <img :src="icons.language.thai" alt="" />
-            </button>
-            <button
-              class="profile-dialog__language-button"
-              :class="{ 'profile-dialog__icon-button--active': selectedLanguage === 'EN' }"
-              type="button"
-              aria-label="English"
-              :aria-pressed="selectedLanguage === 'EN'"
-              @click="selectLanguage('EN')"
-            >
-              <img :src="icons.language.english" alt="" />
-            </button>
-          </div>
+            <span class="profile-dialog__label">{{ t('navigation.language') }}</span>
+            <div class="profile-dialog__options" aria-label="Language">
+              <button
+                class="profile-dialog__language-button"
+                :class="{ 'profile-dialog__icon-button--active': selectedLanguage === 'TH' }"
+                type="button"
+                aria-label="Thai"
+                :aria-pressed="selectedLanguage === 'TH'"
+                @click="selectLanguage('TH')"
+              >
+                <img :src="icons.language.thai" alt="" />
+              </button>
+              <button
+                class="profile-dialog__language-button"
+                :class="{ 'profile-dialog__icon-button--active': selectedLanguage === 'EN' }"
+                type="button"
+                aria-label="English"
+                :aria-pressed="selectedLanguage === 'EN'"
+                @click="selectLanguage('EN')"
+              >
+                <img :src="icons.language.english" alt="" />
+              </button>
+            </div>
           </div>
 
           <button class="profile-dialog__row profile-dialog__manage" type="button">
-          <span class="profile-dialog__label">{{ t('navigation.manageAccount') }}</span>
-          <span
-            class="profile-dialog__arrow"
-            :style="{ '--dialog-icon': `url(${icons.base.arrowRight})` }"
-            aria-hidden="true"
-          />
+            <span class="profile-dialog__label">{{ t('navigation.manageAccount') }}</span>
+            <AppIcon
+              class="profile-dialog__arrow"
+              :source="icons.base.arrowRight"
+            />
           </button>
 
-          <AppButton variant="secondary" @click="signOut">{{ t('navigation.signOut') }}</AppButton>
+          <AppButton variant="secondary" :loading="authLoading" @click="signOut">{{
+            t('navigation.signOut')
+          }}</AppButton>
         </aside>
       </Transition>
 
@@ -691,51 +763,48 @@ onBeforeUnmount(() => {
             aria-modal="true"
             aria-label="Mobile navigation"
           >
-          <div class="mobile-menu__header">
-            <button class="brand" type="button" aria-label="Fujipp home">
-              <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
-            </button>
+            <div class="mobile-menu__header">
+              <button class="brand" type="button" aria-label="Fujipp home">
+                <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
+              </button>
 
-            <button
-              class="mobile-icon-button"
-              type="button"
-              aria-label="Close navigation"
-              @click="closeMobileMenu"
-            >
-              <span
-                class="mobile-icon mobile-icon--32"
-                :style="{ '--mobile-icon': `url(${icons.base.close})` }"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
-
-          <nav class="mobile-menu__navigation" aria-label="Mobile main navigation">
-            <button
-              v-for="item in navbarLinks"
-              :key="item.path"
-              type="button"
-              class="mobile-menu__row"
-              :aria-current="item.label === selectedItem ? 'page' : undefined"
-              @click="selectMobileItem(item.label)"
-            >
-              <span class="mobile-menu__row-label">
-                <span
-                  v-if="item.icon"
-                  class="mobile-icon mobile-icon--24"
-                  :style="{ '--mobile-icon': `url(${item.icon})` }"
-                  aria-hidden="true"
+              <button
+                class="mobile-icon-button"
+                type="button"
+                aria-label="Close navigation"
+                @click="closeMobileMenu"
+              >
+                <AppIcon
+                  class="mobile-icon mobile-icon--32"
+                  :source="icons.base.close"
                 />
-                <span>{{ navigationLabel(item) }}</span>
-              </span>
+              </button>
+            </div>
 
-              <span
-                class="mobile-icon mobile-icon--16"
-                :style="{ '--mobile-icon': `url(${icons.base.arrowRight})` }"
-                aria-hidden="true"
-              />
-            </button>
-          </nav>
+            <nav class="mobile-menu__navigation" aria-label="Mobile main navigation">
+              <button
+                v-for="item in navbarLinks"
+                :key="item.path"
+                type="button"
+                class="mobile-menu__row"
+                :aria-current="item.label === selectedItem ? 'page' : undefined"
+                @click="selectMobileItem(item.label)"
+              >
+                <span class="mobile-menu__row-label">
+                  <AppIcon
+                    v-if="item.icon"
+                    class="mobile-icon mobile-icon--24"
+                    :source="item.icon"
+                  />
+                  <span>{{ navigationLabel(item) }}</span>
+                </span>
+
+                <AppIcon
+                  class="mobile-icon mobile-icon--16"
+                  :source="icons.base.arrowRight"
+                />
+              </button>
+            </nav>
 
             <AppButton
               v-if="!resolvedAuthenticated"
@@ -749,9 +818,10 @@ onBeforeUnmount(() => {
       </Transition>
     </Teleport>
 
-    <AppAuthDialog
-      v-model:open="isAuthDialogOpen"
-      v-model:mode="authDialogMode"
+    <AppAuthDialog v-model:open="isAuthDialogOpen" v-model:mode="authDialogMode" />
+    <AppAuthLoadingOverlay
+      :open="authLoading"
+      :message="resolvedAuthenticated ? t('navigation.signOut') : t('navigation.signIn')"
     />
   </header>
 </template>
@@ -760,6 +830,7 @@ onBeforeUnmount(() => {
 .navbar {
   position: sticky;
   z-index: var(--z-sticky);
+  isolation: isolate;
   top: 0;
   box-sizing: border-box;
   width: 100%;
@@ -767,6 +838,40 @@ onBeforeUnmount(() => {
   margin-inline: auto;
   background: transparent;
   color: var(--semantic-color-text-text-primary);
+}
+
+.navbar::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 50%;
+  width: 100vw;
+  height: 100%;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  content: '';
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    backdrop-filter 180ms ease;
+}
+
+.navbar--scrolled::before {
+  border-color: color-mix(
+    in srgb,
+    var(--semantic-color-border-border-default) 65%,
+    transparent
+  );
+  background: color-mix(
+    in srgb,
+    var(--semantic-color-background-bg-default) 86%,
+    transparent
+  );
+  box-shadow: var(--effect-shadow-sm);
+  backdrop-filter: blur(var(--effect-backdrop-blur-sm)) saturate(1.25);
 }
 
 .desktop-navbar {
@@ -799,6 +904,12 @@ onBeforeUnmount(() => {
   transform: scale(2.75);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .navbar::before {
+    transition: none;
+  }
+}
+
 .navigation {
   position: relative;
   isolation: isolate;
@@ -822,11 +933,7 @@ onBeforeUnmount(() => {
   display: block;
   width: var(--navigation-pill-width);
   height: 100%;
-  border: 1px solid color-mix(
-    in srgb,
-    var(--semantic-color-border-border-default) 60%,
-    transparent
-  );
+  border: 1px solid color-mix(in srgb, var(--semantic-color-border-border-default) 60%, transparent);
   border-radius: var(--corner-radius-lg);
   background:
     linear-gradient(
@@ -914,9 +1021,39 @@ onBeforeUnmount(() => {
   width: 16rem;
 }
 
+.auth-loading-placeholder,
+.mobile-auth-loading {
+  border-radius: var(--corner-radius-full);
+  background: linear-gradient(
+    90deg,
+    var(--semantic-color-background-bg-surface) 25%,
+    var(--semantic-color-background-bg-surface-hover) 50%,
+    var(--semantic-color-background-bg-surface) 75%
+  );
+  background-size: 200% 100%;
+  animation: auth-loading-shimmer 1.2s ease-in-out infinite;
+}
+
+.auth-loading-placeholder {
+  width: 8rem;
+  height: var(--icon-size-32);
+}
+
+.mobile-auth-loading {
+  width: var(--icon-size-32);
+  height: var(--icon-size-32);
+}
+
+@keyframes auth-loading-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
 .profile-navbar {
   display: flex;
-  width: var(--icon-size-32);
+  width: auto;
+  max-width: var(--icon-size-32);
   height: var(--icon-size-32);
   flex-shrink: 0;
   align-items: center;
@@ -931,17 +1068,16 @@ onBeforeUnmount(() => {
   font-family: var(--font-family-sans);
   font-size: var(--font-size-label-large);
   line-height: var(--line-height-label);
-  transition: width 200ms ease;
+  transition: max-width 200ms ease;
 }
 
 .profile-navbar:hover,
 .profile-navbar:focus-visible {
-  width: 13rem;
+  max-width: 15rem;
 }
 
 .profile-navbar__wallet {
   display: flex;
-  min-width: 11rem;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-xxs);
@@ -955,8 +1091,6 @@ onBeforeUnmount(() => {
   width: var(--icon-size-24);
   height: var(--icon-size-24);
   flex-shrink: 0;
-  background-color: currentcolor;
-  mask: var(--profile-icon) center / contain no-repeat;
 }
 
 .profile-navbar__avatar-frame {
@@ -1071,8 +1205,6 @@ onBeforeUnmount(() => {
   display: block;
   width: var(--icon-size-16);
   height: var(--icon-size-16);
-  background-color: var(--semantic-color-text-text-primary);
-  mask: var(--theme-icon) center / contain no-repeat;
   transition: transform 260ms cubic-bezier(0.22, 1.35, 0.36, 1);
 }
 
@@ -1205,8 +1337,6 @@ onBeforeUnmount(() => {
 .profile-dialog__theme-icon,
 .profile-dialog__arrow {
   display: block;
-  background-color: var(--semantic-color-text-text-primary);
-  mask: var(--dialog-icon) center / contain no-repeat;
 }
 
 .profile-dialog__theme-icon,
@@ -1401,8 +1531,6 @@ onBeforeUnmount(() => {
   .mobile-icon {
     display: block;
     flex-shrink: 0;
-    background-color: currentcolor;
-    mask: var(--mobile-icon) center / contain no-repeat;
   }
 
   .mobile-icon--16 {
@@ -1577,6 +1705,10 @@ onBeforeUnmount(() => {
   .mobile-menu,
   .mobile-menu-backdrop {
     transition: none;
+  }
+  .auth-loading-placeholder,
+  .mobile-auth-loading {
+    animation: none;
   }
 }
 </style>

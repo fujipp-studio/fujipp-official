@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { trustedCommunities } from '../config'
+import { AppProgressiveImage } from '../../../shared/ui'
 import { useScrollFade } from '../composables/useScrollFade'
 
 const section = ref<HTMLElement>()
@@ -25,7 +26,16 @@ const { t } = useI18n()
 
       <ul class="trusted-by-section__communities" :aria-label="t('home.trusted.listLabel')">
         <li v-for="community in trustedCommunities" :key="community.name">
-          <img :src="community.image" :alt="community.name" />
+          <AppProgressiveImage
+            class="trusted-by-section__community-image"
+            :src="community.image"
+            :placeholder-src="community.placeholderImage"
+            :alt="community.name"
+            width="512"
+            height="512"
+            loading="lazy"
+            fit="contain"
+          />
         </li>
       </ul>
     </div>
@@ -104,10 +114,10 @@ const { t } = useI18n()
   list-style: none;
 }
 
-.trusted-by-section__communities img {
+.trusted-by-section__community-image {
   width: 8rem;
   height: 8rem;
-  object-fit: contain;
+  background: transparent;
 }
 
 @media (max-width: 47.99rem) {
@@ -123,7 +133,7 @@ const { t } = useI18n()
     gap: var(--space-xs);
   }
 
-  .trusted-by-section__communities img {
+  .trusted-by-section__community-image {
     width: min(25vw, 6rem);
     height: min(25vw, 6rem);
   }

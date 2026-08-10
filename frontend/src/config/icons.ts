@@ -8,6 +8,13 @@ export const iconDefaultColor = 'var(--semantic-color-text-text-primary)'
  * Keep keys in camelCase and group them by their public directory.
  */
 export const icons = {
+  action: {
+    pause: '/icons/action/pause.svg',
+    play: '/icons/action/play.svg',
+    restart: '/icons/action/restart.svg',
+    save: '/icons/action/save.svg',
+    setting: '/icons/action/setting.svg',
+  },
   base: {
     add: '/icons/base/add.svg',
     arrowDown: '/icons/base/arrow-down.svg',
@@ -53,22 +60,30 @@ export const icons = {
     instagram: '/icons/social/instagram.svg',
     linkedin: '/icons/social/linkedin.svg',
   },
+  shop: {
+    package: '/icons/shop/package.svg',
+    server: '/icons/shop/server.svg',
+  },
 } as const
 
 export type IconCategory = keyof typeof icons
+export type ActionIconName = keyof (typeof icons)['action']
 export type BaseIconName = keyof (typeof icons)['base']
 export type BrandIconName = keyof (typeof icons)['brand']
 export type CommonIconName = keyof (typeof icons)['common']
 export type LanguageIconName = keyof (typeof icons)['language']
 export type NavigationIconName = keyof (typeof icons)['navigation']
 export type SocialIconName = keyof (typeof icons)['social']
+export type ShopIconName = keyof (typeof icons)['shop']
 export type IconSource =
+  | (typeof icons)['action'][ActionIconName]
   | (typeof icons)['base'][BaseIconName]
   | (typeof icons)['brand'][BrandIconName]
   | (typeof icons)['common'][CommonIconName]
   | (typeof icons)['language'][LanguageIconName]
   | (typeof icons)['navigation'][NavigationIconName]
   | (typeof icons)['social'][SocialIconName]
+  | (typeof icons)['shop'][ShopIconName]
 
 const originalColorIcons = new Set<IconSource>([
   icons.brand.authMark,

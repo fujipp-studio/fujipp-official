@@ -2,6 +2,7 @@ package com.fujipp.backend.store;
 
 import com.fujipp.backend.auth.CurrentUserRepository;
 import com.fujipp.backend.auth.CurrentUserService;
+import com.fujipp.backend.runtime.RuntimeSlotService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -18,18 +19,26 @@ import java.util.UUID;
 @Service
 public class StoreService {
 
+    private static final int MAX_CONFIG_JSON_CHARS = 262_144;
+
     private final StoreRepository repository;
     private final CurrentUserService currentUserService;
     private final StoreSecretCipher secretCipher;
+    private final RuntimeSlotService runtimeSlots;
+    private final DiscordBotProfileClient discordProfiles;
 
     public StoreService(
             StoreRepository repository,
             CurrentUserService currentUserService,
-            StoreSecretCipher secretCipher
+            StoreSecretCipher secretCipher,
+            RuntimeSlotService runtimeSlots,
+            DiscordBotProfileClient discordProfiles
     ) {
         this.repository = repository;
         this.currentUserService = currentUserService;
         this.secretCipher = secretCipher;
+        this.runtimeSlots = runtimeSlots;
+        this.discordProfiles = discordProfiles;
     }
 
     @Transactional(readOnly = true)
@@ -58,7 +67,25 @@ public class StoreService {
     }
 
     @Transactional
-    public void updateDiscordToken(
+    public BotResponse updateBot(String subject, UUID botId, UpdateBotRequest request) {
+        UUID userId = activeUser(subject).id();
+        try {
+            return repository.updateBot(botId, userId, request.name().trim(),
+                    normalize(request.discordApplicationId()), normalize(request.discordGuildId()));
+        } catch (DataIntegrityViolationException exception) {
+            throw new StoreConflictException("Bot name or Discord application is already in use", exception);
+        }
+    }
+
+    @Transactional
+    public BotResponse controlBot(String subject, UUID botId, String action) {
+        UUID ownerId = activeUser(subject).id();
+        if (!"stop".equals(action)) runtimeSlots.requireRunnable(botId, ownerId);
+        return repository.controlBot(botId, ownerId, action);
+    }
+
+    @Transactional
+    public BotResponse updateDiscordToken(
             String subject,
             UUID botId,
             UpdateDiscordTokenRequest request
@@ -67,12 +94,40 @@ public class StoreService {
         if (!repository.botBelongsTo(botId, userId)) {
             throw new StoreNotFoundException("Bot was not found");
         }
+        String token = request.token().trim();
         repository.upsertBotCredential(
                 botId,
                 userId,
                 "DISCORD_TOKEN",
-                secretCipher.encrypt(request.token().trim())
+                secretCipher.encrypt(token)
         );
+        return syncDiscordProfile(userId, botId, token);
+    }
+
+    @Transactional
+    public BotResponse syncDiscordProfile(String subject, UUID botId) {
+        UUID userId = activeUser(subject).id();
+        StoreRepository.BotCredential credential = repository.findBotCredential(
+                botId, userId, "DISCORD_TOKEN"
+        );
+        if (credential == null) throw new StoreValidationException("Discord token is not configured");
+        String token = secretCipher.decrypt(
+                credential.ciphertext(), credential.nonce(), credential.keyVersion()
+        );
+        return syncDiscordProfile(userId, botId, token);
+    }
+
+    private BotResponse syncDiscordProfile(UUID userId, UUID botId, String token) {
+        try {
+            DiscordBotProfileClient.Profile profile = discordProfiles.fetch(token);
+            return repository.updateDiscordProfile(
+                    botId, userId, profile.username(), profile.avatarUrl()
+            );
+        } catch (StoreValidationException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new StoreValidationException("Unable to load the bot profile from Discord");
+        }
     }
 
     @Transactional
@@ -176,6 +231,7 @@ public class StoreService {
         UUID userId = activeUser(subject).id();
         StoreRepository.LicenseContext license = ownedLicense(licenseId, userId);
         ensureLicenseActive(license);
+        validateConfigurationSize(request);
 
         Map<String, StoreRepository.ConfigDefinition> definitions = new LinkedHashMap<>();
         for (StoreRepository.ConfigDefinition definition
@@ -233,6 +289,19 @@ public class StoreService {
         }
         StoreRepository.LicenseContext refreshed = ownedLicense(licenseId, userId);
         return repository.findConfiguration(refreshed);
+    }
+
+    private void validateConfigurationSize(UpdateFeatureConfigurationRequest request) {
+        long size = request.values().values().stream().mapToLong(this::jsonLength).sum()
+                + request.presentations().values().stream().mapToLong(this::jsonLength).sum()
+                + request.secrets().values().stream().mapToLong(String::length).sum();
+        if (size > MAX_CONFIG_JSON_CHARS) {
+            throw new StoreValidationException("Feature configuration is too large");
+        }
+    }
+
+    private long jsonLength(JsonNode value) {
+        return value == null ? 4 : value.toString().length();
     }
 
     private CurrentUserRepository.AccountProfile activeUser(String subject) {

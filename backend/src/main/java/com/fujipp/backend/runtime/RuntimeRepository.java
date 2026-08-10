@@ -26,13 +26,30 @@ public class RuntimeRepository {
         return jdbcTemplate.query(
                 """
                 SELECT bot.id, bot.name, bot.discord_application_id, bot.discord_guild_id,
+                       bot.restart_revision,
+                       subscription.id AS runtime_subscription_id,
+                       subscription.current_period_end,
+                       subscription.auto_renew,
                        credential.ciphertext, credential.nonce,
                        credential.encryption_key_version
                   FROM bots.bot_instances AS bot
                   JOIN private.bot_credentials AS credential
                     ON credential.bot_id = bot.id
                    AND credential.credential_key = 'DISCORD_TOKEN'
+                  JOIN LATERAL (
+                       SELECT live.id, live.current_period_end, live.auto_renew,
+                              live.status, live.grace_until
+                         FROM private.runtime_subscriptions AS live
+                        WHERE live.bot_id = bot.id
+                          AND live.status IN ('ACTIVE','GRACE')
+                        ORDER BY live.current_period_end DESC
+                        LIMIT 1
+                  ) AS subscription ON true
                  WHERE bot.status <> 'DECOMMISSIONED'
+                   AND bot.desired_state = 'RUNNING'
+                   AND now() < CASE WHEN subscription.status = 'GRACE'
+                       THEN subscription.grace_until
+                       ELSE subscription.current_period_end + interval '3 hours' END
                  ORDER BY bot.id
                 """,
                 (rs, row) -> new BotRow(
@@ -40,6 +57,10 @@ public class RuntimeRepository {
                         rs.getString("name"),
                         rs.getString("discord_application_id"),
                         rs.getString("discord_guild_id"),
+                        rs.getLong("restart_revision"),
+                        rs.getObject("runtime_subscription_id", UUID.class),
+                        rs.getObject("current_period_end", java.time.OffsetDateTime.class),
+                        rs.getBoolean("auto_renew"),
                         rs.getBytes("ciphertext"),
                         rs.getBytes("nonce"),
                         rs.getString("encryption_key_version")
@@ -141,17 +162,46 @@ public class RuntimeRepository {
         return values;
     }
 
+    public Map<String, JsonNode> findState(UUID installationId) {
+        return jdbcTemplate.query(
+                "SELECT state::text FROM private.feature_runtime_states WHERE installation_id = ?",
+                rs -> rs.next() ? objectFields(parseJson(rs.getString(1))) : Map.of(),
+                installationId
+        );
+    }
+
+    public boolean upsertState(RuntimeStateRequest request) {
+        return jdbcTemplate.update(
+                """
+                INSERT INTO private.feature_runtime_states (installation_id, bot_id, state)
+                SELECT installation.id, installation.bot_id, ?::jsonb
+                  FROM private.bot_feature_installations AS installation
+                 WHERE installation.id = ?
+                   AND installation.bot_id = ?
+                   AND installation.removed_at IS NULL
+                   AND installation.status IN ('INSTALLING', 'ACTIVE')
+                ON CONFLICT (installation_id) DO UPDATE
+                    SET state = EXCLUDED.state,
+                        updated_at = now()
+                """,
+                request.state().toString(), request.installationId(), request.botId()
+        ) > 0;
+    }
+
     public void updateStatus(RuntimeStatusRequest request) {
         if (request.installationId() == null) {
             jdbcTemplate.update(
                     """
                     UPDATE bots.bot_instances
                        SET status = ?::bots.bot_status,
+                           discord_username = COALESCE(?, discord_username),
+                           discord_avatar_url = COALESCE(?, discord_avatar_url),
                            last_started_at = CASE WHEN ? = 'RUNNING' THEN now() ELSE last_started_at END,
                            last_stopped_at = CASE WHEN ? IN ('STOPPED', 'CRASHED') THEN now() ELSE last_stopped_at END
                      WHERE id = ?
                     """,
-                    request.status(), request.status(), request.status(), request.botId()
+                    request.status(), request.discordUsername(), request.discordAvatarUrl(),
+                    request.status(), request.status(), request.botId()
             );
             return;
         }
@@ -176,7 +226,15 @@ public class RuntimeRepository {
         }
     }
 
+    private Map<String, JsonNode> objectFields(JsonNode node) {
+        Map<String, JsonNode> values = new LinkedHashMap<>();
+        node.properties().forEach(entry -> values.put(entry.getKey(), entry.getValue()));
+        return values;
+    }
+
     public record BotRow(UUID id, String name, String applicationId, String guildId,
+                         long restartRevision, UUID runtimeSubscriptionId,
+                         java.time.OffsetDateTime currentPeriodEnd, boolean autoRenew,
                          byte[] ciphertext, byte[] nonce, String keyVersion) {
     }
 

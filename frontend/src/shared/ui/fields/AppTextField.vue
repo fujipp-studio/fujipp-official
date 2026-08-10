@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 
 import { icons } from '../../../config'
+import AppIcon from '../icons/AppIcon.vue'
 import SecretCharacter from './SecretCharacter.vue'
 import type { TextFieldOption, TextFieldState, TextFieldVariant } from './types'
 
@@ -22,6 +23,9 @@ const props = withDefaults(
     pattern?: string
     disabled?: boolean
     required?: boolean
+    searchable?: boolean
+    searchPlaceholder?: string
+    emptyText?: string
   }>(),
   {
     modelValue: '',
@@ -39,6 +43,9 @@ const props = withDefaults(
     pattern: undefined,
     disabled: false,
     required: false,
+    searchable: false,
+    searchPlaceholder: 'Search…',
+    emptyText: 'No matching options',
   },
 )
 
@@ -47,10 +54,15 @@ const emit = defineEmits<{
 }>()
 
 const fieldElement = ref<HTMLElement>()
+const dropdownElement = ref<HTMLElement>()
+const dropdownSearchElement = ref<HTMLInputElement>()
 const isDropdownOpen = ref(false)
+const isInsideDialog = ref(false)
+const dropdownSearch = ref('')
 const isSecretVisible = ref(false)
 const isSecretFocused = ref(false)
 const highlightedOptionIndex = ref(-1)
+const dropdownStyle = ref<Record<string, string>>({})
 const generatedId = useId()
 const fieldId = computed(() => `text-field-${generatedId}`)
 const supportId = computed(() => `${fieldId.value}-support`)
@@ -59,8 +71,15 @@ const isEmpty = computed(() => props.modelValue.length === 0)
 const selectedOption = computed(() =>
   props.options.find((option) => option.value === props.modelValue),
 )
+const displayedOptions = computed(() => {
+  const query = dropdownSearch.value.trim().toLowerCase()
+  if (!props.searchable || !query) return props.options
+  return props.options.filter((option) =>
+    `${option.label} ${option.value}`.toLowerCase().includes(query),
+  )
+})
 const enabledOptionIndexes = computed(() =>
-  props.options.flatMap((option, index) => (option.disabled ? [] : [index])),
+  displayedOptions.value.flatMap((option, index) => (option.disabled ? [] : [index])),
 )
 const resolvedInputType = computed(() => {
   if (props.variant !== 'secret') return props.inputType
@@ -76,9 +95,13 @@ function updateTextValue(event: Event) {
 function openDropdown() {
   if (props.disabled) return
   isDropdownOpen.value = true
-  const selectedIndex = props.options.findIndex((option) => option.value === props.modelValue)
+  dropdownSearch.value = ''
+  const selectedIndex = displayedOptions.value.findIndex(
+    (option) => option.value === props.modelValue,
+  )
   highlightedOptionIndex.value =
     selectedIndex >= 0 ? selectedIndex : (enabledOptionIndexes.value[0] ?? -1)
+  if (props.searchable) void nextTick(() => dropdownSearchElement.value?.focus())
 }
 
 function closeDropdown() {
@@ -102,9 +125,7 @@ function moveDropdownHighlight(direction: 1 | -1) {
 
   const currentPosition = indexes.indexOf(highlightedOptionIndex.value)
   const nextPosition =
-    currentPosition < 0
-      ? 0
-      : (currentPosition + direction + indexes.length) % indexes.length
+    currentPosition < 0 ? 0 : (currentPosition + direction + indexes.length) % indexes.length
   highlightedOptionIndex.value = indexes[nextPosition] ?? -1
 
   void nextTick(() => {
@@ -128,7 +149,7 @@ function handleDropdownKeydown(event: KeyboardEvent) {
       openDropdown()
       return
     }
-    const option = props.options[highlightedOptionIndex.value]
+    const option = displayedOptions.value[highlightedOptionIndex.value]
     if (option) selectOption(option)
     return
   }
@@ -145,12 +166,70 @@ function handleDropdownKeydown(event: KeyboardEvent) {
   }
 }
 
-function handleDocumentClick(event: MouseEvent) {
-  if (!fieldElement.value?.contains(event.target as Node)) closeDropdown()
+function handleDropdownSearchKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeDropdown()
+    return
+  }
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    moveDropdownHighlight(event.key === 'ArrowDown' ? 1 : -1)
+    return
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    const option = displayedOptions.value[highlightedOptionIndex.value]
+    if (option) selectOption(option)
+  }
 }
 
-onMounted(() => document.addEventListener('click', handleDocumentClick))
-onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick))
+function updateDropdownPosition() {
+  if (!fieldElement.value || !isDropdownOpen.value) return
+  if (isInsideDialog.value) {
+    dropdownStyle.value = {}
+    return
+  }
+  const rect = fieldElement.value.getBoundingClientRect()
+  dropdownStyle.value = {
+    position: 'fixed',
+    top: `${rect.bottom + 4}px`,
+    left: `${rect.left}px`,
+    width: `${rect.width}px`,
+    zIndex: '99999',
+  }
+}
+
+watch(isDropdownOpen, (open) => {
+  if (open) {
+    updateDropdownPosition()
+    window.addEventListener('scroll', updateDropdownPosition, true)
+    window.addEventListener('resize', updateDropdownPosition)
+  } else {
+    window.removeEventListener('scroll', updateDropdownPosition, true)
+    window.removeEventListener('resize', updateDropdownPosition)
+  }
+})
+watch(dropdownSearch, () => {
+  highlightedOptionIndex.value = enabledOptionIndexes.value[0] ?? -1
+})
+
+function handleDocumentClick(event: MouseEvent) {
+  const target = event.target as Node
+  if (!fieldElement.value?.contains(target) && !dropdownElement.value?.contains(target)) {
+    closeDropdown()
+  }
+}
+
+onMounted(() => {
+  isInsideDialog.value = Boolean(fieldElement.value?.closest('dialog'))
+  document.addEventListener('click', handleDocumentClick)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('scroll', updateDropdownPosition, true)
+  window.removeEventListener('resize', updateDropdownPosition)
+})
 </script>
 
 <template>
@@ -167,7 +246,7 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
       },
     ]"
   >
-    <label class="text-field__label" :for="fieldId">
+    <label v-if="label" class="text-field__label" :for="fieldId">
       {{ label }}<span v-if="required" class="text-field__required">*</span>
     </label>
 
@@ -212,11 +291,10 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
         {{ selectedOption?.label ?? placeholder }}
       </button>
 
-      <span
+      <AppIcon
         v-if="variant === 'dropdown'"
         class="text-field__icon"
-        :style="{ '--text-field-icon': `url(${icons.base.arrowDown})` }"
-        aria-hidden="true"
+        :source="icons.base.arrowDown"
       />
 
       <button
@@ -237,39 +315,54 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
         </span>
       </button>
 
-      <Transition name="text-field-dropdown">
-        <div
-          v-if="variant === 'dropdown' && isDropdownOpen"
-          :id="dropdownId"
-          class="text-field__dropdown"
-          role="listbox"
-          :aria-label="label"
-        >
-          <button
-            v-for="(option, index) in options"
-            :id="`${dropdownId}-${index}`"
-            :key="option.value"
-            class="text-field__option"
-            :class="{
-              'text-field__option--selected': option.value === modelValue,
-              'text-field__option--highlighted': index === highlightedOptionIndex,
-            }"
-            type="button"
-            role="option"
-            :aria-selected="option.value === modelValue"
-            :disabled="option.disabled"
-            @pointerenter="highlightedOptionIndex = index"
-            @click="selectOption(option)"
+      <Teleport to="body" :disabled="isInsideDialog">
+        <Transition name="text-field-dropdown">
+          <div
+            v-if="variant === 'dropdown' && isDropdownOpen"
+            :id="dropdownId"
+            ref="dropdownElement"
+            class="text-field__dropdown"
+            :style="dropdownStyle"
+            role="listbox"
+            :aria-label="label"
           >
-            <span>{{ option.label }}</span>
-            <span
-              v-if="option.value === modelValue"
-              class="text-field__selected-dot"
-              aria-hidden="true"
-            />
-          </button>
-        </div>
-      </Transition>
+            <div v-if="searchable" class="text-field__dropdown-search">
+              <input
+                ref="dropdownSearchElement"
+                v-model="dropdownSearch"
+                type="search"
+                :placeholder="searchPlaceholder"
+                :aria-label="searchPlaceholder"
+                @keydown="handleDropdownSearchKeydown"
+              />
+            </div>
+            <button
+              v-for="(option, index) in displayedOptions"
+              :id="`${dropdownId}-${index}`"
+              :key="option.value"
+              class="text-field__option"
+              :class="{
+                'text-field__option--selected': option.value === modelValue,
+                'text-field__option--highlighted': index === highlightedOptionIndex,
+              }"
+              type="button"
+              role="option"
+              :aria-selected="option.value === modelValue"
+              :disabled="option.disabled"
+              @pointerenter="highlightedOptionIndex = index"
+              @click="selectOption(option)"
+            >
+              <span>{{ option.label }}</span>
+              <span
+                v-if="option.value === modelValue"
+                class="text-field__selected-dot"
+                aria-hidden="true"
+              />
+            </button>
+            <p v-if="!displayedOptions.length" class="text-field__empty">{{ emptyText }}</p>
+          </div>
+        </Transition>
+      </Teleport>
     </div>
 
     <p v-if="supportText" :id="supportId" class="text-field__support">
@@ -367,8 +460,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   width: var(--icon-size-16);
   height: var(--icon-size-16);
   flex-shrink: 0;
-  background: currentcolor;
-  mask: var(--text-field-icon) center / contain no-repeat;
   pointer-events: none;
   transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -433,6 +524,37 @@ onBeforeUnmount(() => document.removeEventListener('click', handleDocumentClick)
   background: var(--semantic-color-background-bg-elevated);
   box-shadow: var(--effect-shadow-lg);
   transform-origin: top;
+}
+
+.text-field__dropdown-search {
+  padding: var(--space-xxs);
+}
+
+.text-field__dropdown-search input {
+  width: 100%;
+  height: 2.5rem;
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-sm);
+  outline: 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--semantic-color-background-bg-default);
+  color: var(--semantic-color-text-text-primary);
+  font: inherit;
+}
+
+.text-field__dropdown-search input:focus {
+  border-color: var(--semantic-color-action-borders-border-focus);
+}
+
+.text-field__dropdown-search input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.text-field__empty {
+  margin: 0;
+  padding: var(--space-md);
+  color: var(--semantic-color-text-text-muted);
+  text-align: center;
 }
 
 .text-field__option {

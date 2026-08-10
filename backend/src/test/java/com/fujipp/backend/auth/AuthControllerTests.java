@@ -60,7 +60,8 @@ class AuthControllerTests {
                 null,
                 null,
                 "https://example.com/avatar.png",
-                null
+                null,
+                0L
         ));
 
         mockMvc.perform(get("/api/v1/auth/me").with(jwt().jwt(builder -> builder
