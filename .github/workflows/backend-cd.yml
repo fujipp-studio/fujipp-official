@@ -1,0 +1,136 @@
+name: Backend CI/CD
+
+on:
+  pull_request:
+    paths:
+      - backend/**
+      - bot-runner/**
+      - deploy/compose.production.yml
+      - deploy/deploy-backend.sh
+      - .github/workflows/backend-cd.yml
+  push:
+    branches: [main]
+    paths:
+      - backend/**
+      - bot-runner/**
+      - deploy/compose.production.yml
+      - deploy/deploy-backend.sh
+      - .github/workflows/backend-cd.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-production-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - run: ./mvnw --batch-mode test
+
+  bot-runner:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bot-runner
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: bot-runner/package-lock.json
+      - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run build
+      - run: npm test
+
+  publish:
+    if: github.event_name != 'pull_request'
+    needs: [backend, bot-runner]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            context: backend
+            image: ghcr.io/${{ github.repository_owner }}/fujipp-official-backend
+          - name: bot-runner
+            context: bot-runner
+            image: ghcr.io/${{ github.repository_owner }}/fujipp-official-bot-runner
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4.2.0
+      - uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish ${{ matrix.name }}
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ${{ matrix.image }}:${{ github.sha }}
+            ${{ matrix.image }}:main
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: publish
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://api.fujipp.com
+    steps:
+      - uses: actions/checkout@v6
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" >"$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Upload deployment files
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH'"
+          scp deploy/compose.production.yml deploy/deploy-backend.sh \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+      - name: Deploy parallel backend
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          BACKEND_IMAGE: ${{ vars.BACKEND_IMAGE }}
+          BOT_RUNNER_IMAGE: ${{ vars.BOT_RUNNER_IMAGE }}
+          BACKEND_PORT: ${{ vars.BACKEND_PORT }}
+          HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
+        run: |
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
+            "chmod 700 '$DEPLOY_PATH/deploy-backend.sh' && \
+            '$DEPLOY_PATH/deploy-backend.sh' \
+            '$GITHUB_SHA' '$BACKEND_IMAGE' '$BOT_RUNNER_IMAGE' \
+            '$BACKEND_PORT' '$HEALTHCHECK_URL'"
