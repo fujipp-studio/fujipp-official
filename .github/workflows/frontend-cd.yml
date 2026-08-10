@@ -1,0 +1,114 @@
+name: Frontend CI/CD
+
+on:
+  pull_request:
+    paths:
+      - frontend/**
+      - .github/workflows/frontend-cd.yml
+  push:
+    branches: [main]
+    paths:
+      - frontend/**
+      - .github/workflows/frontend-cd.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-production-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - name: Ensure lint produced no uncommitted fixes
+        run: git diff --exit-code
+        working-directory: .
+      - run: bun run test:unit --run
+      - run: bun run build
+
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment:
+      name: frontend-production
+      url: ${{ vars.FRONTEND_URL }}
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Build production frontend
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+        run: bun run build
+      - name: Install FTPS client
+        run: sudo apt-get update && sudo apt-get install --yes lftp
+        working-directory: .
+      - name: Deploy dist over explicit FTPS
+        env:
+          FRONTEND_FTP_HOST: ${{ vars.FRONTEND_FTP_HOST }}
+          FRONTEND_FTP_PORT: ${{ vars.FRONTEND_FTP_PORT }}
+          FRONTEND_FTP_USER: ${{ vars.FRONTEND_FTP_USER }}
+          FRONTEND_FTP_PATH: ${{ vars.FRONTEND_FTP_PATH }}
+          FRONTEND_FTP_PASSWORD: ${{ secrets.FRONTEND_FTP_PASSWORD }}
+        run: |
+          : "${FRONTEND_FTP_HOST:?Missing FRONTEND_FTP_HOST}"
+          : "${FRONTEND_FTP_PORT:?Missing FRONTEND_FTP_PORT}"
+          : "${FRONTEND_FTP_USER:?Missing FRONTEND_FTP_USER}"
+          : "${FRONTEND_FTP_PASSWORD:?Missing FRONTEND_FTP_PASSWORD}"
+
+          case "$FRONTEND_FTP_PATH" in
+            domains/*/public_html|/domains/*/public_html) ;;
+            *) echo "Refusing unsafe FRONTEND_FTP_PATH" >&2; exit 1 ;;
+          esac
+
+          install -m 600 /dev/null "$HOME/.netrc"
+          printf 'machine %s\nlogin %s\npassword %s\n' \
+            "$FRONTEND_FTP_HOST" "$FRONTEND_FTP_USER" "$FRONTEND_FTP_PASSWORD" \
+            >"$HOME/.netrc"
+
+          lftp -p "$FRONTEND_FTP_PORT" "$FRONTEND_FTP_HOST" <<LFTP
+          set cmd:fail-exit yes
+          set net:max-retries 2
+          set net:timeout 20
+          set ftp:ssl-force true
+          set ftp:ssl-protect-data true
+          set ssl:verify-certificate yes
+          cd "$FRONTEND_FTP_PATH"
+          mirror --reverse --delete --verbose --parallel=4 dist/ .
+          bye
+          LFTP
+      - name: Remove temporary FTP credentials
+        if: always()
+        run: rm -f "$HOME/.netrc"
+        working-directory: .
+      - name: Verify production website
+        env:
+          FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+        run: |
+          response=$(mktemp)
+          curl --fail --location --retry 3 --retry-delay 5 \
+            --max-time 20 --output "$response" "$FRONTEND_URL"
+          grep -q '<div id="app"></div>' "$response"
+          rm -f "$response"
+        working-directory: .
