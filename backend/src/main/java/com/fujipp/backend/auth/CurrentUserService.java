@@ -16,6 +16,7 @@ public class CurrentUserService {
 
     public CurrentUser getActiveUser(Jwt jwt) {
         CurrentUserRepository.AccountProfile profile = getActiveAccount(jwt.getSubject());
+        long walletBalanceSatang = currentUserRepository.findWalletBalanceByUserId(profile.id());
 
         return new CurrentUser(
                 profile.id(),
@@ -27,7 +28,8 @@ public class CurrentUserService {
                 profile.firstName(),
                 profile.lastName(),
                 profile.avatarUrl(),
-                profile.profileCompletedAt()
+                profile.profileCompletedAt(),
+                walletBalanceSatang
         );
     }
 

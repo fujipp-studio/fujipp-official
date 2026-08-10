@@ -4,6 +4,7 @@ import com.fujipp.backend.auth.AccountStatus;
 import com.fujipp.backend.auth.AppRole;
 import com.fujipp.backend.auth.CurrentUserRepository;
 import com.fujipp.backend.auth.CurrentUserService;
+import com.fujipp.backend.runtime.RuntimeSlotService;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
 
@@ -25,10 +26,14 @@ class StoreServiceTests {
     private final StoreRepository repository = mock(StoreRepository.class);
     private final CurrentUserService currentUserService = mock(CurrentUserService.class);
     private final StoreSecretCipher secretCipher = mock(StoreSecretCipher.class);
+    private final RuntimeSlotService runtimeSlotService = mock(RuntimeSlotService.class);
+    private final DiscordBotProfileClient discordProfiles = mock(DiscordBotProfileClient.class);
     private final StoreService service = new StoreService(
             repository,
             currentUserService,
-            secretCipher
+            secretCipher,
+            runtimeSlotService,
+            discordProfiles
     );
 
     @Test
@@ -126,6 +131,19 @@ class StoreServiceTests {
 
         assertThat(result).isEqualTo(installationId);
         verify(repository).clearConfigValidation(configSetId);
+    }
+
+    @Test
+    void startingBotRequiresAnAttachedRuntimeSlot() {
+        UUID userId = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        BotResponse expected = mock(BotResponse.class);
+        authorize(userId);
+        when(repository.controlBot(botId, userId, "start")).thenReturn(expected);
+
+        assertThat(service.controlBot(userId.toString(), botId, "start")).isSameAs(expected);
+
+        verify(runtimeSlotService).requireRunnable(botId, userId);
     }
 
     @Test

@@ -37,6 +37,64 @@ public class AdminFeatureService {
     }
 
     @Transactional(readOnly = true)
+    public List<AdminStoreResponses.Feature> list() {
+        return repository.findAdminFeatures();
+    }
+
+    @Transactional
+    public AdminStoreResponses.Feature update(UUID featureId, AdminStoreRequests.UpdateFeatureRequest request) {
+        validateProductStatus(request.status());
+        if (!request.category().matches("[A-Za-z][A-Za-z0-9_]{1,59}")) {
+            throw new StoreValidationException("category must contain 2-60 letters, numbers, or underscores");
+        }
+        if (!repository.updateFeature(featureId, request)) {
+            throw new StoreNotFoundException("Feature product was not found");
+        }
+        return findAdminFeature(featureId);
+    }
+
+    @Transactional
+    public AdminStoreResponses.Feature updateOffer(UUID featureId, UUID offerId, AdminStoreRequests.UpdateOfferRequest request) {
+        if (request.startsAt() != null && request.endsAt() != null && !request.endsAt().isAfter(request.startsAt())) {
+            throw new StoreValidationException("endsAt must be after startsAt");
+        }
+        if (!repository.updateFeatureOffer(featureId, offerId, request)) {
+            throw new StoreNotFoundException("Feature offer was not found");
+        }
+        return findAdminFeature(featureId);
+    }
+
+    @Transactional
+    public AdminStoreResponses.Feature createOffer(UUID featureId, AdminStoreRequests.CreateOfferRequest request) {
+        requireFeature(featureId);
+        String kind = request.kind().toUpperCase();
+        if (!List.of("ONE_TIME", "SUBSCRIPTION").contains(kind)) {
+            throw new StoreValidationException("kind must be ONE_TIME or SUBSCRIPTION");
+        }
+        if (!request.code().matches("[a-z0-9]+(?:-[a-z0-9]+)*")) {
+            throw new StoreValidationException("code must use lowercase letters, numbers, and hyphens");
+        }
+        if (("ONE_TIME".equals(kind) && request.billingPeriodDays() != null)
+                || ("SUBSCRIPTION".equals(kind) && request.billingPeriodDays() == null)) {
+            throw new StoreValidationException("billingPeriodDays is required only for SUBSCRIPTION offers");
+        }
+        if (request.startsAt() != null && request.endsAt() != null && !request.endsAt().isAfter(request.startsAt())) {
+            throw new StoreValidationException("endsAt must be after startsAt");
+        }
+        repository.createFeatureOffer(featureId, request, kind);
+        return findAdminFeature(featureId);
+    }
+
+    @Transactional
+    public AdminStoreResponses.Feature publish(UUID featureId) {
+        requireFeature(featureId);
+        if (!repository.publishLatestFeatureVersion(featureId)) {
+            throw new StoreValidationException("Feature has no version to publish");
+        }
+        return findAdminFeature(featureId);
+    }
+
+    @Transactional(readOnly = true)
     public FeatureMediaResponse get(UUID featureId) {
         return FeatureMediaResponse.from(requireFeature(featureId));
     }
@@ -139,5 +197,18 @@ public class AdminFeatureService {
         }
         String normalized = value.trim();
         return normalized.isEmpty() ? null : normalized;
+    }
+
+    private AdminStoreResponses.Feature findAdminFeature(UUID featureId) {
+        return repository.findAdminFeatures().stream()
+                .filter(feature -> feature.id().equals(featureId))
+                .findFirst()
+                .orElseThrow(() -> new StoreNotFoundException("Feature product was not found"));
+    }
+
+    private void validateProductStatus(String status) {
+        if (!List.of("DRAFT", "ACTIVE", "ARCHIVED").contains(status.toUpperCase())) {
+            throw new StoreValidationException("status must be DRAFT, ACTIVE, or ARCHIVED");
+        }
     }
 }

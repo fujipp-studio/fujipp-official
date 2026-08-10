@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "spring.autoconfigure.exclude="
                 + "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,"
                 + "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration",
-        "app.runtime.runner-token=test-runner-token"
+        "app.runtime.runner-tokens=test-runner-token-with-at-least-32-characters"
 })
 @AutoConfigureMockMvc
 class BackendApplicationTests {
@@ -46,6 +47,9 @@ class BackendApplicationTests {
 
     @MockitoBean
     private RuntimeRepository runtimeRepository;
+
+    @MockitoBean
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
@@ -78,7 +82,7 @@ class BackendApplicationTests {
     @Test
     void runtimeApiAcceptsConfiguredRunnerToken() throws Exception {
         mockMvc.perform(get("/internal/v1/runtime/bootstrap")
-                        .header("X-Runner-Token", "test-runner-token"))
+                        .header("X-Runner-Token", "test-runner-token-with-at-least-32-characters"))
                 .andExpect(status().isOk());
     }
 

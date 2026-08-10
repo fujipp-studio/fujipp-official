@@ -11,6 +11,8 @@ public record BotResponse(
         String discordUsername,
         String discordAvatarUrl,
         String status,
+        String desiredState,
+        long restartRevision,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt
 ) {

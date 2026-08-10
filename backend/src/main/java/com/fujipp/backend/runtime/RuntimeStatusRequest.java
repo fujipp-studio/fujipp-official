@@ -11,6 +11,17 @@ public record RuntimeStatusRequest(
         UUID installationId,
         @NotBlank @Size(max = 20) String status,
         @Size(max = 80) String errorCode,
-        @Size(max = 2000) String errorMessage
+        @Size(max = 2000) String errorMessage,
+        @Size(max = 100) String discordUsername,
+        @Size(max = 2048) String discordAvatarUrl
 ) {
+    public RuntimeStatusRequest(
+            UUID botId,
+            UUID installationId,
+            String status,
+            String errorCode,
+            String errorMessage
+    ) {
+        this(botId, installationId, status, errorCode, errorMessage, null, null);
+    }
 }

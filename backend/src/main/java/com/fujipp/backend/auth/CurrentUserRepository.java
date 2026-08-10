@@ -113,6 +113,20 @@ public class CurrentUserRepository {
         return Boolean.TRUE.equals(reserved);
     }
 
+    public long findWalletBalanceByUserId(UUID userId) {
+        var list = jdbcTemplate.query(
+                """
+                SELECT w.balance_satang
+                  FROM billing.customers c
+                  JOIN billing.wallets w ON w.customer_id = c.id AND w.currency = 'THB'
+                 WHERE c.user_id = ? OR c.id = ?
+                """,
+                (rs, rowNum) -> rs.getLong("balance_satang"),
+                userId, userId
+        );
+        return list.isEmpty() ? 0L : list.get(0);
+    }
+
     public record AccountProfile(
             UUID id,
             AppRole role,

@@ -70,18 +70,16 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (!(authentication instanceof JwtAuthenticationToken jwtAuthentication)
-                || !authentication.isAuthenticated()) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
         boolean readRequest = "GET".equals(request.getMethod())
                 || "HEAD".equals(request.getMethod())
                 || "OPTIONS".equals(request.getMethod());
         int limit = readRequest ? readLimit : writeLimit;
-        String bucketKey = (readRequest ? "read:" : "write:")
-                + jwtAuthentication.getToken().getSubject();
+        JwtAuthenticationToken jwtAuthentication = authentication instanceof JwtAuthenticationToken jwt
+                && authentication.isAuthenticated() ? jwt : null;
+        String identity = jwtAuthentication == null
+                ? "ip:" + clientAddress(request)
+                : "user:" + jwtAuthentication.getToken().getSubject();
+        String bucketKey = (readRequest ? "read:" : "write:") + identity;
         long now = clock.millis();
         Decision decision = windows.computeIfAbsent(bucketKey, ignored -> new Window())
                 .consume(now, limit);
@@ -91,7 +89,8 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
 
         if (!decision.allowed()) {
             response.setHeader("Retry-After", Long.toString(decision.retryAfterSeconds()));
-            UUID userId = parseUserId(jwtAuthentication.getToken().getSubject());
+            UUID userId = jwtAuthentication == null ? null
+                    : parseUserId(jwtAuthentication.getToken().getSubject());
             securityAuditService.record(
                     SecurityEventType.RATE_LIMIT_EXCEEDED,
                     AuditOutcome.DENIED,
@@ -113,6 +112,19 @@ public class ApiRateLimitFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return !request.getRequestURI().startsWith("/api/");
+    }
+
+    private String clientAddress(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded == null || forwarded.isBlank()) return request.getRemoteAddr();
+        String[] addresses = forwarded.split(",");
+        String closest = addresses[addresses.length - 1].trim();
+        return closest.isEmpty() || closest.length() > 64 ? request.getRemoteAddr() : closest;
     }
 
     private void writeProblem(HttpServletResponse response) throws IOException {

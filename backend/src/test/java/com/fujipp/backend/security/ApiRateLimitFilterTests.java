@@ -70,8 +70,42 @@ class ApiRateLimitFilterTests {
         assertThat(perform("PUT").getStatus()).isEqualTo(200);
     }
 
+    @Test
+    void limitsAnonymousPublicApiRequestsByRemoteAddress() throws Exception {
+        assertThat(performAnonymous("GET", "203.0.113.10").getStatus()).isEqualTo(200);
+        assertThat(performAnonymous("GET", "203.0.113.10").getStatus()).isEqualTo(200);
+        assertThat(performAnonymous("GET", "203.0.113.10").getStatus()).isEqualTo(429);
+        assertThat(performAnonymous("GET", "203.0.113.11").getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void usesTheProxyAppendedAddressInsteadOfAClientSpoofedForwardedAddress() throws Exception {
+        assertThat(performForwarded("198.51.100.1, 203.0.113.20").getStatus()).isEqualTo(200);
+        assertThat(performForwarded("198.51.100.2, 203.0.113.20").getStatus()).isEqualTo(200);
+        assertThat(performForwarded("198.51.100.3, 203.0.113.20").getStatus()).isEqualTo(429);
+    }
+
     private MockHttpServletResponse perform(String method) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, "/api/v1/auth/me/profile");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
+    }
+
+    private MockHttpServletResponse performAnonymous(String method, String remoteAddress) throws Exception {
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = new MockHttpServletRequest(method, "/api/v1/store/features");
+        request.setRemoteAddr(remoteAddress);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
+    }
+
+    private MockHttpServletResponse performForwarded(String forwardedFor) throws Exception {
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/store/features");
+        request.setRemoteAddr("172.20.0.2");
+        request.addHeader("X-Forwarded-For", forwardedFor);
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
         return response;

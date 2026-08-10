@@ -17,20 +17,28 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Arrays;
 
 @Component
 public class RunnerAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String HEADER = "X-Runner-Token";
-    private final byte[] expectedTokenHash;
+    private final List<byte[]> expectedTokenHashes;
 
-    public RunnerAuthenticationFilter(@Value("${app.runtime.runner-token:}") String token) {
-        this.expectedTokenHash = token == null || token.isBlank() ? null : hash(token);
+    public RunnerAuthenticationFilter(@Value("${app.runtime.runner-tokens:}") String tokens) {
+        List<String> configuredTokens = tokens == null ? List.of() : Arrays.stream(tokens.split(","))
+                .map(String::trim)
+                .filter(token -> !token.isEmpty())
+                .toList();
+        if (configuredTokens.stream().anyMatch(token -> token.length() < 32)) {
+            throw new IllegalArgumentException("Runner API tokens must contain at least 32 characters");
+        }
+        this.expectedTokenHashes = configuredTokens.stream().map(RunnerAuthenticationFilter::hash).toList();
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/internal/v1/runtime/");
+        return !request.getRequestURI().startsWith("/internal/v1/");
     }
 
     @Override
@@ -40,8 +48,9 @@ public class RunnerAuthenticationFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
         String supplied = request.getHeader(HEADER);
-        if (expectedTokenHash == null || supplied == null
-                || !MessageDigest.isEqual(expectedTokenHash, hash(supplied))) {
+        byte[] suppliedHash = supplied == null ? null : hash(supplied);
+        if (suppliedHash == null || expectedTokenHashes.stream()
+                .noneMatch(expected -> MessageDigest.isEqual(expected, suppliedHash))) {
             SecurityContextHolder.clearContext();
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
