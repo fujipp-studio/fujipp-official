@@ -58,7 +58,7 @@ const passwordsMatch = computed(
 )
 const isFormValid = computed(() => {
   if (awaitingEmailConfirmation.value) return false
-  if (!hasValidEmail.value || !hasPassword.value || !captchaToken.value) return false
+  if (!hasValidEmail.value || !hasPassword.value) return false
   if (!isRegister.value) return true
   return hasValidRegistrationPassword.value && passwordsMatch.value && acceptedTerms.value
 })
@@ -98,6 +98,11 @@ async function submitEmailAuth() {
   if (loading.value || awaitingEmailConfirmation.value) return
 
   feedback.value = ''
+  if (!captchaToken.value) {
+    feedback.value = 'Please complete the security verification before continuing.'
+    return
+  }
+
   const result = isRegister.value
     ? await authStore.signUp(email.value, password.value, captchaToken.value)
     : await authStore.signIn(email.value, password.value, captchaToken.value)
@@ -116,9 +121,14 @@ async function submitEmailAuth() {
 }
 
 async function submitOAuth(provider: 'google' | 'discord' | 'github') {
-  if (loading.value || awaitingEmailConfirmation.value || !captchaToken.value) return
+  if (loading.value || awaitingEmailConfirmation.value) return
 
   feedback.value = ''
+  if (!captchaToken.value) {
+    feedback.value = 'Please complete the security verification before continuing.'
+    return
+  }
+
   await authStore.signInWithOAuth(provider)
 }
 
@@ -324,21 +334,21 @@ onBeforeUnmount(() => {
         <div class="auth-dialog__socials">
           <AppButton
             :left-icon="icons.social.google"
-            :disabled="loading || awaitingEmailConfirmation || !captchaToken"
+            :disabled="loading || awaitingEmailConfirmation"
             @click="submitOAuth('google')"
           >
             Google
           </AppButton>
           <AppButton
             :left-icon="icons.social.discord"
-            :disabled="loading || awaitingEmailConfirmation || !captchaToken"
+            :disabled="loading || awaitingEmailConfirmation"
             @click="submitOAuth('discord')"
           >
             Discord
           </AppButton>
           <AppButton
             :left-icon="icons.social.github"
-            :disabled="loading || awaitingEmailConfirmation || !captchaToken"
+            :disabled="loading || awaitingEmailConfirmation"
             @click="submitOAuth('github')"
           >
             GitHub
