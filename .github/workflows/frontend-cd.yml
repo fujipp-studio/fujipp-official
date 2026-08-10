@@ -60,6 +60,7 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
           VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
           VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
         run: bun run build
       - name: Install FTPS client
         run: sudo apt-get update && sudo apt-get install --yes lftp

@@ -5,6 +5,8 @@ import { ThemeApp } from '../config'
 import type { ThemeMode } from '../config/theme'
 
 const themeStorageKey = 'fujipp-theme-mode'
+const lightFavicon = '/icons/brand/auth-mark.svg'
+const darkFavicon = '/icons/brand/auth-mark-dark.svg'
 
 interface ThemeTransitionOrigin {
   x: number
@@ -55,6 +57,9 @@ export const useThemeStore = defineStore('theme', () => {
 
     root.dataset.theme = isDarkTheme.value ? 'dark' : 'light'
     root.classList.toggle('dark', isDarkTheme.value)
+
+    const favicon = document.querySelector<HTMLLinkElement>('#app-favicon')
+    if (favicon) favicon.href = isDarkTheme.value ? darkFavicon : lightFavicon
 
     if (instant) {
       void root.offsetWidth

@@ -7,6 +7,11 @@ import { fetchCurrentUser, type CurrentUser } from '../services/backend'
 
 type OAuthProvider = 'google' | 'discord' | 'github'
 
+function getAuthCallbackUrl(): string {
+  const configuredSiteUrl = import.meta.env.VITE_SITE_URL?.trim().replace(/\/+$/, '')
+  return `${configuredSiteUrl || window.location.origin}/auth/callback`
+}
+
 interface AuthActionResult {
   success: boolean
   requiresEmailConfirmation?: boolean
@@ -91,7 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
         password,
         options: {
           captchaToken,
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: getAuthCallbackUrl(),
         },
       })
       if (signUpError) throw signUpError
@@ -115,7 +120,7 @@ export const useAuthStore = defineStore('auth', () => {
       const { error: oauthError } = await getSupabaseClient().auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: getAuthCallbackUrl(),
         },
       })
       if (oauthError) throw oauthError
