@@ -1,0 +1,43 @@
+name: fujipp-official
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE is required}
+    restart: unless-stopped
+    init: true
+    mem_limit: 2g
+    env_file:
+      - ${RUNTIME_ENV_FILE:-/opt/fujipp/env/fujipp-official.production.env}
+    environment:
+      JAVA_TOOL_OPTIONS: -Xms256m -Xmx1400m -XX:MaxMetaspaceSize=256m
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-3601}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - internal
+
+  bot-runner:
+    image: ${BOT_RUNNER_IMAGE:?BOT_RUNNER_IMAGE is required}
+    profiles: ["runner"]
+    restart: unless-stopped
+    init: true
+    mem_limit: 1500m
+    environment:
+      NODE_OPTIONS: --max-old-space-size=1152
+      BACKEND_API_URL: http://backend:8080
+      RUNNER_API_TOKEN: ${RUNNER_API_TOKEN:?RUNNER_API_TOKEN is required}
+      RUNTIME_POLL_INTERVAL_MS: ${RUNTIME_POLL_INTERVAL_MS:-30000}
+      BOT_WORKER_MAX_OLD_SPACE_MB: ${BOT_WORKER_MAX_OLD_SPACE_MB:-256}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - internal
+
+networks:
+  internal:
