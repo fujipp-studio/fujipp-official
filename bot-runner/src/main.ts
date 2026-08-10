@@ -1,10 +1,10 @@
 import { RuntimeApiClient } from "./api-client.js";
-import { BotManager } from "./bot-manager.js";
+import { ProcessBotManager } from "./process-bot-manager.js";
 import { loadConfig } from "./config.js";
 
 const config = loadConfig();
 const api = new RuntimeApiClient(config.backendUrl, config.apiToken);
-const manager = new BotManager(api);
+const manager = new ProcessBotManager(api);
 let stopping = false;
 let syncing = false;
 
@@ -33,5 +33,4 @@ process.on("SIGTERM", () => void shutdown("SIGTERM"));
 process.on("SIGINT", () => void shutdown("SIGINT"));
 
 await sync();
-const timer = setInterval(() => void sync(), config.pollIntervalMs);
-timer.unref();
+setInterval(() => void sync(), config.pollIntervalMs);
