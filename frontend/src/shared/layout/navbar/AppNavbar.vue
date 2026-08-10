@@ -1366,7 +1366,6 @@ onBeforeUnmount(() => {
 .profile-dialog__arrow {
   width: var(--icon-size-16);
   height: var(--icon-size-16);
-  background-color: currentcolor;
 }
 
 .mobile-navbar,
