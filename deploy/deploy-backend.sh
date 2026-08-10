@@ -17,6 +17,9 @@ runtime_env=/opt/fujipp/env/fujipp-official.production.env
 compose_file="$app_dir/compose.production.yml"
 release_env="$app_dir/release.env"
 previous_release_env="$app_dir/previous-release.env"
+docker_config="$app_dir/.docker"
+
+export DOCKER_CONFIG=$docker_config
 
 if [[ ! $commit_sha =~ ^[0-9a-f]{40}$ ]]; then
   echo "invalid commit SHA" >&2
@@ -28,7 +31,7 @@ if [[ ! $backend_port =~ ^[0-9]{2,5}$ ]]; then
   exit 65
 fi
 
-for required_file in "$runtime_env" "$compose_file"; do
+for required_file in "$runtime_env" "$compose_file" "$docker_config/config.json"; do
   if [[ ! -r $required_file ]]; then
     echo "required file is not readable: $required_file" >&2
     exit 66
