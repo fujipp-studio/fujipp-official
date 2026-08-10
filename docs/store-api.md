@@ -301,7 +301,7 @@ Response: `200 OK`
   "presentations": [
     {
       "slotId": "bbdd1581-c658-4e25-b450-ee871ee4ed19",
-      "key": "welcomeEmbed",
+      "key": "welcome_embed",
       "label": "Welcome embed",
       "type": "EMBED",
       "availableVariables": ["userMention", "guildName"],
@@ -335,7 +335,7 @@ Content-Type: application/json
     "WEBHOOK_TOKEN": "replace-with-the-real-secret"
   },
   "presentations": {
-    "welcomeEmbed": {
+    "welcome_embed": {
       "title": "Welcome {{userMention}}",
       "description": "Please read the rules in {{guildName}}."
     }
