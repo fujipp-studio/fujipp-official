@@ -111,7 +111,10 @@ async function processImages(
       const prices = extractPrices(data.text);
 
       if (!prices.currentPriceSatang) {
-        perImageResults.push({ status: "error", error_message: "ไม่สามารถอ่านราคาจากรูปนี้ได้ กรุณาลองส่งรูปที่ชัดกว่านี้" });
+        perImageResults.push({
+          status: "error",
+          error_message: "ไม่พบราคาที่รองรับในรูปนี้ กรุณาตรวจสอบว่ารูปมีราคาเป็นเงินบาทและลองส่งอีกครั้ง",
+        });
         continue;
       }
 
@@ -131,7 +134,10 @@ async function processImages(
       });
     } catch (error) {
       console.error(`Price Reader OCR failed for attachment ${attachment.id}:`, error);
-      perImageResults.push({ status: "error", error_message: errorMessage(error) });
+      perImageResults.push({
+        status: "error",
+        error_message: "เกิดข้อผิดพลาดขณะอ่านรูป กรุณาลองส่งรูปอีกครั้ง",
+      });
     }
   }
 
@@ -352,7 +358,7 @@ function defaultRender(slot: string, values: Record<string, string>): Record<str
 function defaultErrorRender(messages: string[]): Record<string, unknown> {
   const description = messages.length > 0
     ? messages.map((message) => `❌ ${message}`).join("\n")
-    : "❌ ไม่สามารถอ่านราคาจากรูปนี้ได้ กรุณาลองส่งรูปที่ชัดกว่านี้";
+    : "❌ ไม่พบราคาที่รองรับในรูปนี้ กรุณาตรวจสอบว่ารูปมีราคาเป็นเงินบาทและลองส่งอีกครั้ง";
   return {
     content: null,
     embeds: [],

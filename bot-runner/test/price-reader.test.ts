@@ -45,6 +45,23 @@ test("recovers a price when OCR misreads the baht glyph before a discount", () =
   assert.equal(eightGlyph.discountPercent, 12);
 });
 
+test("recovers a shop-card price when OCR reads the baht glyph as 8", () => {
+  const result = extractPrices(`
+    แก๊งตัวกลมม้วน
+    8250
+    ซือในราคา 8250.00
+  `);
+
+  assert.equal(result.currentPriceSatang, 25_000);
+  assert.equal(result.originalPriceSatang, 25_000);
+});
+
+test("does not treat unrelated numbers as a price without a price context", () => {
+  const result = extractPrices("Bundle 8250\nLimited edition");
+
+  assert.equal(result.currentPriceSatang, null);
+});
+
 test("uses the discounted checkout amount instead of the crossed-out price", () => {
   const result = extractPrices("THB 256  ©  THB 209");
   const priceMap = readPriceMap([{ discordPrice: 209, shopPrice: 45 }]);
