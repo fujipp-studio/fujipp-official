@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 @RestController
 @RequestMapping("/internal/v1/runtime")
@@ -23,10 +24,28 @@ public class RuntimeController {
     }
 
     @GetMapping("/bootstrap")
-    public ResponseEntity<RuntimeBootstrapResponse> bootstrap() {
+    public ResponseEntity<RuntimeBootstrapResponse> bootstrap(
+            @RequestHeader(value = "If-None-Match", required = false) String ifNoneMatch
+    ) {
+        RuntimeService.CachedBootstrap bootstrap = runtimeService.bootstrap();
+        if (matches(ifNoneMatch, bootstrap.etag())) {
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+                    .eTag(bootstrap.etag())
+                    .cacheControl(CacheControl.noCache())
+                    .build();
+        }
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
-                .body(runtimeService.bootstrap());
+                .eTag(bootstrap.etag())
+                .cacheControl(CacheControl.noCache())
+                .body(bootstrap.response());
+    }
+
+    private boolean matches(String ifNoneMatch, String etag) {
+        return ifNoneMatch != null && java.util.Arrays.stream(ifNoneMatch.split(","))
+                .map(String::trim)
+                .map(value -> value.startsWith("W/") ? value.substring(2) : value)
+                .map(value -> value.replace("\"", ""))
+                .anyMatch(value -> value.equals(etag) || value.equals("*"));
     }
 
     @PostMapping("/status")
