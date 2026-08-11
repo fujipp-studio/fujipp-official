@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Eye, EyeOff, Gamepad2, KeyRound, Plus, ShieldCheck, Trash2 } from 'lucide-vue-next'
+import { CheckCircle2, ChevronDown, Gamepad2, KeyRound, Plus, ShieldCheck, Trash2 } from 'lucide-vue-next'
+import { AppButton, AppTextField } from '../../../shared/ui'
 
 export interface GroupBlock {
   id: string
@@ -111,7 +112,10 @@ function emitChanges() {
   }
 
   emit('update:groupsJson', JSON.stringify(groupsPayload, null, 2))
-  emit('update:credentialsJson', JSON.stringify(credentialsPayload))
+  emit(
+    'update:credentialsJson',
+    Object.keys(credentialsPayload).length ? JSON.stringify(credentialsPayload) : '',
+  )
 }
 
 watch([() => props.groupsJson, () => props.credentialsJson], () => parseInitialData(), {
@@ -132,193 +136,156 @@ function removeGroup(index: number) {
 function sanitizeKey(group: GroupBlock) {
   group.key = group.key.toLowerCase().replace(/[^a-z0-9_-]/g, '')
 }
+
+function updateGroupId(group: GroupBlock, value: string) {
+  group.groupId = value ? Number(value) || '' : ''
+}
+
+function groupReady(group: GroupBlock) {
+  return Boolean(group.name.trim() && group.key.trim() && Number(group.groupId) > 0)
+}
 </script>
 
 <template>
-  <div class="space-y-lg border-t border-border-subtle pt-lg">
-    <div class="flex items-center justify-between">
-      <div>
-        <h3 class="flex items-center gap-xs text-base font-semibold text-text-primary">
-          <Gamepad2 class="size-5 text-accent-primary" />
-          {{ text('Roblox Groups Settings', 'การตั้งค่า Roblox Groups (การ์ดตามกลุ่ม)') }}
-        </h3>
-        <p class="mt-xxs text-xs text-text-secondary">
-          {{ text('Manage Roblox groups and Credentials/2FA per group as blocks', 'จัดการกลุ่ม Roblox และข้อมูล Credentials/2FA ของแต่ละกลุ่มในรูปแบบบล็อกการ์ด') }}
-        </p>
+  <section class="roblox-groups">
+    <header class="roblox-groups__header">
+      <div class="roblox-groups__title">
+        <span class="roblox-groups__icon"><Gamepad2 /></span>
+        <div>
+          <h3>{{ text('Roblox groups', 'กลุ่ม Roblox') }}</h3>
+          <p>{{ text('Connect each payout group with its own credentials.', 'เชื่อมต่อแต่ละกลุ่มสำหรับโอน Robux พร้อม Credentials ของกลุ่มนั้น') }}</p>
+        </div>
       </div>
-      <button
-        type="button"
-        class="inline-flex items-center gap-xs rounded-lg bg-accent-primary px-md py-sm text-xs font-medium text-text-on-accent transition-all hover:brightness-110"
-        @click="addGroup"
-      >
-        <Plus class="size-4" />
-        {{ text('Add Roblox Group', 'เพิ่มกลุ่ม Roblox') }}
-      </button>
+      <AppButton class="roblox-groups__add" @click="addGroup">
+        <Plus class="size-4" /> {{ text('Add group', 'เพิ่มกลุ่ม') }}
+      </AppButton>
+    </header>
+
+    <div class="roblox-groups__summary">
+      <span><strong>{{ groups.length }}</strong> {{ text('groups', 'กลุ่ม') }}</span>
+      <span v-if="credentialsConfigured"><CheckCircle2 class="size-4" /> {{ text('Credentials saved', 'บันทึก Credentials แล้ว') }}</span>
     </div>
 
-    <!-- Group Card Blocks -->
-    <div class="grid gap-lg">
-      <div
-        v-for="(group, index) in groups"
-        :key="group.id"
-        class="rounded-xl border border-border-subtle bg-bg-surface p-lg shadow-sm transition-all hover:border-border-default"
-      >
-        <!-- Card Header -->
-        <div class="mb-md flex items-center justify-between border-b border-border-subtle pb-sm">
-          <div class="flex items-center gap-xs">
-            <span
-              class="inline-flex items-center rounded-md bg-accent-primary/10 px-xs py-xxs text-xs font-bold text-accent-primary"
-            >
-              {{ text(`Group ${index + 1}`, `กลุ่มที่ ${index + 1}`) }}
-            </span>
-            <span class="text-sm font-semibold text-text-primary">
-              {{ group.name || text('Unnamed Group', 'ยังไม่ได้ตั้งชื่อ') }}
-            </span>
-            <span v-if="group.key" class="font-mono text-xs text-text-secondary">
-              ({{ group.key }})
-            </span>
-          </div>
-          <button
-            v-if="groups.length > 1"
-            type="button"
-            class="inline-flex items-center gap-xxs rounded-md px-xs py-xxs text-xs text-error-text transition-colors hover:bg-error-bg/20"
-            :title="text('Delete this group', 'ลบกลุ่มนี้')"
-            @click="removeGroup(index)"
-          >
-            <Trash2 class="size-4" />
-            {{ text('Delete Group', 'ลบกลุ่ม') }}
-          </button>
-        </div>
+    <div class="roblox-groups__list">
+      <details v-for="(group, index) in groups" :key="group.id" class="roblox-group" open>
+        <summary class="roblox-group__summary">
+          <ChevronDown class="roblox-group__chevron" />
+          <span class="roblox-group__number">{{ index + 1 }}</span>
+          <span class="roblox-group__identity">
+            <strong>{{ group.name || text('Unnamed group', 'กลุ่มที่ยังไม่มีชื่อ') }}</strong>
+            <small>{{ group.key || text('No key', 'ยังไม่มี Key') }} · {{ group.groupId || '—' }}</small>
+          </span>
+          <span :class="['roblox-group__status', { 'roblox-group__status--ready': groupReady(group) }]">
+            {{ groupReady(group) ? text('Ready', 'พร้อมใช้งาน') : text('Setup required', 'ต้องตั้งค่า') }}
+          </span>
+        </summary>
 
-        <!-- Form Fields Grid -->
-        <div class="grid gap-md desktop:grid-cols-2">
-          <!-- Group Name -->
-          <div>
-            <label class="block text-xs font-medium text-text-primary">
-              {{ text('Group Name', 'ชื่อกลุ่ม (Group Name)') }} <span class="text-error-text">*</span>
-            </label>
-            <input
-              v-model="group.name"
-              type="text"
-              class="field-control mt-xs h-11"
-              :placeholder="text('e.g. Group 1 or Main Group', 'เช่น Group 1 หรือ Main Group')"
-            />
-          </div>
-
-          <!-- Group Key -->
-          <div>
-            <label class="block text-xs font-medium text-text-primary">
-              {{ text('Group Key', 'รหัสกลุ่ม (Group Key)') }} <span class="text-error-text">*</span>
-            </label>
-            <input
-              v-model="group.key"
-              type="text"
-              class="field-control mt-xs h-11 font-mono text-sm"
-              placeholder="main"
-              @input="sanitizeKey(group)"
-            />
-            <p class="mt-xxs text-[11px] text-text-secondary">
-              {{ text('Lowercase letters only, no spaces (reference key)', 'ภาษาอังกฤษตัวเล็ก ไม่มีเว้นวรรค (ใช้เป็น Key อ้างอิง)') }}
-            </p>
-          </div>
-
-          <!-- Group ID -->
-          <div>
-            <label class="block text-xs font-medium text-text-primary">
-              Roblox Group ID <span class="text-error-text">*</span>
-            </label>
-            <input
-              v-model.number="group.groupId"
-              type="number"
-              class="field-control mt-xs h-11 font-mono text-sm"
-              placeholder="34777878"
-            />
-            <p class="mt-xxs text-[11px] text-text-secondary">
-              {{ text('Numeric Group ID from Roblox URL (e.g. roblox.com/communities/34777878)', 'ตัวเลข ID กลุ่มจาก URL ของ Roblox (เช่น roblox.com/communities/34777878)') }}
-            </p>
-          </div>
-
-          <!-- 2FA TOTP Secret -->
-          <div>
-            <label class="flex items-center justify-between text-xs font-medium text-text-primary">
-              <span class="flex items-center gap-xxs">
-                <ShieldCheck class="size-3.5 text-accent-primary" />
-                2FA Secret Key (TOTP)
-              </span>
-              <span class="text-[11px] text-text-secondary">{{ text('(If 2FA is enabled)', '(ถ้าเปิด 2FA ใน Roblox)') }}</span>
-            </label>
-            <div class="relative mt-xs">
-              <input
-                v-model="group.totpSecret"
-                :type="group.showTotp ? 'text' : 'password'"
-                class="field-control h-11 pr-10 font-mono text-xs"
-                placeholder="JBSWY3DPEHPK3PXP"
-                autocomplete="off"
-              />
-              <button
-                type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 p-xs text-text-secondary hover:text-text-primary"
-                @click="group.showTotp = !group.showTotp"
-              >
-                <Eye v-if="!group.showTotp" class="size-4" />
-                <EyeOff v-else class="size-4" />
-              </button>
+        <div class="roblox-group__body">
+          <div class="roblox-group__section">
+            <div class="roblox-group__section-title">
+              <Gamepad2 class="size-4" />
+              <div><strong>{{ text('Group information', 'ข้อมูลกลุ่ม') }}</strong><small>{{ text('Public identifiers used by the panel.', 'ข้อมูลอ้างอิงที่แสดงและใช้กับ Panel') }}</small></div>
             </div>
-            <p class="mt-xxs text-[11px] text-text-secondary">
-              {{ text('Base32 Secret Key provided when setting up Authenticator App in Roblox', 'Base32 Secret Key ที่ให้มาตอนกดเปิด Authenticator App ใน Roblox') }}
-            </p>
+            <div class="roblox-group__grid">
+              <AppTextField v-model="group.name" :label="text('Group name', 'ชื่อกลุ่ม')" :placeholder="text('Main group', 'กลุ่มหลัก')" required />
+              <AppTextField
+                :model-value="group.key"
+                :label="text('Group key', 'รหัสอ้างอิงกลุ่ม')"
+                placeholder="main"
+                :support-text="text('Lowercase letters, numbers, hyphens and underscores only.', 'ใช้ตัวพิมพ์เล็ก ตัวเลข ขีดกลาง และขีดล่างเท่านั้น')"
+                required
+                @update:model-value="(value) => { group.key = value; sanitizeKey(group) }"
+              />
+              <AppTextField
+                :model-value="String(group.groupId)"
+                label="Roblox Group ID"
+                placeholder="34777878"
+                input-type="number"
+                :support-text="text('Find it in the Roblox community URL.', 'ดูได้จาก URL หน้า Community ของ Roblox')"
+                required
+                @update:model-value="(value) => updateGroupId(group, value)"
+              />
+            </div>
           </div>
 
-          <!-- Roblox Cookie (.ROBLOSECURITY) - Full width -->
-          <div class="desktop:col-span-2">
-            <label class="flex items-center justify-between text-xs font-medium text-text-primary">
-              <span class="flex items-center gap-xxs">
-                <KeyRound class="size-3.5 text-accent-primary" />
-                Roblox Cookie (.ROBLOSECURITY) <span class="text-error-text">*</span>
-              </span>
-              <span v-if="credentialsConfigured && !group.cookie" class="text-[11px] text-success">
-                {{ text('✓ Existing cookie configured (overwrite to change)', '✓ มี Cookie เดิมตั้งค่าไว้อยู่แล้ว (พิมพ์ทับเพื่อเปลี่ยนใหม่)') }}
-              </span>
-            </label>
-            <div class="relative mt-xs">
-              <input
+          <div class="roblox-group__section roblox-group__section--security">
+            <div class="roblox-group__section-title">
+              <ShieldCheck class="size-4" />
+              <div><strong>{{ text('Security credentials', 'ข้อมูลยืนยันตัวตน') }}</strong><small>{{ text('Stored securely and never shown again after saving.', 'จัดเก็บอย่างปลอดภัยและจะไม่แสดงค่าเดิมหลังบันทึก') }}</small></div>
+            </div>
+            <div class="roblox-group__grid">
+              <AppTextField
                 v-model="group.cookie"
-                :type="group.showCookie ? 'text' : 'password'"
-                class="field-control h-11 pr-10 font-mono text-xs"
-                :placeholder="
-                  credentialsConfigured
-                    ? text('•••••••• (Cookie configured - paste new to change)', '•••••••• (มี Cookie ตั้งค่าไว้แล้ว - วางใหม่ถ้าต้องการเปลี่ยน)')
-                    : text('Paste .ROBLOSECURITY cookie copied from browser', 'วางคุกกี้ .ROBLOSECURITY ที่คัดลอกมาจากเบราว์เซอร์')
-                "
-                autocomplete="off"
+                class="roblox-group__cookie"
+                variant="secret"
+                label="Roblox Cookie (.ROBLOSECURITY)"
+                :placeholder="credentialsConfigured ? text('Saved — paste a new cookie to replace it', 'บันทึกแล้ว — วาง Cookie ใหม่เมื่อต้องการเปลี่ยน') : text('Paste the .ROBLOSECURITY cookie', 'วาง Cookie .ROBLOSECURITY')"
+                :support-text="text('Use an account permitted to transfer group Robux.', 'ใช้บัญชีที่มีสิทธิ์โอน Robux ของกลุ่ม')"
+                autocomplete="new-password"
               />
-              <button
-                type="button"
-                class="absolute right-2 top-1/2 -translate-y-1/2 p-xs text-text-secondary hover:text-text-primary"
-                @click="group.showCookie = !group.showCookie"
-              >
-                <Eye v-if="!group.showCookie" class="size-4" />
-                <EyeOff v-else class="size-4" />
-              </button>
+              <AppTextField
+                v-model="group.totpSecret"
+                variant="secret"
+                label="2FA Secret Key (TOTP)"
+                placeholder="JBSWY3DPEHPK3PXP"
+                :support-text="text('Optional. Required only when Authenticator 2FA is enabled.', 'ไม่บังคับ ใช้เมื่อบัญชีเปิด Authenticator 2FA')"
+                autocomplete="new-password"
+              />
             </div>
-            <p class="mt-xxs text-[11px] text-text-secondary">
-              {{ text('Roblox account cookie that owns or has permission to transfer Robux in this group', 'คุกกี้บัญชี Roblox ที่เป็นเจ้าของ/มีสิทธิ์โอน Robux ในกลุ่มนี้') }}
-            </p>
+          </div>
+
+          <div class="roblox-group__footer">
+            <span><KeyRound class="size-4" /> {{ text('Secrets are updated only when a new value is entered.', 'Secret จะเปลี่ยนเฉพาะเมื่อกรอกค่าใหม่') }}</span>
+            <AppButton v-if="groups.length > 1" class="roblox-group__delete" variant="secondary" @click="removeGroup(index)">
+              <Trash2 class="size-4" /> {{ text('Delete group', 'ลบกลุ่ม') }}
+            </AppButton>
           </div>
         </div>
-      </div>
+      </details>
     </div>
 
-    <!-- Bottom Add Group Button -->
-    <div class="flex justify-center border-t border-border-subtle pt-md">
-      <button
-        type="button"
-        class="inline-flex items-center gap-xs rounded-xl border border-dashed border-border-default bg-bg-surface px-lg py-md text-sm font-medium text-text-primary transition-all hover:border-accent-primary hover:bg-accent-primary/5 hover:text-accent-primary"
-        @click="addGroup"
-      >
-        <Plus class="size-5" />
-        เพิ่มกลุ่ม Roblox ถัดไป (Group #{{ groups.length + 1 }})
-      </button>
-    </div>
-  </div>
+    <button type="button" class="roblox-groups__add-another" @click="addGroup">
+      <Plus class="size-5" />
+      <span><strong>{{ text('Add another Roblox group', 'เพิ่มกลุ่ม Roblox อีกกลุ่ม') }}</strong><small>{{ text('Configure a separate payout source.', 'ตั้งค่าแหล่งโอน Robux แยกอีกกลุ่ม') }}</small></span>
+    </button>
+  </section>
 </template>
+
+<style scoped>
+.roblox-groups { display: grid; gap: var(--space-md); padding-top: var(--space-lg); border-top: 1px solid var(--semantic-color-border-border-subtle); }
+.roblox-groups__header, .roblox-group__footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-md); }
+.roblox-groups__title { display: flex; align-items: center; gap: var(--space-sm); }
+.roblox-groups__icon { display: grid; width: 2.75rem; height: 2.75rem; place-items: center; border: 1px solid var(--semantic-color-border-border-default); border-radius: var(--corner-radius-md); background: var(--semantic-color-background-bg-elevated); }
+.roblox-groups__icon svg { width: var(--icon-size-24); }
+.roblox-groups h3 { font-size: var(--font-size-heading-small); font-weight: var(--typography-font-weight-bold); }
+.roblox-groups p, .roblox-group small { color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-body-small); }
+.roblox-groups__add { width: auto; }
+.roblox-groups__summary { display: flex; flex-wrap: wrap; gap: var(--space-xs); }
+.roblox-groups__summary span { display: inline-flex; align-items: center; gap: var(--space-xxs); padding: var(--space-xxs) var(--space-xs); border: 1px solid var(--semantic-color-border-border-subtle); border-radius: var(--radius-full); background: var(--semantic-color-background-bg-surface); font-size: var(--font-size-label-small); }
+.roblox-groups__list { display: grid; gap: var(--space-sm); }
+.roblox-group { overflow: hidden; border: 1px solid var(--semantic-color-border-border-subtle); border-radius: var(--corner-radius-lg); background: var(--semantic-color-background-bg-surface); box-shadow: var(--effect-shadow-sm); }
+.roblox-group__summary { display: flex; min-height: 4.5rem; align-items: center; gap: var(--space-sm); padding: var(--space-md); cursor: pointer; list-style: none; }
+.roblox-group__summary::-webkit-details-marker { display: none; }
+.roblox-group__chevron { flex: none; transition: transform 160ms ease; }
+.roblox-group[open] .roblox-group__chevron { transform: rotate(180deg); }
+.roblox-group__number { display: grid; width: 2rem; height: 2rem; flex: none; place-items: center; border-radius: var(--radius-full); background: var(--semantic-color-action-backgrounds-bg-secondary); font-weight: var(--typography-font-weight-bold); }
+.roblox-group__identity { display: grid; min-width: 0; flex: 1; }
+.roblox-group__identity strong, .roblox-group__identity small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.roblox-group__status { padding: var(--space-xxs) var(--space-xs); border-radius: var(--radius-full); background: var(--semantic-color-background-bg-elevated); color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); }
+.roblox-group__status--ready { color: var(--semantic-color-success-success-text); }
+.roblox-group__body { display: grid; gap: var(--space-md); padding: 0 var(--space-md) var(--space-md); border-top: 1px solid var(--semantic-color-border-border-subtle); }
+.roblox-group__section { display: grid; gap: var(--space-md); padding-top: var(--space-md); }
+.roblox-group__section--security { padding: var(--space-md); border: 1px solid var(--semantic-color-border-border-subtle); border-radius: var(--corner-radius-md); background: var(--semantic-color-background-bg-elevated); }
+.roblox-group__section-title { display: flex; align-items: flex-start; gap: var(--space-xs); }
+.roblox-group__section-title > div { display: grid; }
+.roblox-group__grid { display: grid; gap: var(--space-md); }
+.roblox-group__footer { color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-body-small); }
+.roblox-group__footer > span { display: flex; align-items: center; gap: var(--space-xxs); }
+.roblox-group__delete { width: auto; color: var(--semantic-color-error-error-text); }
+.roblox-groups__add-another { display: flex; align-items: center; justify-content: center; gap: var(--space-sm); padding: var(--space-md); border: 1px dashed var(--semantic-color-border-border-default); border-radius: var(--corner-radius-lg); background: transparent; color: var(--semantic-color-text-text-primary); text-align: left; }
+.roblox-groups__add-another:hover { background: var(--semantic-color-background-bg-surface-hover); }
+.roblox-groups__add-another span { display: grid; }
+@media (min-width: 48rem) { .roblox-group__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .roblox-group__cookie { grid-column: 1 / -1; } }
+@media (max-width: 47.99rem) { .roblox-groups__header, .roblox-group__footer { align-items: stretch; flex-direction: column; } .roblox-groups__add, .roblox-group__delete { width: 100%; } .roblox-group__status { display: none; } }
+@media (prefers-reduced-motion: reduce) { .roblox-group__chevron { transition: none; } }
+</style>

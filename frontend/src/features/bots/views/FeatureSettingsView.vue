@@ -44,6 +44,9 @@ const isRobloxPayoutFeature = computed(() => {
   return code === 'roblox-robux-payout' || 'ROBLOX_GROUPS' in values.value
 })
 const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
+const usesPresentationDesigner = computed(
+  () => isWalletTopupFeature.value || isRobloxPayoutFeature.value,
+)
 const isWalletPanelCommand = (key: string) => isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
 const walletConfigCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
   PANEL_COMMAND_NAME: { label: ['Panel command', 'คำสั่งแผงเติมเงิน'], description: ['Administrator command used to post the wallet panel.', 'คำสั่งสำหรับผู้ดูแลเพื่อส่งแผงเติมเงิน'] },
@@ -67,12 +70,49 @@ const walletConfigCopy: Record<string, { label: [string, string]; description: [
   TOP_SPENDER_MILESTONE_ROLES: { label: ['Top spender milestones', 'ยศตามยอดเติมสะสม'], description: ['Roles granted when lifetime top-up thresholds are reached.', 'ยศที่มอบเมื่อยอดเติมเงินสะสมถึงเกณฑ์'] },
   TOP_SPENDER_LEADERBOARD_CHANNEL_ID: { label: ['Leaderboard channel', 'ช่องตารางอันดับ'], description: ['Optional channel receiving the public Top 10 leaderboard.', 'ช่องเสริมสำหรับแสดงตารางผู้เติมเงิน 10 อันดับแรก'] },
 }
+const robloxConfigCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
+  PANEL_COMMAND_NAME: { label: ['Panel command', 'คำสั่งแผงขาย Robux'], description: ['Administrator command used to post the Robux shop panel.', 'คำสั่งสำหรับผู้ดูแลเพื่อส่งแผงขาย Robux'] },
+  ROBUX_ENABLED: { label: ['Sales enabled', 'เปิดระบบขาย Robux'], description: ['Allow members to start new Robux purchases.', 'อนุญาตให้สมาชิกเริ่มซื้อ Robux รายการใหม่'] },
+  ROBUX_RATE: { label: ['Robux rate', 'อัตรา Robux'], description: ['Robux received per one baht when packages are not configured.', 'จำนวน Robux ที่ได้รับต่อหนึ่งบาทเมื่อไม่ได้กำหนดแพ็กเกจ'] },
+  ROBUX_PACKAGES: { label: ['Robux packages', 'แพ็กเกจ Robux'], description: ['Configure the Robux amounts available for purchase.', 'กำหนดจำนวน Robux ที่สมาชิกสามารถเลือกซื้อได้'] },
+  ROBUX_PAYOUT_COOLDOWN_SECONDS: { label: ['Payout cooldown', 'ระยะพักระหว่างการโอน'], description: ['Delay between queued payouts, in seconds.', 'ระยะเวลารอระหว่างรายการโอนในคิว หน่วยเป็นวินาที'] },
+  ROBUX_NOTIFICATION_CHANNEL_ID: { label: ['Notification channel', 'ช่องแจ้งเตือน'], description: ['Channel receiving payout results.', 'ช่องที่รับผลการทำรายการโอน Robux'] },
+}
+const robloxPresentationCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
+  panel: { label: ['Robux shop panel', 'แผงร้าน Robux'], description: ['Public shop panel with live group stock.', 'แผงร้านสาธารณะที่แสดง Robux คงเหลือของกลุ่ม'] },
+  eligibility: { label: ['Eligibility result', 'ผลตรวจสอบสิทธิ์'], description: ['Result after checking a Roblox username.', 'ผลหลังตรวจสอบชื่อผู้ใช้ Roblox'] },
+  package_selector: { label: ['Package selector', 'เลือกแพ็กเกจ'], description: ['Available packages based on wallet balance and group stock.', 'แพ็กเกจที่ซื้อได้ตามยอดเงินและ Robux ในกลุ่ม'] },
+  confirmation: { label: ['Purchase confirmation', 'ยืนยันการซื้อ'], description: ['Confirmation before deducting the wallet balance.', 'ข้อความยืนยันก่อนหักยอดเงินในกระเป๋า'] },
+  processing: { label: ['Payout processing', 'กำลังดำเนินการโอน'], description: ['Shown while processing the Roblox payout.', 'แสดงระหว่างประมวลผลการโอน Robux'] },
+  queued: { label: ['Payout queued', 'เข้าคิวโอน Robux'], description: ['Shown after payment while waiting in the payout queue.', 'แสดงหลังชำระเงินระหว่างรอคิวโอน'] },
+  succeeded: { label: ['Payout succeeded', 'โอน Robux สำเร็จ'], description: ['Successful payout receipt.', 'ใบยืนยันการโอน Robux สำเร็จ'] },
+  failed: { label: ['Payout failed', 'โอน Robux ไม่สำเร็จ'], description: ['Failure and refund receipt.', 'ข้อความข้อผิดพลาดและการคืนเงิน'] },
+  notification: { label: ['Payout notification', 'แจ้งเตือนการโอน'], description: ['Private payout audit notification.', 'ข้อความแจ้งเตือนผลการโอนสำหรับผู้ดูแล'] },
+  notification_success: { label: ['Success notification', 'แจ้งเตือนรายการสำเร็จ'], description: ['Notification sent after a successful payout.', 'ข้อความแจ้งเตือนหลังโอนสำเร็จ'] },
+  notification_error: { label: ['Error notification', 'แจ้งเตือนข้อผิดพลาด'], description: ['Notification sent when a payout fails.', 'ข้อความแจ้งเตือนเมื่อการโอนไม่สำเร็จ'] },
+}
+function presentationSlotLabel(slot: FeatureConfiguration['presentations'][number]) {
+  const copy = isRobloxPayoutFeature.value ? robloxPresentationCopy[slot.key] : undefined
+  return copy ? text(...copy.label) : slot.label
+}
+function presentationSlotDescription(slot: FeatureConfiguration['presentations'][number]) {
+  const copy = isRobloxPayoutFeature.value ? robloxPresentationCopy[slot.key] : undefined
+  return copy ? text(...copy.description) : slot.description
+}
 function configFieldLabel(field: FeatureConfiguration['fields'][number]) {
-  const copy = isWalletTopupFeature.value ? walletConfigCopy[field.key] : undefined
+  const copy = isWalletTopupFeature.value
+    ? walletConfigCopy[field.key]
+    : isRobloxPayoutFeature.value
+      ? robloxConfigCopy[field.key]
+      : undefined
   return copy ? text(...copy.label) : field.label
 }
 function configFieldDescription(field: FeatureConfiguration['fields'][number]) {
-  const copy = isWalletTopupFeature.value ? walletConfigCopy[field.key] : undefined
+  const copy = isWalletTopupFeature.value
+    ? walletConfigCopy[field.key]
+    : isRobloxPayoutFeature.value
+      ? robloxConfigCopy[field.key]
+      : undefined
   return copy ? text(...copy.description) : field.description
 }
 
@@ -408,7 +448,7 @@ const visiblePresentationSlots = computed(() =>
   (configuration.value?.presentations ?? []).filter(
     (slot) =>
       !presentationMode.value ||
-      isWalletTopupFeature.value ||
+      usesPresentationDesigner.value ||
       slotMode(slot.key) === presentationMode.value,
   ),
 )
@@ -1245,7 +1285,7 @@ onBeforeUnmount(() => {
                     · {{ text('One item per line', 'หนึ่งรายการต่อบรรทัด') }}</span
                   >
                 </p>
-                <p v-if="field.key !== 'COMMAND_PERMISSION_RULES' && !isWalletTopupFeature" class="mt-sm font-mono text-xs text-text-muted">
+                <p v-if="field.key !== 'COMMAND_PERMISSION_RULES' && !usesPresentationDesigner" class="mt-sm font-mono text-xs text-text-muted">
                   {{ field.key }} · {{ field.type
                   }}<span v-if="field.configured"> · configured</span>
                 </p>
@@ -1307,7 +1347,7 @@ onBeforeUnmount(() => {
                 class="presentation-slot-row"
               >
                 <div class="min-w-0">
-                  <strong class="block truncate">{{ slot.label }}</strong>
+                  <strong class="block truncate">{{ presentationSlotLabel(slot) }}</strong>
                   <span class="font-mono text-xs text-text-muted">{{ slot.key }}</span>
                 </div>
                 <AppTextField
@@ -1343,12 +1383,12 @@ onBeforeUnmount(() => {
         <section v-else id="feature-presentation-editor" class="mt-2xl">
           <div
             v-if="visiblePresentationSlots.length"
-            :class="isWalletTopupFeature ? 'wallet-builder-layout' : 'space-y-md'"
+            :class="usesPresentationDesigner ? 'wallet-builder-layout' : 'space-y-md'"
           >
-            <div :class="isWalletTopupFeature ? 'wallet-builder-messages' : 'contents'">
-              <div v-if="isWalletTopupFeature" class="wallet-builder-toolbar">
+            <div :class="usesPresentationDesigner ? 'wallet-builder-messages' : 'contents'">
+              <div v-if="usesPresentationDesigner" class="wallet-builder-toolbar">
                 <div>
-                  <strong>{{ text('Wallet message builder', 'ตัวสร้างข้อความ Wallet') }}</strong>
+                  <strong>{{ isRobloxPayoutFeature ? text('Roblox Payout message builder', 'ตัวสร้างข้อความ Roblox Payout') : text('Wallet message builder', 'ตัวสร้างข้อความ Wallet') }}</strong>
                   <p>{{ text('Open a fixed message to customize its appearance.', 'เปิดข้อความที่ระบบกำหนดไว้เพื่อปรับแต่งรูปแบบ') }}</p>
                 </div>
                 <span>{{ visiblePresentationSlots.length }} {{ text('messages', 'ข้อความ') }}</span>
@@ -1356,10 +1396,10 @@ onBeforeUnmount(() => {
             <article
               v-for="(slot, slotIndex) in visiblePresentationSlots"
               :key="slot.slotId"
-              :class="['rounded-lg border border-border-subtle bg-bg-surface', isWalletTopupFeature ? 'wallet-message-card' : 'p-lg']"
+              :class="['rounded-lg border border-border-subtle bg-bg-surface', usesPresentationDesigner ? 'wallet-message-card' : 'p-lg']"
             >
               <button
-                v-if="isWalletTopupFeature"
+                v-if="usesPresentationDesigner"
                 type="button"
                 class="wallet-message-header"
                 :aria-expanded="walletExpandedSlots.has(slot.key)"
@@ -1367,19 +1407,19 @@ onBeforeUnmount(() => {
               >
                 <ChevronDown :size="20" :class="['wallet-message-chevron', { 'wallet-message-chevron--open': walletExpandedSlots.has(slot.key) }]" />
                 <span class="min-w-0 flex-1 text-left">
-                  <strong>{{ text('Message', 'ข้อความ') }} {{ slotIndex + 1 }} · {{ slot.label }}</strong>
+                  <strong>{{ text('Message', 'ข้อความ') }} {{ slotIndex + 1 }} · {{ presentationSlotLabel(slot) }}</strong>
                   <small>{{ slot.key }}</small>
                 </span>
                 <span class="wallet-fixed-badge">{{ presentationMode ?? slotMode(slot.key) }} · {{ text('design', 'ออกแบบ') }}</span>
               </button>
-              <div v-show="!isWalletTopupFeature || walletExpandedSlots.has(slot.key)" :class="{ 'wallet-message-body': isWalletTopupFeature }">
+              <div v-show="!usesPresentationDesigner || walletExpandedSlots.has(slot.key)" :class="{ 'wallet-message-body': usesPresentationDesigner }">
               <div
-                v-if="!isWalletTopupFeature"
+                v-if="!usesPresentationDesigner"
                 class="flex flex-col gap-sm tablet:flex-row tablet:items-start tablet:justify-between"
               >
                 <div>
                   <div class="flex flex-wrap items-center gap-xs">
-                    <h3 class="text-lg font-semibold">{{ slot.label }}</h3>
+                    <h3 class="text-lg font-semibold">{{ presentationSlotLabel(slot) }}</h3>
                     <span class="rounded-full border border-border-default px-xs py-xxs text-xs">{{
                       slot.type
                     }}</span
@@ -1389,7 +1429,7 @@ onBeforeUnmount(() => {
                       >{{ text('Customized', 'ปรับแต่งแล้ว') }}</span
                     >
                   </div>
-                  <p class="mt-xs text-sm text-text-secondary">{{ slot.description }}</p>
+                  <p class="mt-xs text-sm text-text-secondary">{{ presentationSlotDescription(slot) }}</p>
                   <p class="mt-xs font-mono text-xs text-text-muted">{{ slot.key }}</p>
                 </div>
                 <button
@@ -1414,17 +1454,17 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div :class="['mt-lg grid gap-lg', { 'wide:grid-cols-2': !isWalletTopupFeature }]">
+              <div :class="['mt-lg grid gap-lg', { 'wide:grid-cols-2': !usesPresentationDesigner }]">
                 <div
                   v-if="!advancedSlots.has(slot.key)"
                   :class="[
                     'grid content-start gap-md desktop:grid-cols-2 wide:grid-cols-1',
-                    { 'wallet-fixed-structure': isWalletTopupFeature },
+                    { 'wallet-fixed-structure': usesPresentationDesigner },
                   ]"
                 >
-                  <div v-if="isWalletTopupFeature" class="wallet-structure-heading desktop:col-span-2 wide:col-span-1">
+                  <div v-if="usesPresentationDesigner" class="wallet-structure-heading desktop:col-span-2 wide:col-span-1">
                     <span>{{ presentationMode === 'EMBED' ? 'Embed 1' : 'Components V2' }}</span>
-                    <small>{{ text('Structure fixed by Wallet Top-up', 'โครงสร้างกำหนดโดย Wallet Top-up') }}</small>
+                    <small>{{ isRobloxPayoutFeature ? text('Actions are fixed by Roblox Payout', 'Action กำหนดโดย Roblox Payout') : text('Structure fixed by Wallet Top-up', 'โครงสร้างกำหนดโดย Wallet Top-up') }}</small>
                   </div>
                   <label
                     v-if="presentationMode === 'EMBED'"
@@ -2302,7 +2342,7 @@ onBeforeUnmount(() => {
                   }}</small></label
                 >
                 <DiscordPresentationPreview
-                  v-if="!isWalletTopupFeature"
+                  v-if="!usesPresentationDesigner"
                   :definition="presentationPreviewDefinition(slot.key)"
                   :variables="slot.availableVariables"
                   :bot-name="previewBot?.discordUsername || previewBot?.name"
@@ -2313,7 +2353,7 @@ onBeforeUnmount(() => {
               </div>
             </article>
             </div>
-            <aside v-if="isWalletTopupFeature" class="wallet-builder-preview">
+            <aside v-if="usesPresentationDesigner" class="wallet-builder-preview">
               <div class="wallet-preview-toolbar">
                 <span><i /> {{ text('Live preview', 'ตัวอย่างแบบสด') }}</span>
                 <div class="wallet-preview-controls">
