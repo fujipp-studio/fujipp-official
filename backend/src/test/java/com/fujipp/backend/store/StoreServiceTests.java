@@ -7,6 +7,7 @@ import com.fujipp.backend.auth.CurrentUserService;
 import com.fujipp.backend.runtime.RuntimeSlotService;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -33,7 +34,8 @@ class StoreServiceTests {
             currentUserService,
             secretCipher,
             runtimeSlotService,
-            discordProfiles
+            discordProfiles,
+            new ObjectMapper()
     );
 
     @Test

@@ -1037,6 +1037,20 @@ public class StoreRepository {
         );
     }
 
+    public BotCredential findFeatureSecret(LicenseContext license, UUID definitionId) {
+        return jdbcTemplate.query(
+                """
+                SELECT ciphertext, nonce, encryption_key_version
+                  FROM private.feature_secret_values
+                 WHERE config_set_id = ? AND definition_id = ?
+                """,
+                rs -> rs.next()
+                        ? new BotCredential(rs.getBytes(1), rs.getBytes(2), rs.getString(3))
+                        : null,
+                license.configSetId(), definitionId
+        );
+    }
+
     public void upsertPresentation(
             LicenseContext license,
             UUID slotId,
