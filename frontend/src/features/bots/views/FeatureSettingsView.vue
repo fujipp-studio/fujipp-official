@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Braces, Check, Save, Settings2, Sparkles } from 'lucide-vue-next'
+import { ArrowLeft, Braces, Check, ChevronDown, Save, Settings2 } from 'lucide-vue-next'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -16,7 +16,7 @@ import {
   type UserBot,
 } from '../../../services/backend'
 import { useAuthStore } from '../../../stores'
-import { AppButton, AppSectionIndicator, AppTextField, AppToggle } from '../../../shared/ui'
+import { AppButton, AppModal, AppSectionIndicator, AppTextField, AppToggle } from '../../../shared/ui'
 import DiscordPresentationPreview from '../components/DiscordPresentationPreview.vue'
 import PriceMapEditor from '../components/PriceMapEditor.vue'
 import RobloxGroupEditor from '../components/RobloxGroupEditor.vue'
@@ -43,6 +43,38 @@ const isRobloxPayoutFeature = computed(() => {
   const code = license.value?.featureCode
   return code === 'roblox-robux-payout' || 'ROBLOX_GROUPS' in values.value
 })
+const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
+const isWalletPanelCommand = (key: string) => isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
+const walletConfigCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
+  PANEL_COMMAND_NAME: { label: ['Panel command', 'คำสั่งแผงเติมเงิน'], description: ['Administrator command used to post the wallet panel.', 'คำสั่งสำหรับผู้ดูแลเพื่อส่งแผงเติมเงิน'] },
+  MIN_TOPUP_SATANG: { label: ['PromptPay minimum top-up', 'ยอดเติมขั้นต่ำผ่านพร้อมเพย์'], description: ['Minimum PromptPay amount accepted, in satang.', 'ยอดเงินขั้นต่ำที่รับผ่านพร้อมเพย์ หน่วยเป็นสตางค์'] },
+  TRUEMONEY_FEE_SATANG: { label: ['TrueMoney fee', 'ค่าธรรมเนียม TrueMoney'], description: ['Fixed fee deducted from a successful voucher, in satang.', 'ค่าธรรมเนียมคงที่ที่หักจากซองสำเร็จ หน่วยเป็นสตางค์'] },
+  TRUEMONEY_FEE_MODE: { label: ['TrueMoney fee mode', 'รูปแบบค่าธรรมเนียม TrueMoney'], description: ['Choose a fixed fee or a percentage of the voucher amount.', 'เลือกค่าธรรมเนียมคงที่หรือคิดเป็นเปอร์เซ็นต์จากยอดซอง'] },
+  TRUEMONEY_FEE_PERCENT: { label: ['TrueMoney percentage fee', 'ค่าธรรมเนียม TrueMoney แบบเปอร์เซ็นต์'], description: ['Percentage deducted when percentage mode is selected.', 'เปอร์เซ็นต์ที่หักเมื่อเลือกรูปแบบเปอร์เซ็นต์'] },
+  TRUEMONEY_PHONE: { label: ['TrueMoney phone', 'เบอร์โทร TrueMoney'], description: ['Recipient phone number used by the Voucher API.', 'เบอร์โทรผู้รับที่ใช้กับระบบซองของขวัญ TrueMoney'] },
+  PROMPTPAY_ID: { label: ['PromptPay ID', 'หมายเลขพร้อมเพย์'], description: ['Phone number or national ID used to generate the QR.', 'เบอร์โทรหรือเลขบัตรประชาชนที่ใช้สร้าง QR พร้อมเพย์'] },
+  PROMPTPAY_ACCOUNT_NAME: { label: ['PromptPay account name', 'ชื่อบัญชีพร้อมเพย์'], description: ['Account name displayed beside the QR.', 'ชื่อบัญชีที่แสดงคู่กับ QR พร้อมเพย์'] },
+  SLIPOK_BRANCH_ID: { label: ['SlipOK branch ID', 'รหัสสาขา SlipOK'], description: ['Branch ID supplied by SlipOK.', 'รหัสสาขาที่ได้รับจาก SlipOK'] },
+  SLIPOK_API_KEY: { label: ['SlipOK API key', 'คีย์ API ของ SlipOK'], description: ['API key used to verify payment slips.', 'คีย์ API สำหรับตรวจสอบสลิปการชำระเงิน'] },
+  SLIP_CHANNEL_ID: { label: ['Slip submission channel', 'ช่องส่งสลิป'], description: ['Channel where members submit PromptPay slips.', 'ช่องที่สมาชิกใช้ส่งสลิปพร้อมเพย์'] },
+  SLIP_SUBMITTER_ROLE_ID: { label: ['Slip submitter role', 'ยศผู้ส่งสลิป'], description: ['Temporary role allowed to submit payment slips.', 'ยศชั่วคราวสำหรับสมาชิกที่ได้รับอนุญาตให้ส่งสลิป'] },
+  TOPUP_NOTIFICATION_CHANNEL_ID: { label: ['Top-up notification channel', 'ช่องแจ้งเตือนการเติมเงิน'], description: ['Private channel receiving successful top-up notifications.', 'ช่องส่วนตัวที่รับการแจ้งเตือนเมื่อเติมเงินสำเร็จ'] },
+  WALLET_ADMIN_ROLE_ID: { label: ['Wallet administrator role', 'ยศผู้ดูแลกระเป๋าเงิน'], description: ['Optional role allowed to inspect and adjust member balances.', 'ยศเสริมที่สามารถตรวจสอบและปรับยอดเงินสมาชิกได้'] },
+  TOPUP_MEMBER_ROLE_ID: { label: ['Top-up member role', 'ยศสมาชิกที่เติมเงิน'], description: ['Optional permanent role granted after a successful top-up.', 'ยศถาวรเสริมที่มอบให้หลังเติมเงินสำเร็จ'] },
+  WALLET_HISTORY_DEFAULT_LIMIT: { label: ['History default limit', 'จำนวนประวัติเริ่มต้น'], description: ['Default number of wallet history entries shown.', 'จำนวนรายการประวัติกระเป๋าเงินที่แสดงเริ่มต้น'] },
+  TOP_SPENDER_TOP1_ROLE_ID: { label: ['Top spender #1 role', 'ยศผู้เติมเงินอันดับ 1'], description: ['Optional role for the lifetime top-up leader.', 'ยศเสริมสำหรับผู้เติมเงินสะสมอันดับหนึ่ง'] },
+  TOP_SPENDER_TOP10_ROLE_ID: { label: ['Top spender top 10 role', 'ยศผู้เติมเงิน 10 อันดับแรก'], description: ['Optional role for lifetime ranks 1–10.', 'ยศเสริมสำหรับผู้เติมเงินสะสมอันดับ 1–10'] },
+  TOP_SPENDER_MILESTONE_ROLES: { label: ['Top spender milestones', 'ยศตามยอดเติมสะสม'], description: ['Roles granted when lifetime top-up thresholds are reached.', 'ยศที่มอบเมื่อยอดเติมเงินสะสมถึงเกณฑ์'] },
+  TOP_SPENDER_LEADERBOARD_CHANNEL_ID: { label: ['Leaderboard channel', 'ช่องตารางอันดับ'], description: ['Optional channel receiving the public Top 10 leaderboard.', 'ช่องเสริมสำหรับแสดงตารางผู้เติมเงิน 10 อันดับแรก'] },
+}
+function configFieldLabel(field: FeatureConfiguration['fields'][number]) {
+  const copy = isWalletTopupFeature.value ? walletConfigCopy[field.key] : undefined
+  return copy ? text(...copy.label) : field.label
+}
+function configFieldDescription(field: FeatureConfiguration['fields'][number]) {
+  const copy = isWalletTopupFeature.value ? walletConfigCopy[field.key] : undefined
+  return copy ? text(...copy.description) : field.description
+}
 
 const isRobloxGroupField = (key: string) => {
   return isRobloxPayoutFeature.value && (key === 'ROBLOX_GROUPS' || key === 'ROBLOX_CREDENTIALS')
@@ -85,6 +117,7 @@ const secrets = ref<Record<string, string>>({})
 const presentations = ref<Record<string, Record<string, unknown>>>({})
 const presentationJson = ref<Record<string, string>>({})
 const advancedSlots = ref(new Set<string>())
+const walletExpandedSlots = ref(new Set<string>())
 const presentationModeOptions = [
   { value: 'EMBED', label: 'Embed' },
   { value: 'COMPONENTS_V2', label: 'Components V2' },
@@ -95,6 +128,14 @@ const componentStyleOptions = [
   { value: 'success', label: 'Success · Green' },
   { value: 'danger', label: 'Danger · Red' },
 ]
+const componentStyles = ['primary', 'secondary', 'success', 'danger'] as const
+const valueLength = (value: unknown) => String(value ?? '').length
+const walletActionDefaults: Record<string, { label: [string, string]; emoji: string; style: string }> = {
+  'wallet.topup': { label: ['Top up', 'เติมเงิน'], emoji: '💰', style: 'success' },
+  'wallet.balance': { label: ['Check balance', 'เช็คยอดเงินคงเหลือ'], emoji: '💳', style: 'secondary' },
+  'wallet.promptpay': { label: ['PromptPay', 'พร้อมเพย์ธนาคาร'], emoji: '🏦', style: 'primary' },
+  'wallet.truemoney': { label: ['TrueMoney gift', 'ซองอั่งเปาทรูมันนี่'], emoji: '🧧', style: 'danger' },
+}
 const variableDescriptions: Record<string, [english: string, thai: string]> = {
   action: ['Action that was completed', 'รายการที่ระบบดำเนินการ'],
   target: ['Message destination', 'ปลายทางของข้อความ'],
@@ -193,6 +234,10 @@ const availableCoFeatures = computed(() =>
 )
 const loading = ref(true)
 const saving = ref(false)
+const saveConfirmationOpen = ref(false)
+const walletPreviewScope = ref<'all' | 'current'>('all')
+const walletActiveSlotKey = ref('')
+const draggedComponent = ref<{ slotKey: string; index: number } | null>(null)
 const error = ref('')
 const notice = ref('')
 let botRefreshTimer: ReturnType<typeof setInterval> | undefined
@@ -225,7 +270,7 @@ function fieldOptions(field: ConfigField) {
     })
   }
   const enumValues = field.validation?.enum
-  return Array.isArray(enumValues)
+  const options = Array.isArray(enumValues)
     ? enumValues
         .filter((value): value is string => typeof value === 'string')
         .map((value) => ({
@@ -233,6 +278,17 @@ function fieldOptions(field: ConfigField) {
           label: value.replace(/_/g, ' '),
         }))
     : []
+  if (isWalletTopupFeature.value && field.key === 'TRUEMONEY_FEE_MODE')
+    return options.map((option) => ({
+      ...option,
+      label:
+        option.value === 'FIXED'
+          ? text('Fixed amount', 'ค่าคงที่')
+          : option.value === 'PERCENT'
+            ? text('Percentage', 'เปอร์เซ็นต์')
+            : option.label,
+    }))
+  return options
 }
 
 function isDropdownField(field: ConfigField) {
@@ -301,8 +357,7 @@ function goBack() {
   )
 }
 
-async function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2') {
-  if (!(await save())) return
+function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2') {
   const name = inBotSettingsFlow.value
     ? mode === 'EMBED'
       ? 'bot-feature-embed-settings'
@@ -333,6 +388,8 @@ function hydrate(config: FeatureConfiguration) {
     presentations.value[slot.key] = definition
     presentationJson.value[slot.key] = JSON.stringify(definition, null, 2)
   }
+  walletExpandedSlots.value = new Set(config.presentations.slice(0, 1).map((slot) => slot.key))
+  walletActiveSlotKey.value = config.presentations[0]?.key ?? ''
 }
 
 function slotMode(slotKey: string): 'EMBED' | 'COMPONENTS_V2' {
@@ -347,20 +404,38 @@ function setPresentationMode(slotKey: string, mode: string) {
   presentationJson.value[slotKey] = JSON.stringify(presentations.value[slotKey], null, 2)
 }
 
-function setAllPresentationModes(mode: 'EMBED' | 'COMPONENTS_V2') {
-  for (const slot of configuration.value?.presentations ?? []) setPresentationMode(slot.key, mode)
-}
-
-function setAllAndOpen(mode: 'EMBED' | 'COMPONENTS_V2') {
-  setAllPresentationModes(mode)
-  void openPresentation(mode)
-}
-
 const visiblePresentationSlots = computed(() =>
   (configuration.value?.presentations ?? []).filter(
-    (slot) => !presentationMode.value || slotMode(slot.key) === presentationMode.value,
+    (slot) =>
+      !presentationMode.value ||
+      isWalletTopupFeature.value ||
+      slotMode(slot.key) === presentationMode.value,
   ),
 )
+
+function presentationPreviewDefinition(slotKey: string) {
+  const definition = presentations.value[slotKey] ?? {}
+  return presentationMode.value ? { ...definition, mode: presentationMode.value } : definition
+}
+
+function toggleWalletMessage(slotKey: string) {
+  walletActiveSlotKey.value = slotKey
+  const next = new Set(walletExpandedSlots.value)
+  if (next.has(slotKey)) next.delete(slotKey)
+  else next.add(slotKey)
+  walletExpandedSlots.value = next
+}
+
+const walletPreviewSlots = computed(() => {
+  if (walletPreviewScope.value === 'all') return visiblePresentationSlots.value
+  return visiblePresentationSlots.value.filter(
+    (slot) => slot.key === (walletActiveSlotKey.value || visiblePresentationSlots.value[0]?.key),
+  )
+})
+
+async function confirmSave() {
+  if (await save()) saveConfirmationOpen.value = false
+}
 
 async function load() {
   loading.value = true
@@ -454,6 +529,63 @@ function updatePresentation(slotKey: string, key: string, value: unknown) {
   presentationJson.value[slotKey] = JSON.stringify(presentations.value[slotKey], null, 2)
 }
 
+function embedColor(slotKey: string) {
+  const value = visualDefinition(slotKey).color
+  if (typeof value === 'number' && Number.isInteger(value))
+    return `#${value.toString(16).padStart(6, '0').slice(-6)}`
+  const normalized = String(value ?? '').trim()
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : '#5865f2'
+}
+
+function updateEmbedColor(slotKey: string, value: string) {
+  const normalized = value.trim()
+  if (/^#[0-9a-f]{6}$/i.test(normalized)) updatePresentation(slotKey, 'color', normalized)
+}
+
+function embedObject(slotKey: string, key: 'author' | 'footer') {
+  const value = visualDefinition(slotKey)[key]
+  if (value && typeof value === 'object' && !Array.isArray(value))
+    return value as Record<string, unknown>
+  return key === 'footer' && typeof value === 'string' ? { text: value } : {}
+}
+
+function updateEmbedObject(slotKey: string, key: 'author' | 'footer', field: string, value: string) {
+  updatePresentation(slotKey, key, { ...embedObject(slotKey, key), [field]: value })
+}
+
+function fixedActions(slotKey: string) {
+  const definition = visualDefinition(slotKey)
+  const actions = Array.isArray(definition.actions) ? definition.actions.map(String) : []
+  const overrides =
+    definition.action_overrides &&
+    typeof definition.action_overrides === 'object' &&
+    !Array.isArray(definition.action_overrides)
+      ? (definition.action_overrides as Record<string, Record<string, unknown>>)
+      : {}
+  return actions.flatMap((action) => {
+    const defaults = walletActionDefaults[action]
+    if (!defaults) return []
+    return [{ action, defaults, override: overrides[action] ?? {} }]
+  })
+}
+const defaultActionLabel = (labels: [string, string]) => text(labels[0], labels[1])
+
+function updateActionOverride(slotKey: string, action: string, key: string, value: string) {
+  const definition = visualDefinition(slotKey)
+  const current =
+    definition.action_overrides &&
+    typeof definition.action_overrides === 'object' &&
+    !Array.isArray(definition.action_overrides)
+      ? clone(definition.action_overrides as Record<string, unknown>)
+      : {}
+  const override =
+    current[action] && typeof current[action] === 'object' && !Array.isArray(current[action])
+      ? (current[action] as Record<string, unknown>)
+      : {}
+  current[action] = { ...override, [key]: value }
+  updatePresentation(slotKey, 'action_overrides', current)
+}
+
 function visualArray(slotKey: string, key: string) {
   const value = visualDefinition(slotKey)[key]
   return Array.isArray(value) ? (value as Array<Record<string, unknown>>) : []
@@ -508,16 +640,6 @@ function removeLink(slotKey: string, index: number) {
 function componentBlocks(slotKey: string) {
   const raw = visualDefinition(slotKey).components
   if (!Array.isArray(raw)) return [] as Array<Record<string, unknown>>
-  const container = raw[0]
-  if (
-    raw.length === 1 &&
-    container &&
-    typeof container === 'object' &&
-    container.type === 17 &&
-    Array.isArray(container.components)
-  ) {
-    return container.components as Array<Record<string, unknown>>
-  }
   return raw as Array<Record<string, unknown>>
 }
 
@@ -596,17 +718,35 @@ function availableCoFeatureOptions(slotKey: string) {
 }
 
 function setComponentBlocks(slotKey: string, blocks: Array<Record<string, unknown>>) {
-  updatePresentation(slotKey, 'components', [{ type: 17, components: blocks }])
+  updatePresentation(slotKey, 'components', blocks)
 }
 
-function addComponentBlock(
+function containerChildren(block: Record<string, unknown>) {
+  return Array.isArray(block.components)
+    ? block.components.filter(
+        (item): item is Record<string, unknown> =>
+          Boolean(item && typeof item === 'object' && !Array.isArray(item)),
+      )
+    : []
+}
+
+function updateContainerBlock(
   slotKey: string,
-  type: 'text' | 'section' | 'media' | 'separator' | 'link',
+  blockIndex: number,
+  key: 'spoiler' | 'accent_color',
+  value: unknown,
 ) {
-  const blocks = [...componentBlocks(slotKey)]
-  if (type === 'text') blocks.push({ type: 10, content: text('New content', 'ข้อความใหม่') })
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  if (blocks[blockIndex]) blocks[blockIndex][key] = value
+  setComponentBlocks(slotKey, blocks)
+}
+
+function createComponentBlock(type: 'text' | 'container' | 'section' | 'media' | 'separator' | 'link') {
+  if (type === 'text') return { type: 10, content: text('New content', 'ข้อความใหม่') }
+  if (type === 'container')
+    return { type: 17, accent_color: '#5865f2', spoiler: false, components: [] }
   if (type === 'section')
-    blocks.push({
+    return {
       type: 9,
       components: [{ type: 10, content: text('Section content', 'ข้อความใน Section') }],
       accessory: {
@@ -614,9 +754,9 @@ function addComponentBlock(
         media: { url: 'https://example.com/image.png' },
         description: text('Accessory image', 'รูปประกอบ'),
       },
-    })
+    }
   if (type === 'media')
-    blocks.push({
+    return {
       type: 12,
       items: [
         {
@@ -624,15 +764,104 @@ function addComponentBlock(
           description: text('Accessory image', 'รูปประกอบ'),
         },
       ],
-    })
-  if (type === 'separator') blocks.push({ type: 14, divider: true, spacing: 1 })
-  if (type === 'link')
-    blocks.push({
-      type: 1,
-      components: [
-        { type: 2, style: 5, label: text('Open link', 'เปิดลิงก์'), url: 'https://example.com' },
-      ],
-    })
+    }
+  if (type === 'separator') return { type: 14, divider: true, spacing: 1 }
+  return {
+    type: 1,
+    components: [
+      { type: 2, style: 5, label: text('Open link', 'เปิดลิงก์'), url: 'https://example.com' },
+    ],
+  }
+}
+
+function mediaItems(block: Record<string, unknown>) {
+  return Array.isArray(block.items) ? block.items.filter((item) => item && typeof item === 'object') as Array<Record<string, unknown>> : []
+}
+
+function mediaItemUrl(item: Record<string, unknown>) {
+  return item.media && typeof item.media === 'object' && 'url' in item.media
+    ? String(item.media.url ?? '')
+    : ''
+}
+
+function updateMediaItem(slotKey: string, blockIndex: number, itemIndex: number, value: string) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  const block = blocks[blockIndex]
+  if (!block) return
+  const items = mediaItems(block).map((item) => clone(item))
+  items[itemIndex] = { ...items[itemIndex], media: { url: value } }
+  block.items = items
+  setComponentBlocks(slotKey, blocks)
+}
+
+function addMediaItem(slotKey: string, blockIndex: number) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  const block = blocks[blockIndex]
+  if (!block) return
+  block.items = [...mediaItems(block), { media: { url: 'https://example.com/image.png' } }]
+  setComponentBlocks(slotKey, blocks)
+}
+
+function updateSeparator(slotKey: string, blockIndex: number, key: 'divider' | 'spacing', value: boolean | number) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  if (blocks[blockIndex]) blocks[blockIndex][key] = value
+  setComponentBlocks(slotKey, blocks)
+}
+
+function addComponentBlock(
+  slotKey: string,
+  type: 'text' | 'container' | 'section' | 'media' | 'separator' | 'link',
+) {
+  const blocks = [...componentBlocks(slotKey)]
+  if (blocks.length >= 40) return
+  blocks.push(createComponentBlock(type))
+  setComponentBlocks(slotKey, blocks)
+}
+
+function addContainerChild(
+  slotKey: string,
+  blockIndex: number,
+  type: 'text' | 'section' | 'media' | 'separator' | 'link',
+) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  const container = blocks[blockIndex]
+  if (!container || container.type !== 17) return
+  const children = containerChildren(container)
+  if (children.length >= 39) return
+  container.components = [...children, createComponentBlock(type)]
+  setComponentBlocks(slotKey, blocks)
+}
+
+function removeContainerChild(slotKey: string, blockIndex: number, childIndex: number) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  const container = blocks[blockIndex]
+  if (!container || container.type !== 17) return
+  container.components = containerChildren(container).filter((_, index) => index !== childIndex)
+  setComponentBlocks(slotKey, blocks)
+}
+
+function moveContainerChild(slotKey: string, blockIndex: number, childIndex: number, direction: -1 | 1) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  const container = blocks[blockIndex]
+  if (!container || container.type !== 17) return
+  const children = containerChildren(container)
+  const target = childIndex + direction
+  if (target < 0 || target >= children.length) return
+  ;[children[childIndex], children[target]] = [children[target]!, children[childIndex]!]
+  container.components = children
+  setComponentBlocks(slotKey, blocks)
+}
+
+function updateContainerChildContent(slotKey: string, blockIndex: number, childIndex: number, value: string) {
+  const blocks = componentBlocks(slotKey).map((block) => clone(block))
+  const container = blocks[blockIndex]
+  if (!container || container.type !== 17) return
+  const children = containerChildren(container)
+  const child = children[childIndex]
+  if (!child) return
+  if (child.type === 10) child.content = value
+  else if (child.type === 9) child.components = [{ type: 10, content: value }]
+  container.components = children
   setComponentBlocks(slotKey, blocks)
 }
 
@@ -721,12 +950,24 @@ function moveComponentBlock(slotKey: string, index: number, direction: -1 | 1) {
   setComponentBlocks(slotKey, blocks)
 }
 
+function dropComponentBlock(slotKey: string, targetIndex: number) {
+  const source = draggedComponent.value
+  draggedComponent.value = null
+  if (!source || source.slotKey !== slotKey || source.index === targetIndex) return
+  const blocks = [...componentBlocks(slotKey)]
+  const [moved] = blocks.splice(source.index, 1)
+  if (!moved) return
+  blocks.splice(targetIndex, 0, moved)
+  setComponentBlocks(slotKey, blocks)
+}
+
 function blockSummary(block: Record<string, unknown>) {
   if (block.type === 10) return `Content · ${String(block.content ?? '').slice(0, 60)}`
   if (block.type === 9) return 'Section with accessory'
   if (block.type === 12) return 'Media gallery'
   if (block.type === 14) return 'Separator'
   if (block.type === 1) return 'Link button row'
+  if (block.type === 17) return `Container · ${containerChildren(block).length} components`
   return `Component type ${String(block.type ?? '?')}`
 }
 
@@ -791,8 +1032,8 @@ async function save(): Promise<boolean> {
     configuration.value = updated
     hydrate(updated)
     notice.value = text(
-      `Saved · Revision ${updated.revision}`,
-      `บันทึกแล้ว · Revision ${updated.revision}`,
+      `Saved · Version ${updated.revision}`,
+      `บันทึกแล้ว · Version ${updated.revision}`,
     )
     return true
   } catch (cause) {
@@ -861,7 +1102,7 @@ onBeforeUnmount(() => {
                     'Config, secrets และรูปแบบข้อความที่บอทใช้แสดงผล',
                   )
             }}
-            · Revision
+            · Version
             {{ configuration?.revision ?? '—' }}
           </p>
         </div>
@@ -870,7 +1111,7 @@ onBeforeUnmount(() => {
           class="tablet:!w-auto"
           variant="secondary"
           :disabled="saving"
-          @click="save"
+          @click="saveConfirmationOpen = true"
         >
           <Save :size="18" />
           {{ saving ? text('Saving…', 'กำลังบันทึก…') : text('Save all', 'บันทึกทั้งหมด') }}
@@ -917,7 +1158,7 @@ onBeforeUnmount(() => {
                   <span
                     ><strong>{{ field.label }}</strong
                     ><small class="mt-xs block text-text-secondary">{{
-                      field.description
+                      configFieldDescription(field)
                     }}</small></span
                   ><AppToggle
                     :model-value="Boolean(values[field.key])"
@@ -929,13 +1170,13 @@ onBeforeUnmount(() => {
                     v-if="isDropdownField(field)"
                     :model-value="String(values[field.key] ?? '')"
                     variant="dropdown"
-                    :label="field.label"
+                    :label="configFieldLabel(field)"
                     :options="fieldOptions(field)"
                     :required="field.required"
                     @update:model-value="(value) => (values[field.key] = value)"
                   />
                   <label v-else>
-                    {{ field.label }}<span v-if="field.required && field.key !== 'COMMAND_PERMISSION_RULES'" class="text-error-text"> *</span>
+                    {{ configFieldLabel(field) }}<span v-if="field.required && field.key !== 'COMMAND_PERMISSION_RULES'" class="text-error-text"> *</span>
                     <PriceMapEditor
                       v-if="field.key === 'PRICE_READER_PRICE_MAP'"
                       :model-value="String(values[field.key] ?? '[]')"
@@ -947,12 +1188,14 @@ onBeforeUnmount(() => {
                       :rate="Number(values['ROBUX_RATE'] ?? 3.5)"
                       @update:model-value="(value) => (values[field.key] = value)"
                     />
-                    <ThresholdRoleEditor
-                      v-else-if="isThresholdRoleField(field.key)"
-                      :model-value="String(values[field.key] ?? '[]')"
-                      :threshold-key="field.key === 'SPENDING_UPGRADE_TIERS' ? 'amount' : 'thresholdBaht'"
-                      @update:model-value="(value) => (values[field.key] = value)"
-                    />
+                    <template v-else-if="isThresholdRoleField(field.key)">
+                      <p class="mt-xs text-xs text-text-secondary">{{ configFieldDescription(field) }}</p>
+                      <ThresholdRoleEditor
+                        :model-value="String(values[field.key] ?? '[]')"
+                        :threshold-key="field.key === 'SPENDING_UPGRADE_TIERS' ? 'amount' : 'thresholdBaht'"
+                        @update:model-value="(value) => (values[field.key] = value)"
+                      />
+                    </template>
                     <CommandPermissionsEditor
                       v-else-if="field.key === 'COMMAND_PERMISSION_RULES'"
                       :model-value="String(values[field.key] ?? '[]')"
@@ -996,13 +1239,13 @@ onBeforeUnmount(() => {
                     />
                   </label>
                 </div>
-                <p v-if="field.key !== 'COMMAND_PERMISSION_RULES'" class="mt-xs text-xs text-text-secondary">
-                  {{ field.description
+                <p v-if="field.key !== 'COMMAND_PERMISSION_RULES' && !isWalletPanelCommand(field.key) && !isThresholdRoleField(field.key)" class="mt-xs text-xs text-text-secondary">
+                    {{ configFieldDescription(field)
                   }}<span v-if="field.type === 'STRING_LIST'">
                     · {{ text('One item per line', 'หนึ่งรายการต่อบรรทัด') }}</span
                   >
                 </p>
-                <p v-if="field.key !== 'COMMAND_PERMISSION_RULES'" class="mt-sm font-mono text-xs text-text-muted">
+                <p v-if="field.key !== 'COMMAND_PERMISSION_RULES' && !isWalletTopupFeature" class="mt-sm font-mono text-xs text-text-muted">
                   {{ field.key }} · {{ field.type
                   }}<span v-if="field.configured"> · configured</span>
                 </p>
@@ -1026,36 +1269,33 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-if="!presentationMode" id="feature-presentations" class="mt-2xl">
-          <div class="mb-md flex items-center gap-sm">
-            <Sparkles :size="24" />
-            <div>
-              <h2 class="text-2xl font-semibold">Presentation settings</h2>
-              <p class="text-sm text-text-secondary">
-                {{ text('Select an editor to open', 'เลือก Editor ที่ต้องการเปิด') }}
-              </p>
-            </div>
+          <div class="mb-md">
+            <h2 class="text-2xl font-semibold">{{ text('Message design', 'ออกแบบข้อความ') }}</h2>
+            <p class="text-sm text-text-secondary">
+              {{ text('Open a designer without changing the format currently used by each message.', 'เปิดหน้าออกแบบโดยไม่เปลี่ยนรูปแบบที่แต่ละข้อความกำลังใช้งาน') }}
+            </p>
           </div>
           <div v-if="configuration.presentations.length" class="space-y-md">
             <div class="presentation-menu">
-              <button class="presentation-card" type="button" @click="setAllAndOpen('EMBED')">
-                <span class="text-2xl font-bold">Embed · {{ text('All', 'ทั้งหมด') }}</span>
+              <button class="presentation-card" type="button" @click="openPresentation('EMBED')">
+                <span class="text-2xl font-bold">{{ text('Design Embed', 'ออกแบบ Embed') }}</span>
                 <span>{{
                   text(
-                    'Set every message to Embed and open the editor',
-                    'ตั้งทุกข้อความเป็น Embed และเปิด Editor',
+                    'Open the Embed designer',
+                    'เปิดหน้าออกแบบ Embed',
                   )
                 }}</span>
               </button>
               <button
                 class="presentation-card"
                 type="button"
-                @click="setAllAndOpen('COMPONENTS_V2')"
+                @click="openPresentation('COMPONENTS_V2')"
               >
-                <span class="text-2xl font-bold">Components V2 · {{ text('All', 'ทั้งหมด') }}</span>
+                <span class="text-2xl font-bold">{{ text('Design Components V2', 'ออกแบบ Components V2') }}</span>
                 <span>{{
                   text(
-                    'Set every message to Components V2 and open the editor',
-                    'ตั้งทุกข้อความเป็น Components V2 และเปิด Editor',
+                    'Open the Components V2 designer',
+                    'เปิดหน้าออกแบบ Components V2',
                   )
                 }}</span>
               </button>
@@ -1101,33 +1341,40 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-else id="feature-presentation-editor" class="mt-2xl">
-          <div class="mb-md flex items-center gap-sm">
-            <Sparkles :size="24" />
-            <div>
-              <h2 class="text-2xl font-semibold">
-                {{
-                  presentationMode === 'EMBED'
-                    ? text('Embed settings', 'Embed settings')
-                    : text('Components V2 settings', 'Components V2 settings')
-                }}
-              </h2>
-              <p class="text-sm text-text-secondary">
-                {{
-                  text(
-                    'Each scenario has a separate Editor and Preview',
-                    'แต่ละสถานการณ์แยก Editor และ Preview ออกจากกัน',
-                  )
-                }}
-              </p>
-            </div>
-          </div>
-          <div v-if="visiblePresentationSlots.length" class="space-y-md">
+          <div
+            v-if="visiblePresentationSlots.length"
+            :class="isWalletTopupFeature ? 'wallet-builder-layout' : 'space-y-md'"
+          >
+            <div :class="isWalletTopupFeature ? 'wallet-builder-messages' : 'contents'">
+              <div v-if="isWalletTopupFeature" class="wallet-builder-toolbar">
+                <div>
+                  <strong>{{ text('Wallet message builder', 'ตัวสร้างข้อความ Wallet') }}</strong>
+                  <p>{{ text('Open a fixed message to customize its appearance.', 'เปิดข้อความที่ระบบกำหนดไว้เพื่อปรับแต่งรูปแบบ') }}</p>
+                </div>
+                <span>{{ visiblePresentationSlots.length }} {{ text('messages', 'ข้อความ') }}</span>
+              </div>
             <article
-              v-for="slot in visiblePresentationSlots"
+              v-for="(slot, slotIndex) in visiblePresentationSlots"
               :key="slot.slotId"
-              class="rounded-lg border border-border-subtle bg-bg-surface p-lg"
+              :class="['rounded-lg border border-border-subtle bg-bg-surface', isWalletTopupFeature ? 'wallet-message-card' : 'p-lg']"
             >
+              <button
+                v-if="isWalletTopupFeature"
+                type="button"
+                class="wallet-message-header"
+                :aria-expanded="walletExpandedSlots.has(slot.key)"
+                @click="toggleWalletMessage(slot.key)"
+              >
+                <ChevronDown :size="20" :class="['wallet-message-chevron', { 'wallet-message-chevron--open': walletExpandedSlots.has(slot.key) }]" />
+                <span class="min-w-0 flex-1 text-left">
+                  <strong>{{ text('Message', 'ข้อความ') }} {{ slotIndex + 1 }} · {{ slot.label }}</strong>
+                  <small>{{ slot.key }}</small>
+                </span>
+                <span class="wallet-fixed-badge">{{ presentationMode ?? slotMode(slot.key) }} · {{ text('design', 'ออกแบบ') }}</span>
+              </button>
+              <div v-show="!isWalletTopupFeature || walletExpandedSlots.has(slot.key)" :class="{ 'wallet-message-body': isWalletTopupFeature }">
               <div
+                v-if="!isWalletTopupFeature"
                 class="flex flex-col gap-sm tablet:flex-row tablet:items-start tablet:justify-between"
               >
                 <div>
@@ -1167,15 +1414,83 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div class="mt-lg grid gap-lg wide:grid-cols-2">
+              <div :class="['mt-lg grid gap-lg', { 'wide:grid-cols-2': !isWalletTopupFeature }]">
                 <div
                   v-if="!advancedSlots.has(slot.key)"
-                  class="grid content-start gap-md desktop:grid-cols-2 wide:grid-cols-1"
+                  :class="[
+                    'grid content-start gap-md desktop:grid-cols-2 wide:grid-cols-1',
+                    { 'wallet-fixed-structure': isWalletTopupFeature },
+                  ]"
                 >
+                  <div v-if="isWalletTopupFeature" class="wallet-structure-heading desktop:col-span-2 wide:col-span-1">
+                    <span>{{ presentationMode === 'EMBED' ? 'Embed 1' : 'Components V2' }}</span>
+                    <small>{{ text('Structure fixed by Wallet Top-up', 'โครงสร้างกำหนดโดย Wallet Top-up') }}</small>
+                  </div>
+                  <label
+                    v-if="presentationMode === 'EMBED'"
+                    class="text-sm font-medium desktop:col-span-2 wide:col-span-1"
+                    >{{ text('Content', 'ข้อความ') }} <i class="field-counter">{{ valueLength(visualDefinition(slot.key).content) }}/2000</i><textarea
+                      :value="String(visualDefinition(slot.key).content ?? '')"
+                      rows="3"
+                      maxlength="2000"
+                      class="field-control mt-xs resize-y py-sm"
+                      :placeholder="text('Optional text outside the embed', 'ข้อความเสริมภายนอก Embed (ไม่บังคับ)')"
+                      @input="updatePresentation(slot.key, 'content', ($event.target as HTMLTextAreaElement).value)"
+                    />
+                  </label>
+                  <details
+                    v-if="presentationMode === 'EMBED'"
+                    open
+                    class="builder-section builder-accordion desktop:col-span-2 wide:col-span-1"
+                  >
+                    <summary>{{ text('Author', 'ผู้เขียน') }}</summary>
+                    <div class="mt-sm grid gap-xs tablet:grid-cols-2">
+                      <label class="component-field tablet:col-span-2"><span>{{ text('Name', 'ชื่อ') }} <i>{{ valueLength(embedObject(slot.key, 'author').name) }}/256</i></span><input
+                        :value="String(embedObject(slot.key, 'author').name ?? '')"
+                        class="field-control h-10"
+                        maxlength="256"
+                        :placeholder="text('Author name', 'ชื่อผู้เขียน')"
+                        @input="updateEmbedObject(slot.key, 'author', 'name', ($event.target as HTMLInputElement).value)"
+                      /></label>
+                      <label class="component-field"><span>{{ text('Icon URL', 'URL ไอคอน') }}</span><input
+                        :value="String(embedObject(slot.key, 'author').icon_url ?? '')"
+                        type="url"
+                        class="field-control h-10"
+                        :placeholder="text('Author icon URL', 'URL ไอคอนผู้เขียน')"
+                        @input="updateEmbedObject(slot.key, 'author', 'icon_url', ($event.target as HTMLInputElement).value)"
+                      /></label>
+                      <label class="component-field"><span>{{ text('Author URL', 'URL ผู้เขียน') }}</span><input
+                        :value="String(embedObject(slot.key, 'author').url ?? '')"
+                        type="url"
+                        class="field-control h-10"
+                        :placeholder="text('Author link URL', 'URL ลิงก์ผู้เขียน')"
+                        @input="updateEmbedObject(slot.key, 'author', 'url', ($event.target as HTMLInputElement).value)"
+                      /></label>
+                    </div>
+                  </details>
+                  <template v-if="presentationMode === 'COMPONENTS_V2'">
+                    <label class="text-sm font-medium">{{ text('Title', 'หัวข้อ') }} <i class="field-counter">{{ valueLength(visualDefinition(slot.key).title) }}/256</i><input
+                      :value="String(visualDefinition(slot.key).title ?? '')"
+                      maxlength="256"
+                      class="field-control mt-xs h-11"
+                      @input="updatePresentation(slot.key, 'title', ($event.target as HTMLInputElement).value)"
+                    /></label>
+                    <label class="text-sm font-medium desktop:col-span-2 wide:col-span-1">{{ text('Description', 'รายละเอียด') }} <i class="field-counter">{{ valueLength(visualDefinition(slot.key).description) }}/4000</i><textarea
+                      :value="String(visualDefinition(slot.key).description ?? '')"
+                      maxlength="4000"
+                      rows="5"
+                      class="field-control mt-xs resize-y py-sm"
+                      @input="updatePresentation(slot.key, 'description', ($event.target as HTMLTextAreaElement).value)"
+                    /></label>
+                  </template>
+                  <details v-if="presentationMode === 'EMBED'" open class="builder-section builder-accordion desktop:col-span-2 wide:col-span-1">
+                    <summary>{{ text('Body', 'เนื้อหา') }}</summary>
+                    <div class="mt-sm grid gap-sm tablet:grid-cols-2">
                   <label class="text-sm font-medium"
-                    >Title<input
+                    >{{ text('Title', 'หัวข้อ') }} <i class="field-counter">{{ valueLength(visualDefinition(slot.key).title) }}/256</i><input
                       :value="String(visualDefinition(slot.key).title ?? '')"
                       class="field-control mt-xs h-11"
+                      maxlength="256"
                       @input="
                         updatePresentation(
                           slot.key,
@@ -1184,10 +1499,19 @@ onBeforeUnmount(() => {
                         )
                       "
                   /></label>
+                  <label v-if="presentationMode === 'EMBED'" class="text-sm font-medium"
+                    >{{ text('Title URL', 'URL ของหัวข้อ') }}<input
+                      :value="String(visualDefinition(slot.key).url ?? '')"
+                      type="url"
+                      class="field-control mt-xs h-11"
+                      placeholder="https://"
+                      @input="updatePresentation(slot.key, 'url', ($event.target as HTMLInputElement).value)"
+                  /></label>
                   <label class="text-sm font-medium desktop:col-span-2 wide:col-span-1"
-                    >Description<textarea
+                    >{{ text('Description', 'รายละเอียด') }} <i class="field-counter">{{ valueLength(visualDefinition(slot.key).description) }}/4096</i><textarea
                       :value="String(visualDefinition(slot.key).description ?? '')"
                       rows="5"
+                      maxlength="4096"
                       class="field-control mt-xs resize-y py-sm"
                       @input="
                         updatePresentation(
@@ -1198,8 +1522,38 @@ onBeforeUnmount(() => {
                       "
                     />
                   </label>
+                  <div
+                    v-if="presentationMode === 'EMBED'"
+                    class="tablet:col-span-2"
+                  >
+                    <span class="text-sm font-medium">{{ text('Embed color', 'สีของ Embed') }}</span>
+                    <div class="mt-xs grid grid-cols-[3.5rem_1fr] gap-xs">
+                      <input
+                        :value="embedColor(slot.key)"
+                        type="color"
+                        class="field-control h-11 cursor-pointer p-1"
+                        :aria-label="text('Choose embed color', 'เลือกสี Embed')"
+                        @input="updateEmbedColor(slot.key, ($event.target as HTMLInputElement).value)"
+                      />
+                      <input
+                        :value="embedColor(slot.key)"
+                        class="field-control h-11 font-mono uppercase"
+                        maxlength="7"
+                        placeholder="#5865F2"
+                        @change="updateEmbedColor(slot.key, ($event.target as HTMLInputElement).value)"
+                      />
+                    </div>
+                    <p class="mt-xs text-xs text-text-secondary">
+                      {{ text('Choose a color or enter a six-digit HEX value.', 'เลือกสีหรือกรอกรหัส HEX จำนวน 6 หลัก') }}
+                    </p>
+                  </div>
+                    </div>
+                  </details>
+                  <details v-if="presentationMode === 'EMBED'" open class="builder-section builder-accordion desktop:col-span-2 wide:col-span-1">
+                    <summary>{{ text('Images', 'รูปภาพ') }}</summary>
+                    <div class="mt-sm grid gap-sm tablet:grid-cols-2">
                   <label class="text-sm font-medium"
-                    >Image URL<input
+                    >{{ text('Image URL', 'URL รูปภาพ') }}<input
                       :value="String(visualDefinition(slot.key).image_url ?? '')"
                       type="url"
                       class="field-control mt-xs h-11"
@@ -1212,7 +1566,7 @@ onBeforeUnmount(() => {
                       "
                   /></label>
                   <label class="text-sm font-medium"
-                    >Thumbnail URL<input
+                    >{{ text('Thumbnail URL', 'URL รูปขนาดย่อ') }}<input
                       :value="String(visualDefinition(slot.key).thumbnail_url ?? '')"
                       type="url"
                       class="field-control mt-xs h-11"
@@ -1224,48 +1578,118 @@ onBeforeUnmount(() => {
                         )
                       "
                   /></label>
-                  <label class="text-sm font-medium desktop:col-span-2 wide:col-span-1"
-                    >Footer<input
-                      :value="String(visualDefinition(slot.key).footer ?? '')"
+                    </div>
+                  </details>
+                  <details v-if="presentationMode === 'EMBED'" open class="builder-section builder-accordion desktop:col-span-2 wide:col-span-1">
+                    <summary>{{ text('Footer', 'ส่วนท้าย') }}</summary>
+                    <div class="mt-sm grid gap-sm tablet:grid-cols-2">
+                  <label class="text-sm font-medium tablet:col-span-2"
+                    >{{ text('Footer', 'ข้อความส่วนท้าย') }} <i class="field-counter">{{ valueLength(embedObject(slot.key, 'footer').text) }}/2048</i><input
+                      :value="String(embedObject(slot.key, 'footer').text ?? '')"
                       class="field-control mt-xs h-11"
+                      maxlength="2048"
                       @input="
-                        updatePresentation(
-                          slot.key,
-                          'footer',
-                          ($event.target as HTMLInputElement).value,
-                        )
+                        updateEmbedObject(slot.key, 'footer', 'text', ($event.target as HTMLInputElement).value)
                       "
                   /></label>
+                  <label class="text-sm font-medium"
+                    >{{ text('Footer icon URL', 'URL ไอคอนส่วนท้าย') }}<input
+                      :value="String(embedObject(slot.key, 'footer').icon_url ?? '')"
+                      type="url"
+                      class="field-control mt-xs h-11"
+                      placeholder="https://"
+                      @input="updateEmbedObject(slot.key, 'footer', 'icon_url', ($event.target as HTMLInputElement).value)"
+                  /></label>
+                  <label
+                    class="flex items-center gap-sm self-end rounded-md border border-border-subtle p-sm text-sm font-medium"
+                  >
+                    <input
+                      :checked="visualDefinition(slot.key).timestamp === true"
+                      type="checkbox"
+                      @change="updatePresentation(slot.key, 'timestamp', ($event.target as HTMLInputElement).checked)"
+                    />
+                    {{ text('Show sent timestamp', 'แสดงเวลาที่ส่งข้อความ') }}
+                  </label>
+                    </div>
+                  </details>
+                  <div
+                    v-if="fixedActions(slot.key).length"
+                    class="builder-section desktop:col-span-2 wide:col-span-1"
+                  >
+                    <div class="builder-heading">
+                      <div>
+                        <strong>{{ text('System actions', 'ปุ่มคำสั่งของระบบ') }}</strong>
+                        <p>
+                          {{ text('The Action ID is locked, but its text, emoji, and color can be customized.', 'ล็อก Action ID ไว้ แต่แก้ข้อความ Emoji และสีของปุ่มได้') }}
+                        </p>
+                      </div>
+                    </div>
+                    <div v-for="item in fixedActions(slot.key)" :key="item.action" class="builder-item">
+                      <div class="component-role">
+                        <strong>{{ item.action }}</strong>
+                        <span>{{ text('Action ID · locked', 'Action ID · ล็อกไว้') }}</span>
+                      </div>
+                      <div class="component-editor-grid">
+                        <label class="component-field">
+                          <span>{{ text('Text', 'ข้อความ') }}</span>
+                          <input
+                            :value="String(item.override.label ?? defaultActionLabel(item.defaults.label))"
+                            class="field-control h-10"
+                            maxlength="80"
+                            @input="updateActionOverride(slot.key, item.action, 'label', ($event.target as HTMLInputElement).value)"
+                          />
+                        </label>
+                        <fieldset class="component-field component-style-field">
+                          <legend>{{ text('Color', 'สี') }}</legend>
+                          <div class="component-style-picker">
+                            <button
+                              v-for="style in componentStyles"
+                              :key="style"
+                              type="button"
+                              :class="[`component-style--${style}`, { 'component-style--selected': String(item.override.style ?? item.defaults.style) === style }]"
+                              :aria-label="style"
+                              :aria-pressed="String(item.override.style ?? item.defaults.style) === style"
+                              @click="updateActionOverride(slot.key, item.action, 'style', style)"
+                            ><Check v-if="String(item.override.style ?? item.defaults.style) === style" :size="16" /></button>
+                          </div>
+                        </fieldset>
+                        <label class="component-field">
+                          <span>Emoji</span>
+                          <input
+                            :value="String(item.override.emoji ?? item.defaults.emoji)"
+                            class="field-control h-10"
+                            placeholder="💰 หรือ <:name:id>"
+                            @input="updateActionOverride(slot.key, item.action, 'emoji', ($event.target as HTMLInputElement).value)"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
                   <div
                     v-if="presentationMode === 'EMBED'"
                     class="space-y-md desktop:col-span-2 wide:col-span-1"
                   >
-                    <div class="builder-section">
-                      <div class="builder-heading">
-                        <div>
-                          <strong>Embed Fields</strong>
-                          <p>
-                            {{
-                              text(
-                                'Add title and detail fields (up to 25)',
-                                'เพิ่มข้อมูลแบบชื่อและรายละเอียดได้สูงสุด 25 ช่อง',
-                              )
-                            }}
-                          </p>
-                        </div>
+                    <details open class="builder-section builder-accordion">
+                      <summary>Fields · {{ visualArray(slot.key, 'fields').length }}/25</summary>
+                      <div class="builder-heading mt-sm">
+                        <p>{{ text('Add title and detail fields (up to 25)', 'เพิ่มข้อมูลแบบชื่อและรายละเอียดได้สูงสุด 25 ช่อง') }}</p>
                         <button type="button" @click="addEmbedField(slot.key)">
                           {{ text('+ Add Field', '+ เพิ่ม Field') }}
                         </button>
                       </div>
-                      <div
+                      <details
                         v-for="(field, fieldIndex) in visualArray(slot.key, 'fields')"
                         :key="fieldIndex"
-                        class="builder-item"
+                        open
+                        class="builder-item builder-accordion builder-field"
                       >
-                        <div class="grid gap-xs tablet:grid-cols-2">
-                          <input
+                        <summary>{{ text('Field', 'ฟิลด์') }} {{ fieldIndex + 1 }}</summary>
+                        <div class="mt-sm grid gap-xs">
+                          <label class="component-field"><span>{{ text('Name', 'ชื่อ') }} · <b>{{ text('Required', 'จำเป็น') }}</b> · {{ valueLength(field.name) }}/256</span><input
                             :value="String(field.name ?? '')"
                             class="field-control h-10"
+                            required
+                            maxlength="256"
                             :placeholder="text('Field name', 'ชื่อ Field')"
                             @input="
                               updateEmbedField(
@@ -1275,9 +1699,12 @@ onBeforeUnmount(() => {
                                 ($event.target as HTMLInputElement).value,
                               )
                             "
-                          /><input
+                          /></label><label class="component-field"><span>{{ text('Value', 'รายละเอียด') }} · <b>{{ text('Required', 'จำเป็น') }}</b> · {{ valueLength(field.value) }}/1024</span><textarea
                             :value="String(field.value ?? '')"
-                            class="field-control h-10"
+                            rows="3"
+                            required
+                            maxlength="1024"
+                            class="field-control resize-y py-sm"
                             :placeholder="text('Details', 'รายละเอียด')"
                             @input="
                               updateEmbedField(
@@ -1287,7 +1714,7 @@ onBeforeUnmount(() => {
                                 ($event.target as HTMLInputElement).value,
                               )
                             "
-                          />
+                          /></label>
                         </div>
                         <div class="builder-actions">
                           <label
@@ -1308,8 +1735,8 @@ onBeforeUnmount(() => {
                             {{ text('Delete', 'ลบ') }}
                           </button>
                         </div>
-                      </div>
-                    </div>
+                      </details>
+                    </details>
                     <div class="builder-section">
                       <div class="builder-heading">
                         <div>
@@ -1394,12 +1821,22 @@ onBeforeUnmount(() => {
                           </p>
                         </div>
                       </div>
+                      <div class="component-container-caption">
+                        <span>{{ text('Message blocks', 'บล็อกในข้อความ') }}</span>
+                        <small>{{ componentBlocks(slot.key).length }}/40</small>
+                      </div>
                       <div
                         v-for="(block, blockIndex) in componentBlocks(slot.key)"
                         :key="blockIndex"
                         class="builder-item"
+                        draggable="true"
+                        @dragstart="draggedComponent = { slotKey: slot.key, index: blockIndex }"
+                        @dragend="draggedComponent = null"
+                        @dragover.prevent
+                        @drop.prevent="dropComponentBlock(slot.key, blockIndex)"
                       >
                         <div class="flex items-center gap-xs">
+                          <span class="component-drag-handle" :title="text('Drag to reorder', 'ลากเพื่อเรียงลำดับ')">⠿</span>
                           <strong class="min-w-0 flex-1 truncate text-sm">{{
                             blockSummary(block)
                           }}</strong
@@ -1443,22 +1880,46 @@ onBeforeUnmount(() => {
                             )
                           "
                         />
-                        <input
-                          v-if="block.type === 12"
-                          :value="componentBlockValue(block, 'mediaUrl')"
-                          class="field-control mt-xs h-10"
-                          :placeholder="
-                            text('Media URL or {{image_url}}', 'Media URL หรือ {{image_url}}')
-                          "
-                          @input="
-                            updateComponentBlock(
-                              slot.key,
-                              blockIndex,
-                              'mediaUrl',
-                              ($event.target as HTMLInputElement).value,
-                            )
-                          "
-                        />
+                        <div v-if="block.type === 9" class="mt-xs grid gap-xs tablet:grid-cols-2">
+                          <textarea
+                            :value="componentBlockValue(block, 'sectionContent')"
+                            rows="3"
+                            maxlength="4000"
+                            class="field-control resize-y py-sm"
+                            :placeholder="text('Section content', 'ข้อความ Section')"
+                            @input="updateComponentBlock(slot.key, blockIndex, 'sectionContent', ($event.target as HTMLTextAreaElement).value)"
+                          />
+                          <input
+                            :value="componentBlockValue(block, 'accessoryUrl')"
+                            class="field-control h-10"
+                            placeholder="https://"
+                            @input="updateComponentBlock(slot.key, blockIndex, 'accessoryUrl', ($event.target as HTMLInputElement).value)"
+                          />
+                        </div>
+                        <div v-if="block.type === 12" class="mt-xs grid gap-xs">
+                          <label v-for="(item, itemIndex) in mediaItems(block)" :key="itemIndex" class="component-field">
+                            <span>{{ text('Media', 'สื่อ') }} {{ itemIndex + 1 }}</span>
+                            <input
+                              :value="mediaItemUrl(item)"
+                              class="field-control h-10"
+                              placeholder="https://"
+                              @input="updateMediaItem(slot.key, blockIndex, itemIndex, ($event.target as HTMLInputElement).value)"
+                            />
+                          </label>
+                          <button type="button" class="builder-add" @click="addMediaItem(slot.key, blockIndex)">+ {{ text('Add media', 'เพิ่ม Media') }}</button>
+                        </div>
+                        <div v-if="block.type === 14" class="mt-xs grid gap-sm tablet:grid-cols-2">
+                          <label class="component-field"><span>{{ text('Size', 'ขนาด') }}</span><select
+                            class="field-control h-10"
+                            :value="Number(block.spacing ?? 1)"
+                            @change="updateSeparator(slot.key, blockIndex, 'spacing', Number(($event.target as HTMLSelectElement).value))"
+                          ><option :value="1">{{ text('Small', 'เล็ก') }}</option><option :value="2">{{ text('Large', 'ใหญ่') }}</option></select></label>
+                          <label class="flex items-center gap-xs self-end rounded-md border border-border-subtle p-sm text-sm font-medium"><input
+                            type="checkbox"
+                            :checked="block.divider !== false"
+                            @change="updateSeparator(slot.key, blockIndex, 'divider', ($event.target as HTMLInputElement).checked)"
+                          />{{ text('Divider line', 'เส้นคั่น') }}</label>
+                        </div>
                         <div v-if="block.type === 1" class="mt-xs grid gap-xs tablet:grid-cols-[1fr_5rem_2fr]">
                           <input
                             :value="componentBlockValue(block, 'label')"
@@ -1498,6 +1959,71 @@ onBeforeUnmount(() => {
                             "
                           />
                         </div>
+                        <div v-if="block.type === 17" class="mt-sm grid gap-sm">
+                          <div class="grid gap-sm tablet:grid-cols-[auto_minmax(0,1fr)] tablet:items-end">
+                            <label class="flex items-center gap-xs text-sm font-medium">
+                              <input
+                                type="checkbox"
+                                :checked="block.spoiler === true"
+                                @change="updateContainerBlock(slot.key, blockIndex, 'spoiler', ($event.target as HTMLInputElement).checked)"
+                              />
+                              {{ text('Mark as spoiler', 'ทำเครื่องหมายเป็นสปอยล์') }}
+                            </label>
+                            <label class="component-field">
+                              <span>{{ text('Sidebar color', 'สีแถบด้านข้าง') }}</span>
+                              <div class="grid grid-cols-[1fr_3rem] gap-xs">
+                                <input
+                                  :value="String(block.accent_color ?? '#5865f2')"
+                                  class="field-control h-10 font-mono"
+                                  maxlength="7"
+                                  @change="updateContainerBlock(slot.key, blockIndex, 'accent_color', ($event.target as HTMLInputElement).value)"
+                                />
+                                <input
+                                  :value="String(block.accent_color ?? '#5865f2')"
+                                  type="color"
+                                  class="field-control h-10 cursor-pointer p-1"
+                                  @input="updateContainerBlock(slot.key, blockIndex, 'accent_color', ($event.target as HTMLInputElement).value)"
+                                />
+                              </div>
+                            </label>
+                          </div>
+                          <div class="component-container-children">
+                            <div class="component-container-caption">
+                              <span>{{ text('Container children', 'Component ภายใน Container') }}</span>
+                              <small>{{ containerChildren(block).length }}</small>
+                            </div>
+                            <div
+                              v-for="(child, childIndex) in containerChildren(block)"
+                              :key="childIndex"
+                              class="builder-item"
+                            >
+                              <div class="flex items-center gap-xs">
+                                <strong class="min-w-0 flex-1 truncate text-sm">{{ blockSummary(child) }}</strong>
+                                <button type="button" :disabled="childIndex === 0" @click="moveContainerChild(slot.key, blockIndex, childIndex, -1)">↑</button>
+                                <button type="button" :disabled="childIndex === containerChildren(block).length - 1" @click="moveContainerChild(slot.key, blockIndex, childIndex, 1)">↓</button>
+                                <button type="button" class="builder-delete" @click="removeContainerChild(slot.key, blockIndex, childIndex)">{{ text('Delete', 'ลบ') }}</button>
+                              </div>
+                              <textarea
+                                v-if="child.type === 10 || child.type === 9"
+                                :value="child.type === 10 ? String(child.content ?? '') : componentBlockValue(child, 'sectionContent')"
+                                rows="3"
+                                class="field-control mt-xs resize-y py-sm"
+                                :placeholder="text('Content', 'ข้อความ')"
+                                @input="updateContainerChildContent(slot.key, blockIndex, childIndex, ($event.target as HTMLTextAreaElement).value)"
+                              />
+                              <p v-else class="mt-xs text-xs text-text-muted">
+                                {{ text('This child keeps its configured media or button data.', 'บล็อกนี้จะเก็บข้อมูล Media หรือปุ่มที่ตั้งค่าไว้') }}
+                              </p>
+                            </div>
+                            <div class="mt-xs flex flex-wrap gap-xs">
+                              <button type="button" class="builder-add" @click="addContainerChild(slot.key, blockIndex, 'text')">+ Content</button>
+                              <button type="button" class="builder-add" @click="addContainerChild(slot.key, blockIndex, 'section')">+ Section</button>
+                              <button type="button" class="builder-add" @click="addContainerChild(slot.key, blockIndex, 'media')">+ Media</button>
+                              <button type="button" class="builder-add" @click="addContainerChild(slot.key, blockIndex, 'separator')">+ Separator</button>
+                              <button type="button" class="builder-add" @click="addContainerChild(slot.key, blockIndex, 'link')">+ Link Button</button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                       <div class="mt-sm flex flex-wrap gap-xs">
                         <button
@@ -1506,6 +2032,18 @@ onBeforeUnmount(() => {
                           @click="addComponentBlock(slot.key, 'text')"
                         >
                           + Content</button
+                        ><button
+                          type="button"
+                          class="builder-add"
+                          @click="addComponentBlock(slot.key, 'container')"
+                        >
+                          + Container</button
+                        ><button
+                          type="button"
+                          class="builder-add"
+                          @click="addComponentBlock(slot.key, 'section')"
+                        >
+                          + {{ text('Section', 'Section') }}</button
                         ><button
                           type="button"
                           class="builder-add"
@@ -1764,14 +2302,47 @@ onBeforeUnmount(() => {
                   }}</small></label
                 >
                 <DiscordPresentationPreview
-                  :definition="presentations[slot.key] ?? {}"
+                  v-if="!isWalletTopupFeature"
+                  :definition="presentationPreviewDefinition(slot.key)"
                   :variables="slot.availableVariables"
                   :bot-name="previewBot?.discordUsername || previewBot?.name"
                   :bot-avatar-url="previewBot?.discordAvatarUrl"
                   :sample-values="presentationSampleValues(slot.key)"
                 />
               </div>
+              </div>
             </article>
+            </div>
+            <aside v-if="isWalletTopupFeature" class="wallet-builder-preview">
+              <div class="wallet-preview-toolbar">
+                <span><i /> {{ text('Live preview', 'ตัวอย่างแบบสด') }}</span>
+                <div class="wallet-preview-controls">
+                  <button
+                    type="button"
+                    :class="{ 'wallet-preview-scope--active': walletPreviewScope === 'all' }"
+                    @click="walletPreviewScope = 'all'"
+                  >{{ text('All', 'ทั้งหมด') }}</button>
+                  <button
+                    type="button"
+                    :class="{ 'wallet-preview-scope--active': walletPreviewScope === 'current' }"
+                    @click="walletPreviewScope = 'current'"
+                  >{{ text('Current', 'ที่กำลังแก้') }}</button>
+                  <small>{{ presentationMode === 'EMBED' ? 'Discord Embed' : 'Discord Components V2' }}</small>
+                </div>
+              </div>
+              <div class="wallet-preview-stack">
+                <DiscordPresentationPreview
+                  v-for="slot in walletPreviewSlots"
+                  :key="`preview-${slot.slotId}`"
+                  :definition="presentationPreviewDefinition(slot.key)"
+                  :variables="slot.availableVariables"
+                  :bot-name="previewBot?.discordUsername || previewBot?.name"
+                  :bot-avatar-url="previewBot?.discordAvatarUrl"
+                  :sample-values="presentationSampleValues(slot.key)"
+                  compact
+                />
+              </div>
+            </aside>
           </div>
           <div
             v-else
@@ -1787,6 +2358,26 @@ onBeforeUnmount(() => {
         </section>
       </template>
       <AppSectionIndicator :sections="pageSections" aria-label="Feature settings sections" />
+      <AppModal
+        v-model:open="saveConfirmationOpen"
+        size="sm"
+        :disabled="saving"
+        :title="text('Confirm save', 'ยืนยันการบันทึก')"
+        :subtitle="text('The new configuration will be used by the bot after saving.', 'บอทจะเริ่มใช้การตั้งค่าใหม่หลังจากบันทึก')"
+      >
+        <p class="text-sm text-text-secondary">
+          {{ text('Save all configuration and message presentation changes?', 'ต้องการบันทึก Config และรูปแบบข้อความที่แก้ไขทั้งหมดหรือไม่?') }}
+        </p>
+        <template #actions>
+          <AppButton variant="secondary" :disabled="saving" @click="saveConfirmationOpen = false">
+            {{ text('Cancel', 'ยกเลิก') }}
+          </AppButton>
+          <AppButton :disabled="saving" @click="confirmSave">
+            <Save :size="18" />
+            {{ saving ? text('Saving…', 'กำลังบันทึก…') : text('Confirm save', 'ยืนยันบันทึก') }}
+          </AppButton>
+        </template>
+      </AppModal>
     </div>
   </section>
 </template>
@@ -1966,11 +2557,226 @@ onBeforeUnmount(() => {
   border-color: var(--semantic-color-action-borders-border-focus);
   box-shadow: 0 0 0 1px var(--semantic-color-action-borders-border-focus);
 }
+.wallet-builder-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(22rem, 0.92fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+.wallet-builder-messages {
+  display: grid;
+  gap: var(--space-sm);
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--semantic-color-background-bg-elevated);
+  padding: var(--space-sm);
+}
+.wallet-builder-toolbar,
+.wallet-preview-toolbar,
+.wallet-message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.wallet-builder-toolbar {
+  padding: var(--space-sm);
+}
+.wallet-builder-toolbar p {
+  margin-top: var(--space-xxs);
+  color: var(--semantic-color-text-text-secondary);
+  font-size: var(--font-size-label-small);
+}
+.wallet-builder-toolbar > span,
+.wallet-fixed-badge {
+  flex: none;
+  border-radius: 999px;
+  padding: var(--space-xxs) var(--space-xs);
+  background: var(--semantic-color-background-bg-default);
+  color: var(--semantic-color-text-text-muted);
+  font-size: 0.6875rem;
+}
+.wallet-message-card {
+  overflow: hidden;
+  padding: 0;
+}
+.wallet-message-header {
+  width: 100%;
+  border: 0;
+  padding: var(--space-md);
+  background: var(--semantic-color-background-bg-surface);
+  color: var(--semantic-color-text-text-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.wallet-message-header:hover {
+  background: var(--semantic-color-background-bg-surface-hover);
+}
+.wallet-message-header small {
+  display: block;
+  overflow: hidden;
+  margin-top: var(--space-xxs);
+  color: var(--semantic-color-text-text-muted);
+  font-family: var(--font-family-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wallet-message-chevron {
+  flex: none;
+  transition: transform 160ms ease;
+}
+.wallet-message-chevron--open {
+  transform: rotate(180deg);
+}
+.wallet-message-body {
+  padding: var(--space-lg);
+  border-top: 1px solid var(--semantic-color-border-border-subtle);
+}
+.wallet-fixed-structure {
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-md);
+  padding: var(--space-md);
+  background: var(--semantic-color-background-bg-elevated);
+}
+.wallet-structure-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--semantic-color-border-border-subtle);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.wallet-structure-heading small {
+  color: var(--semantic-color-text-text-muted);
+  font-weight: var(--typography-font-weight-regular);
+}
+.wallet-builder-preview {
+  position: sticky;
+  top: var(--space-md);
+  overflow: hidden;
+  max-height: calc(100vh - 2rem);
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--semantic-color-background-bg-elevated);
+}
+.wallet-preview-toolbar {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--semantic-color-border-border-subtle);
+}
+.wallet-preview-toolbar span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.wallet-preview-toolbar i {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 999px;
+  background: var(--semantic-color-success-success-text);
+}
+.wallet-preview-toolbar small {
+  color: var(--semantic-color-text-text-muted);
+}
+.wallet-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.wallet-preview-controls button {
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: 999px;
+  padding: var(--space-xxs) var(--space-xs);
+  background: var(--semantic-color-background-bg-surface);
+  color: var(--semantic-color-text-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-label-small);
+}
+.wallet-preview-controls button:hover {
+  background: var(--semantic-color-background-bg-surface-hover);
+}
+.wallet-preview-controls .wallet-preview-scope--active {
+  border-color: var(--semantic-color-action-borders-border-focus);
+  background: var(--semantic-color-action-backgrounds-bg-accent);
+  color: var(--semantic-color-action-text-text-on-secondary);
+}
+.wallet-preview-stack {
+  display: grid;
+  gap: var(--space-md);
+  overflow: auto;
+  max-height: calc(100vh - 6rem);
+  padding: var(--space-md);
+}
 .builder-section {
   border: 1px solid var(--semantic-color-border-border-subtle);
   border-radius: var(--corner-radius-md);
   padding: var(--space-md);
   background: var(--semantic-color-background-bg-elevated);
+}
+.builder-accordion > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  cursor: pointer;
+  font-size: var(--font-size-label-large);
+  font-weight: var(--typography-font-weight-bold);
+  list-style: none;
+}
+.builder-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+.builder-accordion > summary::before {
+  content: '›';
+  color: var(--semantic-color-text-text-muted);
+  font-size: 1.35em;
+  transform: rotate(0deg);
+  transition: transform 160ms ease;
+}
+.builder-accordion[open] > summary::before {
+  transform: rotate(90deg);
+}
+.field-counter,
+.component-field i {
+  color: var(--semantic-color-text-text-muted);
+  font-style: normal;
+  font-weight: var(--typography-font-weight-regular);
+}
+.component-style-field {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+}
+.component-style-field legend {
+  margin-bottom: var(--space-xxs);
+  color: var(--semantic-color-text-text-secondary);
+  font-size: var(--font-size-label-small);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.component-style-picker {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(2.5rem, 1fr));
+  gap: var(--space-xs);
+}
+.component-style-picker button {
+  display: grid;
+  min-height: 2.5rem;
+  place-items: center;
+  border: 2px solid transparent;
+  border-radius: var(--corner-radius-md);
+  color: white;
+  cursor: pointer;
+}
+.component-style-picker .component-style--primary { background: var(--semantic-color-action-backgrounds-bg-accent); }
+.component-style-picker .component-style--secondary { background: var(--semantic-color-background-bg-surface-hover); color: var(--semantic-color-text-text-primary) !important; }
+.component-style-picker .component-style--success { background: var(--semantic-color-success-success-text); }
+.component-style-picker .component-style--danger { background: var(--semantic-color-error-error-text); }
+.component-style-picker .component-style--selected {
+  border-color: var(--semantic-color-action-borders-border-focus);
+  box-shadow: 0 0 0 2px var(--semantic-color-background-bg-surface);
 }
 .builder-heading {
   display: flex;
@@ -2002,6 +2808,32 @@ onBeforeUnmount(() => {
   padding: var(--space-sm);
   background: var(--semantic-color-background-bg-surface);
   container-type: inline-size;
+}
+.component-container-children {
+  margin-top: var(--space-xs);
+  margin-left: var(--space-sm);
+  border-left: 3px solid var(--semantic-color-action-borders-border-focus);
+  padding-left: var(--space-sm);
+}
+.component-container-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs);
+  color: var(--semantic-color-text-text-muted);
+  font-size: var(--font-size-label-small);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.component-drag-handle {
+  flex: none;
+  color: var(--semantic-color-text-text-muted);
+  cursor: grab;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.builder-item[draggable='true']:active .component-drag-handle {
+  cursor: grabbing;
 }
 .component-role {
   display: flex;
@@ -2073,6 +2905,27 @@ onBeforeUnmount(() => {
   }
   .presentation-slot-edit {
     width: 100%;
+  }
+  .wallet-builder-layout {
+    grid-template-columns: 1fr;
+  }
+  .wallet-builder-preview {
+    position: static;
+    max-height: none;
+  }
+  .wallet-preview-stack {
+    max-height: none;
+  }
+  .wallet-preview-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .wallet-preview-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .wallet-preview-controls small {
+    margin-left: auto;
   }
 }
 @media (prefers-reduced-motion: reduce) {

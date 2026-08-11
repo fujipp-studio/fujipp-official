@@ -29,7 +29,7 @@ describe('DiscordPresentationPreview', () => {
     expect(wrapper.text()).not.toContain('Components title')
   })
 
-  it('renders Components V2 actions', () => {
+  it('renders interactive Components V2 actions without exposing action IDs', async () => {
     const wrapper = mount(DiscordPresentationPreview, {
       props: {
         definition: {
@@ -43,8 +43,12 @@ describe('DiscordPresentationPreview', () => {
     })
 
     expect(wrapper.text()).toContain('Discord Components V2')
-    expect(wrapper.text()).toContain('topup')
-    expect(wrapper.text()).toContain('balance')
+    expect(wrapper.text()).toContain('Top up')
+    expect(wrapper.text()).toContain('Check balance')
+    expect(wrapper.text()).not.toContain('wallet.topup')
+
+    await wrapper.get('button.preview-button--success').trigger('click')
+    expect(wrapper.get('[role="status"]').text()).toContain('Previewed action: Top up')
   })
 
   it('renders realistic sample content for result variables', () => {
@@ -59,6 +63,25 @@ describe('DiscordPresentationPreview', () => {
     expect(wrapper.text()).toContain('iPhone 16 Pro Max')
     expect(wrapper.text()).toContain('39,900 บาท')
     expect(wrapper.text()).not.toContain('results_text')
+  })
+
+  it('renders static and animated Discord custom emoji in embeds and buttons', () => {
+    const wrapper = mount(DiscordPresentationPreview, {
+      props: {
+        definition: {
+          mode: 'EMBED',
+          embed: { title: '<:coin:123456789012345678>' },
+          actions: ['wallet.topup'],
+          action_overrides: { 'wallet.topup': { emoji: '<a:money:987654321098765432>' } },
+        },
+        variables: [],
+      },
+      global,
+    })
+
+    const emojiSources = wrapper.findAll('img.discord-custom-emoji').map((item) => item.attributes('src'))
+    expect(emojiSources).toContain('https://cdn.discordapp.com/emojis/123456789012345678.png?size=48&quality=lossless')
+    expect(emojiSources).toContain('https://cdn.discordapp.com/emojis/987654321098765432.gif?size=48&quality=lossless')
   })
 
   it('renders Discord markdown headings at their visual hierarchy', () => {
@@ -97,7 +120,7 @@ describe('DiscordPresentationPreview', () => {
     expect(wrapper.find('.discord-subtext').text()).toBe('ชื่อบัญชี FUJIPP COMPANY')
     expect(wrapper.find('.discord-subtext').classes()).toContain('discord-subtext')
     expect(wrapper.findAll('.preview-button--success')).toHaveLength(2)
-    expect(wrapper.text()).toContain('✅ ยืนยัน')
-    expect(wrapper.text()).toContain('💰 เติมเงิน')
+    expect(wrapper.text()).toContain('✅ยืนยัน')
+    expect(wrapper.text()).toContain('💰เติมเงิน')
   })
 })
