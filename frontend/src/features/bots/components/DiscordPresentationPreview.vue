@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ImageIcon } from 'lucide-vue-next'
 
@@ -9,10 +9,18 @@ const props = defineProps<{
   botName?: string | null
   botAvatarUrl?: string | null
   sampleValues?: Record<string, string>
+  compact?: boolean
 }>()
 
 const { locale } = useI18n()
 const text = (english: string, thai: string) => (locale.value === 'th' ? thai : english)
+const activeInteraction = ref('')
+
+function simulateInteraction(action: string, label: string) {
+  activeInteraction.value = action
+    ? text(`Previewed action: ${label}`, `จำลองคำสั่ง: ${label}`)
+    : text(`Previewed component: ${label}`, `จำลอง Component: ${label}`)
+}
 
 const mode = computed(() => String(props.definition.mode ?? 'EMBED'))
 const content = computed<Record<string, unknown>>(() => {
@@ -25,6 +33,26 @@ const content = computed<Record<string, unknown>>(() => {
 const actions = computed(() =>
   Array.isArray(props.definition.actions) ? props.definition.actions.map(String) : [],
 )
+const actionDefaults: Record<string, { label: [string, string]; emoji: string; style: string }> = {
+  'wallet.topup': { label: ['Top up', 'เติมเงิน'], emoji: '💰', style: 'success' },
+  'wallet.balance': { label: ['Check balance', 'เช็คยอดเงินคงเหลือ'], emoji: '💳', style: 'secondary' },
+  'wallet.promptpay': { label: ['PromptPay', 'พร้อมเพย์ธนาคาร'], emoji: '🏦', style: 'primary' },
+  'wallet.truemoney': { label: ['TrueMoney gift', 'ซองอั่งเปาทรูมันนี่'], emoji: '🧧', style: 'danger' },
+}
+const actionButtons = computed(() => {
+  const value = content.value.action_overrides
+  const overrides = isObject(value) ? value : {}
+  return actions.value.map((action) => {
+    const defaults = actionDefaults[action] ?? { label: [actionLabel(action), actionLabel(action)] as [string, string], emoji: '', style: 'secondary' }
+    const override = isObject(overrides[action]) ? overrides[action] : {}
+    return {
+      action,
+      label: render(override.label ?? text(defaults.label[0], defaults.label[1])),
+      emoji: render(override.emoji ?? defaults.emoji),
+      style: String(override.style ?? defaults.style),
+    }
+  })
+})
 const components = computed(() =>
   isObject(props.definition.components) ? Object.values(props.definition.components) : [],
 )
@@ -43,19 +71,35 @@ const links = computed(() =>
   Array.isArray(props.definition.links) ? props.definition.links.filter(isObject) : [],
 )
 const rawBlocks = computed(() => {
-  if (!Array.isArray(props.definition.components)) return [] as Array<Record<string, unknown>>
-  const first = props.definition.components[0]
-  if (
-    props.definition.components.length === 1 &&
-    isObject(first) &&
-    first.type === 17 &&
-    Array.isArray(first.components)
-  )
-    return first.components.filter(isObject)
-  return props.definition.components.filter(isObject)
+  if (!Array.isArray(content.value.components)) return [] as Array<Record<string, unknown>>
+  return content.value.components.filter(isObject)
 })
+function containerAccentColor(block: Record<string, unknown>) {
+  const value = block.accent_color
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : '#5865f2'
+}
+function containerChildren(block: Record<string, unknown>) {
+  return Array.isArray(block.components) ? block.components.filter(isObject) : []
+}
 const imageUrl = computed(() => readUrl(content.value.image_url ?? content.value.image))
 const thumbnailUrl = computed(() => readUrl(content.value.thumbnail_url ?? content.value.thumbnail))
+const embedAccentColor = computed(() => {
+  const value = content.value.color
+  if (typeof value === 'number' && Number.isInteger(value))
+    return `#${value.toString(16).padStart(6, '0').slice(-6)}`
+  return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value.trim())
+    ? value.trim()
+    : '#5865f2'
+})
+const footerText = computed(() => {
+  const footer = content.value.footer
+  return isObject(footer) ? render(footer.text) : render(footer)
+})
+const author = computed(() => (isObject(content.value.author) ? content.value.author : {}))
+const footerIconUrl = computed(() => {
+  const footer = content.value.footer
+  return isObject(footer) ? readUrl(footer.icon_url) : ''
+})
 const sampleByVariable: Record<string, string> = {
   member_mention: '@Fujipp',
   actor_mention: '@Admin',
@@ -136,8 +180,15 @@ function escapeHtml(value: string) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;')
 }
+function renderDiscordEmoji(value: unknown) {
+  return escapeHtml(render(value)).replace(
+    /&lt;(a?):([\w~]+):(\d+)&gt;/g,
+    (_, animated: string, name: string, id: string) =>
+      `<img class="discord-custom-emoji" src="https://cdn.discordapp.com/emojis/${id}.${animated ? 'gif' : 'png'}?size=48&amp;quality=lossless" alt=":${name}:" title=":${name}:" />`,
+  )
+}
 function renderInlineMarkdown(value: string) {
-  return escapeHtml(value)
+  return renderDiscordEmoji(value)
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
     .replace(/__([^_\n]+)__/g, '<u>$1</u>')
@@ -182,10 +233,21 @@ function actionLabel(value: string) {
   const parts = value.split('.')
   return (parts[parts.length - 1] ?? value).replace(/-/g, ' ')
 }
-function blockMediaUrl(block: Record<string, unknown>) {
-  if (!Array.isArray(block.items) || !isObject(block.items[0])) return ''
-  const media = block.items[0].media
-  return isObject(media) && typeof media.url === 'string' ? render(media.url) : ''
+function blockMediaUrls(block: Record<string, unknown>) {
+  if (!Array.isArray(block.items)) return []
+  return block.items.flatMap((item) => {
+    if (!isObject(item) || !isObject(item.media) || typeof item.media.url !== 'string') return []
+    return [render(item.media.url)]
+  })
+}
+function sectionContent(block: Record<string, unknown>) {
+  const first = Array.isArray(block.components) ? block.components[0] : null
+  return isObject(first) ? first.content : ''
+}
+function sectionAccessoryUrl(block: Record<string, unknown>) {
+  return isObject(block.accessory) && isObject(block.accessory.media)
+    ? readUrl(block.accessory.media.url)
+    : ''
 }
 function blockButtons(block: Record<string, unknown>) {
   return Array.isArray(block.components) ? block.components.filter(isObject) : []
@@ -213,11 +275,15 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
   const styles: Record<string, number> = { primary: 1, secondary: 2, success: 3, danger: 4 }
   return buttonStyles[styles[String(item.style ?? 'secondary')] ?? 2]
 }
+function actionButtonClass(style: string) {
+  const styles: Record<string, number> = { primary: 1, secondary: 2, success: 3, danger: 4 }
+  return buttonStyles[styles[style.toLowerCase()] ?? 2]
+}
 </script>
 
 <template>
-  <div class="preview-shell">
-    <div class="preview-toolbar">
+  <div :class="['preview-shell', { 'preview-shell--compact': compact }]">
+    <div v-if="!compact" class="preview-toolbar">
       <span class="preview-dot" /><strong>Live preview</strong
       ><span>{{ mode === 'EMBED' ? 'Discord Embed' : 'Discord Components V2' }}</span>
     </div>
@@ -230,9 +296,21 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
         <p class="preview-author">
           {{ botName || 'Fujipp Bot' }} <span>APP</span> <time>วันนี้ เวลา 14:30</time>
         </p>
-        <div v-if="mode === 'EMBED'" class="preview-embed">
+        <div
+          v-if="mode === 'EMBED' && content.content"
+          class="preview-message-content discord-markdown"
+          v-html="renderMarkdown(content.content)"
+        />
+        <div v-if="mode === 'EMBED'" class="preview-embed" :style="{ borderLeftColor: embedAccentColor }">
           <div class="min-w-0">
-            <h4 v-if="content.title">{{ render(content.title) }}</h4>
+            <div v-if="author.name" class="preview-embed-author">
+              <img v-if="readUrl(author.icon_url)" :src="readUrl(author.icon_url)" alt="" />
+              <span v-html="renderDiscordEmoji(author.name)" />
+            </div>
+            <h4 v-if="content.title">
+              <a v-if="readUrl(content.url)" :href="readUrl(content.url)" target="_blank" rel="noreferrer" v-html="renderDiscordEmoji(content.title)" />
+              <span v-else v-html="renderDiscordEmoji(content.title)" />
+            </h4>
             <div
               v-if="content.description"
               class="preview-copy discord-markdown"
@@ -240,7 +318,7 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
             />
             <div v-if="Array.isArray(content.fields)" class="preview-fields">
               <div v-for="(field, index) in content.fields" :key="index">
-                <strong>{{ render(isObject(field) ? field.name : '') }}</strong>
+                <strong v-html="renderDiscordEmoji(isObject(field) ? field.name : '')" />
                 <div
                   class="discord-markdown"
                   v-html="renderMarkdown(isObject(field) ? field.value : '')"
@@ -256,7 +334,12 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
             <div v-else-if="imageUrl" class="preview-image-placeholder">
               <ImageIcon :size="24" /> {{ imageUrl }}
             </div>
-            <p v-if="content.footer" class="preview-footer">{{ render(content.footer) }}</p>
+            <p v-if="footerText || content.timestamp" class="preview-footer">
+              <img v-if="footerIconUrl" :src="footerIconUrl" alt="" />
+              <span v-if="footerText" v-html="renderDiscordEmoji(footerText)" />
+              <span v-if="footerText && content.timestamp"> • </span>
+              <span v-if="content.timestamp">{{ text('Today at 14:30', 'วันนี้ เวลา 14:30') }}</span>
+            </p>
           </div>
           <img
             v-if="thumbnailUrl && isPreviewImageUrl(thumbnailUrl)"
@@ -266,7 +349,7 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
           />
         </div>
         <div v-else class="preview-components">
-          <h4 v-if="content.title">{{ render(content.title) }}</h4>
+          <h4 v-if="content.title" v-html="renderDiscordEmoji(content.title)" />
           <div
             v-if="content.description"
             class="preview-copy discord-markdown"
@@ -278,29 +361,69 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
               class="preview-copy discord-markdown"
               v-html="renderMarkdown(block.content)"
             />
+            <div v-else-if="block.type === 9" class="preview-section">
+              <div class="preview-copy discord-markdown" v-html="renderMarkdown(sectionContent(block))" />
+              <img
+                v-if="isPreviewImageUrl(sectionAccessoryUrl(block))"
+                :src="sectionAccessoryUrl(block)"
+                alt=""
+              />
+            </div>
             <hr
               v-else-if="block.type === 14 && block.divider !== false"
               class="preview-separator"
             />
             <div v-else-if="block.type === 14" class="preview-space" />
-            <img
-              v-else-if="block.type === 12 && isPreviewImageUrl(blockMediaUrl(block))"
-              :src="blockMediaUrl(block)"
-              alt=""
-              class="preview-image"
-            />
-            <div v-else-if="block.type === 12" class="preview-image-placeholder">
-              <ImageIcon :size="24" /> {{ blockMediaUrl(block) || 'Media' }}
+            <div v-else-if="block.type === 12" class="preview-gallery">
+              <template v-for="(url, mediaIndex) in blockMediaUrls(block)" :key="mediaIndex">
+                <img v-if="isPreviewImageUrl(url)" :src="url" alt="" />
+                <div v-else class="preview-image-placeholder"><ImageIcon :size="24" /> {{ url || 'Media' }}</div>
+              </template>
             </div>
             <div v-else-if="block.type === 1" class="preview-actions">
               <button
                 v-for="(button, buttonIndex) in blockButtons(block)"
                 :key="buttonIndex"
+                type="button"
                 :class="buttonClass(button)"
+                @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? text('Action', 'คำสั่ง')))"
               >
-                <span v-if="buttonEmoji(button)">{{ buttonEmoji(button) }}</span>
-                {{ render(button.label ?? button.placeholder ?? text('Open link', 'เปิดลิงก์')) }}
+                <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
+                <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? text('Open link', 'เปิดลิงก์'))" />
               </button>
+            </div>
+            <div
+              v-else-if="block.type === 17"
+              :class="['preview-container', { 'preview-components--spoiler': block.spoiler === true }]"
+              :style="{ borderLeftColor: containerAccentColor(block) }"
+            >
+              <template v-for="(child, childIndex) in containerChildren(block)" :key="childIndex">
+                <div v-if="child.type === 10" class="preview-copy discord-markdown" v-html="renderMarkdown(child.content)" />
+                <div v-else-if="child.type === 9" class="preview-section">
+                  <div class="preview-copy discord-markdown" v-html="renderMarkdown(sectionContent(child))" />
+                  <img v-if="isPreviewImageUrl(sectionAccessoryUrl(child))" :src="sectionAccessoryUrl(child)" alt="" />
+                </div>
+                <hr v-else-if="child.type === 14 && child.divider !== false" class="preview-separator" />
+                <div v-else-if="child.type === 14" class="preview-space" />
+                <div v-else-if="child.type === 12" class="preview-gallery">
+                  <template v-for="(url, mediaIndex) in blockMediaUrls(child)" :key="mediaIndex">
+                    <img v-if="isPreviewImageUrl(url)" :src="url" alt="" />
+                    <div v-else class="preview-image-placeholder"><ImageIcon :size="24" /> {{ url || 'Media' }}</div>
+                  </template>
+                </div>
+                <div v-else-if="child.type === 1" class="preview-actions">
+                  <button
+                    v-for="(button, buttonIndex) in blockButtons(child)"
+                    :key="buttonIndex"
+                    type="button"
+                    :class="buttonClass(button)"
+                    @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? text('Action', 'คำสั่ง')))"
+                  >
+                    <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
+                    <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? text('Open link', 'เปิดลิงก์'))" />
+                  </button>
+                </div>
+              </template>
             </div>
           </template>
           <img
@@ -313,30 +436,91 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
             <ImageIcon :size="24" /> {{ imageUrl }}
           </div>
           <p v-if="content.footer" class="preview-footer">{{ render(content.footer) }}</p>
+          <div
+            v-if="actions.length || buttons.length || links.length || coFeatures.length"
+            class="preview-actions"
+          >
+            <button
+              v-for="action in actionButtons"
+              :key="action.action"
+              type="button"
+              :class="actionButtonClass(action.style)"
+              @click="simulateInteraction(action.action, action.label)"
+            ><span v-if="action.emoji" v-html="renderDiscordEmoji(action.emoji)" /><span v-html="renderDiscordEmoji(action.label)" /></button>
+            <button
+              v-for="(button, index) in buttons"
+              :key="`component-button-${index}`"
+              type="button"
+              :class="buttonClass(button)"
+              @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? button.placeholder ?? 'Action'))"
+            ><span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" /><span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" /></button>
+            <a
+              v-for="(link, index) in links"
+              :key="`component-link-${index}`"
+              :href="readUrl(link.url) || undefined"
+              target="_blank"
+              rel="noreferrer"
+              class="preview-button--link"
+            ><span v-if="link.emoji" v-html="renderDiscordEmoji(link.emoji)" /><span v-html="renderDiscordEmoji(link.label ?? text('Open link', 'เปิดลิงก์'))" /></a>
+            <button
+              v-for="item in coFeatures"
+              :key="`component-co-${String(item.action)}`"
+              type="button"
+              :class="coFeatureButtonClass(item)"
+              @click="simulateInteraction(String(item.action), render(item.label ?? item.action))"
+            ><span v-if="item.emoji" v-html="renderDiscordEmoji(item.emoji)" /><span v-html="renderDiscordEmoji(item.label ?? item.action)" /></button>
+          </div>
         </div>
         <div
-          v-if="actions.length || buttons.length || links.length || coFeatures.length"
+          v-if="mode === 'EMBED' && (actions.length || buttons.length || links.length || coFeatures.length)"
           class="preview-actions"
         >
-          <button v-for="action in actions" :key="action">{{ actionLabel(action) }}</button
-          ><button v-for="(button, index) in buttons" :key="index" :class="buttonClass(button)">
-            <span v-if="buttonEmoji(button)">{{ buttonEmoji(button) }}</span>
-            {{ render(button.label ?? button.placeholder ?? 'Action') }}
+          <button
+            v-for="action in actionButtons"
+            :key="action.action"
+            type="button"
+            :class="actionButtonClass(action.style)"
+            @click="simulateInteraction(action.action, action.label)"
+          >
+            <span v-if="action.emoji" v-html="renderDiscordEmoji(action.emoji)" /> <span v-html="renderDiscordEmoji(action.label)" />
+          </button
+          ><button
+            v-for="(button, index) in buttons"
+            :key="index"
+            type="button"
+            :class="buttonClass(button)"
+            @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? button.placeholder ?? 'Action'))"
+          >
+            <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
+            <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" />
           </button>
-          <button v-for="(link, index) in links" :key="`link-${index}`">
-            {{ render(link.emoji) }} {{ render(link.label ?? text('Open link', 'เปิดลิงก์')) }}
-          </button>
+          <a
+            v-for="(link, index) in links"
+            :key="`link-${index}`"
+            :href="readUrl(link.url) || undefined"
+            target="_blank"
+            rel="noreferrer"
+            class="preview-button--link"
+            @click="!readUrl(link.url) && simulateInteraction('', render(link.label ?? text('Open link', 'เปิดลิงก์')))"
+          >
+            <span v-if="link.emoji" v-html="renderDiscordEmoji(link.emoji)" /> <span v-html="renderDiscordEmoji(link.label ?? text('Open link', 'เปิดลิงก์'))" />
+          </a>
           <button
             v-for="item in coFeatures"
             :key="String(item.action)"
+            type="button"
             :class="coFeatureButtonClass(item)"
+            @click="simulateInteraction(String(item.action), render(item.label ?? item.action))"
           >
-            {{ render(item.emoji) }} {{ render(item.label ?? item.action) }}
+            <span v-if="item.emoji" v-html="renderDiscordEmoji(item.emoji)" /> <span v-html="renderDiscordEmoji(item.label ?? item.action)" />
           </button>
         </div>
+        <p v-if="activeInteraction" class="preview-interaction" role="status">
+          {{ activeInteraction }}
+        </p>
       </div>
     </div>
-    <p class="preview-note">
+    <p v-if="!compact" class="preview-note">
       {{
         text(
           'Live sample generated from the current settings',
@@ -349,24 +533,46 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
 
 <style scoped>
 .preview-shell {
+  --discord-canvas: #ffffff;
+  --discord-surface: #f2f3f5;
+  --discord-surface-strong: #e3e5e8;
+  --discord-text: #060607;
+  --discord-muted: #5c5e66;
+  --discord-border: #d5d8dc;
+  --discord-code: #e3e5e8;
   overflow: hidden;
   border: 1px solid var(--semantic-color-border-border-default);
   border-radius: var(--corner-radius-lg);
-  background: #313338;
-  color: #dbdee1;
+  background: var(--discord-canvas);
+  color: var(--discord-text);
+}
+:global([data-theme='dark']) .preview-shell,
+:global(.dark) .preview-shell {
+  --discord-canvas: #313338;
+  --discord-surface: #2b2d31;
+  --discord-surface-strong: #232428;
+  --discord-text: #dbdee1;
+  --discord-muted: #949ba4;
+  --discord-border: #3f4147;
+  --discord-code: #1e1f22;
+}
+.preview-shell--compact {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .preview-toolbar {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid #232428;
-  background: #2b2d31;
+  border-bottom: 1px solid var(--discord-surface-strong);
+  background: var(--discord-surface);
   font-size: 0.75rem;
 }
 .preview-toolbar span:last-child {
   margin-left: auto;
-  color: #949ba4;
+  color: var(--discord-muted);
 }
 .preview-dot {
   width: 0.5rem;
@@ -378,6 +584,9 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
   display: flex;
   gap: var(--space-sm);
   padding: var(--space-lg);
+}
+.preview-shell--compact .preview-chat {
+  padding: var(--space-sm);
 }
 .preview-avatar {
   display: grid;
@@ -397,7 +606,7 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
 }
 .preview-author {
   margin-bottom: 0.25rem;
-  color: #f2f3f5;
+  color: var(--discord-text);
   font-weight: 600;
 }
 .preview-author span {
@@ -409,7 +618,7 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
   font-size: 0.6rem;
 }
 .preview-author time {
-  color: #949ba4;
+  color: var(--discord-muted);
   font-size: 0.7rem;
   font-weight: 400;
 }
@@ -421,17 +630,76 @@ function coFeatureButtonClass(item: Record<string, unknown>) {
   border-left: 4px solid #5865f2;
   border-radius: 0.25rem;
   padding: 0.75rem 1rem;
-  background: #2b2d31;
+  background: var(--discord-surface);
+}
+.preview-message-content {
+  max-width: 40rem;
+  margin-bottom: 0.35rem;
+}
+.preview-embed-author {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+  color: var(--discord-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.preview-embed-author img,
+.preview-footer img {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  object-fit: cover;
+}
+.preview-embed h4 a {
+  color: #00a8fc;
+  text-decoration: none;
 }
 .preview-components {
   max-width: 32rem;
-  border: 1px solid #3f4147;
+  display: grid;
+  gap: 0.5rem;
+}
+.preview-container {
+  border: 1px solid var(--discord-border);
   border-radius: 0.5rem;
   padding: 1rem;
-  background: #2b2d31;
+  background: var(--discord-surface);
+  border-left: 4px solid #5865f2;
+}
+.preview-components--spoiler > * {
+  filter: blur(0.25rem);
+}
+.preview-components--spoiler:hover > * {
+  filter: none;
+}
+.preview-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+}
+.preview-section img {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 0.25rem;
+  object-fit: cover;
+}
+.preview-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+}
+.preview-gallery > img {
+  width: 100%;
+  height: 8rem;
+  border-radius: 0.25rem;
+  object-fit: cover;
 }
 h4 {
-  color: #f2f3f5;
+  color: var(--discord-text);
   font-weight: 700;
 }
 .preview-copy {
@@ -445,7 +713,7 @@ h4 {
 :deep(.discord-markdown h2),
 :deep(.discord-markdown h3) {
   margin: 0.5rem 0 0;
-  color: #f2f3f5;
+  color: var(--discord-text);
   font-weight: 700;
   line-height: 1.25;
 }
@@ -466,13 +734,13 @@ h4 {
 :deep(.discord-markdown code) {
   border-radius: 0.2rem;
   padding: 0.1rem 0.25rem;
-  background: #1e1f22;
+  background: var(--discord-code);
   font-family: var(--font-family-mono);
   font-size: 0.85em;
 }
 :deep(.discord-markdown blockquote) {
   margin: 0.25rem 0;
-  border-left: 4px solid #4e5058;
+  border-left: 4px solid var(--discord-muted);
   padding-left: 0.75rem;
 }
 :deep(.discord-markdown .discord-list-item) {
@@ -485,7 +753,7 @@ h4 {
   content: '•';
 }
 :deep(.discord-markdown .discord-subtext) {
-  color: #949ba4;
+  color: var(--discord-muted);
   font-size: 0.6875rem;
   font-weight: 400;
   line-height: 0.9375rem;
@@ -521,21 +789,24 @@ h4 {
   align-items: center;
   gap: 0.4rem;
   margin-top: 0.75rem;
-  border: 1px dashed #4e5058;
+  border: 1px dashed var(--discord-border);
   border-radius: 0.25rem;
   padding: 0.75rem;
-  color: #949ba4;
+  color: var(--discord-muted);
   font-size: 0.75rem;
 }
 .preview-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   margin-top: 0.75rem;
-  color: #b5bac1;
+  color: var(--discord-muted);
   font-size: 0.7rem;
 }
 .preview-separator {
   margin-block: 0.75rem;
   border: 0;
-  border-top: 1px solid #4e5058;
+  border-top: 1px solid var(--discord-border);
 }
 .preview-space {
   height: 0.75rem;
@@ -546,32 +817,80 @@ h4 {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
-.preview-actions button {
+:deep(.discord-custom-emoji) {
+  display: inline-block;
+  width: 1.375em;
+  height: 1.375em;
+  margin-inline: 0.05em;
+  vertical-align: -0.32em;
+  object-fit: contain;
+}
+.preview-actions :deep(.discord-custom-emoji) {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  vertical-align: middle;
+}
+.preview-actions button,
+.preview-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   border: 0;
   border-radius: 0.2rem;
   padding: 0.45rem 0.8rem;
-  background: #4e5058;
-  color: white;
+  background: var(--discord-surface-strong);
+  color: var(--discord-text);
+  cursor: pointer;
   font-size: 0.8rem;
+  text-decoration: none;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+.preview-actions button:hover,
+.preview-actions a:hover {
+  filter: brightness(1.12);
+}
+.preview-actions button:active,
+.preview-actions a:active {
+  transform: translateY(1px);
+}
+.preview-actions button:focus-visible,
+.preview-actions a:focus-visible {
+  outline: 2px solid #00a8fc;
+  outline-offset: 2px;
 }
 .preview-actions .preview-button--primary {
   background: #5865f2;
+  color: white;
 }
 .preview-actions .preview-button--secondary {
-  background: #4e5058;
+  background: var(--discord-surface-strong);
+  color: var(--discord-text);
 }
 .preview-actions .preview-button--success {
   background: #248046;
+  color: white;
 }
 .preview-actions .preview-button--danger {
   background: #da373c;
+  color: white;
 }
 .preview-actions .preview-button--link {
-  background: #4e5058;
+  background: var(--discord-surface-strong);
+  color: var(--discord-text);
+}
+.preview-interaction {
+  width: fit-content;
+  margin-top: 0.6rem;
+  border-radius: 0.25rem;
+  padding: 0.35rem 0.55rem;
+  background: var(--discord-code);
+  color: var(--discord-muted);
+  font-size: 0.7rem;
 }
 .preview-note {
   padding: 0 var(--space-md) var(--space-md);
-  color: #949ba4;
+  color: var(--discord-muted);
   font-size: 0.7rem;
 }
 </style>
