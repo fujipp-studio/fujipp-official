@@ -53,12 +53,33 @@ const actionButtons = computed(() => {
     }
   })
 })
-const components = computed(() =>
-  isObject(props.definition.components) ? Object.values(props.definition.components) : [],
-)
-const buttons = computed(() => components.value.filter(isObject).slice(0, 5))
 const coFeatures = computed(() =>
   Array.isArray(props.definition.co_features) ? props.definition.co_features.filter(isObject) : [],
+)
+const systemComponentEntries = computed(() =>
+  isObject(props.definition.components)
+    ? Object.entries(props.definition.components).flatMap(([role, config]) =>
+        isObject(config) ? [{ role, config }] : [],
+      )
+    : [],
+)
+const coFeatureRoles: Record<string, string> = {
+  'wallet.topup': 'btn_topup',
+  'wallet.balance': 'btn_balance',
+}
+const buttons = computed(() => {
+  const delegatedRoles = new Set(
+    coFeatures.value.map((item) => coFeatureRoles[String(item.action ?? '')]).filter(Boolean),
+  )
+  return systemComponentEntries.value
+    .filter(({ role, config }) => !delegatedRoles.has(role) && config.label)
+    .map(({ config }) => config)
+    .slice(0, 5)
+})
+const selectMenus = computed(() =>
+  systemComponentEntries.value
+    .filter(({ config }) => config.placeholder && !config.label)
+    .map(({ role, config }) => ({ role, config })),
 )
 const buttonStyles: Record<number, string> = {
   1: 'preview-button--primary',
@@ -437,7 +458,7 @@ function actionButtonClass(style: string) {
           </div>
           <p v-if="content.footer" class="preview-footer">{{ render(content.footer) }}</p>
           <div
-            v-if="actions.length || buttons.length || links.length || coFeatures.length"
+            v-if="actions.length || buttons.length || selectMenus.length || links.length || coFeatures.length"
             class="preview-actions"
           >
             <button
@@ -454,6 +475,13 @@ function actionButtonClass(style: string) {
               :class="buttonClass(button)"
               @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? button.placeholder ?? 'Action'))"
             ><span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" /><span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" /></button>
+            <button
+              v-for="item in selectMenus"
+              :key="`component-select-${item.role}`"
+              type="button"
+              class="preview-select-menu"
+              @click="simulateInteraction(item.role, render(item.config.placeholder))"
+            ><span v-html="renderDiscordEmoji(item.config.placeholder)" /><span aria-hidden="true">⌄</span></button>
             <a
               v-for="(link, index) in links"
               :key="`component-link-${index}`"
@@ -472,7 +500,7 @@ function actionButtonClass(style: string) {
           </div>
         </div>
         <div
-          v-if="mode === 'EMBED' && (actions.length || buttons.length || links.length || coFeatures.length)"
+          v-if="mode === 'EMBED' && (actions.length || buttons.length || selectMenus.length || links.length || coFeatures.length)"
           class="preview-actions"
         >
           <button
@@ -494,6 +522,13 @@ function actionButtonClass(style: string) {
             <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
             <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" />
           </button>
+          <button
+            v-for="item in selectMenus"
+            :key="`select-${item.role}`"
+            type="button"
+            class="preview-select-menu"
+            @click="simulateInteraction(item.role, render(item.config.placeholder))"
+          ><span v-html="renderDiscordEmoji(item.config.placeholder)" /><span aria-hidden="true">⌄</span></button>
           <a
             v-for="(link, index) in links"
             :key="`link-${index}`"
@@ -555,6 +590,17 @@ function actionButtonClass(style: string) {
   --discord-muted: #949ba4;
   --discord-border: #3f4147;
   --discord-code: #1e1f22;
+}
+@media (prefers-color-scheme: dark) {
+  :global([data-theme='system']) .preview-shell {
+    --discord-canvas: #313338;
+    --discord-surface: #2b2d31;
+    --discord-surface-strong: #232428;
+    --discord-text: #dbdee1;
+    --discord-muted: #949ba4;
+    --discord-border: #3f4147;
+    --discord-code: #1e1f22;
+  }
 }
 .preview-shell--compact {
   border: 0;
@@ -845,6 +891,12 @@ h4 {
   font-size: 0.8rem;
   text-decoration: none;
   transition: filter 120ms ease, transform 120ms ease;
+}
+.preview-actions .preview-select-menu {
+  min-width: min(25rem, 100%);
+  justify-content: space-between;
+  border: 1px solid var(--discord-border);
+  background: var(--discord-canvas);
 }
 .preview-actions button:hover,
 .preview-actions a:hover {
