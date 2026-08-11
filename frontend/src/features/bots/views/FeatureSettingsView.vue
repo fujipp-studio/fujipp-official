@@ -586,8 +586,14 @@ function updatePresentation(slotKey: string, key: string, value: unknown) {
   }
   const mode = presentationMode.value ?? String(definition.mode ?? 'EMBED')
   const nestedKey = mode === 'EMBED' ? 'embed' : 'components_v2'
-  if (definition[nestedKey] && typeof definition[nestedKey] === 'object') {
-    definition[nestedKey] = { ...(definition[nestedKey] as Record<string, unknown>), [key]: value }
+  const nested = definition[nestedKey]
+  if (presentationMode.value || (nested && typeof nested === 'object')) {
+    definition[nestedKey] = {
+      ...(nested && typeof nested === 'object' && !Array.isArray(nested)
+        ? (nested as Record<string, unknown>)
+        : {}),
+      [key]: value,
+    }
     presentations.value[slotKey] = { ...definition }
   } else presentations.value[slotKey] = { ...definition, [key]: value }
   presentationJson.value[slotKey] = JSON.stringify(presentations.value[slotKey], null, 2)
@@ -708,9 +714,7 @@ function componentBlocks(slotKey: string) {
 }
 
 function supportsBlockBuilder(slotKey: string) {
-  const rootComponents = presentations.value[slotKey]?.components
-  if (rootComponents && typeof rootComponents === 'object' && !Array.isArray(rootComponents))
-    return false
+  if (presentationMode.value === 'COMPONENTS_V2') return true
   const components = visualDefinition(slotKey).components
   return !components || Array.isArray(components)
 }
@@ -2129,7 +2133,7 @@ onBeforeUnmount(() => {
                         </button>
                       </div>
                     </template>
-                    <template v-else>
+                    <template v-if="systemComponents(slot.key).length">
                       <div class="builder-heading">
                         <div>
                           <strong>{{ text('Feature components', 'Component ของ Feature') }}</strong>
