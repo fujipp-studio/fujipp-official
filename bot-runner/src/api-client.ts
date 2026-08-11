@@ -26,16 +26,22 @@ export interface RuntimeApi {
 
 export class RuntimeApiClient implements RuntimeApi {
   private static readonly REQUEST_TIMEOUT_MS = 15_000;
+  private bootstrapEtag: string | undefined;
   public constructor(
     private readonly baseUrl: string,
     private readonly token: string,
   ) {}
 
-  public async bootstrap(signal?: AbortSignal): Promise<BootstrapResponse> {
-    return this.request<BootstrapResponse>("/internal/v1/runtime/bootstrap", {
+  public async bootstrap(signal?: AbortSignal): Promise<BootstrapResponse | null> {
+    const response = await this.fetch("/internal/v1/runtime/bootstrap", {
       method: "GET",
+      headers: this.bootstrapEtag ? { "If-None-Match": this.bootstrapEtag } : {},
       ...(signal ? { signal } : {}),
     });
+    if (response.status === 304) return null;
+    await this.assertOk(response);
+    this.bootstrapEtag = response.headers.get("ETag") ?? undefined;
+    return (await response.json()) as BootstrapResponse;
   }
 
   public async reportStatus(input: {
@@ -104,9 +110,16 @@ export class RuntimeApiClient implements RuntimeApi {
   public memberSpendingTotals(botId:string){const query=new URLSearchParams({botId});return this.request<{amountSatang:number;txCount:number}>(`/internal/v1/member-spending/totals?${query}`,{method:"GET"});}
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
+    const response = await this.fetch(path, init);
+    await this.assertOk(response);
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  }
+
+  private async fetch(path: string, init: RequestInit): Promise<Response> {
     const timeoutSignal = AbortSignal.timeout(RuntimeApiClient.REQUEST_TIMEOUT_MS);
     const signal = init.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal;
-    const response = await fetch(new URL(path, this.baseUrl), {
+    return fetch(new URL(path, this.baseUrl), {
       ...init,
       signal,
       headers: {
@@ -114,6 +127,9 @@ export class RuntimeApiClient implements RuntimeApi {
         "X-Runner-Token": this.token,
       },
     });
+  }
+
+  private async assertOk(response: Response): Promise<void> {
     if (!response.ok) {
       const detail = await response.text();
       let message=`ระบบ Backend ตอบกลับ ${response.status}`;
@@ -121,8 +137,6 @@ export class RuntimeApiClient implements RuntimeApi {
       try{const problem=JSON.parse(detail) as {detail?:unknown;code?:unknown};if(typeof problem.detail==="string")message=problem.detail;if(typeof problem.code==="string")code=problem.code;}catch{/* non-JSON response */}
       throw new RuntimeApiError(response.status,code,message);
     }
-    if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
   }
 }
 

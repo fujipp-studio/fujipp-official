@@ -15,10 +15,13 @@ duplicate supervision without improving availability.
 1. A user creates a bot with `POST /api/v1/bots`.
 2. The user stores its Discord token with the protected credential endpoint.
 3. The user installs purchased features and configures them.
-4. The Runner polls `GET /internal/v1/runtime/bootstrap` every 30 seconds.
-5. The Runner starts, stops, or reloads only bots whose runtime fingerprint
+4. The Runner polls `GET /internal/v1/runtime/bootstrap` every 30 seconds and
+   reuses the response ETag. Unchanged snapshots return `304 Not Modified`.
+5. The Backend keeps the assembled snapshot in memory for 60 seconds by
+   default, avoiding repeated Supabase reads while the runtime is unchanged.
+6. The Runner starts, stops, or reloads only bots whose runtime fingerprint
    changed.
-6. Runtime status is reported to `POST /internal/v1/runtime/status`.
+7. Runtime status is reported to `POST /internal/v1/runtime/status`.
 
 Feature modules can persist a small non-secret operational state with
 `PUT /internal/v1/runtime/state`. The state is limited to a 16 KiB JSON object,
@@ -119,7 +122,13 @@ Required Runner environment:
 BACKEND_API_URL=http://backend:8080
 RUNNER_API_TOKEN=<same-long-random-token-as-backend>
 RUNTIME_POLL_INTERVAL_MS=30000
+RUNTIME_BOOTSTRAP_CACHE_TTL=60s
 ```
+
+`RUNTIME_BOOTSTRAP_CACHE_TTL` bounds how long changes made outside the runtime
+state endpoint may take to reach a Runner. Runtime state writes invalidate the
+cached snapshot immediately. Keep the TTL short enough for operational control;
+Redis is unnecessary while a single Backend instance owns the cache.
 
 Generate production secrets independently:
 

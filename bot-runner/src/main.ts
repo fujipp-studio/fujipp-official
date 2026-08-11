@@ -13,7 +13,7 @@ async function sync(): Promise<void> {
   syncing = true;
   try {
     const bootstrap = await api.bootstrap();
-    await manager.reconcile(bootstrap.bots);
+    if (bootstrap) await manager.reconcile(bootstrap.bots);
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
   } finally {

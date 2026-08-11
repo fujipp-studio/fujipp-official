@@ -18,7 +18,9 @@ class RuntimeServiceTests {
     private final RuntimeRepository repository = mock(RuntimeRepository.class);
     private final RuntimeService service = new RuntimeService(
             repository,
-            mock(StoreSecretCipher.class)
+            mock(StoreSecretCipher.class),
+            JsonMapper.builder().build(),
+            java.time.Duration.ofSeconds(60)
     );
     private final JsonMapper json = JsonMapper.builder().build();
 
