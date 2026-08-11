@@ -235,8 +235,8 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
   const title=fill(definition.title,slot).slice(0,256);const description=fill(definition.description,"").slice(0,4096);
   if(title)embed.setTitle(title);if(description)embed.setDescription(description);if(!title&&!description)embed.setDescription(slot);
   const url=fill(definition.url,"");if(title&&/^https:\/\//i.test(url))embed.setURL(url);
-  const image=fill((definition.image as Record<string,unknown>|undefined)?.url??definition.image_url,"");if(/^https?:\/\//i.test(image))embed.setImage(image);
-  const thumbnail=fill((definition.thumbnail as Record<string,unknown>|undefined)?.url??definition.thumbnail_url,"");if(/^https?:\/\//i.test(thumbnail))embed.setThumbnail(thumbnail);
+  const image=fill(presentationMediaUrl(definition,"image"),"");if(/^https?:\/\//i.test(image))embed.setImage(image);
+  const thumbnail=fill(presentationMediaUrl(definition,"thumbnail"),"");if(/^https?:\/\//i.test(thumbnail))embed.setThumbnail(thumbnail);
   const footer=definition.footer as Record<string,unknown>|string|undefined;if(footer){const text=fill(typeof footer==="string"?footer:footer.text,"").slice(0,2048);const icon=fill(typeof footer==="object"?footer.icon_url:undefined,"");if(text)embed.setFooter({text,...(/^https?:\/\//i.test(icon)?{iconURL:icon}:{})});}
   const author=definition.author as Record<string,unknown>|undefined;if(author){const name=fill(author.name,"").slice(0,256),icon=fill(author.icon_url,""),authorUrl=fill(author.url,"");if(name)embed.setAuthor({name,...(/^https?:\/\//i.test(icon)?{iconURL:icon}:{}),...(/^https?:\/\//i.test(authorUrl)?{url:authorUrl}:{})});}
   if(Array.isArray(definition.fields)){const fields=definition.fields.filter((value):value is Record<string,unknown>=>Boolean(value&&typeof value==="object")).slice(0,25).map((field)=>({name:fill(field.name,"").slice(0,256),value:fill(field.value,"").slice(0,1024),inline:Boolean(field.inline)})).filter((field)=>field.name&&field.value);if(fields.length)embed.addFields(fields);}
@@ -244,6 +244,10 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
 }
 
 function deepRender(value:unknown,values:Record<string,string>):any{if(typeof value==="string")return value.replace(/\{\{?(\w+)\}?\}/g,(_,key:string)=>values[key]??"");if(Array.isArray(value))return value.map((item)=>deepRender(item,values));if(isRecord(value))return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,deepRender(item,values)]));return value;}
+function presentationMediaUrl(definition:Record<string,unknown>,key:"image"|"thumbnail"){
+  const direct=String(definition[`${key}_url`]??"").trim();if(direct)return direct;
+  const nested=definition[key];return isRecord(nested)?String(nested.url??"").trim():"";
+}
 function normalizeComponentColors(value:unknown):unknown[]{if(!Array.isArray(value))return[];return value.map((item)=>{if(!isRecord(item))return item;const next={...item};if(next.type===17&&typeof next.accent_color==="string"&&/^#[0-9a-f]{6}$/i.test(next.accent_color))next.accent_color=Number.parseInt(next.accent_color.slice(1),16);if(Array.isArray(next.components))next.components=normalizeComponentColors(next.components);return next;});}
 function embedColor(value:unknown){if(typeof value==="number"&&Number.isInteger(value)&&value>=0&&value<=0xffffff)return value;if(typeof value!=="string")return undefined;const normalized=value.trim().replace(/^#/,"");return /^[0-9a-f]{6}$/i.test(normalized)?Number.parseInt(normalized,16):undefined;}
 
