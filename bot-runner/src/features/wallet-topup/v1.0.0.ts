@@ -20,6 +20,7 @@ export const walletTopupFeature: FeatureModule = {
     const pendingSessions = readPendingSessions(context.runtimeState.walletPendingSessions);
     const countdowns = new Map<string, ReturnType<typeof setInterval>>();
     const slipStatusMessages = new Map<string,string>();
+    const cleanupTimer=setInterval(()=>void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error),30_000);
 
     const onInteraction = (interaction: Interaction) => void handle(context, panelCommand, pendingSessions, countdowns, interaction)
       .catch((error) => respondError(context, interaction, error));
@@ -27,8 +28,8 @@ export const walletTopupFeature: FeatureModule = {
       .catch((error) => respondMessageError(context, message, error));
     context.client.on("interactionCreate", onInteraction);
     context.client.on("messageCreate", onMessage);
-    context.client.once("clientReady", () => void registerCommands(context, panelCommand).catch((error)=>{console.error(`Wallet command registration failed for ${context.botId}:`,error);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",error);}));
-    return () => { context.client.off("interactionCreate", onInteraction); context.client.off("messageCreate", onMessage); for(const timer of countdowns.values())clearInterval(timer); };
+    context.client.once("clientReady", () => {void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error);void registerCommands(context, panelCommand).catch((error)=>{console.error(`Wallet command registration failed for ${context.botId}:`,error);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",error);});});
+    return () => { context.client.off("interactionCreate", onInteraction); context.client.off("messageCreate", onMessage); clearInterval(cleanupTimer); for(const timer of countdowns.values())clearInterval(timer); };
   },
 };
 
@@ -66,7 +67,7 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
       return interaction.reply({ content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", flags: MessageFlags.Ephemeral });
     }
     if (interaction.commandName === panelCommand) return postPanel(context, interaction);
-    if (interaction.commandName === "topup-slip") return verifySlip(context, interaction);
+    if (interaction.commandName === "topup-slip") return verifySlip(context, pending, countdowns, interaction);
     if (interaction.commandName === "wallet-admin") return walletAdmin(context, interaction);
     if (interaction.commandName === "history") return walletHistory(context,interaction);
     if (interaction.commandName === "topup-monthly") return monthlySummary(context,interaction);
@@ -118,6 +119,7 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   if (!slip) { await message.reply("กรุณาส่งรูปสลิปเป็นไฟล์แนบ"); return; }
   const session=pending.get(message.author.id);
   if (session && Date.parse(session.expiresAt)<=Date.now()) {
+    clearCountdown(countdowns,message.author.id); await removeTemporarySlipRole(context,message.guild,message.author.id);
     pending.delete(message.author.id); await savePending(context,pending);
     await message.reply(render(context,"expired",{session_id:session.sessionId},false)); return;
   }
@@ -130,7 +132,7 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   try{result=await context.wallet.verifySlip({...(session?{sessionId:session.sessionId}:{}),memberDiscordId:message.author.id,slipImageUrl:slip.url,idempotencyKey:`discord:${message.id}`});}
   catch(error){const failure=humanWalletError(error);await processing.edit(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false));return;}
   clearCountdown(countdowns,message.author.id);
-  if(session?.grantedRole)await removeTemporarySlipRole(context,message.guild,message.author.id);
+  await removeTemporarySlipRole(context,message.guild,message.author.id);
   pending.delete(message.author.id); await savePending(context,pending);
   await grantPermanentTopupRole(context,message.guild,message.author.id);
   await syncTopSpenderRoles(context,message.guild).catch(console.error);
@@ -182,12 +184,16 @@ async function postPanel(context: FeatureContext, interaction: ChatInputCommandI
   await interaction.reply({content:"ส่ง Panel เติมเงินเรียบร้อย",flags:MessageFlags.Ephemeral});
 }
 
-async function verifySlip(context: FeatureContext, interaction: ChatInputCommandInteraction) {
+async function verifySlip(context: FeatureContext, pending: Map<string, PendingSession>, countdowns:Map<string,ReturnType<typeof setInterval>>, interaction: ChatInputCommandInteraction) {
   await interaction.deferReply({flags:MessageFlags.Ephemeral});
   const sessionId=interaction.options.getString("session",true);
   const slip=interaction.options.getAttachment("slip",true) as Attachment;
   await interaction.editReply(render(context,"processing",{payment_method:"QR (SlipOK)"},false));
   const result=await context.wallet.verifySlip({sessionId,memberDiscordId:interaction.user.id,slipImageUrl:slip.url,idempotencyKey:`discord:${interaction.id}`});
+  clearCountdown(countdowns,interaction.user.id);
+  await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);
+  const session=pending.get(interaction.user.id);
+  if(session?.sessionId===sessionId){pending.delete(interaction.user.id);await savePending(context,pending);}
   await grantPermanentTopupRole(context,interaction.guild,interaction.user.id);
   await syncTopSpenderRoles(context,interaction.guild).catch(console.error);
   await interaction.editReply(render(context,"succeeded",successVars(interaction.user.id,result),false));
@@ -213,21 +219,45 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
       ...(ephemeral?{flags:MessageFlags.Ephemeral}:{}),
     } as never;
   }
-  const title=replace(String(raw.title??""),values), description=replace(String(raw.description??""),values);
-  const actionCodes=Array.isArray(raw.actions)?raw.actions.filter((x):x is keyof typeof ACTIONS=>typeof x==="string"&&x in ACTIONS):[];
+  const nested=raw.mode==="EMBED"&&isRecord(raw.embed)?raw.embed:raw.mode==="COMPONENTS_V2"&&isRecord(raw.components_v2)?raw.components_v2:{};
+  const definition={...raw,...nested};
+  const title=replace(String(definition.title??""),values), description=replace(String(definition.description??""),values);
+  const actionCodes=Array.isArray(definition.actions)?definition.actions.filter((x):x is keyof typeof ACTIONS=>typeof x==="string"&&x in ACTIONS):[];
+  const actionOverrides=isRecord(definition.action_overrides)?definition.action_overrides:{};
   const buttons=actionCodes.map((code)=>{
-    const a=ACTIONS[code]; return new ButtonBuilder().setCustomId(a.id).setLabel(a.label).setEmoji(a.emoji).setStyle(a.style);
+    const a=ACTIONS[code],override=isRecord(actionOverrides[code])?actionOverrides[code]:{};
+    const label=replace(String(override.label??a.label),values),emoji=replace(String(override.emoji??a.emoji),values);
+    const button=new ButtonBuilder().setCustomId(a.id).setLabel(label.slice(0,80)).setStyle(buttonStyle(override.style,a.style));
+    if(emoji)button.setEmoji(emoji);
+    return button;
   });
-  if(Array.isArray(raw.links))for(const item of raw.links){if(isRecord(item)){const url=replace(String(item.url??""),values);if(url)buttons.push(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel(replace(String(item.label??"เปิดลิงก์"),values)).setEmoji(replace(String(item.emoji??"🔗"),values)));}}
+  if(Array.isArray(definition.links))for(const item of definition.links){if(isRecord(item)){const url=replace(String(item.url??""),values);if(url)buttons.push(new ButtonBuilder().setStyle(ButtonStyle.Link).setURL(url).setLabel(replace(String(item.label??"เปิดลิงก์"),values)).setEmoji(replace(String(item.emoji??"🔗"),values)));}}
   const row=buttons.length?new ActionRowBuilder<ButtonBuilder>().addComponents(buttons):undefined;
   if (raw.mode === "EMBED") return {
-    embeds:[{title,description,image:urlObject(replace(String(raw.image_url??""),values)),thumbnail:urlObject(replace(String(raw.thumbnail_url??""),values))}],
+    content:replace(String(definition.content??""),values)||undefined,
+    embeds:[{title,url:optionalText(definition.url,values),description,color:embedColor(definition.color),author:embedAuthor(definition.author,values),fields:Array.isArray(definition.fields)?deepRender(definition.fields,values):[],footer:embedFooter(definition.footer,values),timestamp:embedTimestamp(definition.timestamp),image:urlObject(replace(String(definition.image_url??""),values)),thumbnail:urlObject(replace(String(definition.thumbnail_url??""),values))}],
     components:row?[row]:[],...(ephemeral?{flags:MessageFlags.Ephemeral}:{})
   } as never;
+  if (Array.isArray(definition.components)) {
+    const components=normalizeComponentColors(deepRender(definition.components,values));
+    if(row) components.push(row.toJSON());
+    return {flags:(ephemeral?MessageFlags.Ephemeral:0)|MessageFlags.IsComponentsV2,components} as never;
+  }
   const parts:unknown[]=[{type:10,content:`# ${title}\n`},{type:14,divider:true,spacing:2},{type:10,content:description}];
-  const image=replace(String(raw.image_url??""),values); if(image) parts.push({type:12,items:[{media:{url:image}}]});
+  const image=replace(String(definition.image_url??""),values); if(image) parts.push({type:12,items:[{media:{url:image}}]});
   if(row) parts.push(row.toJSON());
   return {flags:(ephemeral?MessageFlags.Ephemeral:0)|MessageFlags.IsComponentsV2,components:[{type:17,components:parts}]} as never;
+}
+
+function normalizeComponentColors(value:unknown):unknown[] {
+  if(!Array.isArray(value))return [];
+  return value.map((item)=>{
+    if(!isRecord(item))return item;
+    const next={...item};
+    if(next.type===17&&typeof next.accent_color==="string"&&/^#[0-9a-f]{6}$/i.test(next.accent_color))next.accent_color=Number.parseInt(next.accent_color.slice(1),16);
+    if(Array.isArray(next.components))next.components=normalizeComponentColors(next.components);
+    return next;
+  });
 }
 
 function modal(id:string,title:string,inputId:string,label:string,style:TextInputStyle) {
@@ -254,6 +284,12 @@ function deepRender(value:unknown,values:Record<string,string>):unknown {
   return value;
 }
 function urlObject(url:string){return url?{url}:undefined;}
+function optionalText(value:unknown,values:Record<string,string>){const rendered=replace(String(value??""),values);return rendered||undefined;}
+function embedAuthor(value:unknown,values:Record<string,string>){if(!isRecord(value))return undefined;const name=optionalText(value.name,values);if(!name)return undefined;return{name,url:optionalText(value.url,values),icon_url:optionalText(value.icon_url,values)};}
+function embedFooter(value:unknown,values:Record<string,string>){const footer=isRecord(value)?value:{text:value};const text=optionalText(footer.text,values);if(!text)return undefined;return{text,icon_url:optionalText(footer.icon_url,values)};}
+function embedTimestamp(value:unknown){if(value===true)return new Date().toISOString();if(typeof value!=="string"||!value.trim())return undefined;const parsed=Date.parse(value);return Number.isNaN(parsed)?undefined:new Date(parsed).toISOString();}
+function embedColor(value:unknown){if(typeof value==="number"&&Number.isInteger(value)&&value>=0&&value<=0xFFFFFF)return value;if(typeof value!=="string")return undefined;const normalized=value.trim().replace(/^#/,"");return /^[0-9a-f]{6}$/i.test(normalized)?Number.parseInt(normalized,16):undefined;}
+function buttonStyle(value:unknown,fallback:ButtonStyle){const styles:Record<string,ButtonStyle>={primary:ButtonStyle.Primary,secondary:ButtonStyle.Secondary,success:ButtonStyle.Success,danger:ButtonStyle.Danger};return typeof value==="string"?styles[value.toLowerCase()]??fallback:fallback;}
 function stringConfig(v:unknown,f:string){return typeof v==="string"&&v?v:f;}
 function numberConfig(v:unknown,f:number){return typeof v==="number"&&Number.isSafeInteger(v)?v:f;}
 function isRecord(v:unknown):v is Record<string,unknown>{return typeof v==="object"&&v!==null&&!Array.isArray(v);}
@@ -269,7 +305,7 @@ function startCountdown(context:FeatureContext,pending:Map<string,PendingSession
   clearCountdown(countdowns,interaction.user.id);
   const timer=setInterval(()=>void(async()=>{
     const remaining=Date.parse(expiresAt)-Date.now();
-    if(remaining<=0){clearCountdown(countdowns,interaction.user.id);const session=pending.get(interaction.user.id);if(session?.grantedRole)await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);pending.delete(interaction.user.id);await savePending(context,pending);await interaction.editReply(render(context,"expired",{session_id:sessionId},true)).catch(()=>undefined);return;}
+    if(remaining<=0){clearCountdown(countdowns,interaction.user.id);const session=pending.get(interaction.user.id);await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);pending.delete(interaction.user.id);await savePending(context,pending);await interaction.editReply(render(context,"expired",{session_id:session?.sessionId??sessionId},true)).catch(()=>undefined);return;}
     await interaction.editReply(render(context,"promptpay_qr",{...base,remaining_time:formatRemaining(expiresAt)},true)).catch(()=>undefined);
   })().catch((error)=>{console.error(`Wallet countdown failed for ${context.botId}:`,error);clearCountdown(countdowns,interaction.user.id);}),1_000);
   countdowns.set(interaction.user.id,timer);
@@ -277,6 +313,7 @@ function startCountdown(context:FeatureContext,pending:Map<string,PendingSession
 
 async function grantTemporarySlipRole(context:FeatureContext,guild:ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,"");if(!guild||!roleId)return false;const member=await guild.members.fetch(userId);if(member.roles.cache.has(roleId))return false;await member.roles.add(roleId,"Temporary wallet slip access");return true;}
 async function removeTemporarySlipRole(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,"");if(!guild||!roleId)return;const member=await guild.members.fetch(userId).catch(()=>null);if(member?.roles.cache.has(roleId))await member.roles.remove(roleId,"Wallet slip window ended").catch(()=>undefined);}
+async function cleanupExpiredSessions(context:FeatureContext,pending:Map<string,PendingSession>,countdowns:Map<string,ReturnType<typeof setInterval>>){const expired=[...pending.entries()].filter(([,session])=>Date.parse(session.expiresAt)<=Date.now());if(!expired.length)return;const guild=context.guildId?await context.client.guilds.fetch(context.guildId).catch(()=>null):null;for(const [userId] of expired){clearCountdown(countdowns,userId);await removeTemporarySlipRole(context,guild,userId);pending.delete(userId);}await savePending(context,pending);}
 async function grantPermanentTopupRole(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.TOPUP_MEMBER_ROLE_ID,"");if(!guild||!roleId)return;const member=await guild.members.fetch(userId).catch(()=>null);if(member&&!member.roles.cache.has(roleId))await member.roles.add(roleId,"Successful wallet top-up").catch(()=>undefined);}
 
 async function walletHistory(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์ดูประวัติกระเป๋าเงิน",flags:MessageFlags.Ephemeral});const member=interaction.options.getUser("member",true);const limit=interaction.options.getInteger("limit")??numberConfig(context.config.WALLET_HISTORY_DEFAULT_LIMIT,10);await interaction.deferReply({flags:MessageFlags.Ephemeral});const history=await context.wallet.history(member.id,limit);const lines=history.entries.map((e,i)=>`${i+1}. ${e.amountSatang>=0?"+":""}${money(e.amountSatang)} THB · ${e.kind}${e.method?`/${e.method}`:""} · ${new Date(e.createdAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}`).join("\n")||"ไม่พบประวัติ";const total=history.entries.reduce((sum,e)=>sum+e.amountSatang,0);return interaction.editReply(render(context,"history",{member_mention:`<@${member.id}>`,entry_count:String(history.entries.length),history_lines:lines,total:money(total),currency:history.currency},true));}
