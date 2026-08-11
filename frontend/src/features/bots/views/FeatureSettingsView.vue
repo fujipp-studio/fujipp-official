@@ -44,8 +44,9 @@ const isRobloxPayoutFeature = computed(() => {
   return code === 'roblox-robux-payout' || 'ROBLOX_GROUPS' in values.value
 })
 const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
+const isPriceReaderFeature = computed(() => license.value?.featureCode === 'price-reader')
 const usesPresentationDesigner = computed(
-  () => isWalletTopupFeature.value || isRobloxPayoutFeature.value,
+  () => isWalletTopupFeature.value || isRobloxPayoutFeature.value || isPriceReaderFeature.value,
 )
 const isWalletPanelCommand = (key: string) => isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
 const walletConfigCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
@@ -78,6 +79,13 @@ const robloxConfigCopy: Record<string, { label: [string, string]; description: [
   ROBUX_PAYOUT_COOLDOWN_SECONDS: { label: ['Payout cooldown', 'ระยะพักระหว่างการโอน'], description: ['Delay between queued payouts, in seconds.', 'ระยะเวลารอระหว่างรายการโอนในคิว หน่วยเป็นวินาที'] },
   ROBUX_NOTIFICATION_CHANNEL_ID: { label: ['Notification channel', 'ช่องแจ้งเตือน'], description: ['Channel receiving payout results.', 'ช่องที่รับผลการทำรายการโอน Robux'] },
 }
+const priceReaderConfigCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
+  PRICE_READER_CHANNEL_ID: { label: ['Reader channel', 'ช่องอ่านราคา'], description: ['Channel where the bot reads Discord Shop screenshots.', 'ช่องที่บอทใช้รับภาพหน้าจอ Discord Shop เพื่ออ่านราคา'] },
+  PRICE_READER_ORDER_CHANNEL_ID: { label: ['Order channel', 'ช่องสั่งซื้อ'], description: ['Optional destination for the order button.', 'ช่องปลายทางสำหรับปุ่มสั่งซื้อ สามารถเว้นว่างได้'] },
+  PRICE_READER_PRICE_MAP: { label: ['Price map', 'ตารางราคา'], description: ['Map Discord prices to your shop prices, in THB.', 'จับคู่ราคา Discord กับราคาขายของร้าน หน่วยเป็นบาท'] },
+  PRICE_READER_NO_NITRO_MARKUP_SATANG: { label: ['Non-Nitro markup', 'ค่าบวกเมื่อไม่มี Nitro'], description: ['Additional amount per item for buyers without Nitro, in satang.', 'จำนวนเงินที่บวกต่อชิ้นเมื่อผู้ซื้อไม่มี Nitro หน่วยเป็นสตางค์'] },
+  PRICE_READER_RESULTS_ITEM_TEMPLATE: { label: ['Result item template', 'รูปแบบผลลัพธ์ต่อรูป'], description: ['Customize the text generated for each processed image.', 'ปรับข้อความผลลัพธ์ที่สร้างสำหรับแต่ละรูป'] },
+}
 const robloxPresentationCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
   panel: { label: ['Robux shop panel', 'แผงร้าน Robux'], description: ['Public shop panel with live group stock.', 'แผงร้านสาธารณะที่แสดง Robux คงเหลือของกลุ่ม'] },
   eligibility: { label: ['Eligibility result', 'ผลตรวจสอบสิทธิ์'], description: ['Result after checking a Roblox username.', 'ผลหลังตรวจสอบชื่อผู้ใช้ Roblox'] },
@@ -91,12 +99,24 @@ const robloxPresentationCopy: Record<string, { label: [string, string]; descript
   notification_success: { label: ['Success notification', 'แจ้งเตือนรายการสำเร็จ'], description: ['Notification sent after a successful payout.', 'ข้อความแจ้งเตือนหลังโอนสำเร็จ'] },
   notification_error: { label: ['Error notification', 'แจ้งเตือนข้อผิดพลาด'], description: ['Notification sent when a payout fails.', 'ข้อความแจ้งเตือนเมื่อการโอนไม่สำเร็จ'] },
 }
+const priceReaderPresentationCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
+  processing: { label: ['Reading images', 'กำลังอ่านรูป'], description: ['Shown while OCR is processing uploaded images.', 'แสดงระหว่างระบบ OCR กำลังอ่านรูปที่ส่งมา'] },
+  result: { label: ['Price reading result', 'ผลการอ่านราคา'], description: ['Result returned after OCR completes.', 'ผลลัพธ์ที่ส่งหลังจาก OCR อ่านราคาเสร็จ'] },
+}
 function presentationSlotLabel(slot: FeatureConfiguration['presentations'][number]) {
-  const copy = isRobloxPayoutFeature.value ? robloxPresentationCopy[slot.key] : undefined
+  const copy = isRobloxPayoutFeature.value
+    ? robloxPresentationCopy[slot.key]
+    : isPriceReaderFeature.value
+      ? priceReaderPresentationCopy[slot.key]
+      : undefined
   return copy ? text(...copy.label) : slot.label
 }
 function presentationSlotDescription(slot: FeatureConfiguration['presentations'][number]) {
-  const copy = isRobloxPayoutFeature.value ? robloxPresentationCopy[slot.key] : undefined
+  const copy = isRobloxPayoutFeature.value
+    ? robloxPresentationCopy[slot.key]
+    : isPriceReaderFeature.value
+      ? priceReaderPresentationCopy[slot.key]
+      : undefined
   return copy ? text(...copy.description) : slot.description
 }
 function configFieldLabel(field: FeatureConfiguration['fields'][number]) {
@@ -104,6 +124,8 @@ function configFieldLabel(field: FeatureConfiguration['fields'][number]) {
     ? walletConfigCopy[field.key]
     : isRobloxPayoutFeature.value
       ? robloxConfigCopy[field.key]
+      : isPriceReaderFeature.value
+        ? priceReaderConfigCopy[field.key]
       : undefined
   return copy ? text(...copy.label) : field.label
 }
@@ -112,6 +134,8 @@ function configFieldDescription(field: FeatureConfiguration['fields'][number]) {
     ? walletConfigCopy[field.key]
     : isRobloxPayoutFeature.value
       ? robloxConfigCopy[field.key]
+      : isPriceReaderFeature.value
+        ? priceReaderConfigCopy[field.key]
       : undefined
   return copy ? text(...copy.description) : field.description
 }
@@ -1388,7 +1412,7 @@ onBeforeUnmount(() => {
             <div :class="usesPresentationDesigner ? 'wallet-builder-messages' : 'contents'">
               <div v-if="usesPresentationDesigner" class="wallet-builder-toolbar">
                 <div>
-                  <strong>{{ isRobloxPayoutFeature ? text('Roblox Payout message builder', 'ตัวสร้างข้อความ Roblox Payout') : text('Wallet message builder', 'ตัวสร้างข้อความ Wallet') }}</strong>
+                  <strong>{{ isRobloxPayoutFeature ? text('Roblox Payout message builder', 'ตัวสร้างข้อความ Roblox Payout') : isPriceReaderFeature ? text('Price Reader message builder', 'ตัวสร้างข้อความ Price Reader') : text('Wallet message builder', 'ตัวสร้างข้อความ Wallet') }}</strong>
                   <p>{{ text('Open a fixed message to customize its appearance.', 'เปิดข้อความที่ระบบกำหนดไว้เพื่อปรับแต่งรูปแบบ') }}</p>
                 </div>
                 <span>{{ visiblePresentationSlots.length }} {{ text('messages', 'ข้อความ') }}</span>
@@ -1464,7 +1488,7 @@ onBeforeUnmount(() => {
                 >
                   <div v-if="usesPresentationDesigner" class="wallet-structure-heading desktop:col-span-2 wide:col-span-1">
                     <span>{{ presentationMode === 'EMBED' ? 'Embed 1' : 'Components V2' }}</span>
-                    <small>{{ isRobloxPayoutFeature ? text('Actions are fixed by Roblox Payout', 'Action กำหนดโดย Roblox Payout') : text('Structure fixed by Wallet Top-up', 'โครงสร้างกำหนดโดย Wallet Top-up') }}</small>
+                    <small>{{ isRobloxPayoutFeature ? text('Actions are fixed by Roblox Payout', 'Action กำหนดโดย Roblox Payout') : isPriceReaderFeature ? text('Result flow is fixed by Price Reader', 'ลำดับผลลัพธ์กำหนดโดย Price Reader') : text('Structure fixed by Wallet Top-up', 'โครงสร้างกำหนดโดย Wallet Top-up') }}</small>
                   </div>
                   <label
                     v-if="presentationMode === 'EMBED'"
