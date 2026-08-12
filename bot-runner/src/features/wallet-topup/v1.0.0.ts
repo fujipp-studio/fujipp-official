@@ -5,7 +5,7 @@ import {
 } from "discord.js";
 import type { FeatureContext, FeatureModule, WalletAdjustmentOperation, WalletAdjustmentResult, WalletTopupResult } from "../../types.js";
 import { RuntimeApiError } from "../../api-client.js";
-import { runRoleRemoval } from "./role-actions.js";
+import { finalizeSuccessfulTopupRoles, runRoleRemoval } from "./role-actions.js";
 import { topSpenderRolePolicy } from "./role-policy.js";
 
 const ACTIONS = {
@@ -89,8 +89,12 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
     if (interaction.customId === "wallet:voucher") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const result=await context.wallet.voucher({memberDiscordId:interaction.user.id,giftUrl:interaction.fields.getTextInputValue("gift_url").trim(),idempotencyKey:`discord:${interaction.id}`});
-      await grantPermanentTopupRole(context,interaction.guild,interaction.user.id);
-      await syncTopSpenderRoles(context,interaction.guild).catch(console.error);
+      const roleRemoved=await finalizeSuccessfulTopupRoles(
+        ()=>grantPermanentTopupRole(context,interaction.guild,interaction.user.id),
+        ()=>syncTopSpenderRoles(context,interaction.guild).then(()=>undefined).catch(console.error),
+        ()=>removeTemporarySlipRole(context,interaction.guild,interaction.user.id),
+      );
+      if(roleRemoved&&pending.delete(interaction.user.id))await savePending(context,pending);
       await notify(context, successVars(interaction.user.id,result,"ระบบ","เติมเงินสำเร็จ","-")).catch(console.error);
       return interaction.editReply(render(context,"succeeded",successVars(interaction.user.id,result),false));
     }
@@ -134,10 +138,12 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   try{result=await context.wallet.verifySlip({...(session?{sessionId:session.sessionId}:{}),memberDiscordId:message.author.id,slipImageUrl:slip.url,idempotencyKey:`discord:${message.id}`});}
   catch(error){const failure=humanWalletError(error);await processing.edit(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false));return;}
   clearCountdown(countdowns,message.author.id);
-  const roleRemoved=await removeTemporarySlipRole(context,message.guild,message.author.id);
+  const roleRemoved=await finalizeSuccessfulTopupRoles(
+    ()=>grantPermanentTopupRole(context,message.guild,message.author.id),
+    ()=>syncTopSpenderRoles(context,message.guild).then(()=>undefined).catch(console.error),
+    ()=>removeTemporarySlipRole(context,message.guild,message.author.id),
+  );
   if(roleRemoved){pending.delete(message.author.id);await savePending(context,pending);}
-  await grantPermanentTopupRole(context,message.guild,message.author.id);
-  await syncTopSpenderRoles(context,message.guild).catch(console.error);
   await processing.edit(render(context,"succeeded",successVars(message.author.id,result),false));
   statusMessages.delete(message.author.id);
   await notify(context,successVars(message.author.id,result,"ระบบ","เติมเงินสำเร็จ","-"));
@@ -193,11 +199,13 @@ async function verifySlip(context: FeatureContext, pending: Map<string, PendingS
   await interaction.editReply(render(context,"processing",{payment_method:"QR (SlipOK)"},false));
   const result=await context.wallet.verifySlip({sessionId,memberDiscordId:interaction.user.id,slipImageUrl:slip.url,idempotencyKey:`discord:${interaction.id}`});
   clearCountdown(countdowns,interaction.user.id);
-  const roleRemoved=await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);
+  const roleRemoved=await finalizeSuccessfulTopupRoles(
+    ()=>grantPermanentTopupRole(context,interaction.guild,interaction.user.id),
+    ()=>syncTopSpenderRoles(context,interaction.guild).then(()=>undefined).catch(console.error),
+    ()=>removeTemporarySlipRole(context,interaction.guild,interaction.user.id),
+  );
   const session=pending.get(interaction.user.id);
   if(roleRemoved&&session?.sessionId===sessionId){pending.delete(interaction.user.id);await savePending(context,pending);}
-  await grantPermanentTopupRole(context,interaction.guild,interaction.user.id);
-  await syncTopSpenderRoles(context,interaction.guild).catch(console.error);
   await interaction.editReply(render(context,"succeeded",successVars(interaction.user.id,result),false));
   await notify(context,successVars(interaction.user.id,result,"ระบบ","เติมเงินสำเร็จ","-"));
 }

@@ -13,3 +13,13 @@ export async function runRoleRemoval(
   }
   throw lastError;
 }
+
+export async function finalizeSuccessfulTopupRoles(
+  grantPermanentRole: () => Promise<void>,
+  syncTopSpenderRoles: () => Promise<void>,
+  removeTemporarySlipRole: () => Promise<boolean>,
+): Promise<boolean> {
+  await grantPermanentRole();
+  await syncTopSpenderRoles();
+  return removeTemporarySlipRole();
+}
