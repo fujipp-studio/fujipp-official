@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-08-12 | Prevented Wallet Top Spender synchronization from granting or managing the temporary slip-submitter role. |
+| 2026-08-12 | Isolated the temporary Wallet slip role from Top Spender synchronization and made expired-session role removal retry reliably. |
 | 2026-08-12 | Added customer License upgrades and administrator access to installed Feature configuration on customer Bots. |
 | 2026-08-12 | Added Price Reader 2.0 with standard purchase-price selection, Nitro-price exclusion, and simplified shop results. |
 | 2026-08-11 | Reduced repeated runtime bootstrap database reads and skipped unchanged Runner payloads. |

@@ -5,6 +5,7 @@ import {
 } from "discord.js";
 import type { FeatureContext, FeatureModule, WalletAdjustmentOperation, WalletAdjustmentResult, WalletTopupResult } from "../../types.js";
 import { RuntimeApiError } from "../../api-client.js";
+import { runRoleRemoval } from "./role-actions.js";
 import { topSpenderRolePolicy } from "./role-policy.js";
 
 const ACTIONS = {
@@ -120,8 +121,8 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   if (!slip) { await message.reply("กรุณาส่งรูปสลิปเป็นไฟล์แนบ"); return; }
   const session=pending.get(message.author.id);
   if (session && Date.parse(session.expiresAt)<=Date.now()) {
-    clearCountdown(countdowns,message.author.id); await removeTemporarySlipRole(context,message.guild,message.author.id);
-    pending.delete(message.author.id); await savePending(context,pending);
+    clearCountdown(countdowns,message.author.id); const roleRemoved=await removeTemporarySlipRole(context,message.guild,message.author.id);
+    if(roleRemoved){pending.delete(message.author.id);await savePending(context,pending);}
     await message.reply(render(context,"expired",{session_id:session.sessionId},false)); return;
   }
   let processing:Message|undefined;
@@ -133,8 +134,8 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   try{result=await context.wallet.verifySlip({...(session?{sessionId:session.sessionId}:{}),memberDiscordId:message.author.id,slipImageUrl:slip.url,idempotencyKey:`discord:${message.id}`});}
   catch(error){const failure=humanWalletError(error);await processing.edit(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false));return;}
   clearCountdown(countdowns,message.author.id);
-  await removeTemporarySlipRole(context,message.guild,message.author.id);
-  pending.delete(message.author.id); await savePending(context,pending);
+  const roleRemoved=await removeTemporarySlipRole(context,message.guild,message.author.id);
+  if(roleRemoved){pending.delete(message.author.id);await savePending(context,pending);}
   await grantPermanentTopupRole(context,message.guild,message.author.id);
   await syncTopSpenderRoles(context,message.guild).catch(console.error);
   await processing.edit(render(context,"succeeded",successVars(message.author.id,result),false));
@@ -192,9 +193,9 @@ async function verifySlip(context: FeatureContext, pending: Map<string, PendingS
   await interaction.editReply(render(context,"processing",{payment_method:"QR (SlipOK)"},false));
   const result=await context.wallet.verifySlip({sessionId,memberDiscordId:interaction.user.id,slipImageUrl:slip.url,idempotencyKey:`discord:${interaction.id}`});
   clearCountdown(countdowns,interaction.user.id);
-  await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);
+  const roleRemoved=await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);
   const session=pending.get(interaction.user.id);
-  if(session?.sessionId===sessionId){pending.delete(interaction.user.id);await savePending(context,pending);}
+  if(roleRemoved&&session?.sessionId===sessionId){pending.delete(interaction.user.id);await savePending(context,pending);}
   await grantPermanentTopupRole(context,interaction.guild,interaction.user.id);
   await syncTopSpenderRoles(context,interaction.guild).catch(console.error);
   await interaction.editReply(render(context,"succeeded",successVars(interaction.user.id,result),false));
@@ -306,15 +307,15 @@ function startCountdown(context:FeatureContext,pending:Map<string,PendingSession
   clearCountdown(countdowns,interaction.user.id);
   const timer=setInterval(()=>void(async()=>{
     const remaining=Date.parse(expiresAt)-Date.now();
-    if(remaining<=0){clearCountdown(countdowns,interaction.user.id);const session=pending.get(interaction.user.id);await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);pending.delete(interaction.user.id);await savePending(context,pending);await interaction.editReply(render(context,"expired",{session_id:session?.sessionId??sessionId},true)).catch(()=>undefined);return;}
+    if(remaining<=0){clearCountdown(countdowns,interaction.user.id);const session=pending.get(interaction.user.id);const roleRemoved=await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);if(roleRemoved){pending.delete(interaction.user.id);await savePending(context,pending);}await interaction.editReply(render(context,"expired",{session_id:session?.sessionId??sessionId},true)).catch(()=>undefined);return;}
     await interaction.editReply(render(context,"promptpay_qr",{...base,remaining_time:formatRemaining(expiresAt)},true)).catch(()=>undefined);
   })().catch((error)=>{console.error(`Wallet countdown failed for ${context.botId}:`,error);clearCountdown(countdowns,interaction.user.id);}),1_000);
   countdowns.set(interaction.user.id,timer);
 }
 
 async function grantTemporarySlipRole(context:FeatureContext,guild:ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,"");if(!guild||!roleId)return false;const member=await guild.members.fetch(userId);if(member.roles.cache.has(roleId))return false;await member.roles.add(roleId,"Temporary wallet slip access");return true;}
-async function removeTemporarySlipRole(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,"");if(!guild||!roleId)return;const member=await guild.members.fetch(userId).catch(()=>null);if(member?.roles.cache.has(roleId))await member.roles.remove(roleId,"Wallet slip window ended").catch(()=>undefined);}
-async function cleanupExpiredSessions(context:FeatureContext,pending:Map<string,PendingSession>,countdowns:Map<string,ReturnType<typeof setInterval>>){const expired=[...pending.entries()].filter(([,session])=>Date.parse(session.expiresAt)<=Date.now());if(!expired.length)return;const guild=context.guildId?await context.client.guilds.fetch(context.guildId).catch(()=>null):null;for(const [userId] of expired){clearCountdown(countdowns,userId);await removeTemporarySlipRole(context,guild,userId);pending.delete(userId);}await savePending(context,pending);}
+async function removeTemporarySlipRole(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,"");if(!roleId)return true;if(!guild)return false;try{await runRoleRemoval(async()=>{const member=await guild.members.fetch(userId);await member.roles.remove(roleId,"Wallet slip window ended");});return true;}catch(error){console.error(`Unable to remove temporary wallet slip role for ${userId}:`,error);await context.reportFeatureError("SLIP_ROLE_REMOVAL_FAILED",error).catch(()=>undefined);return false;}}
+async function cleanupExpiredSessions(context:FeatureContext,pending:Map<string,PendingSession>,countdowns:Map<string,ReturnType<typeof setInterval>>){const expired=[...pending.entries()].filter(([,session])=>Date.parse(session.expiresAt)<=Date.now());if(!expired.length)return;const guild=context.guildId?await context.client.guilds.fetch(context.guildId).catch(()=>null):null;let changed=false;for(const [userId] of expired){clearCountdown(countdowns,userId);if(await removeTemporarySlipRole(context,guild,userId)){pending.delete(userId);changed=true;}}if(changed)await savePending(context,pending);}
 async function grantPermanentTopupRole(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.TOPUP_MEMBER_ROLE_ID,"");if(!guild||!roleId)return;const member=await guild.members.fetch(userId).catch(()=>null);if(member&&!member.roles.cache.has(roleId))await member.roles.add(roleId,"Successful wallet top-up").catch(()=>undefined);}
 
 async function walletHistory(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์ดูประวัติกระเป๋าเงิน",flags:MessageFlags.Ephemeral});const member=interaction.options.getUser("member",true);const limit=interaction.options.getInteger("limit")??numberConfig(context.config.WALLET_HISTORY_DEFAULT_LIMIT,10);await interaction.deferReply({flags:MessageFlags.Ephemeral});const history=await context.wallet.history(member.id,limit);const lines=history.entries.map((e,i)=>`${i+1}. ${e.amountSatang>=0?"+":""}${money(e.amountSatang)} THB · ${e.kind}${e.method?`/${e.method}`:""} · ${new Date(e.createdAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}`).join("\n")||"ไม่พบประวัติ";const total=history.entries.reduce((sum,e)=>sum+e.amountSatang,0);return interaction.editReply(render(context,"history",{member_mention:`<@${member.id}>`,entry_count:String(history.entries.length),history_lines:lines,total:money(total),currency:history.currency},true));}
