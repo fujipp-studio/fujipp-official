@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runRoleRemoval } from "../src/features/wallet-topup/role-actions.js";
+import {
+  finalizeSuccessfulTopupRoles,
+  runRoleRemoval,
+} from "../src/features/wallet-topup/role-actions.js";
 
 test("temporary role removal retries once after a Discord failure", async () => {
   let calls = 0;
@@ -22,4 +25,16 @@ test("temporary role removal surfaces the final Discord failure", async () => {
     /missing permissions/,
   );
   assert.equal(calls, 2);
+});
+
+test("successful top-up removes the temporary slip role last", async () => {
+  const operations: string[] = [];
+  const removed = await finalizeSuccessfulTopupRoles(
+    async () => { operations.push("permanent"); },
+    async () => { operations.push("ranking"); },
+    async () => { operations.push("slip-removed"); return true; },
+  );
+
+  assert.equal(removed, true);
+  assert.deepEqual(operations, ["permanent", "ranking", "slip-removed"]);
 });
