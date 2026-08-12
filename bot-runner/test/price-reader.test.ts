@@ -2,9 +2,40 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   extractPrices,
+  extractStandardPrices,
   lookupShopPrice,
   readPriceMap,
 } from "../src/features/price-reader/price-extractor.js";
+
+test("version 2 uses the repeated standard and purchase-button price instead of Nitro", () => {
+  const result = extractStandardPrices(`
+    บันเดิลราศีสิงห์
+    ฿539 (-28%)
+    ใช้ Nitro ในราคา ฿475
+    ซื้อในราคา ฿539.00
+  `);
+
+  assert.equal(result.currentPriceSatang, 53_900);
+  assert.equal(result.nitroPriceSatang, 47_500);
+});
+
+test("version 2 uses the standard THB price instead of the lower Nitro price", () => {
+  const result = extractStandardPrices(`
+    ดาวโปรยปราย
+    THB 250.00
+    ใช้ Nitro ในราคา THB 209.00 สมัครสมาชิกเลย
+  `);
+
+  assert.equal(result.currentPriceSatang, 25_000);
+  assert.equal(result.nitroPriceSatang, 20_900);
+});
+
+test("version 2 does not fall back to a Nitro-only amount", () => {
+  const result = extractStandardPrices("ใช้ Nitro ในราคา THB 209.00");
+
+  assert.equal(result.currentPriceSatang, null);
+  assert.equal(result.nitroPriceSatang, 20_900);
+});
 
 test("extracts an item name and Discord Shop prices from OCR text", () => {
   const result = extractPrices(`

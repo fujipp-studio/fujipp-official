@@ -45,6 +45,14 @@ test("resolves Price Reader version 1.0.0 with message content intent", () => {
   assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent"]);
 });
 
+test("resolves Price Reader version 2.0.0 without replacing version 1", () => {
+  const feature = getFeature("price-reader", "2.0.0");
+
+  assert.equal(feature?.runtimeKey, "price-reader");
+  assert.equal(feature?.version, "2.0.0");
+  assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent"]);
+});
+
 test("resolves Admin Message Tools version 1.0.0", () => {
   const feature = getFeature("admin-message-tools", "1.0.0");
 
