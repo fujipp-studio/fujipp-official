@@ -12,10 +12,15 @@ import java.util.UUID;
 public class AdminBotService {
     private final AdminBotRepository repository;
     private final RuntimeSlotService runtimeSlots;
+    private final StoreRepository storeRepository;
+    private final StoreService storeService;
 
-    public AdminBotService(AdminBotRepository repository, RuntimeSlotService runtimeSlots) {
+    public AdminBotService(AdminBotRepository repository, RuntimeSlotService runtimeSlots,
+                           StoreRepository storeRepository,StoreService storeService) {
         this.repository = repository;
         this.runtimeSlots = runtimeSlots;
+        this.storeRepository=storeRepository;
+        this.storeService=storeService;
     }
 
     public List<AdminStoreResponses.Bot> list(String query) { return repository.findBots(query); }
@@ -45,6 +50,31 @@ public class AdminBotService {
 
     public BotResponse settings(UUID botId) {
         return repository.findSettings(botId).orElseThrow(() -> new StoreNotFoundException("Bot was not found"));
+    }
+
+    public List<LicenseResponse> licenses(UUID botId) {
+        UUID ownerId=repository.ownerId(botId);
+        if(ownerId==null)throw new StoreNotFoundException("Bot was not found");
+        return storeRepository.findLicenses(ownerId).stream()
+                .filter(license->license.installations().stream().anyMatch(i->i.botId().equals(botId))).toList();
+    }
+
+    public FeatureConfigurationResponse configuration(UUID botId,UUID licenseId) {
+        UUID ownerId=requireLicenseOwner(botId,licenseId);
+        return storeService.getConfigurationAsAdmin(licenseId,ownerId);
+    }
+
+    public FeatureConfigurationResponse updateConfiguration(UUID botId,UUID licenseId,
+                                                              UpdateFeatureConfigurationRequest request) {
+        UUID ownerId=requireLicenseOwner(botId,licenseId);
+        return storeService.updateConfigurationAsAdmin(licenseId,ownerId,request);
+    }
+
+    private UUID requireLicenseOwner(UUID botId,UUID licenseId) {
+        UUID ownerId=repository.ownerId(botId);
+        if(ownerId==null||!repository.licenseInstalledOnBot(licenseId,botId))
+            throw new StoreNotFoundException("Installed feature license was not found");
+        return ownerId;
     }
 
     @Transactional
