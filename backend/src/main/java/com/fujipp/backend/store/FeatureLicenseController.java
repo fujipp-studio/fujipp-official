@@ -45,6 +45,11 @@ public class FeatureLicenseController {
         ));
     }
 
+    @PostMapping("/{licenseId}/upgrade")
+    public LicenseResponse upgrade(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID licenseId) {
+        return storeService.upgradeLicense(jwt.getSubject(),licenseId);
+    }
+
     @DeleteMapping("/installations/{installationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void remove(

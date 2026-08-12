@@ -23,6 +23,20 @@ public class AdminBotController {
     @GetMapping("/{botId}/settings")
     public BotResponse settings(@PathVariable UUID botId) { return service.settings(botId); }
 
+    @GetMapping("/{botId}/licenses")
+    public List<LicenseResponse> licenses(@PathVariable UUID botId){return service.licenses(botId);}
+
+    @GetMapping("/{botId}/licenses/{licenseId}/configuration")
+    public FeatureConfigurationResponse configuration(@PathVariable UUID botId,@PathVariable UUID licenseId){
+        return service.configuration(botId,licenseId);
+    }
+
+    @PutMapping("/{botId}/licenses/{licenseId}/configuration")
+    public FeatureConfigurationResponse updateConfiguration(@PathVariable UUID botId,@PathVariable UUID licenseId,
+            @Valid @RequestBody UpdateFeatureConfigurationRequest request){
+        return service.updateConfiguration(botId,licenseId,request);
+    }
+
     @PutMapping("/{botId}/settings")
     public BotResponse updateSettings(@PathVariable UUID botId, @Valid @RequestBody UpdateBotRequest request) {
         return service.updateSettings(botId, request);

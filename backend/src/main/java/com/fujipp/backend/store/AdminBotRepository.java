@@ -34,6 +34,18 @@ public class AdminBotRepository {
                 """, (rs,n)->map(rs), botId).stream().findFirst();
     }
 
+    public UUID ownerId(UUID botId) {
+        return jdbc.query("SELECT owner_user_id FROM bots.bot_instances WHERE id=?",
+                rs->rs.next()?rs.getObject(1,UUID.class):null,botId);
+    }
+
+    public boolean licenseInstalledOnBot(UUID licenseId,UUID botId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM private.bot_feature_installations
+                 WHERE license_id=? AND bot_id=? AND removed_at IS NULL)
+                """,Boolean.class,licenseId,botId));
+    }
+
     public boolean userExists(UUID userId) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM private.user_accounts WHERE user_id=?)", Boolean.class, userId));
     }

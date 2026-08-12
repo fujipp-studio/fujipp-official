@@ -60,6 +60,9 @@ export interface FeatureLicense {
   featureCode: string
   featureName: string
   version: string
+  latestVersionId: string | null
+  latestVersion: string | null
+  upgradeAvailable: boolean
   status: string
   installationLimit: number
   acquiredAt: string
@@ -519,6 +522,13 @@ export async function installFeatureLicense(
     },
   )
   return readJson(response, 'Unable to install this feature.')
+}
+
+export async function upgradeFeatureLicense(licenseId:string,session:Session):Promise<FeatureLicense>{
+  const response=await fetch(`${backendUrl}/api/v1/feature-licenses/${encodeURIComponent(licenseId)}/upgrade`,{
+    method:'POST',headers:authenticatedHeaders(session,true),
+  })
+  return readJson<FeatureLicense>(response,'Unable to upgrade this feature.')
 }
 
 export async function fetchFeatureConfiguration(licenseId: string, session: Session) {
@@ -1136,6 +1146,12 @@ export const fetchAdminBotSettings = (botId: string, session: Session) =>
   adminRequest<UserBot>(`/api/v1/admin/bots/${botId}/settings`, session, { method: 'GET' }, 'Unable to load bot settings.')
 export const updateAdminBotSettings = (botId: string, input: { name: string; discordApplicationId: string | null; discordGuildId: string | null }, session: Session) =>
   adminRequest<UserBot>(`/api/v1/admin/bots/${botId}/settings`, session, { method: 'PUT', body: JSON.stringify(input) }, 'Unable to update bot settings.')
+export const fetchAdminBotLicenses=(botId:string,session:Session)=>adminRequest<FeatureLicense[]>(
+  `/api/v1/admin/bots/${botId}/licenses`,session,{method:'GET'},'Unable to load bot features.')
+export const fetchAdminFeatureConfiguration=(botId:string,licenseId:string,session:Session)=>adminRequest<FeatureConfiguration>(
+  `/api/v1/admin/bots/${botId}/licenses/${licenseId}/configuration`,session,{method:'GET'},'Unable to load feature settings.')
+export const updateAdminFeatureConfiguration=(botId:string,licenseId:string,input:{values:Record<string,FeatureConfigValue>;secrets:Record<string,string>;presentations:Record<string,Record<string,unknown>>},session:Session)=>adminRequest<FeatureConfiguration>(
+  `/api/v1/admin/bots/${botId}/licenses/${licenseId}/configuration`,session,{method:'PUT',body:JSON.stringify(input)},'Unable to save feature settings.')
 
 export const fetchAdminRuntimePlans = (session: Session) =>
   adminRequest<AdminRuntimePlan[]>(

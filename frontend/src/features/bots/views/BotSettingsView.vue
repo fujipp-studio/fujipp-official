@@ -8,6 +8,7 @@ import { icons } from '../../../config'
 import {
   fetchBots,
   fetchAdminBotSettings,
+  fetchAdminBotLicenses,
   fetchFeatureLicenses,
   fetchRuntimeSubscriptions,
   renewRuntime,
@@ -15,6 +16,7 @@ import {
   updateAdminBotSettings,
   updateBotDiscordToken,
   updateRuntimeAutoRenew,
+  upgradeFeatureLicense,
   type FeatureLicense,
   type RuntimeSubscription,
   type UserBot,
@@ -47,6 +49,7 @@ const activeView = ref<SettingsView>(routeView())
 const transitionName = ref('settings-forward')
 const saving = ref(false)
 const runtimeBusy = ref(false)
+const upgradingLicenseId=ref('')
 const toastOpen = ref(false)
 const toastMessage = ref('')
 const toastVariant = ref<'info' | 'success' | 'error'>('info')
@@ -90,7 +93,7 @@ async function loadPage() {
   try {
     if (adminMode.value) {
       bot.value = await fetchAdminBotSettings(botId.value, session.value)
-      licenses.value = []
+      licenses.value = await fetchAdminBotLicenses(botId.value,session.value)
       runtimeSubscriptions.value = []
       syncForm()
       return
@@ -180,9 +183,20 @@ function openView(view: SettingsView) {
 
 function openFeature(licenseId: string) {
   void router.push({
-    name: 'bot-feature-settings',
+    name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
     params: { botId: botId.value, licenseId },
   })
+}
+
+async function upgradeLicense(license:FeatureLicense){
+  if(!session.value||adminMode.value||!license.upgradeAvailable)return
+  upgradingLicenseId.value=license.id
+  try{
+    const updated=await upgradeFeatureLicense(license.id,session.value)
+    licenses.value=licenses.value.map(item=>item.id===updated.id?updated:item)
+    showToast(text(`Upgraded to version ${updated.version}.`,`อัปเกรดเป็นเวอร์ชัน ${updated.version} แล้ว`),'success')
+  }catch(cause){showToast(cause instanceof Error?cause.message:text('Upgrade failed.','อัปเกรดไม่สำเร็จ'),'error')}
+  finally{upgradingLicenseId.value=''}
 }
 
 watch(
@@ -428,6 +442,9 @@ onMounted(async () => {
                 @click="openFeature(license.id)"
               >
                 {{ text('Settings', 'ตั้งค่า') }}
+              </AppButton>
+              <AppButton v-if="!adminMode && license.upgradeAvailable" class="settings-hug" :disabled="Boolean(upgradingLicenseId)" @click="upgradeLicense(license)">
+                {{ upgradingLicenseId===license.id?text('Upgrading…','กำลังอัปเกรด…'):text(`Upgrade to v${license.latestVersion}`,`อัปเกรดเป็น v${license.latestVersion}`) }}
               </AppButton>
             </article>
           </div>
