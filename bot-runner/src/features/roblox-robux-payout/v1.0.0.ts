@@ -60,14 +60,10 @@ async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:Pane
 
 async function buildPanelPayload(context:FeatureContext,groups:RobloxGroup[]){
   const stock=await Promise.all(groups.map(async(group)=>{const result=await groupFunds(group);return {group,value:result.ok?result.robux:null};}));
-  const raw=(context.presentations.panel??{}) as Record<string,unknown>;const mode=String(raw.mode??"EMBED").toUpperCase();
   const rows=panelActionRows(context,stock);
-  if(mode==="COMPONENTS_V2"){
-    const title=String((raw.components_v2 as Record<string,unknown>|undefined)?.title??raw.title??"Roblox Auto 24 hrs.");
-    const body=stock.map(({group,value})=>`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
-    return {flags:MessageFlags.IsComponentsV2,components:[{type:17,components:[{type:10,content:`# ${title}`},{type:14,spacing:1},{type:10,content:body},{type:14},...rows.map((row)=>row.toJSON())]}]};
-  }
-  const payload=render(context,"panel",{},rows);
+  const stockLines=stock.map(({group,value})=>`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
+  const payload=render(context,"panel",{stock_lines:stockLines},rows);
+  if(!Array.isArray(payload.embeds))return payload;
   payload.embeds[0]?.setFields(stock.slice(0,24).map(({group,value})=>({name:group.name.slice(0,256),value:`\`\`\`${value?.toLocaleString()??"—"}\`\`\`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`,inline:true})));
   return payload;
 }
@@ -217,10 +213,16 @@ class PanelUpdater{
 function render(context:FeatureContext,slot:string,values:Record<string,string>,components:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>):any{
   const raw=(context.presentations[slot]??{}) as Record<string,unknown>;const fill=(value:unknown,fallback:string)=>String(value??fallback).replace(/\{\{?(\w+)\}?\}/g,(_,key:string)=>values[key]??"");
   const mode=String(raw.mode??"EMBED").toUpperCase();
+  const nested=mode==="EMBED"&&isRecord(raw.embed)?raw.embed:mode==="COMPONENTS_V2"&&isRecord(raw.components_v2)?raw.components_v2:{};
+  const definition={...raw,...nested};
   if(mode==="COMPONENTS_V2"){
-    const v2=(raw.components_v2??raw) as Record<string,unknown>;
-    const title=fill(v2.title??raw.title,slot).slice(0,256);
-    const description=fill(v2.description??raw.description,"").slice(0,4000);
+    if(Array.isArray(definition.components)){
+      const blocks=normalizeComponentColors(deepRender(definition.components,values));
+      blocks.push(...components.map((row)=>row.toJSON()));
+      return {flags:MessageFlags.IsComponentsV2,components:blocks};
+    }
+    const title=fill(definition.title,slot).slice(0,256);
+    const description=fill(definition.description,"").slice(0,4000);
     const blocks:Array<Record<string,unknown>>=[];
     if(title)blocks.push({type:10,content:`# ${title}`});
     if(title&&description)blocks.push({type:14,spacing:1});
@@ -229,17 +231,25 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
     return {flags:MessageFlags.IsComponentsV2,components:[{type:17,components:blocks}]};
   }
   const embed=new EmbedBuilder();
-  if(typeof raw.color==="number")embed.setColor(raw.color);
-  const title=fill(raw.title,slot).slice(0,256);const description=fill(raw.description,"").slice(0,4096);
+  const color=embedColor(definition.color);if(color!==undefined)embed.setColor(color);
+  const title=fill(definition.title,slot).slice(0,256);const description=fill(definition.description,"").slice(0,4096);
   if(title)embed.setTitle(title);if(description)embed.setDescription(description);if(!title&&!description)embed.setDescription(slot);
-  const url=fill(raw.url,"");if(title&&/^https:\/\//i.test(url))embed.setURL(url);
-  const image=fill((raw.image as Record<string,unknown>|undefined)?.url??raw.image_url,"");if(/^https?:\/\//i.test(image))embed.setImage(image);
-  const thumbnail=fill((raw.thumbnail as Record<string,unknown>|undefined)?.url??raw.thumbnail_url,"");if(/^https?:\/\//i.test(thumbnail))embed.setThumbnail(thumbnail);
-  const footer=raw.footer as Record<string,unknown>|string|undefined;if(footer){const text=fill(typeof footer==="string"?footer:footer.text,"").slice(0,2048);const icon=fill(typeof footer==="object"?footer.icon_url:undefined,"");if(text)embed.setFooter({text,...(/^https?:\/\//i.test(icon)?{iconURL:icon}:{})});}
-  const author=raw.author as Record<string,unknown>|undefined;if(author){const name=fill(author.name,"").slice(0,256),icon=fill(author.icon_url,""),authorUrl=fill(author.url,"");if(name)embed.setAuthor({name,...(/^https?:\/\//i.test(icon)?{iconURL:icon}:{}),...(/^https?:\/\//i.test(authorUrl)?{url:authorUrl}:{})});}
-  if(Array.isArray(raw.fields)){const fields=raw.fields.filter((value):value is Record<string,unknown>=>Boolean(value&&typeof value==="object")).slice(0,25).map((field)=>({name:fill(field.name,"").slice(0,256),value:fill(field.value,"").slice(0,1024),inline:Boolean(field.inline)})).filter((field)=>field.name&&field.value);if(fields.length)embed.addFields(fields);}
-  return {embeds:[embed],components};
+  const url=fill(definition.url,"");if(title&&/^https:\/\//i.test(url))embed.setURL(url);
+  const image=fill(presentationMediaUrl(definition,"image"),"");if(/^https?:\/\//i.test(image))embed.setImage(image);
+  const thumbnail=fill(presentationMediaUrl(definition,"thumbnail"),"");if(/^https?:\/\//i.test(thumbnail))embed.setThumbnail(thumbnail);
+  const footer=definition.footer as Record<string,unknown>|string|undefined;if(footer){const text=fill(typeof footer==="string"?footer:footer.text,"").slice(0,2048);const icon=fill(typeof footer==="object"?footer.icon_url:undefined,"");if(text)embed.setFooter({text,...(/^https?:\/\//i.test(icon)?{iconURL:icon}:{})});}
+  const author=definition.author as Record<string,unknown>|undefined;if(author){const name=fill(author.name,"").slice(0,256),icon=fill(author.icon_url,""),authorUrl=fill(author.url,"");if(name)embed.setAuthor({name,...(/^https?:\/\//i.test(icon)?{iconURL:icon}:{}),...(/^https?:\/\//i.test(authorUrl)?{url:authorUrl}:{})});}
+  if(Array.isArray(definition.fields)){const fields=definition.fields.filter((value):value is Record<string,unknown>=>Boolean(value&&typeof value==="object")).slice(0,25).map((field)=>({name:fill(field.name,"").slice(0,256),value:fill(field.value,"").slice(0,1024),inline:Boolean(field.inline)})).filter((field)=>field.name&&field.value);if(fields.length)embed.addFields(fields);}
+  return {content:fill(definition.content,"")||undefined,embeds:[embed],components};
 }
+
+function deepRender(value:unknown,values:Record<string,string>):any{if(typeof value==="string")return value.replace(/\{\{?(\w+)\}?\}/g,(_,key:string)=>values[key]??"");if(Array.isArray(value))return value.map((item)=>deepRender(item,values));if(isRecord(value))return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,deepRender(item,values)]));return value;}
+function presentationMediaUrl(definition:Record<string,unknown>,key:"image"|"thumbnail"){
+  const direct=String(definition[`${key}_url`]??"").trim();if(direct)return direct;
+  const nested=definition[key];return isRecord(nested)?String(nested.url??"").trim():"";
+}
+function normalizeComponentColors(value:unknown):unknown[]{if(!Array.isArray(value))return[];return value.map((item)=>{if(!isRecord(item))return item;const next={...item};if(next.type===17&&typeof next.accent_color==="string"&&/^#[0-9a-f]{6}$/i.test(next.accent_color))next.accent_color=Number.parseInt(next.accent_color.slice(1),16);if(Array.isArray(next.components))next.components=normalizeComponentColors(next.components);return next;});}
+function embedColor(value:unknown){if(typeof value==="number"&&Number.isInteger(value)&&value>=0&&value<=0xffffff)return value;if(typeof value!=="string")return undefined;const normalized=value.trim().replace(/^#/,"");return /^[0-9a-f]{6}$/i.test(normalized)?Number.parseInt(normalized,16):undefined;}
 
 function componentConfig(context:FeatureContext,slot:string,role:string){const presentation=(context.presentations[slot]??{}) as Record<string,unknown>;const roles=presentation.components as Record<string,Record<string,unknown>>|undefined;return roles?.[role]??{};}
 function styledButton(context:FeatureContext,slot:string,role:string,id:string,fallbackLabel:string,fallbackStyle:ButtonStyle){const cfg=componentConfig(context,slot,role);const styles:Record<string,ButtonStyle>={primary:ButtonStyle.Primary,secondary:ButtonStyle.Secondary,success:ButtonStyle.Success,danger:ButtonStyle.Danger};const button=new ButtonBuilder().setCustomId(id).setLabel(String(cfg.label??fallbackLabel).slice(0,80)).setStyle(styles[String(cfg.style??"").toLowerCase()]??fallbackStyle);const emoji=parseEmoji(String(cfg.emoji??""));if(emoji)try{button.setEmoji(emoji);}catch{/* invalid configured emoji */}return button;}

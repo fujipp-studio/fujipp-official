@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, watch } from 'vue'
 import { Plus, Trash2 } from 'lucide-vue-next'
 
 const props = withDefaults(
@@ -8,8 +8,18 @@ const props = withDefaults(
 )
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const items = computed(() => (props.modelValue === '' ? [] : props.modelValue.split('\n')))
+const items = ref(props.modelValue === '' ? [] : props.modelValue.split('\n'))
+
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (value === items.value.join('\n')) return
+    items.value = value === '' ? [] : value.split('\n')
+  },
+)
+
 function commit(next: string[]) {
+  items.value = next
   emit('update:modelValue', next.join('\n'))
 }
 function update(index: number, value: string) {

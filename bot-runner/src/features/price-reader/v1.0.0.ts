@@ -128,7 +128,10 @@ async function processImages(
       const prices = extract(data.text);
 
       if (!prices.currentPriceSatang) {
-        perImageResults.push({ status: "error", error_message: "ไม่สามารถอ่านราคาจากรูปนี้ได้ กรุณาลองส่งรูปที่ชัดกว่านี้" });
+        perImageResults.push({
+          status: "error",
+          error_message: "ไม่พบราคาที่รองรับในรูปนี้ กรุณาตรวจสอบว่ารูปมีราคาเป็นเงินบาทและลองส่งอีกครั้ง",
+        });
         continue;
       }
 
@@ -148,7 +151,10 @@ async function processImages(
       });
     } catch (error) {
       console.error(`Price Reader OCR failed for attachment ${attachment.id}:`, error);
-      perImageResults.push({ status: "error", error_message: errorMessage(error) });
+      perImageResults.push({
+        status: "error",
+        error_message: "เกิดข้อผิดพลาดขณะอ่านรูป กรุณาลองส่งรูปอีกครั้ง",
+      });
     }
   }
 
@@ -226,58 +232,72 @@ function render(
   const raw = isRecord(context.presentations[slot]) ? context.presentations[slot] : undefined;
 
   if (!raw) return defaultRender(slot, values);
+  const mode = String(raw.mode ?? "EMBED").toUpperCase();
+  const nested = mode === "EMBED" && isRecord(raw.embed)
+    ? raw.embed
+    : mode === "COMPONENTS_V2" && isRecord(raw.components_v2)
+      ? raw.components_v2
+      : {};
+  const definition = { ...raw, ...nested };
+  const linkButtons: ButtonBuilder[] = [];
+  if (Array.isArray(definition.links)) {
+    for (const item of definition.links) {
+      if (!isRecord(item)) continue;
+      const url = replace(String(item.url ?? ""), values);
+      if (!/^https?:\/\//i.test(url)) continue;
+      const button = new ButtonBuilder()
+        .setStyle(ButtonStyle.Link)
+        .setURL(url)
+        .setLabel(replace(String(item.label ?? "เปิดลิงก์"), values).slice(0, 80));
+      const emoji = replace(String(item.emoji ?? "🔗"), values);
+      if (emoji) button.setEmoji(emoji);
+      linkButtons.push(button);
+    }
+  }
+  const linkRow = linkButtons.length
+    ? new ActionRowBuilder<ButtonBuilder>().addComponents(linkButtons.slice(0, 5)).toJSON()
+    : undefined;
 
   // ── Components V2 mode ──────────────────────────────────────────────────
-  if (raw.mode === "COMPONENTS_V2" && Array.isArray(raw.components)) {
+  if (mode === "COMPONENTS_V2" && Array.isArray(definition.components)) {
+    const components = normalizeComponentColors(deepRender(definition.components, values));
+    if (linkRow) components.push(linkRow);
     return {
       flags: MessageFlags.IsComponentsV2,
-      components: deepRender(raw.components, values),
-    };
-  }
-
-  // ── Embed mode ──────────────────────────────────────────────────────────
-  if (raw.mode === "EMBED" && Array.isArray(raw.embeds)) {
-    return {
-      content: typeof raw.content === "string" ? replace(raw.content, values) : null,
-      embeds: deepRender(raw.embeds, values),
-      components: Array.isArray(raw.components) ? deepRender(raw.components, values) : [],
+      components,
     };
   }
 
   // ── Simple mode (title + description + optional links) ─────────────────
-  const title = replace(String(raw.title ?? ""), values);
-  const description = replace(String(raw.description ?? ""), values);
-  const buttons: ButtonBuilder[] = [];
+  const title = replace(String(definition.title ?? ""), values);
+  const description = replace(String(definition.description ?? ""), values);
 
-  if (Array.isArray(raw.links)) {
-    for (const item of raw.links) {
-      if (!isRecord(item)) continue;
-      const url = replace(String(item.url ?? ""), values);
-      if (!url) continue;
-      buttons.push(
-        new ButtonBuilder()
-          .setStyle(ButtonStyle.Link)
-          .setURL(url)
-          .setLabel(replace(String(item.label ?? "เปิดลิงก์"), values))
-          .setEmoji(replace(String(item.emoji ?? "🔗"), values)),
-      );
-    }
-  }
-
-  const row = buttons.length
-    ? new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)
-    : undefined;
-
-  if (raw.mode === "EMBED") {
+  if (mode === "EMBED") {
+    if (Array.isArray(definition.embeds)) return {
+      content: typeof definition.content === "string" ? replace(definition.content, values) : undefined,
+      embeds: deepRender(definition.embeds, values),
+      components: linkRow ? [linkRow] : [],
+    };
+    const footer = isRecord(definition.footer)
+      ? deepRender(definition.footer, values)
+      : definition.footer
+        ? { text: replace(String(definition.footer), values) }
+        : undefined;
     return {
+      content: typeof definition.content === "string" ? replace(definition.content, values) : undefined,
       embeds: [{
         title,
+        url: optionalUrl(definition.url, values),
         description,
-        image: urlObject(replace(String(raw.image_url ?? ""), values)),
-        thumbnail: urlObject(replace(String(raw.thumbnail_url ?? ""), values)),
-        color: typeof raw.color === "number" ? raw.color : 0x5865F2,
+        author: isRecord(definition.author) ? deepRender(definition.author, values) : undefined,
+        fields: Array.isArray(definition.fields) ? deepRender(definition.fields, values) : [],
+        footer,
+        timestamp: definition.timestamp === true ? new Date().toISOString() : definition.timestamp || undefined,
+        image: urlObject(readImageUrl(definition.image_url ?? definition.image, values)),
+        thumbnail: urlObject(readImageUrl(definition.thumbnail_url ?? definition.thumbnail, values)),
+        color: embedColor(definition.color) ?? 0x5865F2,
       }],
-      components: row ? [row] : [],
+      components: linkRow ? [linkRow] : [],
     };
   }
 
@@ -287,14 +307,44 @@ function render(
     { type: 14, divider: true, spacing: 2 },
     { type: 10, content: description },
   ];
-  const image = replace(String(raw.image_url ?? ""), values);
+  const image = readImageUrl(definition.image_url ?? definition.image, values);
   if (image) parts.push({ type: 12, items: [{ media: { url: image } }] });
-  if (row) parts.push(row.toJSON());
+  if (linkRow) parts.push(linkRow);
 
   return {
     flags: MessageFlags.IsComponentsV2,
     components: [{ type: 17, components: parts }],
   };
+}
+
+function normalizeComponentColors(value: unknown): unknown[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => {
+    if (!isRecord(item)) return item;
+    const next = { ...item };
+    if (next.type === 17 && typeof next.accent_color === "string" && /^#[0-9a-f]{6}$/i.test(next.accent_color)) {
+      next.accent_color = Number.parseInt(next.accent_color.slice(1), 16);
+    }
+    if (Array.isArray(next.components)) next.components = normalizeComponentColors(next.components);
+    return next;
+  });
+}
+
+function embedColor(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 0xffffff) return value;
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().replace(/^#/, "");
+  return /^[0-9a-f]{6}$/i.test(normalized) ? Number.parseInt(normalized, 16) : undefined;
+}
+
+function readImageUrl(value: unknown, values: Record<string, string>): string {
+  if (typeof value === "string") return replace(value, values);
+  return isRecord(value) ? replace(String(value.url ?? ""), values) : "";
+}
+
+function optionalUrl(value: unknown, values: Record<string, string>): string | undefined {
+  const url = replace(String(value ?? ""), values);
+  return /^https?:\/\//i.test(url) ? url : undefined;
 }
 
 /** Returns true if the presentations object has a custom template for the slot. */
@@ -327,7 +377,7 @@ function defaultRender(slot: string, values: Record<string, string>): Record<str
 function defaultErrorRender(messages: string[]): Record<string, unknown> {
   const description = messages.length > 0
     ? messages.map((message) => `❌ ${message}`).join("\n")
-    : "❌ ไม่สามารถอ่านราคาจากรูปนี้ได้ กรุณาลองส่งรูปที่ชัดกว่านี้";
+    : "❌ ไม่พบราคาที่รองรับในรูปนี้ กรุณาตรวจสอบว่ารูปมีราคาเป็นเงินบาทและลองส่งอีกครั้ง";
   return {
     content: null,
     embeds: [],

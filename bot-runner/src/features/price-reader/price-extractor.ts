@@ -201,7 +201,9 @@ function extractOriginalPrice(text: string, nitroPriceSatang: number | null): nu
     }
   }
 
-  if (prices.length === 0) return extractDiscountedLinePrice(text);
+  if (prices.length === 0) {
+    return extractOcrCurrencyPrice(text) ?? extractDiscountedLinePrice(text);
+  }
 
   // If we already found a Nitro price, the original price is the *other*
   // (typically higher) THB value.
@@ -228,7 +230,27 @@ function extractCurrentPrice(text: string): number | null {
     const price = parseTHB(match[1]);
     if (price !== null) prices.push(price);
   }
-  return prices.length > 0 ? Math.min(...prices) : null;
+  return prices.length > 0 ? Math.min(...prices) : extractOcrCurrencyPrice(text);
+}
+
+/**
+ * Recovers prices when Tesseract mistakes Discord's small baht glyph for
+ * `B`/`8`, or drops it after the Thai "ซื้อในราคา" label. Typical OCR output
+ * from a shop card is `8250` and `ซื้อในราคา 8250.00`; both mean ฿250.
+ *
+ * The bare `8` form is intentionally limited to a price label or a line that
+ * contains only the amount, so unrelated numbers in item names are ignored.
+ */
+function extractOcrCurrencyPrice(text: string): number | null {
+  const patterns = [
+    /(?:ซ[ื้]*อ\s*)?ในราคา\s*[B8]\s*(\d{2,5}(?:\.\d{1,2})?)/i,
+    /(?:^|\n)\s*[B8]\s*(\d{2,5}(?:\.\d{1,2})?)\s*(?=\n|$)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return parseTHB(match[1]);
+  }
+  return null;
 }
 
 /** Prefers the explicit normal checkout call-to-action when OCR captures it. */

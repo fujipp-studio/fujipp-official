@@ -8,6 +8,8 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
@@ -26,19 +28,22 @@ public class StoreService {
     private final StoreSecretCipher secretCipher;
     private final RuntimeSlotService runtimeSlots;
     private final DiscordBotProfileClient discordProfiles;
+    private final ObjectMapper objectMapper;
 
     public StoreService(
             StoreRepository repository,
             CurrentUserService currentUserService,
             StoreSecretCipher secretCipher,
             RuntimeSlotService runtimeSlots,
-            DiscordBotProfileClient discordProfiles
+            DiscordBotProfileClient discordProfiles,
+            ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.currentUserService = currentUserService;
         this.secretCipher = secretCipher;
         this.runtimeSlots = runtimeSlots;
         this.discordProfiles = discordProfiles;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional(readOnly = true)
@@ -285,10 +290,13 @@ public class StoreService {
                         "Normal field cannot be submitted through secrets: " + entry.getKey()
                 );
             }
+            String secretValue = "ROBLOX_CREDENTIALS".equals(entry.getKey())
+                    ? mergeRobloxCredentials(license, definition.id(), entry.getValue())
+                    : entry.getValue();
             repository.upsertSecret(
                     license,
                     definition.id(),
-                    secretCipher.encrypt(entry.getValue())
+                    secretCipher.encrypt(secretValue)
             );
         }
 
@@ -314,6 +322,39 @@ public class StoreService {
         }
         StoreRepository.LicenseContext refreshed = ownedLicense(licenseId, userId);
         return repository.findConfiguration(refreshed);
+    }
+
+    private String mergeRobloxCredentials(
+            StoreRepository.LicenseContext license,
+            UUID definitionId,
+            String incomingValue
+    ) {
+        StoreRepository.BotCredential stored = repository.findFeatureSecret(license, definitionId);
+        if (stored == null) return incomingValue;
+        try {
+            JsonNode incoming = objectMapper.readTree(incomingValue);
+            JsonNode existing = objectMapper.readTree(secretCipher.decrypt(
+                    stored.ciphertext(), stored.nonce(), stored.keyVersion()
+            ));
+            if (!(incoming instanceof ObjectNode incomingObject)
+                    || !(existing instanceof ObjectNode existingObject)) return incomingValue;
+            ObjectNode merged = existingObject.deepCopy();
+            incomingObject.properties().forEach(groupEntry -> {
+                JsonNode previousGroup = merged.get(groupEntry.getKey());
+                JsonNode incomingGroup = groupEntry.getValue();
+                if (previousGroup instanceof ObjectNode previousObject
+                        && incomingGroup instanceof ObjectNode incomingGroupObject) {
+                    ObjectNode mergedGroup = previousObject.deepCopy();
+                    incomingGroupObject.properties().forEach(
+                            property -> mergedGroup.set(property.getKey(), property.getValue())
+                    );
+                    merged.set(groupEntry.getKey(), mergedGroup);
+                } else merged.set(groupEntry.getKey(), incomingGroup);
+            });
+            return objectMapper.writeValueAsString(merged);
+        } catch (Exception ignored) {
+            return incomingValue;
+        }
     }
 
     private void validateConfigurationSize(UpdateFeatureConfigurationRequest request) {
