@@ -7,6 +7,7 @@ import {
   controlBot,
   controlAdminBot,
   fetchAdminBotSettings,
+  fetchAdminBotLicenses,
   fetchBots,
   fetchFeatureLicenses,
   type FeatureLicense,
@@ -43,14 +44,17 @@ const trail = computed(() => {
   if (route.name === 'bot-package-settings' || route.name === 'admin-bot-package-settings')
     return ['Package settings']
   const result = ['Package settings', licenseName.value]
-  if (route.name === 'bot-feature-embed-settings') result.push('Embed')
-  if (route.name === 'bot-feature-components-v2-settings') result.push('Components V2')
+  if (route.name === 'bot-feature-embed-settings'||route.name==='admin-bot-feature-embed-settings') result.push('Embed')
+  if (route.name === 'bot-feature-components-v2-settings'||route.name==='admin-bot-feature-components-v2-settings') result.push('Components V2')
   return result
 })
 const featureRouteNames = new Set([
   'bot-feature-settings',
   'bot-feature-embed-settings',
   'bot-feature-components-v2-settings',
+  'admin-bot-feature-settings',
+  'admin-bot-feature-embed-settings',
+  'admin-bot-feature-components-v2-settings',
 ])
 const isFeatureRoute = computed(() => featureRouteNames.has(String(route.name)))
 const shellSections = [
@@ -58,14 +62,17 @@ const shellSections = [
   { id: 'bot-settings-content', label: 'Settings' },
 ]
 function routeDepth(name: unknown) {
-  if (name === 'bot-settings') return 0
+  if (name === 'bot-settings'||name==='admin-bot-settings') return 0
   if (
     name === 'bot-config-settings' ||
     name === 'bot-runtime-settings' ||
-    name === 'bot-package-settings'
+    name === 'bot-package-settings' ||
+    name==='admin-bot-config-settings' ||
+    name==='admin-bot-runtime-settings' ||
+    name==='admin-bot-package-settings'
   )
     return 1
-  if (name === 'bot-feature-settings') return 2
+  if (name === 'bot-feature-settings'||name==='admin-bot-feature-settings') return 2
   return 3
 }
 
@@ -90,7 +97,7 @@ async function load() {
   try {
     if (adminMode.value) {
       bot.value = await fetchAdminBotSettings(botId.value, session.value)
-      licenses.value = []
+      licenses.value = await fetchAdminBotLicenses(botId.value,session.value)
       return
     }
     const [bots, allLicenses] = await Promise.all([
@@ -141,7 +148,7 @@ function goMain() {
   void router.push({ name: 'bot-settings', params: { botId: botId.value } })
 }
 function goBack() {
-  if (adminMode.value) {
+  if (adminMode.value && !featureRouteNames.has(String(route.name))) {
     void router.push({ name: 'admin-bots' })
     return
   }
@@ -151,28 +158,30 @@ function goBack() {
   }
   if (
     route.name === 'bot-feature-embed-settings' ||
-    route.name === 'bot-feature-components-v2-settings'
+    route.name === 'bot-feature-components-v2-settings' ||
+    route.name==='admin-bot-feature-embed-settings' ||
+    route.name==='admin-bot-feature-components-v2-settings'
   ) {
     void router.push({
-      name: 'bot-feature-settings',
+      name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
       params: { botId: botId.value, licenseId: route.params.licenseId },
     })
     return
   }
-  if (route.name === 'bot-feature-settings') {
-    void router.push({ name: 'bot-package-settings', params: { botId: botId.value } })
+  if (route.name === 'bot-feature-settings'||route.name==='admin-bot-feature-settings') {
+    void router.push({ name: adminMode.value?'admin-bot-package-settings':'bot-package-settings', params: { botId: botId.value } })
     return
   }
   goMain()
 }
 function openTrail(index: number) {
   if (index === 0) {
-    void router.push({ name: 'bot-package-settings', params: { botId: botId.value } })
+    void router.push({ name: adminMode.value?'admin-bot-package-settings':'bot-package-settings', params: { botId: botId.value } })
     return
   }
   if (index === 1 && route.params.licenseId) {
     void router.push({
-      name: 'bot-feature-settings',
+      name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
       params: { botId: botId.value, licenseId: route.params.licenseId },
     })
   }

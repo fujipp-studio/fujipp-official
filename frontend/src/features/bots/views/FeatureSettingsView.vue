@@ -9,7 +9,11 @@ import {
   fetchFeatureConfiguration,
   fetchFeatureLicenses,
   fetchBots,
+  fetchAdminBotLicenses,
+  fetchAdminBotSettings,
+  fetchAdminFeatureConfiguration,
   updateFeatureConfiguration,
+  updateAdminFeatureConfiguration,
   type FeatureConfiguration,
   type FeatureConfigValue,
   type FeatureLicense,
@@ -38,6 +42,7 @@ const text = (english: string, thai: string) => (locale.value === 'th' ? thai : 
 const licenseId = computed(() => String(route.params.licenseId ?? ''))
 const flowBotId = computed(() => String(route.params.botId ?? ''))
 const inBotSettingsFlow = computed(() => Boolean(flowBotId.value))
+const adminMode=computed(()=>route.path.startsWith('/admin/bots/'))
 
 const isRobloxPayoutFeature = computed(() => {
   const code = license.value?.featureCode
@@ -150,11 +155,11 @@ const robloxCredentialsConfigured = computed(() => {
   )
 })
 const presentationMode = computed<'EMBED' | 'COMPONENTS_V2' | null>(() => {
-  if (route.name === 'feature-embed-settings' || route.name === 'bot-feature-embed-settings')
+  if (route.name === 'feature-embed-settings' || route.name === 'bot-feature-embed-settings' || route.name==='admin-bot-feature-embed-settings')
     return 'EMBED'
   if (
     route.name === 'feature-components-v2-settings' ||
-    route.name === 'bot-feature-components-v2-settings'
+    route.name === 'bot-feature-components-v2-settings' || route.name==='admin-bot-feature-components-v2-settings'
   )
     return 'COMPONENTS_V2'
   return null
@@ -407,7 +412,7 @@ function goBack() {
     void router.push(
       inBotSettingsFlow.value
         ? {
-            name: 'bot-feature-settings',
+            name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
             params: { botId: flowBotId.value, licenseId: licenseId.value },
           }
         : { name: 'feature-settings', params: { licenseId: licenseId.value } },
@@ -416,13 +421,18 @@ function goBack() {
   }
   void router.push(
     inBotSettingsFlow.value
-      ? { name: 'bot-package-settings', params: { botId: flowBotId.value } }
+      ? { name: adminMode.value?'admin-bot-package-settings':'bot-package-settings', params: { botId: flowBotId.value } }
       : { name: 'my-bot' },
   )
 }
 
-function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2') {
-  const name = inBotSettingsFlow.value
+async function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2') {
+  if (!(await save())) return
+  const name = adminMode.value
+    ? mode === 'EMBED'
+      ? 'admin-bot-feature-embed-settings'
+      : 'admin-bot-feature-components-v2-settings'
+    : inBotSettingsFlow.value
     ? mode === 'EMBED'
       ? 'bot-feature-embed-settings'
       : 'bot-feature-components-v2-settings'
@@ -514,11 +524,15 @@ async function load() {
     return
   }
   try {
-    const [allLicenses, config, bots] = await Promise.all([
-      fetchFeatureLicenses(session.value),
-      fetchFeatureConfiguration(licenseId.value, session.value),
-      fetchBots(session.value),
-    ])
+    const [allLicenses,config,bots]=adminMode.value
+      ? await Promise.all([
+          fetchAdminBotLicenses(flowBotId.value,session.value),
+          fetchAdminFeatureConfiguration(flowBotId.value,licenseId.value,session.value),
+          fetchAdminBotSettings(flowBotId.value,session.value).then((bot)=>[bot]),
+        ])
+      : await Promise.all([
+          fetchFeatureLicenses(session.value),fetchFeatureConfiguration(licenseId.value,session.value),fetchBots(session.value),
+        ])
     license.value = allLicenses.find((item) => item.id === licenseId.value) ?? null
     const installedBotId = license.value?.installations.find(
       (item) => item.status === 'ACTIVE',
@@ -1092,11 +1106,10 @@ async function save(): Promise<boolean> {
         throw new Error(`${slot.label}: ${text('JSON must be an object', 'JSON ต้องเป็น object')}`)
       presentations.value[slot.key] = parsed as Record<string, unknown>
     }
-    const updated = await updateFeatureConfiguration(
-      licenseId.value,
-      { values: normalValues, secrets: changedSecrets, presentations: presentations.value },
-      session.value,
-    )
+    const input={values:normalValues,secrets:changedSecrets,presentations:presentations.value}
+    const updated=adminMode.value
+      ? await updateAdminFeatureConfiguration(flowBotId.value,licenseId.value,input,session.value)
+      : await updateFeatureConfiguration(licenseId.value,input,session.value)
     configuration.value = updated
     hydrate(updated)
     notice.value = text(

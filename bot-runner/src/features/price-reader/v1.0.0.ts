@@ -15,6 +15,12 @@ import {
   type PriceEntry,
 } from "./price-extractor.js";
 
+interface PriceReaderVersionOptions {
+  version: string;
+  extract: typeof extractPrices;
+  showNoNitroMarkup: boolean;
+}
+
 // ── Tesseract lazy singleton ────────────────────────────────────────────────
 
 interface TesseractWorker {
@@ -46,45 +52,55 @@ async function terminateWorker(): Promise<void> {
 
 // ── Feature module ──────────────────────────────────────────────────────────
 
-export const priceReaderFeature: FeatureModule = {
-  runtimeKey: "price-reader",
+export function createPriceReaderFeature(options: PriceReaderVersionOptions): FeatureModule {
+  return {
+    runtimeKey: "price-reader",
+    version: options.version,
+    intents: ["Guilds", "GuildMessages", "MessageContent"],
+
+    async activate(context) {
+      const channelId = requiredSnowflake(context.config.PRICE_READER_CHANNEL_ID, "PRICE_READER_CHANNEL_ID");
+      const orderChannelId = optionalSnowflake(context.config.PRICE_READER_ORDER_CHANNEL_ID, "PRICE_READER_ORDER_CHANNEL_ID");
+      const priceMap = readPriceMap(context.config.PRICE_READER_PRICE_MAP);
+      const noNitroMarkupSatang = options.showNoNitroMarkup
+        ? numberConfig(context.config.PRICE_READER_NO_NITRO_MARKUP_SATANG, 1_000)
+        : undefined;
+      let queue = Promise.resolve();
+      let stopped = false;
+
+      const enqueue = (message: Message) => {
+        if (stopped) return;
+        if (message.author.bot || message.channelId !== channelId) return;
+
+        const images = [...message.attachments.values()].filter(
+          (a) => a.contentType?.startsWith("image/"),
+        );
+        if (images.length === 0) return;
+
+        queue = queue
+          .then(() => processImages(context, message, images, priceMap, noNitroMarkupSatang, orderChannelId, options.extract))
+          .catch(logError(context, "image processing"));
+      };
+
+      context.client.on("messageCreate", enqueue);
+
+      console.info(`Price Reader active: bot ${context.botId}, channel ${channelId}, price entries ${priceMap.length}`);
+
+      return async () => {
+        stopped = true;
+        context.client.off("messageCreate", enqueue);
+        await queue;
+        await terminateWorker();
+      };
+    },
+  };
+}
+
+export const priceReaderFeature = createPriceReaderFeature({
   version: "1.0.0",
-  intents: ["Guilds", "GuildMessages", "MessageContent"],
-
-  async activate(context) {
-    const channelId = requiredSnowflake(context.config.PRICE_READER_CHANNEL_ID, "PRICE_READER_CHANNEL_ID");
-    const orderChannelId = optionalSnowflake(context.config.PRICE_READER_ORDER_CHANNEL_ID, "PRICE_READER_ORDER_CHANNEL_ID");
-    const priceMap = readPriceMap(context.config.PRICE_READER_PRICE_MAP);
-    const noNitroMarkupSatang = numberConfig(context.config.PRICE_READER_NO_NITRO_MARKUP_SATANG, 1_000);
-    let queue = Promise.resolve();
-    let stopped = false;
-
-    const enqueue = (message: Message) => {
-      if (stopped) return;
-      if (message.author.bot || message.channelId !== channelId) return;
-
-      const images = [...message.attachments.values()].filter(
-        (a) => a.contentType?.startsWith("image/"),
-      );
-      if (images.length === 0) return;
-
-      queue = queue
-        .then(() => processImages(context, message, images, priceMap, noNitroMarkupSatang, orderChannelId))
-        .catch(logError(context, "image processing"));
-    };
-
-    context.client.on("messageCreate", enqueue);
-
-    console.info(`Price Reader active: bot ${context.botId}, channel ${channelId}, price entries ${priceMap.length}`);
-
-    return async () => {
-      stopped = true;
-      context.client.off("messageCreate", enqueue);
-      await queue;
-      await terminateWorker();
-    };
-  },
-};
+  extract: extractPrices,
+  showNoNitroMarkup: true,
+});
 
 // ── Core processing ─────────────────────────────────────────────────────────
 
@@ -93,8 +109,9 @@ async function processImages(
   message: Message,
   attachments: import("discord.js").Attachment[],
   priceMap: PriceEntry[],
-  noNitroMarkupSatang: number,
+  noNitroMarkupSatang: number | undefined,
   orderChannelId: string | undefined,
+  extract: typeof extractPrices,
 ): Promise<void> {
   const processing = await message.reply(
     render(context, "processing", { image_count: String(attachments.length) }),
@@ -108,7 +125,7 @@ async function processImages(
       const processed = await preprocessImage(raw);
       const worker = await getWorker();
       const { data } = await worker.recognize(processed);
-      const prices = extractPrices(data.text);
+      const prices = extract(data.text);
 
       if (!prices.currentPriceSatang) {
         perImageResults.push({
@@ -130,7 +147,7 @@ async function processImages(
         discount_percent: prices.discountPercent ? String(prices.discountPercent) : "",
         shop_price: shopPriceSatang !== null ? money(shopPriceSatang) : "",
         shop_price_found: shopPriceSatang !== null ? "true" : "false",
-        no_nitro_markup: money(noNitroMarkupSatang),
+        ...(noNitroMarkupSatang === undefined ? {} : { no_nitro_markup: money(noNitroMarkupSatang) }),
       });
     } catch (error) {
       console.error(`Price Reader OCR failed for attachment ${attachment.id}:`, error);
@@ -162,7 +179,7 @@ async function processImages(
     success_count: String(successResults.length),
     error_count: String(perImageResults.length - successResults.length),
     order_url: orderUrl,
-    no_nitro_markup: money(noNitroMarkupSatang),
+    ...(noNitroMarkupSatang === undefined ? {} : { no_nitro_markup: money(noNitroMarkupSatang) }),
     // First result variables (for single-image use-case).
     ...(successResults[0] ?? {}),
   };
@@ -170,7 +187,9 @@ async function processImages(
   // Build the results section for default rendering.
   const resultItemTemplate = typeof context.config.PRICE_READER_RESULTS_ITEM_TEMPLATE === "string"
     ? context.config.PRICE_READER_RESULTS_ITEM_TEMPLATE
-    : "### รูปที่ {{result_index}}\n💙 **ราคาดิสคอร์ด**\n`{{discord_price}} บาท`{{discount_text}}\n💗 **ราคาร้านขาย**\n`{{shop_price_text}}`\n💛 **ราคาไม่มีไนโตร บวกชิ้นละ**\n`{{no_nitro_markup}} บาท`";
+    : noNitroMarkupSatang === undefined
+      ? "### รูปที่ {{result_index}}\n💙 **ราคาดิสคอร์ด**\n`{{discord_price}} บาท`\n💗 **ราคาร้านขาย**\n`{{shop_price_text}}`"
+      : "### รูปที่ {{result_index}}\n💙 **ราคาดิสคอร์ด**\n`{{discord_price}} บาท`{{discount_text}}\n💗 **ราคาร้านขาย**\n`{{shop_price_text}}`\n💛 **ราคาไม่มีไนโตร บวกชิ้นละ**\n`{{no_nitro_markup}} บาท`";
   const sections = perImageResults.map((r, index) => {
     if (r.status === "error") {
       return `### รูปที่ ${index + 1}\n❌ ${r.error_message ?? "เกิดข้อผิดพลาด"}`;

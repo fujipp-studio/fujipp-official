@@ -52,6 +52,29 @@ export function extractPrices(ocrText: string): PriceResult {
   return { currentPriceSatang, originalPriceSatang, nitroPriceSatang, discountPercent, itemName };
 }
 
+/**
+ * Version 2 price selection. Nitro membership prices are retained only as
+ * metadata; the amount used for the shop lookup comes from the normal price or
+ * the Discord purchase button.
+ */
+export function extractStandardPrices(ocrText: string): PriceResult {
+  const text = normaliseOcrText(ocrText);
+  const nitroPriceSatang = extractNitroPrice(text);
+  const standardPriceSatang = extractPurchaseButtonPrice(text)
+    ?? extractNonNitroCurrencyPrice(text)
+    ?? extractDiscountedLinePrice(withoutNitroLines(text));
+  const discountPercent = extractDiscount(text);
+  const itemName = extractItemName(text);
+
+  return {
+    currentPriceSatang: standardPriceSatang,
+    originalPriceSatang: standardPriceSatang,
+    nitroPriceSatang,
+    discountPercent,
+    itemName,
+  };
+}
+
 // ── Price map lookup ────────────────────────────────────────────────────────
 
 /** Tolerance when matching OCR-read prices to the price map (±5 บาท). */
@@ -228,6 +251,40 @@ function extractOcrCurrencyPrice(text: string): number | null {
     if (match?.[1]) return parseTHB(match[1]);
   }
   return null;
+}
+
+/** Prefers the explicit normal checkout call-to-action when OCR captures it. */
+function extractPurchaseButtonPrice(text: string): number | null {
+  const patterns = [
+    /(?:ซ[ื้]*อ|buy)(?:\s*ในราคา)?[^\n]{0,30}?(?:THB|฿)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /(?:ซ[ื้]*อ|buy)(?:\s*ในราคา)?\s*[B8]\s*(\d{2,5}(?:\.\d{1,2})?)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return parseTHB(match[1]);
+  }
+  return null;
+}
+
+/** Finds visible THB amounts while excluding any line advertising Nitro. */
+function extractNonNitroCurrencyPrice(text: string): number | null {
+  const standardText = withoutNitroLines(text);
+  const pattern = /(?:THB|฿)\s*([\d,]+(?:\.\d{1,2})?)/g;
+  const prices: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(standardText)) !== null) {
+    if (!match[1]) continue;
+    const price = parseTHB(match[1]);
+    if (price !== null) prices.push(price);
+  }
+  if (prices.length === 0) return null;
+  const counts = new Map<number, number>();
+  for (const price of prices) counts.set(price, (counts.get(price) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? null;
+}
+
+function withoutNitroLines(text: string): string {
+  return text.split("\n").filter((line) => !/Nitro/i.test(line)).join("\n");
 }
 
 /**

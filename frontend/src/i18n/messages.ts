@@ -247,7 +247,7 @@ export const messages = {
         transfer: 'Transfer owner',
         transferTitle: 'Transfer bot ownership',
         transferWarning:
-          'The bot will stop and detach its Runtime and installed Features before transfer.',
+          'The bot will stop and transfer its Runtime and installed Features to the new owner.',
         newOwnerId: 'New owner User ID',
         ownerSearch: 'Search by name, email, or User ID',
         noOwnerSuggestions: 'No matching users found',
@@ -679,7 +679,7 @@ export const messages = {
         ownerId: 'Owner ID',
         transfer: 'ย้ายเจ้าของ',
         transferTitle: 'ย้ายเจ้าของบอท',
-        transferWarning: 'ระบบจะหยุดบอทและถอด Runtime/Feature ที่ผูกอยู่ก่อนย้าย',
+        transferWarning: 'ระบบจะหยุดบอทและย้าย Runtime/Feature ที่ผูกอยู่ไปยังเจ้าของใหม่ด้วย',
         newOwnerId: 'User ID เจ้าของใหม่',
         ownerSearch: 'ค้นหาจากชื่อ อีเมล หรือ User ID',
         noOwnerSuggestions: 'ไม่พบผู้ใช้ที่ตรงกับการค้นหา',

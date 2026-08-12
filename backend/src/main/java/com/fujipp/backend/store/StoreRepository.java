@@ -754,6 +754,8 @@ public class StoreRepository {
                        product.code AS feature_code,
                        product.name AS feature_name,
                        version.version,
+                       latest_version.id AS latest_version_id,
+                       latest_version.version AS latest_version,
                        license.status::text,
                        license.installation_limit,
                        license.acquired_at,
@@ -768,6 +770,13 @@ public class StoreRepository {
                     ON product.id = license.feature_product_id
                   JOIN shop.feature_versions AS version
                     ON version.id = license.acquired_version_id
+                  LEFT JOIN LATERAL (
+                      SELECT candidate.id,candidate.version
+                        FROM shop.feature_versions candidate
+                       WHERE candidate.feature_product_id=license.feature_product_id
+                         AND candidate.status='PUBLISHED'
+                       ORDER BY candidate.created_at DESC,candidate.version DESC LIMIT 1
+                  ) latest_version ON true
                   LEFT JOIN private.bot_feature_installations AS installation
                     ON installation.license_id = license.id
                    AND installation.removed_at IS NULL
@@ -826,6 +835,20 @@ public class StoreRepository {
                 ownerUserId
         );
         return rows.stream().findFirst();
+    }
+
+    public boolean upgradeLicense(UUID licenseId, UUID ownerUserId) {
+        UUID targetVersionId=jdbcTemplate.query("""
+                SELECT version.id FROM private.feature_licenses license
+                  JOIN shop.feature_versions version
+                    ON version.feature_product_id=license.feature_product_id
+                   AND version.status='PUBLISHED'
+                 WHERE license.id=? AND license.owner_user_id=?
+                 ORDER BY version.created_at DESC,version.version DESC LIMIT 1
+                """,rs->rs.next()?rs.getObject(1,UUID.class):null,licenseId,ownerUserId);
+        return targetVersionId!=null&&Boolean.TRUE.equals(jdbcTemplate.queryForObject(
+                "SELECT private.upgrade_feature_license(?,?,?)",Boolean.class,
+                licenseId,ownerUserId,targetVersionId));
     }
 
     public UUID installFeature(LicenseContext license, UUID ownerUserId, UUID botId) {
@@ -1197,6 +1220,8 @@ public class StoreRepository {
                 resultSet.getString("feature_code"),
                 resultSet.getString("feature_name"),
                 resultSet.getString("version"),
+                resultSet.getObject("latest_version_id", UUID.class),
+                resultSet.getString("latest_version"),
                 resultSet.getString("status"),
                 resultSet.getInt("installation_limit"),
                 resultSet.getObject("acquired_at", OffsetDateTime.class),
@@ -1263,6 +1288,8 @@ public class StoreRepository {
             String featureCode,
             String featureName,
             String version,
+            UUID latestVersionId,
+            String latestVersion,
             String status,
             int installationLimit,
             OffsetDateTime acquiredAt,
@@ -1282,7 +1309,9 @@ public class StoreRepository {
         private LicenseResponse build() {
             return new LicenseResponse(
                     license.id(), license.productId(), license.featureCode(), license.featureName(),
-                    license.version(), license.status(), license.installationLimit(),
+                    license.version(),license.latestVersionId(),license.latestVersion(),
+                    license.latestVersionId()!=null&&!license.latestVersion().equals(license.version()),
+                    license.status(), license.installationLimit(),
                     license.acquiredAt(), license.expiresAt(), List.copyOf(installations)
             );
         }

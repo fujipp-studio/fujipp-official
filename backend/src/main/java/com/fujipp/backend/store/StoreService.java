@@ -194,6 +194,16 @@ public class StoreService {
     }
 
     @Transactional
+    public LicenseResponse upgradeLicense(String subject,UUID licenseId) {
+        UUID userId=activeUser(subject).id();
+        ensureLicenseActive(ownedLicense(licenseId,userId));
+        if(!repository.upgradeLicense(licenseId,userId))
+            throw new StoreConflictException("No published upgrade is available");
+        return repository.findLicenses(userId).stream().filter(item->item.id().equals(licenseId))
+                .findFirst().orElseThrow(()->new StoreNotFoundException("Feature license was not found"));
+    }
+
+    @Transactional
     public UUID install(String subject, UUID licenseId, InstallFeatureRequest request) {
         UUID userId = activeUser(subject).id();
         StoreRepository.LicenseContext license = ownedLicense(licenseId, userId);
@@ -227,13 +237,28 @@ public class StoreService {
         return repository.findConfiguration(ownedLicense(licenseId, userId));
     }
 
+    @Transactional(readOnly = true)
+    public FeatureConfigurationResponse getConfigurationAsAdmin(UUID licenseId,UUID ownerUserId) {
+        return repository.findConfiguration(ownedLicense(licenseId,ownerUserId));
+    }
+
     @Transactional
     public FeatureConfigurationResponse updateConfiguration(
             String subject,
             UUID licenseId,
             UpdateFeatureConfigurationRequest request
     ) {
-        UUID userId = activeUser(subject).id();
+        return updateConfigurationForOwner(activeUser(subject).id(),licenseId,request);
+    }
+
+    @Transactional
+    public FeatureConfigurationResponse updateConfigurationAsAdmin(
+            UUID licenseId,UUID ownerUserId,UpdateFeatureConfigurationRequest request) {
+        return updateConfigurationForOwner(ownerUserId,licenseId,request);
+    }
+
+    private FeatureConfigurationResponse updateConfigurationForOwner(
+            UUID userId,UUID licenseId,UpdateFeatureConfigurationRequest request) {
         StoreRepository.LicenseContext license = ownedLicense(licenseId, userId);
         ensureLicenseActive(license);
         validateConfigurationSize(request);

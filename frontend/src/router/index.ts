@@ -189,6 +189,21 @@ const router = createRouter({
           name: 'admin-bot-package-settings',
           component: () => import('../features/bots/views/BotSettingsView.vue'),
         },
+        {
+          path: 'packages/:licenseId',
+          name: 'admin-bot-feature-settings',
+          component: () => import('../features/bots/views/FeatureSettingsView.vue'),
+        },
+        {
+          path: 'packages/:licenseId/embed',
+          name: 'admin-bot-feature-embed-settings',
+          component: () => import('../features/bots/views/FeatureSettingsView.vue'),
+        },
+        {
+          path: 'packages/:licenseId/components-v2',
+          name: 'admin-bot-feature-components-v2-settings',
+          component: () => import('../features/bots/views/FeatureSettingsView.vue'),
+        },
       ],
     },
     {
