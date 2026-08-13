@@ -34,7 +34,9 @@ test("resolves wallet top-up version 1.0.0", () => {
 });
 
 test("resolves wallet top-up version 2.0.0 without replacing version 1", () => {
-  assert.equal(getFeature("wallet-topup", "2.0.0")?.version, "2.0.0");
+  const feature = getFeature("wallet-topup", "2.0.0");
+  assert.equal(feature?.version, "2.0.0");
+  assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent", "GuildMembers"]);
 });
 
 test("resolves Roblox Robux payout version 1.0.0", () => {
