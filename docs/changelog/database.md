@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-13 | Published Wallet Top-up 2.0 with cloned configuration and presentation definitions while retaining 1.0 installations for upgrade. |
 | 2026-08-12 | Added transactional Feature License upgrades and ownership-safe Bot transfers with attached Runtime and Features. |
 | 2026-08-12 | Added the Price Reader 2.0 catalog version without Nitro markup configuration or presentation fields. |
 | 2026-08-01 | Added the bot feature catalog, wallet-backed orders, user-owned licenses, installations, versioned configuration, encrypted secrets, and media metadata. |
