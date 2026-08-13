@@ -7,6 +7,10 @@ import type { FeatureContext, FeatureModule, WalletAdjustmentOperation, WalletAd
 import { RuntimeApiError } from "../../api-client.js";
 import { finalizeSuccessfulTopupRoles, runRoleRemoval } from "./role-actions.js";
 import { topSpenderRolePolicy } from "./role-policy.js";
+import { LatestSyncCoordinator } from "./sync-coordinator.js";
+
+type TopSpenderSyncResult = { updated: number; errors: string[] };
+const topSpenderCoordinators = new Map<string, LatestSyncCoordinator<TopSpenderSyncResult>>();
 
 const ACTIONS = {
   "wallet.topup": { id: "fujipp:wallet:topup", label: "เติมเงิน", emoji: "💰", style: ButtonStyle.Success },
@@ -18,6 +22,11 @@ const ACTIONS = {
 export const walletTopupFeature: FeatureModule = {
   runtimeKey: "wallet-topup", version: "1.0.0", intents: ["Guilds", "GuildMessages", "MessageContent"],
   async activate(context) {
+    const coordinator = new LatestSyncCoordinator(async () => {
+      const guild = context.guildId ? await context.client.guilds.fetch(context.guildId) : null;
+      return syncTopSpenderRoles(context, guild);
+    });
+    topSpenderCoordinators.set(context.installationId, coordinator);
     const panelCommand = stringConfig(context.config.PANEL_COMMAND_NAME, "wallet-panel");
     const pendingSessions = readPendingSessions(context.runtimeState.walletPendingSessions);
     const countdowns = new Map<string, ReturnType<typeof setInterval>>();
@@ -31,7 +40,7 @@ export const walletTopupFeature: FeatureModule = {
     context.client.on("interactionCreate", onInteraction);
     context.client.on("messageCreate", onMessage);
     context.client.once("clientReady", () => {void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error);void registerCommands(context, panelCommand).catch((error)=>{console.error(`Wallet command registration failed for ${context.botId}:`,error);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",error);});});
-    return () => { context.client.off("interactionCreate", onInteraction); context.client.off("messageCreate", onMessage); clearInterval(cleanupTimer); for(const timer of countdowns.values())clearInterval(timer); };
+    return () => { context.client.off("interactionCreate", onInteraction); context.client.off("messageCreate", onMessage); clearInterval(cleanupTimer); for(const timer of countdowns.values())clearInterval(timer);if(topSpenderCoordinators.get(context.installationId)===coordinator)topSpenderCoordinators.delete(context.installationId); };
   },
 };
 
@@ -91,7 +100,7 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
       const result=await context.wallet.voucher({memberDiscordId:interaction.user.id,giftUrl:interaction.fields.getTextInputValue("gift_url").trim(),idempotencyKey:`discord:${interaction.id}`});
       const roleRemoved=await finalizeSuccessfulTopupRoles(
         ()=>grantPermanentTopupRole(context,interaction.guild,interaction.user.id),
-        ()=>syncTopSpenderRoles(context,interaction.guild).then(()=>undefined).catch(console.error),
+        ()=>requestTopSpenderSync(context,interaction.guild).then(()=>undefined).catch(console.error),
         ()=>removeTemporarySlipRole(context,interaction.guild,interaction.user.id),
       );
       if(roleRemoved&&pending.delete(interaction.user.id))await savePending(context,pending);
@@ -140,7 +149,7 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   clearCountdown(countdowns,message.author.id);
   const roleRemoved=await finalizeSuccessfulTopupRoles(
     ()=>grantPermanentTopupRole(context,message.guild,message.author.id),
-    ()=>syncTopSpenderRoles(context,message.guild).then(()=>undefined).catch(console.error),
+    ()=>requestTopSpenderSync(context,message.guild).then(()=>undefined).catch(console.error),
     ()=>removeTemporarySlipRole(context,message.guild,message.author.id),
   );
   if(roleRemoved){pending.delete(message.author.id);await savePending(context,pending);}
@@ -201,7 +210,7 @@ async function verifySlip(context: FeatureContext, pending: Map<string, PendingS
   clearCountdown(countdowns,interaction.user.id);
   const roleRemoved=await finalizeSuccessfulTopupRoles(
     ()=>grantPermanentTopupRole(context,interaction.guild,interaction.user.id),
-    ()=>syncTopSpenderRoles(context,interaction.guild).then(()=>undefined).catch(console.error),
+    ()=>requestTopSpenderSync(context,interaction.guild).then(()=>undefined).catch(console.error),
     ()=>removeTemporarySlipRole(context,interaction.guild,interaction.user.id),
   );
   const session=pending.get(interaction.user.id);
@@ -328,7 +337,9 @@ async function grantPermanentTopupRole(context:FeatureContext,guild:Message["gui
 
 async function walletHistory(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์ดูประวัติกระเป๋าเงิน",flags:MessageFlags.Ephemeral});const member=interaction.options.getUser("member",true);const limit=interaction.options.getInteger("limit")??numberConfig(context.config.WALLET_HISTORY_DEFAULT_LIMIT,10);await interaction.deferReply({flags:MessageFlags.Ephemeral});const history=await context.wallet.history(member.id,limit);const lines=history.entries.map((e,i)=>`${i+1}. ${e.amountSatang>=0?"+":""}${money(e.amountSatang)} THB · ${e.kind}${e.method?`/${e.method}`:""} · ${new Date(e.createdAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}`).join("\n")||"ไม่พบประวัติ";const total=history.entries.reduce((sum,e)=>sum+e.amountSatang,0);return interaction.editReply(render(context,"history",{member_mention:`<@${member.id}>`,entry_count:String(history.entries.length),history_lines:lines,total:money(total),currency:history.currency},true));}
 async function monthlySummary(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์ดูสรุปยอดเติมเงิน",flags:MessageFlags.Ephemeral});const member=interaction.options.getUser("member");await interaction.deferReply({flags:MessageFlags.Ephemeral});const result=await context.wallet.monthlySummary(member?.id);return interaction.editReply(render(context,"monthly_summary",{member_mention:member?`<@${member.id}>`:"ทั้งร้าน",amount:money(result.totalSatang),entry_count:String(result.entryCount),member_count:String(result.memberCount),currency:result.currency},true));}
-async function topSpenders(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์อัปเดตอันดับ",flags:MessageFlags.Ephemeral});await interaction.deferReply({flags:MessageFlags.Ephemeral});const board=await context.wallet.leaderboard(50);const sync=await syncTopSpenderRoles(context,interaction.guild,board);const lines=board.entries.slice(0,10).map((e,i)=>`${i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}.`} <@${e.memberDiscordId}> — **${money(e.totalTopupSatang)}** THB`).join("\n")||"ยังไม่มีข้อมูล";const payload=render(context,"leaderboard",{leaderboard_lines:lines,updated_count:String(sync.updated),error_lines:sync.errors.slice(0,5).join("\n")},false);await interaction.editReply(payload);const channelId=stringConfig(context.config.TOP_SPENDER_LEADERBOARD_CHANNEL_ID,"");if(channelId){const channel=await context.client.channels.fetch(channelId);if(channel?.isTextBased()&&channel.isSendable())await channel.send(payload);}}
+async function topSpenders(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์อัปเดตอันดับ",flags:MessageFlags.Ephemeral});await interaction.deferReply({flags:MessageFlags.Ephemeral});const sync=await requestTopSpenderSync(context,interaction.guild);const board=await context.wallet.leaderboard(50);const lines=board.entries.slice(0,10).map((e,i)=>`${i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}.`} <@${e.memberDiscordId}> — **${money(e.totalTopupSatang)}** THB`).join("\n")||"ยังไม่มีข้อมูล";const payload=render(context,"leaderboard",{leaderboard_lines:lines,updated_count:String(sync.updated),error_lines:sync.errors.slice(0,5).join("\n")},false);await interaction.editReply(payload);const channelId=stringConfig(context.config.TOP_SPENDER_LEADERBOARD_CHANNEL_ID,"");if(channelId){const channel=await context.client.channels.fetch(channelId);if(channel?.isTextBased()&&channel.isSendable())await channel.send(payload);}}
+
+function requestTopSpenderSync(context:FeatureContext,_guild:Message["guild"]|ChatInputCommandInteraction["guild"]){const coordinator=topSpenderCoordinators.get(context.installationId);if(!coordinator)return Promise.reject(new Error("Top spender coordinator is unavailable"));return coordinator.request();}
 
 async function syncTopSpenderRoles(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],provided?:Awaited<ReturnType<FeatureContext["wallet"]["leaderboard"]>>){if(!guild)return{updated:0,errors:[] as string[]};const policy=topSpenderRolePolicy(stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP1_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP10_ROLE_ID,""),parseMilestones(context.config.TOP_SPENDER_MILESTONE_ROLES));const {top1,top10,milestones,managed}=policy;if(!managed.length)return{updated:0,errors:[] as string[]};const board=provided??await context.wallet.leaderboard(50);let updated=0;const errors:string[]=[];for(const [index,entry] of board.entries.entries()){const desired=new Set<string>();if(index===0&&top1)desired.add(top1);if(index<10&&top10)desired.add(top10);for(const m of milestones)if(entry.totalTopupSatang>=m.thresholdSatang)desired.add(m.roleId);const member=await guild.members.fetch(entry.memberDiscordId).catch(()=>null);if(!member)continue;const add=[...desired].filter((id)=>!member.roles.cache.has(id));const remove=managed.filter((id)=>member.roles.cache.has(id)&&!desired.has(id));try{if(add.length)await member.roles.add(add,"Wallet top spender sync");if(remove.length)await member.roles.remove(remove,"Wallet top spender sync");if(add.length||remove.length)updated++;}catch(error){errors.push(`<@${entry.memberDiscordId}>: ${error instanceof Error?error.message:"role update failed"}`);}}return{updated,errors};}
 function parseMilestones(value:unknown){if(!Array.isArray(value))return[];return value.flatMap((item)=>{if(!isRecord(item))return[];const threshold=Number(item.thresholdBaht??item.threshold),roleId=String(item.roleId??"");return Number.isFinite(threshold)&&threshold>0&&/^\d{15,30}$/.test(roleId)?[{thresholdSatang:Math.round(threshold*100),roleId}]:[];});}

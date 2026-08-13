@@ -33,6 +33,10 @@ test("resolves wallet top-up version 1.0.0", () => {
   assert.equal(getFeature("wallet-topup", "1.0.0")?.runtimeKey, "wallet-topup");
 });
 
+test("resolves wallet top-up version 2.0.0 without replacing version 1", () => {
+  assert.equal(getFeature("wallet-topup", "2.0.0")?.version, "2.0.0");
+});
+
 test("resolves Roblox Robux payout version 1.0.0", () => {
   assert.equal(getFeature("roblox-robux-payout", "1.0.0")?.runtimeKey, "roblox-robux-payout");
 });
