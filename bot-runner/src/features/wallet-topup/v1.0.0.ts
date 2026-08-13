@@ -21,10 +21,13 @@ const ACTIONS = {
 
 export const walletTopupFeature: FeatureModule = {
   runtimeKey: "wallet-topup", version: "1.0.0", intents: ["Guilds", "GuildMessages", "MessageContent"],
-  async activate(context) {
+  activate: (context) => activateWalletTopup(context, false),
+};
+
+export async function activateWalletTopup(context: FeatureContext, reconcileAllRankingHolders: boolean) {
     const coordinator = new LatestSyncCoordinator(async () => {
       const guild = context.guildId ? await context.client.guilds.fetch(context.guildId) : null;
-      return syncTopSpenderRoles(context, guild);
+      return syncTopSpenderRoles(context, guild, reconcileAllRankingHolders);
     });
     topSpenderCoordinators.set(context.installationId, coordinator);
     const panelCommand = stringConfig(context.config.PANEL_COMMAND_NAME, "wallet-panel");
@@ -41,8 +44,7 @@ export const walletTopupFeature: FeatureModule = {
     context.client.on("messageCreate", onMessage);
     context.client.once("clientReady", () => {void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error);void registerCommands(context, panelCommand).catch((error)=>{console.error(`Wallet command registration failed for ${context.botId}:`,error);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",error);});});
     return () => { context.client.off("interactionCreate", onInteraction); context.client.off("messageCreate", onMessage); clearInterval(cleanupTimer); for(const timer of countdowns.values())clearInterval(timer);if(topSpenderCoordinators.get(context.installationId)===coordinator)topSpenderCoordinators.delete(context.installationId); };
-  },
-};
+}
 
 async function registerCommands(context: FeatureContext, panelCommand: string) {
   await context.client.application?.commands.create(new SlashCommandBuilder()
@@ -341,7 +343,7 @@ async function topSpenders(context:FeatureContext,interaction:ChatInputCommandIn
 
 function requestTopSpenderSync(context:FeatureContext,_guild:Message["guild"]|ChatInputCommandInteraction["guild"]){const coordinator=topSpenderCoordinators.get(context.installationId);if(!coordinator)return Promise.reject(new Error("Top spender coordinator is unavailable"));return coordinator.request();}
 
-async function syncTopSpenderRoles(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],provided?:Awaited<ReturnType<FeatureContext["wallet"]["leaderboard"]>>){if(!guild)return{updated:0,errors:[] as string[]};const policy=topSpenderRolePolicy(stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP1_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP10_ROLE_ID,""),parseMilestones(context.config.TOP_SPENDER_MILESTONE_ROLES));const {top1,top10,milestones,managed}=policy;if(!managed.length)return{updated:0,errors:[] as string[]};const board=provided??await context.wallet.leaderboard(50);let updated=0;const errors:string[]=[];for(const [index,entry] of board.entries.entries()){const desired=new Set<string>();if(index===0&&top1)desired.add(top1);if(index<10&&top10)desired.add(top10);for(const m of milestones)if(entry.totalTopupSatang>=m.thresholdSatang)desired.add(m.roleId);const member=await guild.members.fetch(entry.memberDiscordId).catch(()=>null);if(!member)continue;const add=[...desired].filter((id)=>!member.roles.cache.has(id));const remove=managed.filter((id)=>member.roles.cache.has(id)&&!desired.has(id));try{if(add.length)await member.roles.add(add,"Wallet top spender sync");if(remove.length)await member.roles.remove(remove,"Wallet top spender sync");if(add.length||remove.length)updated++;}catch(error){errors.push(`<@${entry.memberDiscordId}>: ${error instanceof Error?error.message:"role update failed"}`);}}return{updated,errors};}
+async function syncTopSpenderRoles(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],reconcileAllRankingHolders=false,provided?:Awaited<ReturnType<FeatureContext["wallet"]["leaderboard"]>>){if(!guild)return{updated:0,errors:[] as string[]};const policy=topSpenderRolePolicy(stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP1_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP10_ROLE_ID,""),parseMilestones(context.config.TOP_SPENDER_MILESTONE_ROLES));const {top1,top10,milestones,managed}=policy;if(!managed.length)return{updated:0,errors:[] as string[]};const board=provided??await context.wallet.leaderboard(50);const desiredByMember=new Map<string,Set<string>>();for(const [index,entry] of board.entries.entries()){const desired=new Set<string>();if(index===0&&top1)desired.add(top1);if(index<10&&top10)desired.add(top10);for(const m of milestones)if(entry.totalTopupSatang>=m.thresholdSatang)desired.add(m.roleId);desiredByMember.set(entry.memberDiscordId,desired);}const rankingRoles=[...new Set([top1,top10].filter(Boolean))];const memberIds=new Set(desiredByMember.keys());let members;if(reconcileAllRankingHolders&&rankingRoles.length){members=await guild.members.fetch();for(const member of members.values())if(rankingRoles.some((id)=>member.roles.cache.has(id)))memberIds.add(member.id);}let updated=0;const errors:string[]=[];for(const memberId of memberIds){const desired=desiredByMember.get(memberId)??new Set<string>();const member=members?.get(memberId)??await guild.members.fetch(memberId).catch(()=>null);if(!member)continue;const managedForMember=desiredByMember.has(memberId)?managed:rankingRoles;const add=[...desired].filter((id)=>!member.roles.cache.has(id));const remove=managedForMember.filter((id)=>member.roles.cache.has(id)&&!desired.has(id));try{if(add.length)await member.roles.add(add,"Wallet top spender sync");if(remove.length)await member.roles.remove(remove,"Wallet top spender sync");if(add.length||remove.length)updated++;}catch(error){errors.push(`<@${memberId}>: ${error instanceof Error?error.message:"role update failed"}`);}}return{updated,errors};}
 function parseMilestones(value:unknown){if(!Array.isArray(value))return[];return value.flatMap((item)=>{if(!isRecord(item))return[];const threshold=Number(item.thresholdBaht??item.threshold),roleId=String(item.roleId??"");return Number.isFinite(threshold)&&threshold>0&&/^\d{15,30}$/.test(roleId)?[{thresholdSatang:Math.round(threshold*100),roleId}]:[];});}
 const WALLET_ERRORS:Record<string,string>={
   VOUCHER_ALREADY_USED:"ซอง TrueMoney นี้ถูกใช้หรือกำลังถูกประมวลผลแล้ว กรุณาสร้างซองใหม่",
