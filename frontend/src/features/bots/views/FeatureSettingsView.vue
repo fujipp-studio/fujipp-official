@@ -48,6 +48,7 @@ const isRobloxPayoutFeature = computed(() => {
   const code = license.value?.featureCode
   return code === 'roblox-robux-payout' || 'ROBLOX_GROUPS' in values.value
 })
+const isRobloxPayoutV2 = computed(() => isRobloxPayoutFeature.value && license.value?.version === '2.0.0')
 const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
 const isPriceReaderFeature = computed(() => license.value?.featureCode === 'price-reader')
 const usesPresentationDesigner = computed(
@@ -94,6 +95,7 @@ const priceReaderConfigCopy: Record<string, { label: [string, string]; descripti
 const robloxPresentationCopy: Record<string, { label: [string, string]; description: [string, string] }> = {
   panel: { label: ['Robux shop panel', 'แผงร้าน Robux'], description: ['Public shop panel with live group stock.', 'แผงร้านสาธารณะที่แสดง Robux คงเหลือของกลุ่ม'] },
   eligibility: { label: ['Eligibility result', 'ผลตรวจสอบสิทธิ์'], description: ['Result after checking a Roblox username.', 'ผลหลังตรวจสอบชื่อผู้ใช้ Roblox'] },
+  membership_result: { label: ['Group membership result', 'ผลตรวจสอบวันที่เข้ากลุ่ม'], description: ['Shows the current group join date and membership age.', 'แสดงวันที่เข้ากลุ่มรอบปัจจุบันและจำนวนวันที่อยู่ในกลุ่ม'] },
   package_selector: { label: ['Package selector', 'เลือกแพ็กเกจ'], description: ['Available packages based on wallet balance and group stock.', 'แพ็กเกจที่ซื้อได้ตามยอดเงินและ Robux ในกลุ่ม'] },
   confirmation: { label: ['Purchase confirmation', 'ยืนยันการซื้อ'], description: ['Confirmation before deducting the wallet balance.', 'ข้อความยืนยันก่อนหักยอดเงินในกระเป๋า'] },
   processing: { label: ['Payout processing', 'กำลังดำเนินการโอน'], description: ['Shown while processing the Roblox payout.', 'แสดงระหว่างประมวลผลการโอน Robux'] },
@@ -1339,6 +1341,7 @@ onBeforeUnmount(() => {
             v-model:groups-json="values['ROBLOX_GROUPS'] as string"
             v-model:credentials-json="secrets['ROBLOX_CREDENTIALS'] as string"
             :credentials-configured="robloxCredentialsConfigured"
+            :show-membership-lookup="isRobloxPayoutV2"
             class="mt-lg"
           />
           <div
