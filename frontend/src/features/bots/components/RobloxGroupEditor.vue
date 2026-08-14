@@ -11,6 +11,7 @@ export interface GroupBlock {
   groupId: number | ''
   cookie: string
   totpSecret: string
+  openCloudApiKey: string
   showCookie?: boolean
   showTotp?: boolean
 }
@@ -19,6 +20,7 @@ const props = defineProps<{
   groupsJson: string
   credentialsConfigured?: boolean
   credentialsJson: string
+  showMembershipLookup?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -41,6 +43,7 @@ function createEmptyGroup(index: number): GroupBlock {
     groupId: '',
     cookie: '',
     totpSecret: '',
+    openCloudApiKey: '',
     showCookie: false,
     showTotp: false,
   }
@@ -56,12 +59,12 @@ function parseInitialData() {
     /* invalid or empty JSON */
   }
 
-  let parsedCreds: Record<string, { cookie?: string; totpSecret?: string }> = {}
+  let parsedCreds: Record<string, { cookie?: string; totpSecret?: string; openCloudApiKey?: string }> = {}
   try {
     if (props.credentialsJson) {
       const raw = JSON.parse(props.credentialsJson)
       if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        parsedCreds = raw as Record<string, { cookie?: string; totpSecret?: string }>
+        parsedCreds = raw as Record<string, { cookie?: string; totpSecret?: string; openCloudApiKey?: string }>
       }
     }
   } catch {
@@ -79,6 +82,7 @@ function parseInitialData() {
         groupId: typeof g.groupId === 'number' ? g.groupId : Number(g.groupId) || '',
         cookie: cred.cookie ?? '',
         totpSecret: cred.totpSecret ?? '',
+        openCloudApiKey: cred.openCloudApiKey ?? '',
         showCookie: false,
         showTotp: false,
       }
@@ -99,13 +103,14 @@ function emitChanges() {
     groupId: typeof g.groupId === 'number' ? g.groupId : Number(g.groupId) || 0,
   }))
 
-  const credentialsPayload: Record<string, { cookie?: string; totpSecret?: string }> = {}
+  const credentialsPayload: Record<string, { cookie?: string; totpSecret?: string; openCloudApiKey?: string }> = {}
   for (const g of groups.value) {
     const key = (g.key || 'group').trim()
     if (!key) continue
-    const cred: { cookie?: string; totpSecret?: string } = {}
+    const cred: { cookie?: string; totpSecret?: string; openCloudApiKey?: string } = {}
     if (g.cookie.trim()) cred.cookie = g.cookie.trim()
     if (g.totpSecret.trim()) cred.totpSecret = g.totpSecret.trim()
+    if (g.openCloudApiKey.trim()) cred.openCloudApiKey = g.openCloudApiKey.trim()
     if (Object.keys(cred).length > 0) {
       credentialsPayload[key] = cred
     }
@@ -231,6 +236,16 @@ function groupReady(group: GroupBlock) {
                 :support-text="text('Optional. Required only when Authenticator 2FA is enabled.', 'ไม่บังคับ ใช้เมื่อบัญชีเปิด Authenticator 2FA')"
                 autocomplete="new-password"
               />
+              <AppTextField
+                v-if="showMembershipLookup"
+                v-model="group.openCloudApiKey"
+                class="roblox-group__open-cloud-key"
+                variant="secret"
+                label="Roblox Open Cloud API Key"
+                :placeholder="credentialsConfigured ? text('Saved — paste a new key to replace it', 'บันทึกแล้ว — วาง Key ใหม่เมื่อต้องการเปลี่ยน') : text('Paste this group’s Open Cloud API key', 'วาง Open Cloud API Key ของกลุ่มนี้')"
+                :support-text="text('Use a separate key with group:read permission for this group.', 'ใช้ Key แยกสำหรับกลุ่มนี้และเปิดสิทธิ์ group:read')"
+                autocomplete="new-password"
+              />
             </div>
           </div>
 
@@ -285,7 +300,7 @@ function groupReady(group: GroupBlock) {
 .roblox-groups__add-another { display: flex; align-items: center; justify-content: center; gap: var(--space-sm); padding: var(--space-md); border: 1px dashed var(--semantic-color-border-border-default); border-radius: var(--corner-radius-lg); background: transparent; color: var(--semantic-color-text-text-primary); text-align: left; }
 .roblox-groups__add-another:hover { background: var(--semantic-color-background-bg-surface-hover); }
 .roblox-groups__add-another span { display: grid; }
-@media (min-width: 48rem) { .roblox-group__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .roblox-group__cookie { grid-column: 1 / -1; } }
+@media (min-width: 48rem) { .roblox-group__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .roblox-group__cookie, .roblox-group__open-cloud-key { grid-column: 1 / -1; } }
 @media (max-width: 47.99rem) { .roblox-groups__header, .roblox-group__footer { align-items: stretch; flex-direction: column; } .roblox-groups__add, .roblox-group__delete { width: 100%; } .roblox-group__status { display: none; } }
 @media (prefers-reduced-motion: reduce) { .roblox-group__chevron { transition: none; } }
 </style>
