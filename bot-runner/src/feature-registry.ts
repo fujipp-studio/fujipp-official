@@ -3,7 +3,7 @@ import { voiceKeeperFeature } from "./features/voice-keeper/index.js";
 import { botPresenceFeature } from "./features/bot-presence/index.js";
 import { reviewCreditFeature } from "./features/review-credit/index.js";
 import { walletTopupFeature, walletTopupFeatureV2 } from "./features/wallet-topup/index.js";
-import { robloxRobuxPayoutFeature } from "./features/roblox-robux-payout/index.js";
+import { robloxRobuxPayoutFeature, robloxRobuxPayoutFeatureV2 } from "./features/roblox-robux-payout/index.js";
 import { priceReaderFeature, priceReaderFeatureV2 } from "./features/price-reader/index.js";
 import { adminMessageToolsFeature } from "./features/admin-message-tools/index.js";
 import { runtimeExpiryAlertFeature } from "./features/runtime-expiry-alert/index.js";
@@ -19,6 +19,7 @@ const modules = new Map<string, FeatureModule>([
   [moduleKey(walletTopupFeature.runtimeKey, walletTopupFeature.version), walletTopupFeature],
   [moduleKey(walletTopupFeatureV2.runtimeKey, walletTopupFeatureV2.version), walletTopupFeatureV2],
   [moduleKey(robloxRobuxPayoutFeature.runtimeKey, robloxRobuxPayoutFeature.version), robloxRobuxPayoutFeature],
+  [moduleKey(robloxRobuxPayoutFeatureV2.runtimeKey, robloxRobuxPayoutFeatureV2.version), robloxRobuxPayoutFeatureV2],
   [moduleKey(priceReaderFeature.runtimeKey, priceReaderFeature.version), priceReaderFeature],
   [moduleKey(priceReaderFeatureV2.runtimeKey, priceReaderFeatureV2.version), priceReaderFeatureV2],
   [moduleKey(adminMessageToolsFeature.runtimeKey, adminMessageToolsFeature.version), adminMessageToolsFeature],

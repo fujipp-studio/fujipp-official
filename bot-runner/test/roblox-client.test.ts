@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import axios,{AxiosError,type AxiosRequestConfig,type AxiosResponse} from "axios";
-import { payout,type RobloxGroup } from "../src/features/roblox-robux-payout/roblox-client.js";
+import { groupMembership,payout,type RobloxGroup } from "../src/features/roblox-robux-payout/roblox-client.js";
 
 const group:RobloxGroup={key:"main",name:"Main",groupId:123,cookie:"a-valid-looking-security-cookie",totpSecret:"JBSWY3DPEHPK3PXP"};
 const response=(data:unknown,status=200,headers:Record<string,string>={}):AxiosResponse=>({data,status,statusText:String(status),headers,config:{headers:{}} as AxiosRequestConfig});
@@ -63,4 +63,36 @@ test("payout handles chef challenge properly without reinterpreting as 2FA",asyn
 
   assert.equal(result.ok,false);
   if(!result.ok)assert.equal(result.error.code,"ROBLOX_CHALLENGE_CHEF");
+});
+
+test("group membership resolves username and returns the Open Cloud create time",async(t)=>{
+  t.mock.method(axios,"post",async()=>response({data:[{id:42,name:"Builderman"}]}));
+  t.mock.method(axios,"get",async(_url,config)=>{
+    assert.equal((config?.headers as Record<string,string>)["x-api-key"],"open-cloud-key");
+    assert.equal((config?.params as Record<string,unknown>).filter,"user == 'users/42'");
+    return response({groupMemberships:[{user:"users/42",createTime:"2026-07-01T08:30:00Z"}]});
+  });
+
+  const result=await groupMembership("builderman",123,"open-cloud-key");
+
+  assert.deepEqual(result,{ok:true,isMember:true,userId:42,username:"Builderman",createTime:"2026-07-01T08:30:00Z"});
+});
+
+test("group membership reports when the user is not in the group",async(t)=>{
+  t.mock.method(axios,"post",async()=>response({data:[{id:42,name:"Builderman"}]}));
+  t.mock.method(axios,"get",async()=>response({groupMemberships:[]}));
+
+  const result=await groupMembership("builderman",123,"open-cloud-key");
+
+  assert.deepEqual(result,{ok:true,isMember:false,userId:42,username:"Builderman"});
+});
+
+test("group membership translates rejected Open Cloud credentials",async(t)=>{
+  t.mock.method(axios,"post",async()=>response({data:[{id:42,name:"Builderman"}]}));
+  t.mock.method(axios,"get",async()=>{throw failure({},403);});
+
+  const result=await groupMembership("builderman",123,"expired-key");
+
+  assert.equal(result.ok,false);
+  if(!result.ok)assert.equal(result.error.code,"ROBLOX_OPEN_CLOUD_UNAUTHORIZED");
 });

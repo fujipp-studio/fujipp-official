@@ -1,7 +1,7 @@
 import axios,{AxiosError,type AxiosRequestConfig,type AxiosResponse} from "axios";
 import { authenticator } from "otplib";
 
-export interface RobloxGroup { key:string; name:string; groupId:number; cookie:string; totpSecret?:string; }
+export interface RobloxGroup { key:string; name:string; groupId:number; cookie:string; totpSecret?:string; openCloudApiKey?:string; }
 export interface RobloxFailure { code:string; message:string; status?:number; providerCode?:number; unknownOutcome?:boolean; retryAfterSeconds?:number; }
 type Result<T> = ({ok:true}&T)|{ok:false;error:RobloxFailure};
 
@@ -11,6 +11,7 @@ const USERS_API_BASE="https://users.roblox.com";
 const THUMBNAILS_API_BASE="https://thumbnails.roblox.com";
 const TWO_STEP_API_BASE="https://twostepverification.roblox.com";
 const AUTH_API_BASE="https://auth.roblox.com";
+const OPEN_CLOUD_API_BASE="https://apis.roblox.com/cloud/v2";
 const REQUEST_TIMEOUT_MS=12_000;
 const csrfTokens=new Map<string,string>();
 
@@ -63,6 +64,28 @@ export async function eligibility(username:string,group:RobloxGroup):Promise<Res
     const status=(result.data?.usersGroupPayoutEligibility as Record<string,string>|undefined)?.[String(userId)];
     return {ok:true,eligible:status==="Eligible",userId,username:canonical};
   }catch(error){return {ok:false,error:axiosFailure(error,false)};}
+}
+
+export async function groupMembership(username:string,groupId:number,apiKey:string):Promise<Result<{isMember:boolean;userId:number;username:string;createTime?:string}>>{
+  try{
+    const lookup=await axios.post(`${USERS_API_BASE}/v1/usernames/users`,{usernames:[username.trim()],excludeBannedUsers:true},{headers:headers(),timeout:REQUEST_TIMEOUT_MS});
+    const user=(lookup.data?.data as Array<Record<string,unknown>>|undefined)?.[0];
+    if(!user)return {ok:false,error:{code:"USER_NOT_FOUND",message:`ไม่พบผู้ใช้ Roblox ชื่อ ${username}`}};
+    const userId=Number(user.id);const canonical=String(user.name);
+    const response=await axios.get(`${OPEN_CLOUD_API_BASE}/groups/${groupId}/memberships`,{
+      params:{filter:`user == 'users/${userId}'`,maxPageSize:1},
+      headers:{Accept:"application/json","x-api-key":apiKey},timeout:REQUEST_TIMEOUT_MS,
+    });
+    const membership=(response.data?.groupMemberships as Array<Record<string,unknown>>|undefined)?.[0];
+    if(!membership)return {ok:true,isMember:false,userId,username:canonical};
+    const createTime=String(membership.createTime??"");
+    if(!createTime||!Number.isFinite(Date.parse(createTime)))return {ok:false,error:{code:"ROBLOX_MEMBERSHIP_DATE_MISSING",message:"Roblox ไม่ส่งวันที่เข้ากลุ่มของสมาชิกคนนี้กลับมา"}};
+    return {ok:true,isMember:true,userId,username:canonical,createTime};
+  }catch(error){
+    const axiosError=asAxiosError(error);
+    if(axiosError.response?.status===401||axiosError.response?.status===403)return {ok:false,error:{code:"ROBLOX_OPEN_CLOUD_UNAUTHORIZED",message:"Open Cloud API Key ไม่ถูกต้อง ไม่มีสิทธิ์อ่านกลุ่ม หรือหมดอายุ",status:axiosError.response.status}};
+    return {ok:false,error:axiosFailure(error,false)};
+  }
 }
 
 export async function userAvatar(userId:number):Promise<string>{

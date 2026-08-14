@@ -4,25 +4,27 @@ import {
   TextInputBuilder,TextInputStyle,type ButtonInteraction,type ChatInputCommandInteraction,type Message,type ModalSubmitInteraction,
 } from "discord.js";
 import type { FeatureContext,FeatureModule,RobuxPayoutJob } from "../../types.js";
-import { eligibility,groupFunds,payout,userAvatar,type RobloxGroup,type RobloxFailure } from "./roblox-client.js";
+import { eligibility,groupFunds,groupMembership,payout,userAvatar,type RobloxGroup,type RobloxFailure } from "./roblox-client.js";
 
-const ID={buy:"fujipp:robux:buy",group:"fujipp:robux:group",user:"fujipp:robux:user",pkg:"fujipp:robux:pkg",confirm:"fujipp:robux:confirm",cancel:"fujipp:robux:cancel"};
+const ID={buy:"fujipp:robux:buy",group:"fujipp:robux:group",user:"fujipp:robux:user",pkg:"fujipp:robux:pkg",confirm:"fujipp:robux:confirm",cancel:"fujipp:robux:cancel",membership:"fujipp:robux:membership",membershipGroup:"fujipp:robux:membership-group",membershipUser:"fujipp:robux:membership-user"};
 const RELOAD_GROUPS="__reload__";
 const PANEL_REFRESH_MS=60_000;
 
-export const robloxRobuxPayoutFeature:FeatureModule={
-  runtimeKey:"roblox-robux-payout",version:"1.0.0",intents:["Guilds"],
+export const robloxRobuxPayoutFeature=createRobloxRobuxPayoutFeature("1.0.0",false);
+
+export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean):FeatureModule{return {
+  runtimeKey:"roblox-robux-payout",version,intents:["Guilds"],
   async activate(context){
     const pending=new Map<string,PendingPurchase>();
     const groups=readGroups(context); const command=stringConfig(context.config.PANEL_COMMAND_NAME,"robux-panel");
     const queue=new PayoutQueue(context,groups);
-    const panels=new PanelUpdater(context,groups);
-    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,interaction).catch((error)=>respondError(context,interaction,error));
+    const panels=new PanelUpdater(context,groups,membershipEnabled);
+    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,interaction).catch((error)=>respondError(context,interaction,error));
     context.client.on("interactionCreate",listener);
     context.client.once("clientReady",()=>void onReady(context,groups,queue,panels,command).catch((error)=>{console.error(`Robux Payout startup failed for ${context.botId}:`,error);void context.reportFeatureError("FEATURE_STARTUP_FAILED",error);}));
     return()=>{context.client.off("interactionCreate",listener);queue.stop();panels.stop();pending.clear();};
   },
-};
+};}
 
 async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,command:string){
   await context.client.application?.commands.create(new SlashCommandBuilder().setName(command).setDescription("ส่ง Panel ร้าน Robux").toJSON());
@@ -35,22 +37,25 @@ async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQ
   console.info(`Roblox Robux Payout active: bot ${context.botId}`);
 }
 
-async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,interaction:Interaction){
-  if(interaction.isChatInputCommand()&&interaction.commandName===command)return postPanel(context,groups,panels,interaction);
+async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,interaction:Interaction){
+  if(interaction.isChatInputCommand()&&interaction.commandName===command)return postPanel(context,groups,panels,membershipEnabled,interaction);
+  if(membershipEnabled&&interaction.isButton()&&interaction.customId===ID.membership)return startMembershipCheck(groups,interaction);
+  if(membershipEnabled&&interaction.isStringSelectMenu()&&interaction.customId===ID.membershipGroup)return showMembershipModal(groups,interaction.values[0]!,interaction);
+  if(membershipEnabled&&interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.membershipUser}:`))return checkMembership(context,groups,interaction.customId.slice(ID.membershipUser.length+1),interaction);
   if(interaction.isButton()&&interaction.customId===ID.buy)return startBuy(context,groups,interaction);
-  if(interaction.isStringSelectMenu()&&interaction.customId===ID.group){const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message);return interaction.update(await buildPanelPayload(context,groups) as never);}return showUsernameModal(groups,selected,interaction);}
+  if(interaction.isStringSelectMenu()&&interaction.customId===ID.group){const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message);return interaction.update(await buildPanelPayload(context,groups,membershipEnabled) as never);}return showUsernameModal(groups,selected,interaction);}
   if(interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.user}:`))return checkUser(context,groups,pending,interaction.customId.slice(ID.user.length+1),interaction);
   if(interaction.isStringSelectMenu()&&interaction.customId.startsWith(`${ID.pkg}:`))return selectPackage(context,pending,interaction.customId.slice(ID.pkg.length+1),interaction.values[0]!,interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.confirm}:`))return confirm(context,groups,queue,pending,interaction.customId.slice(ID.confirm.length+1),interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.cancel}:`)){const purchase=pending.get(interaction.customId.slice(ID.cancel.length+1));pending.delete(interaction.customId.slice(ID.cancel.length+1));return interaction.update(render(context,"failed",{reason:"ยกเลิกการซื้อ Robux แล้ว",username:purchase?.robloxUsername??"-",datetime:dateTime(),avatar:interaction.user.displayAvatarURL()},[]));}
 }
 
-async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:PanelUpdater,interaction:ChatInputCommandInteraction){
+async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:PanelUpdater,membershipEnabled:boolean,interaction:ChatInputCommandInteraction){
   if(!interaction.inGuild())return;
   if(!context.permissions.canUse(interaction,interaction.commandName,false))return interaction.reply({content:"คุณไม่มีสิทธิ์ใช้คำสั่งนี้",flags:MessageFlags.Ephemeral});
   await interaction.deferReply({flags:MessageFlags.Ephemeral});
   if(!interaction.channel?.isSendable())throw new Error("Channel cannot send messages");
-  const payload=await buildPanelPayload(context,groups);
+  const payload=await buildPanelPayload(context,groups,membershipEnabled);
   const existing=panels.current();
   if(existing)await existing.delete().catch(()=>undefined);
   const message=await interaction.channel.send(payload as never);
@@ -58,9 +63,9 @@ async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:Pane
   return interaction.editReply("ส่ง Panel ร้าน Robux เรียบร้อย");
 }
 
-async function buildPanelPayload(context:FeatureContext,groups:RobloxGroup[]){
+async function buildPanelPayload(context:FeatureContext,groups:RobloxGroup[],membershipEnabled=false){
   const stock=await Promise.all(groups.map(async(group)=>{const result=await groupFunds(group);return {group,value:result.ok?result.robux:null};}));
-  const rows=panelActionRows(context,stock);
+  const rows=panelActionRows(context,stock,membershipEnabled);
   const stockLines=stock.map(({group,value})=>`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
   const payload=render(context,"panel",{stock_lines:stockLines},rows);
   if(!Array.isArray(payload.embeds))return payload;
@@ -68,12 +73,13 @@ async function buildPanelPayload(context:FeatureContext,groups:RobloxGroup[]){
   return payload;
 }
 
-function panelActionRows(context:FeatureContext,stock:Array<{group:RobloxGroup;value:number|null}>){
+function panelActionRows(context:FeatureContext,stock:Array<{group:RobloxGroup;value:number|null}>,membershipEnabled:boolean){
   const rows:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>=[];const role=componentConfig(context,"panel","group_select");
   const options=stock.slice(0,24).map(({group,value},index)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key).setDescription(`ยอดคงเหลือ ${value?.toLocaleString()??"—"}`.slice(0,100)).setEmoji(numberEmoji(index)));
   options.push(new StringSelectMenuOptionBuilder().setLabel("รีโหลดตัวเลือก").setValue(RELOAD_GROUPS).setEmoji("🔄"));
   const select=new StringSelectMenuBuilder().setCustomId(ID.group).setPlaceholder(String(role.placeholder??"เลือกกลุ่มที่ต้องการซื้อ").slice(0,150)).addOptions(options);
   rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  if(membershipEnabled)rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(styledButton(context,"panel","btn_membership",ID.membership,"เช็กวันที่เข้ากลุ่ม",ButtonStyle.Primary)));
   if(context.installedFeatureCodes.has("wallet-topup")){
     const raw=(context.presentations.panel??{}) as Record<string,unknown>;
     const configured=Array.isArray(raw.co_features)?raw.co_features.filter(isRecord):[];
@@ -86,6 +92,33 @@ function panelActionRows(context:FeatureContext,stock:Array<{group:RobloxGroup;v
     if(buttons.length)rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(...buttons.slice(0,5)));
   }
   return rows;
+}
+
+async function startMembershipCheck(groups:RobloxGroup[],interaction:ButtonInteraction){
+  if(!groups.length)return interaction.reply({content:"ยังไม่ได้ตั้งค่า Roblox Group",flags:MessageFlags.Ephemeral});
+  if(groups.length===1)return showMembershipModal(groups,groups[0]!.key,interaction);
+  const menu=new StringSelectMenuBuilder().setCustomId(ID.membershipGroup).setPlaceholder("เลือกกลุ่มที่ต้องการตรวจสอบ").addOptions(groups.slice(0,25).map((group)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key)));
+  return interaction.reply({content:"เลือกกลุ่ม Roblox",components:[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],flags:MessageFlags.Ephemeral});
+}
+
+async function showMembershipModal(groups:RobloxGroup[],key:string,interaction:ButtonInteraction|import("discord.js").StringSelectMenuInteraction){
+  const group=groups.find((item)=>item.key===key);if(!group)throw new Error("ไม่พบกลุ่ม Roblox");
+  const modal=new ModalBuilder().setCustomId(`${ID.membershipUser}:${key}`).setTitle(`เช็กวันที่เข้ากลุ่ม (${group.name})`.slice(0,45));
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("username").setLabel("Username Roblox").setPlaceholder("เช่น builderman").setMinLength(3).setMaxLength(20).setRequired(true).setStyle(TextInputStyle.Short)));
+  return interaction.showModal(modal);
+}
+
+async function checkMembership(context:FeatureContext,groups:RobloxGroup[],key:string,interaction:ModalSubmitInteraction){
+  const group=groups.find((item)=>item.key===key);if(!group)throw new Error("ไม่พบกลุ่ม Roblox");
+  const apiKey=stringConfig(group.openCloudApiKey,"");if(!apiKey)throw new Error(`กลุ่ม ${group.name} ยังไม่ได้ตั้งค่า Roblox Open Cloud API Key`);
+  const username=interaction.fields.getTextInputValue("username").trim();
+  await interaction.deferReply({flags:MessageFlags.Ephemeral});
+  const membership=await groupMembership(username,group.groupId,apiKey);
+  if(!membership.ok)throw new Error(humanRobloxError(membership.error));
+  if(!membership.isMember||!membership.createTime)throw new Error(`บัญชี ${membership.username} ยังไม่ได้อยู่ในกลุ่ม ${group.name}`);
+  const joinedAt=new Date(membership.createTime);const days=Math.max(0,Math.floor((Date.now()-joinedAt.getTime())/86_400_000));
+  const avatar=await userAvatar(membership.userId);
+  return interaction.editReply(render(context,"membership_result",{roblox_username:membership.username,roblox_id:String(membership.userId),group_name:group.name,group_id:String(group.groupId),joined_date:new Intl.DateTimeFormat("th-TH",{dateStyle:"long",timeZone:"Asia/Bangkok"}).format(joinedAt),days_in_group:days.toLocaleString("th-TH"),avatar},[]));
 }
 
 function numberEmoji(index:number){return ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"][index]??"🎮";}
@@ -166,7 +199,7 @@ class PanelUpdater{
   private timer:ReturnType<typeof setInterval>;
   private refreshing=false;
   private stopped=false;
-  constructor(private context:FeatureContext,private groups:RobloxGroup[]){
+  constructor(private context:FeatureContext,private groups:RobloxGroup[],private membershipEnabled:boolean){
     this.timer=setInterval(()=>void this.refresh().catch((error)=>console.error(`Robux panel refresh failed for ${this.context.botId}:`,error)),PANEL_REFRESH_MS);
   }
   current(){return this.message;}
@@ -193,7 +226,7 @@ class PanelUpdater{
     if(this.refreshing||this.stopped||!this.message)return;
     this.refreshing=true;
     try{
-      const payload=await buildPanelPayload(this.context,this.groups);
+      const payload=await buildPanelPayload(this.context,this.groups,this.membershipEnabled);
       const id=this.message.id;
       const updated=await this.message.edit(payload as never).catch((error:unknown)=>{
         console.warn(`Unable to refresh Robux panel ${id}:`,error);
@@ -255,7 +288,7 @@ function componentConfig(context:FeatureContext,slot:string,role:string){const p
 function styledButton(context:FeatureContext,slot:string,role:string,id:string,fallbackLabel:string,fallbackStyle:ButtonStyle){const cfg=componentConfig(context,slot,role);const styles:Record<string,ButtonStyle>={primary:ButtonStyle.Primary,secondary:ButtonStyle.Secondary,success:ButtonStyle.Success,danger:ButtonStyle.Danger};const button=new ButtonBuilder().setCustomId(id).setLabel(String(cfg.label??fallbackLabel).slice(0,80)).setStyle(styles[String(cfg.style??"").toLowerCase()]??fallbackStyle);const emoji=parseEmoji(String(cfg.emoji??""));if(emoji)try{button.setEmoji(emoji);}catch{/* invalid configured emoji */}return button;}
 function configuredButton(cfg:Record<string,unknown>,id:string){const styles:Record<string,ButtonStyle>={primary:ButtonStyle.Primary,secondary:ButtonStyle.Secondary,success:ButtonStyle.Success,danger:ButtonStyle.Danger};const button=new ButtonBuilder().setCustomId(id).setLabel(String(cfg.label??"Action").slice(0,80)).setStyle(styles[String(cfg.style??"secondary").toLowerCase()]??ButtonStyle.Secondary);const emoji=parseEmoji(String(cfg.emoji??""));if(emoji)try{button.setEmoji(emoji);}catch{/* invalid configured emoji */}return button;}
 function parseEmoji(value:string):string|{name:string;id:string;animated:boolean}|null{const raw=value.trim();if(!raw)return null;const match=raw.match(/^<(a)?:(\w+):(\d+)>$/);return match?{name:match[2]!,id:match[3]!,animated:Boolean(match[1])}:raw;}
-function readGroups(context:FeatureContext):RobloxGroup[]{const definitions=arrayConfig(context.config.ROBLOX_GROUPS);let credentials:Record<string,{cookie?:string;totpSecret?:string}>={};try{credentials=JSON.parse(context.secrets.ROBLOX_CREDENTIALS??"{}") as typeof credentials;}catch{return [];}return definitions.map((item)=>{const row=item as Record<string,unknown>;const key=String(row.key??"");const credential=credentials[key]??{};return {key,name:String(row.name??key),groupId:Number(row.groupId),cookie:String(credential.cookie??""),...(credential.totpSecret?{totpSecret:String(credential.totpSecret)}:{})};}).filter((g)=>/^[A-Za-z0-9_-]{1,40}$/.test(g.key)&&g.groupId>0&&g.cookie.length>20);}
+function readGroups(context:FeatureContext):RobloxGroup[]{const definitions=arrayConfig(context.config.ROBLOX_GROUPS);let credentials:Record<string,{cookie?:string;totpSecret?:string;openCloudApiKey?:string}>={};try{credentials=JSON.parse(context.secrets.ROBLOX_CREDENTIALS??"{}") as typeof credentials;}catch{return [];}return definitions.map((item)=>{const row=item as Record<string,unknown>;const key=String(row.key??"");const credential=credentials[key]??{};return {key,name:String(row.name??key),groupId:Number(row.groupId),cookie:String(credential.cookie??""),...(credential.totpSecret?{totpSecret:String(credential.totpSecret)}:{}),...(credential.openCloudApiKey?{openCloudApiKey:String(credential.openCloudApiKey)}:{})};}).filter((g)=>/^[A-Za-z0-9_-]{1,40}$/.test(g.key)&&g.groupId>0&&g.cookie.length>20);}
 function readPackages(context:FeatureContext):Package[]{
   const rate=numberConfig(context.config.ROBUX_RATE,3.5);
   const custom=arrayConfig(context.config.ROBUX_PACKAGES).map((item)=>{const row=item as Record<string,unknown>;const robux=Number(row.robux);return {robux,priceSatang:Math.ceil(robux/rate)*100};}).filter((item)=>Number.isInteger(item.robux)&&item.robux>0&&Number.isInteger(item.priceSatang)&&item.priceSatang>0).sort((a,b)=>a.robux-b.robux);
