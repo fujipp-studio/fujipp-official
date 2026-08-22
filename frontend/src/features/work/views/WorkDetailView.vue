@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { fetchWork, type WorkContentItem, type WorkDetail, type WorkLocale } from '../../../services/backend'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton } from '../../../shared/ui'
+import { applySeoMetadata } from '../../../services/seo'
 
 const route = useRoute()
 const { locale: appLocale } = useI18n()
@@ -98,6 +99,11 @@ async function loadWork() {
   error.value = ''
   try {
     work.value = await getWork(locale.value)
+    applySeoMetadata({
+      title: work.value.name,
+      description: work.value.shortDescription,
+      path: route.path,
+    })
     void getWork(locale.value === 'en' ? 'th' : 'en').catch(() => undefined)
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : 'Unable to load this project.'
@@ -113,6 +119,11 @@ async function applyRouteLocale(value: WorkLocale) {
   try {
     work.value = await getWork(value)
     locale.value = value
+    applySeoMetadata({
+      title: work.value.name,
+      description: work.value.shortDescription,
+      path: route.path,
+    })
     await nextTick()
     window.scrollTo(scrollPosition.left, scrollPosition.top)
   } catch (reason) {

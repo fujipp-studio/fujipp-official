@@ -54,6 +54,7 @@ jobs:
       - run: bun run performance:mobile
       - run: bun run performance:desktop
       - run: bun run performance:network
+      - run: bun run performance:seo
       - name: Upload Lighthouse reports
         if: always()
         uses: actions/upload-artifact@v4

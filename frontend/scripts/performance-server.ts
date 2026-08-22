@@ -125,6 +125,8 @@ function contentType(path: string) {
     '.html': 'text/html; charset=utf-8',
     '.js': 'text/javascript; charset=utf-8',
     '.json': 'application/json; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+    '.xml': 'application/xml; charset=utf-8',
     '.svg': 'image/svg+xml',
     '.webp': 'image/webp',
     '.woff': 'font/woff',
@@ -133,7 +135,7 @@ function contentType(path: string) {
 }
 
 function isCompressible(path: string) {
-  return ['.css', '.html', '.js', '.json', '.svg'].includes(extname(path))
+  return ['.css', '.html', '.js', '.json', '.svg', '.txt', '.xml'].includes(extname(path))
 }
 
 Bun.serve({
