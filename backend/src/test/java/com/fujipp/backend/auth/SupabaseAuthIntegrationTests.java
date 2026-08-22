@@ -47,7 +47,11 @@ class SupabaseAuthIntegrationTests {
                 .as("SUPABASE_ANON_KEY must be exported for integration tests")
                 .isNotBlank();
 
-        String email = "backend-it-" + UUID.randomUUID() + "@example.com";
+        String emailDomain = System.getenv().getOrDefault(
+                "SUPABASE_TEST_EMAIL_DOMAIN",
+                "example.com"
+        );
+        String email = "backend-it-" + UUID.randomUUID() + "@" + emailDomain;
         String password = "Integration-test-password-123!";
         String requestBody = objectMapper.writeValueAsString(Map.of(
                 "email", email,
