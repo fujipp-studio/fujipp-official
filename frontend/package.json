@@ -12,6 +12,13 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "build-only": "vite build",
+    "build:performance": "VITE_BACKEND_URL=http://127.0.0.1:4173 vite build",
+    "performance:serve": "bun scripts/performance-server.ts",
+    "performance:bundle": "bun scripts/check-bundle-budget.ts",
+    "performance:network": "bun scripts/check-performance-network.ts",
+    "performance:mobile": "lhci autorun --config=lighthouserc.mobile.cjs",
+    "performance:desktop": "lhci autorun --config=lighthouserc.desktop.cjs",
+    "performance": "run-s build:performance performance:bundle performance:mobile performance:desktop performance:network",
     "type-check": "vue-tsc --build",
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
@@ -34,6 +41,7 @@
     "vue-router": "^5.2.0"
   },
   "devDependencies": {
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.62.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/jsdom": "^28.0.3",

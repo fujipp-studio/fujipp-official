@@ -47,6 +47,31 @@ bun run build
 bun test:unit
 ```
 
+### Performance validation
+
+The performance suite builds the production app against a deterministic local API,
+checks the initial bundle budget, then runs Lighthouse three times for every public
+route with mobile and desktop profiles.
+
+The mobile profile uses a mobile viewport and user agent with the CI runner's provided
+network. This keeps the hard gate deterministic for the current client-rendered SPA;
+use production field data to evaluate slow-device and slow-network behavior separately.
+
+```sh
+bun run performance
+```
+
+Lighthouse targets a perfect Performance score and blocks CI below 98. The enforced
+budgets are LCP at or below 2.5 seconds, CLS at or below 0.1, TBT at or below 200 ms,
+initial JavaScript at or below 180 KiB gzip, and initial CSS at or below 50 KiB gzip.
+Reports are written under `.lighthouseci/` and uploaded by GitHub Actions.
+
+Production hosting should serve hashed `/assets/*` files with
+`Cache-Control: public, max-age=31536000, immutable`, serve `index.html` with
+`Cache-Control: no-cache`, and enable Brotli or gzip compression for HTML, CSS,
+JavaScript, JSON, and SVG responses. These headers must be configured at the web
+server or CDN because the current FTPS deployment only uploads static files.
+
 ### Lint with [ESLint](https://eslint.org/)
 
 ```sh
