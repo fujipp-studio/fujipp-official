@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, defineAsyncComponent, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 
 import { AppNavbar } from './shared/layout'
 import { useAuthStore } from './stores'
-import { AdminTools } from './features/admin/components'
+
+const AdminTools = defineAsyncComponent(
+  () => import('./features/admin/components/AdminTools.vue'),
+)
 
 const route = useRoute()
 const router = useRouter()

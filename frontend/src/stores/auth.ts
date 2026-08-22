@@ -2,10 +2,14 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import { getSupabaseClient } from '../lib/supabase'
 import { fetchCurrentUser, type CurrentUser } from '../services/backend'
 
 type OAuthProvider = 'google' | 'discord' | 'github'
+
+async function loadSupabaseClient() {
+  const { getSupabaseClient } = await import('../lib/supabase')
+  return getSupabaseClient()
+}
 
 function getAuthCallbackUrl(): string {
   const configuredSiteUrl = import.meta.env.VITE_SITE_URL?.trim().replace(/\/+$/, '')
@@ -38,9 +42,13 @@ export const useAuthStore = defineStore('auth', () => {
     return initializationPromise
   }
 
+  function initializeGuestState() {
+    if (!initialized.value && !hasPersistedAuthSession()) initialized.value = true
+  }
+
   async function initializeAuth() {
     try {
-      const supabase = getSupabaseClient()
+      const supabase = await loadSupabaseClient()
       const { data, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) throw sessionError
 
@@ -71,7 +79,8 @@ export const useAuthStore = defineStore('auth', () => {
     captchaToken: string,
   ): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const { data, error: signInError } = await getSupabaseClient().auth.signInWithPassword({
+      const supabase = await loadSupabaseClient()
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
         options: { captchaToken },
@@ -91,7 +100,8 @@ export const useAuthStore = defineStore('auth', () => {
     captchaToken: string,
   ): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const { data, error: signUpError } = await getSupabaseClient().auth.signUp({
+      const supabase = await loadSupabaseClient()
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
         options: {
@@ -117,7 +127,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signInWithOAuth(provider: OAuthProvider): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const { error: oauthError } = await getSupabaseClient().auth.signInWithOAuth({
+      const supabase = await loadSupabaseClient()
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: getAuthCallbackUrl(),
@@ -132,7 +143,8 @@ export const useAuthStore = defineStore('auth', () => {
     return runAuthAction(async () => {
       const code = new URL(window.location.href).searchParams.get('code')
       if (code) {
-        const { error: exchangeError } = await getSupabaseClient().auth.exchangeCodeForSession(code)
+        const supabase = await loadSupabaseClient()
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (exchangeError) throw exchangeError
       }
 
@@ -144,7 +156,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signOut(): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const { error: signOutError } = await getSupabaseClient().auth.signOut()
+      const supabase = await loadSupabaseClient()
+      const { error: signOutError } = await supabase.auth.signOut()
       if (signOutError) throw signOutError
       session.value = null
       currentUser.value = null
@@ -188,6 +201,7 @@ export const useAuthStore = defineStore('auth', () => {
     error,
     isAuthenticated,
     initialize,
+    initializeGuestState,
     reloadCurrentUser,
     signIn,
     signUp,
@@ -197,6 +211,18 @@ export const useAuthStore = defineStore('auth', () => {
     clearError,
   }
 })
+
+function hasPersistedAuthSession() {
+  try {
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index)
+      if (key?.startsWith('sb-') && key.endsWith('-auth-token')) return true
+    }
+  } catch {
+    // Treat unavailable storage as a guest session. Explicit auth actions still load Supabase.
+  }
+  return false
+}
 
 function getErrorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : 'Authentication failed. Please try again.'

@@ -388,7 +388,7 @@ onBeforeUnmount(() => {
       </button>
     </nav>
 
-    <AppFooter />
+    <AppFooter v-if="!loading" />
   </div>
 </template>
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ExternalLink, RotateCcw } from 'lucide-vue-next'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { WorkLocale } from '../../../services/backend'
 import { AppButton } from '../../../shared/ui/buttons'
@@ -34,6 +34,9 @@ const contributionTotal = ref<number | null>(null)
 const contributionWeeks = ref<GithubContributionDay[][]>([])
 const contributionError = ref(false)
 const contributionYear = ref('last')
+const sectionElement = ref<HTMLElement>()
+let observer: IntersectionObserver | undefined
+let loadingStarted = false
 let contributionRequestId = 0
 
 const copy = computed(() =>
@@ -120,12 +123,39 @@ function contributionUrl(date: string) {
   return `${GITHUB_PROFILE_URL}?${query.toString()}`
 }
 
-watch(contributionYear, () => void fetchGithubContributions())
-onMounted(() => void fetchGithubContributions())
+function startLoading() {
+  if (loadingStarted) return
+  loadingStarted = true
+  observer?.disconnect()
+  observer = undefined
+  void fetchGithubContributions()
+}
+
+watch(contributionYear, () => {
+  if (loadingStarted) void fetchGithubContributions()
+})
+onMounted(() => {
+  if (!('IntersectionObserver' in window)) {
+    startLoading()
+    return
+  }
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) startLoading()
+    },
+    { rootMargin: '300px 0px' },
+  )
+  if (sectionElement.value) observer.observe(sectionElement.value)
+})
+onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
-  <section class="github-activity page-container" aria-labelledby="github-activity-title">
+  <section
+    ref="sectionElement"
+    class="github-activity page-container"
+    aria-labelledby="github-activity-title"
+  >
     <div class="github-activity__panel">
       <header class="github-activity__header">
         <div>

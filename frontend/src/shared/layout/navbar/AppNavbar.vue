@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  markRaw,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+  type Component,
+} from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -9,8 +19,9 @@ import type { NavbarLink } from '../../../config'
 import type { ThemeMode } from '../../../config/theme'
 import { setAppLocale } from '../../../i18n'
 import { useAuthStore, useThemeStore } from '../../../stores'
-import { AppAuthDialog, AppAuthLoadingOverlay, AppButton, AppIcon } from '../../ui'
-import type { AuthDialogMode } from '../../ui'
+import AppButton from '../../ui/buttons/AppButton.vue'
+import AppIcon from '../../ui/icons/AppIcon.vue'
+import type { AuthDialogMode } from '../../ui/dialogs/types'
 
 const props = withDefaults(
   defineProps<{
@@ -40,6 +51,8 @@ const showScrolledBackground = computed(() => route.path !== '/' && !isAtPageTop
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
 const isAuthDialogOpen = ref(false)
+const authDialogComponent = shallowRef<Component>()
+const authLoadingOverlayComponent = shallowRef<Component>()
 const authDialogMode = ref<AuthDialogMode>('login')
 const selectedLanguage = ref<'TH' | 'EN'>(locale.value === 'th' ? 'TH' : 'EN')
 const profileMenuPosition = ref({ top: 0, right: 12 })
@@ -280,9 +293,17 @@ function closeMobileMenu() {
   isMobileMenuOpen.value = false
 }
 
-function openAuthDialog(mode: AuthDialogMode) {
+async function openAuthDialog(mode: AuthDialogMode) {
   closeMobileMenu()
   closeProfileMenu()
+  if (!authDialogComponent.value || !authLoadingOverlayComponent.value) {
+    const [dialog, overlay] = await Promise.all([
+      import('../../ui/dialogs/AppAuthDialog.vue'),
+      import('../../ui/dialogs/AppAuthLoadingOverlay.vue'),
+    ])
+    authDialogComponent.value = markRaw(dialog.default)
+    authLoadingOverlayComponent.value = markRaw(overlay.default)
+  }
   authDialogMode.value = mode
   isAuthDialogOpen.value = true
 }
@@ -434,7 +455,6 @@ watch(
 )
 
 onMounted(() => {
-  if (!authStore.initialized) void authStore.initialize()
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('resize', handleNavigationResize)
@@ -818,8 +838,15 @@ onBeforeUnmount(() => {
       </Transition>
     </Teleport>
 
-    <AppAuthDialog v-model:open="isAuthDialogOpen" v-model:mode="authDialogMode" />
-    <AppAuthLoadingOverlay
+    <component
+      :is="authDialogComponent"
+      v-if="isAuthDialogOpen && authDialogComponent"
+      v-model:open="isAuthDialogOpen"
+      v-model:mode="authDialogMode"
+    />
+    <component
+      :is="authLoadingOverlayComponent"
+      v-if="authLoading && authLoadingOverlayComponent"
       :open="authLoading"
       :message="resolvedAuthenticated ? t('navigation.signOut') : t('navigation.signIn')"
     />
