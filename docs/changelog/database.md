@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-22 | Added targeted partial and composite indexes for active Bots, administration lists, Runtime subscriptions, wallet history, and published work pagination. |
 | 2026-08-13 | Published Wallet Top-up 2.0 with cloned configuration and presentation definitions while retaining 1.0 installations for upgrade. |
 | 2026-08-12 | Added transactional Feature License upgrades and ownership-safe Bot transfers with attached Runtime and Features. |
 | 2026-08-12 | Added the Price Reader 2.0 catalog version without Nitro markup configuration or presentation fields. |
