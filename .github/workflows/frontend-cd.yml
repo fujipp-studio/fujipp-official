@@ -38,9 +38,33 @@ jobs:
       - run: bun run test:unit --run
       - run: bun run build
 
+  performance:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run build:performance
+      - run: bun run performance:bundle
+      - run: bun run performance:mobile
+      - run: bun run performance:desktop
+      - run: bun run performance:network
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: frontend/.lighthouseci
+          if-no-files-found: warn
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: verify
+    needs: [verify, performance]
     runs-on: ubuntu-latest
     environment:
       name: frontend-production
