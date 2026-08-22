@@ -35,7 +35,9 @@ class StoreServiceTests {
             secretCipher,
             runtimeSlotService,
             discordProfiles,
-            new ObjectMapper()
+            new ObjectMapper(),
+            new com.fujipp.backend.pagination.CursorCodec(new ObjectMapper()),
+            mock(com.fujipp.backend.runtime.RuntimeService.class)
     );
 
     @Test

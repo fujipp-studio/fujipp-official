@@ -8,10 +8,16 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 
 @Service
 public class RuntimeService {
@@ -20,17 +26,20 @@ public class RuntimeService {
     private final StoreSecretCipher secretCipher;
     private final tools.jackson.databind.ObjectMapper objectMapper;
     private final long snapshotTtlNanos;
+    private final MeterRegistry meters;
     private volatile CachedBootstrap cachedBootstrap;
 
     public RuntimeService(
             RuntimeRepository repository,
             StoreSecretCipher secretCipher,
             tools.jackson.databind.ObjectMapper objectMapper,
+            MeterRegistry meters,
             @Value("${app.runtime.bootstrap-cache-ttl:60s}") Duration snapshotTtl
     ) {
         this.repository = repository;
         this.secretCipher = secretCipher;
         this.objectMapper = objectMapper;
+        this.meters = meters;
         this.snapshotTtlNanos = snapshotTtl.toNanos();
     }
 
@@ -39,14 +48,30 @@ public class RuntimeService {
         long now = System.nanoTime();
         CachedBootstrap current = cachedBootstrap;
         if (current != null && now - current.createdAtNanos() < snapshotTtlNanos) {
+            meters.counter("runtime.bootstrap.cache", "result", "hit").increment();
             return current;
         }
         synchronized (this) {
             current = cachedBootstrap;
             if (current != null && now - current.createdAtNanos() < snapshotTtlNanos) {
+                meters.counter("runtime.bootstrap.cache", "result", "hit").increment();
                 return current;
             }
-            RuntimeBootstrapResponse response = loadBootstrap();
+            meters.counter("runtime.bootstrap.cache", "result", "miss").increment();
+            Timer.Sample sample = Timer.start(meters);
+            RuntimeBootstrapResponse response;
+            try {
+                response = loadBootstrap();
+            } finally {
+                sample.stop(meters.timer("runtime.bootstrap.load"));
+            }
+            meters.summary("runtime.bootstrap.bots").record(response.bots().size());
+            meters.summary("runtime.bootstrap.features").record(response.bots().stream().mapToInt(bot -> bot.features().size()).sum());
+            try {
+                meters.summary("runtime.bootstrap.payload.bytes").record(objectMapper.writeValueAsBytes(response).length);
+            } catch (tools.jackson.core.JacksonException ignored) {
+                // ETag generation below reports serialization failures consistently.
+            }
             current = new CachedBootstrap(response, etag(response), now);
             cachedBootstrap = current;
             return current;
@@ -54,10 +79,25 @@ public class RuntimeService {
     }
 
     private RuntimeBootstrapResponse loadBootstrap() {
-        var bots = repository.findRunnableBots().stream().map(bot -> {
-            var features = repository.findFeatures(bot.id()).stream().map(feature -> {
+        var botRows = repository.findRunnableBots();
+        List<UUID> botIds = botRows.stream().map(RuntimeRepository.BotRow::id).toList();
+        var featureRows = repository.findFeatures(botIds);
+        List<UUID> configSetIds = featureRows.stream().map(RuntimeRepository.FeatureRow::configSetId).distinct().toList();
+        Map<UUID, Map<String, tools.jackson.databind.JsonNode>> configs = repository.findConfig(configSetIds);
+        Map<UUID, List<RuntimeRepository.SecretRow>> secretsByConfig = new LinkedHashMap<>();
+        for (var secret : repository.findSecrets(configSetIds)) {
+            secretsByConfig.computeIfAbsent(secret.configSetId(), ignored -> new ArrayList<>()).add(secret);
+        }
+        var presentations = repository.findPresentations(configSetIds);
+        Map<UUID, List<RuntimeRepository.FeatureRow>> featuresByBot = new LinkedHashMap<>();
+        for (var feature : featureRows) {
+            featuresByBot.computeIfAbsent(feature.botId(), ignored -> new ArrayList<>()).add(feature);
+        }
+
+        var bots = botRows.stream().map(bot -> {
+            var features = featuresByBot.getOrDefault(bot.id(), List.of()).stream().map(feature -> {
                 var secrets = new LinkedHashMap<String, String>();
-                for (var secret : repository.findSecrets(feature.configSetId())) {
+                for (var secret : secretsByConfig.getOrDefault(feature.configSetId(), List.of())) {
                     secrets.put(secret.key(), secretCipher.decrypt(
                             secret.ciphertext(), secret.nonce(), secret.keyVersion()
                     ));
@@ -65,10 +105,10 @@ public class RuntimeService {
                 return new RuntimeBootstrapResponse.RuntimeFeature(
                         feature.installationId(), feature.code(), feature.version(),
                         feature.runtimeKey(), feature.revision(),
-                        repository.findConfig(feature.configSetId()),
+                        configs.getOrDefault(feature.configSetId(), Map.of()),
                         secrets,
-                        repository.findPresentations(feature.configSetId()),
-                        repository.findState(feature.installationId())
+                        presentations.getOrDefault(feature.configSetId(), Map.of()),
+                        feature.state()
                 );
             }).toList();
             return new RuntimeBootstrapResponse.RuntimeBot(
@@ -106,6 +146,9 @@ public class RuntimeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid runtime status");
         }
         repository.updateStatus(request);
+        if (request.installationId() != null && java.util.Set.of("DISABLED", "ERROR").contains(request.status())) {
+            invalidateBootstrap();
+        }
     }
 
     @Transactional
@@ -119,6 +162,10 @@ public class RuntimeService {
         if (!repository.upsertState(request)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Active feature installation not found");
         }
+        invalidateBootstrap();
+    }
+
+    public void invalidateBootstrap() {
         cachedBootstrap = null;
     }
 

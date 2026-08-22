@@ -8,17 +8,42 @@ import java.util.UUID;
 import java.time.OffsetDateTime;
 import com.fujipp.backend.store.StoreNotFoundException;
 import com.fujipp.backend.store.StoreValidationException;
+import com.fujipp.backend.pagination.CursorCodec;
+import com.fujipp.backend.pagination.CursorPage;
 
 @Service
 public class AdminUserService {
     private final AdminUserRepository repository;
+    private final CursorCodec cursors;
 
-    public AdminUserService(AdminUserRepository repository) {
+    public AdminUserService(AdminUserRepository repository,CursorCodec cursors) {
         this.repository = repository;
+        this.cursors = cursors;
     }
 
     public List<AdminUserResponses.UserSummary> listUsers(String query) {
         return repository.searchUsers(query);
+    }
+
+    public CursorPage<AdminUserResponses.UserSummary> listUsersV2(String query,int limit,String cursor) {
+        String filter=query==null?"":query.trim().toLowerCase();
+        var values=cursors.decode(cursor,"admin-users",filter,2);
+        OffsetDateTime created=values.isEmpty()?null:cursors.dateTime(values.get(0));
+        UUID id=values.isEmpty()?null:cursors.uuid(values.get(1));
+        return CursorPage.of(repository.searchUsersPage(query,created,id,limit+1),limit,
+                item->cursors.encode("admin-users",filter,List.of(item.createdAt().toString(),item.userId().toString())));
+    }
+
+    public CursorPage<AdminUserResponses.WalletHistoryEntry> getWalletHistoryV2(
+            UUID customerId,int limit,String cursor) {
+        UUID walletId=repository.findWalletIdByCustomerId(customerId)
+                .orElseThrow(()->new StoreNotFoundException("Customer wallet was not found"));
+        String filter=customerId.toString();
+        var values=cursors.decode(cursor,"admin-wallet-history",filter,2);
+        OffsetDateTime created=values.isEmpty()?null:cursors.dateTime(values.get(0));
+        UUID id=values.isEmpty()?null:cursors.uuid(values.get(1));
+        return CursorPage.of(repository.findWalletHistoryPage(walletId,created,id,limit+1),limit,
+                item->cursors.encode("admin-wallet-history",filter,List.of(item.createdAt().toString(),item.id().toString())));
     }
 
     @Transactional
