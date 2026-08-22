@@ -17,7 +17,7 @@ const { t } = useI18n()
     class="problem-solution-section"
     aria-labelledby="problem-solution-title"
   >
-    <h2 id="problem-solution-title" class="problem-solution-section__title" :style="fadeStyle">
+    <h2 id="problem-solution-title" class="problem-solution-section__title">
       {{ t('home.problem.title') }}
     </h2>
 
@@ -39,7 +39,7 @@ const { t } = useI18n()
       />
     </div>
 
-    <p class="problem-solution-section__description" :style="fadeStyle">
+    <p class="problem-solution-section__description">
       {{ t('home.problem.description') }}
     </p>
   </section>
