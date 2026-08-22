@@ -15,8 +15,9 @@ import java.util.UUID;
 public class RuntimeSlotService {
     private final RuntimeSlotRepository repository;
     private final CurrentUserService users;
-    public RuntimeSlotService(RuntimeSlotRepository repository, CurrentUserService users) {
-        this.repository=repository; this.users=users;
+    private final RuntimeService runtime;
+    public RuntimeSlotService(RuntimeSlotRepository repository, CurrentUserService users,RuntimeService runtime) {
+        this.repository=repository; this.users=users; this.runtime=runtime;
     }
     public List<RuntimePlanResponse> plans(){ return repository.plans(); }
     public int availableSlots(){ return repository.availableSlots(); }
@@ -24,25 +25,28 @@ public class RuntimeSlotService {
     public List<RuntimeSubscriptionResponse> subscriptions(String subject){ return repository.subscriptions(userId(subject)); }
     @Transactional public RuntimeSubscriptionResponse purchase(String subject, UUID planId){
         UUID owner=userId(subject);
-        try { UUID id=repository.purchase(owner,planId); return find(owner,id); }
+        try { UUID id=repository.purchase(owner,planId); runtime.invalidateBootstrap(); return find(owner,id); }
         catch (DataAccessException exception) { throw new StoreConflictException("Runtime purchase could not be completed",exception); }
     }
     @Transactional public RuntimeSubscriptionResponse assign(String subject, UUID id, UUID botId){
         UUID owner=userId(subject);
         try {
             if(!repository.assign(id,owner,botId)) throw new StoreNotFoundException("Runtime subscription was not found");
+            runtime.invalidateBootstrap();
             return find(owner,id);
         } catch (DataAccessException exception) { throw new StoreConflictException("This bot already has a Runtime slot",exception); }
     }
     @Transactional public RuntimeSubscriptionResponse autoRenew(String subject, UUID id, boolean enabled){
         UUID owner=userId(subject);
         if(!repository.setAutoRenew(id,owner,enabled)) throw new StoreNotFoundException("Runtime subscription was not found");
+        runtime.invalidateBootstrap();
         return find(owner,id);
     }
     @Transactional public RuntimeSubscriptionResponse renew(String subject, UUID id){
         UUID owner=userId(subject);
         try {
             if(!repository.renew(id,owner)) throw new StoreConflictException("Runtime could not be renewed");
+            runtime.invalidateBootstrap();
             return find(owner,id);
         } catch (DataAccessException exception) { throw new StoreConflictException("Runtime renewal could not be completed",exception); }
     }
@@ -56,6 +60,7 @@ public class RuntimeSlotService {
             try { repository.renewAutomatically(id); } catch (DataAccessException ignored) { /* retry next cycle */ }
         }
         repository.reconcileExpiry();
+        runtime.invalidateBootstrap();
     }
     private UUID userId(String subject){ return users.getActiveAccount(subject).id(); }
     private RuntimeSubscriptionResponse find(UUID owner,UUID id){ return repository.subscriptions(owner).stream()

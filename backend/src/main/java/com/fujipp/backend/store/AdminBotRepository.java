@@ -25,6 +25,21 @@ public class AdminBotRepository {
                 """, (rs,n)->map(rs), filter,filter,filter,filter);
     }
 
+    public List<AdminStoreResponses.Bot> findBotsPage(String query, OffsetDateTime beforeCreatedAt, UUID beforeId, int limit) {
+        String filter = query == null || query.isBlank() ? "%" : "%" + query.trim().toLowerCase() + "%";
+        String cursor = beforeCreatedAt == null ? "" : " AND (bot.created_at, bot.id) < (?, ?)";
+        String sql = """
+                SELECT bot.id, bot.owner_user_id, COALESCE(profile.display_name,profile.username,'User') owner_name,
+                       bot.name,bot.status::text,bot.desired_state::text,bot.created_at
+                  FROM bots.bot_instances bot LEFT JOIN public.profiles profile ON profile.id=bot.owner_user_id
+                 WHERE (lower(bot.name) LIKE ? OR lower(COALESCE(profile.display_name,'')) LIKE ?
+                    OR lower(COALESCE(profile.username,'')) LIKE ? OR lower(bot.id::text) LIKE ?)
+                """ + cursor + " ORDER BY bot.created_at DESC, bot.id DESC LIMIT ?";
+        return beforeCreatedAt == null
+                ? jdbc.query(sql, (rs,n)->map(rs), filter,filter,filter,filter,limit)
+                : jdbc.query(sql, (rs,n)->map(rs), filter,filter,filter,filter,beforeCreatedAt,beforeId,limit);
+    }
+
     public Optional<AdminStoreResponses.Bot> findBot(UUID botId) {
         return jdbc.query("""
                 SELECT bot.id,bot.owner_user_id,COALESCE(profile.display_name,profile.username,'User') owner_name,

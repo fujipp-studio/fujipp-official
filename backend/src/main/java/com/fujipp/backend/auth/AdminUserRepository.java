@@ -57,8 +57,34 @@ public class AdminUserRepository {
         );
     }
 
+    public List<AdminUserResponses.UserSummary> searchUsersPage(String query, OffsetDateTime beforeCreatedAt, UUID beforeId, int limit) {
+        String filter = query == null || query.isBlank() ? "%" : "%" + query.trim().toLowerCase() + "%";
+        String cursor = beforeCreatedAt == null ? "" : " AND (p.created_at, p.id) < (?, ?)";
+        String sql = """
+                SELECT c.id AS customer_id,p.id AS user_id,
+                       COALESCE(c.customer_code, 'CUS_' || upper(replace(p.id::text, '-', ''))) AS customer_code,
+                       COALESCE(p.display_name,p.username,'User') AS display_name,p.username,auth_user.email,
+                       COALESCE(c.status::text,'ACTIVE') AS customer_status,COALESCE(acc.role::text,'USER') AS role,
+                       COALESCE(w.balance_satang,0) AS balance_satang,p.created_at
+                  FROM public.profiles p LEFT JOIN billing.customers c ON c.user_id=p.id
+                  LEFT JOIN private.user_accounts acc ON acc.user_id=p.id
+                  LEFT JOIN billing.wallets w ON w.customer_id=c.id AND w.currency='THB'
+                  LEFT JOIN auth.users auth_user ON auth_user.id=p.id
+                 WHERE (LOWER(COALESCE(c.customer_code,'CUS_' || upper(replace(p.id::text,'-','')))) LIKE ?
+                    OR LOWER(COALESCE(p.username,'')) LIKE ? OR LOWER(COALESCE(p.display_name,'')) LIKE ?
+                    OR LOWER(p.id::text) LIKE ?)
+                """ + cursor + " ORDER BY p.created_at DESC,p.id DESC LIMIT ?";
+        var mapper=(org.springframework.jdbc.core.RowMapper<AdminUserResponses.UserSummary>)(rs,n)->new AdminUserResponses.UserSummary(
+                rs.getObject("customer_id",UUID.class),rs.getObject("user_id",UUID.class),rs.getString("customer_code"),
+                rs.getString("email"),rs.getString("display_name"),rs.getString("customer_status"),rs.getString("role"),
+                rs.getLong("balance_satang"),rs.getObject("created_at",OffsetDateTime.class));
+        return beforeCreatedAt==null?jdbcTemplate.query(sql,mapper,filter,filter,filter,filter,limit)
+                :jdbcTemplate.query(sql,mapper,filter,filter,filter,filter,beforeCreatedAt,beforeId,limit);
+    }
+
     public Optional<AdminUserResponses.UserSummary> findUser(UUID userId) {
-        return searchUsers(userId.toString()).stream().filter(user -> user.userId().equals(userId)).findFirst();
+        return searchUsersPage(userId.toString(),null,null,2).stream()
+                .filter(user -> user.userId().equals(userId)).findFirst();
     }
 
     public boolean updateAccount(UUID userId,String role,String status,AdminUserRequests.UpdateAccountRequest request){
@@ -80,7 +106,15 @@ public class AdminUserRepository {
             rs.getObject(8,OffsetDateTime.class),rs.getObject(9,OffsetDateTime.class)),userId);}
 
     public Optional<AdminUserResponses.FeatureLicense> findFeatureLicense(UUID userId,UUID licenseId){
-        return findFeatureLicenses(userId).stream().filter(x->x.id().equals(licenseId)).findFirst();
+        return jdbcTemplate.query("""
+            SELECT license.id,license.feature_product_id,product.code,product.name,version.version,
+                   license.status::text,license.installation_limit,license.acquired_at,license.expires_at
+              FROM private.feature_licenses license JOIN shop.feature_products product ON product.id=license.feature_product_id
+              JOIN shop.feature_versions version ON version.id=license.acquired_version_id
+             WHERE license.owner_user_id=? AND license.id=?
+            """,(rs,n)->new AdminUserResponses.FeatureLicense(rs.getObject(1,UUID.class),rs.getObject(2,UUID.class),
+                rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),rs.getInt(7),
+                rs.getObject(8,OffsetDateTime.class),rs.getObject(9,OffsetDateTime.class)),userId,licenseId).stream().findFirst();
     }
 
     public UUID grantFeature(UUID userId,AdminUserRequests.GrantFeatureRequest request,UUID adminId){
@@ -204,5 +238,21 @@ public class AdminUserRepository {
                 ),
                 walletId
         );
+    }
+
+    public List<AdminUserResponses.WalletHistoryEntry> findWalletHistoryPage(
+            UUID walletId, OffsetDateTime beforeCreatedAt, UUID beforeId, int limit) {
+        String cursor=beforeCreatedAt==null?"":" AND (created_at,id) < (?,?)";
+        String sql="""
+                SELECT id,direction::text,entry_type::text,amount_satang,balance_before_satang,balance_after_satang,
+                       reference_type,reference_id,description,created_at FROM billing.wallet_entries
+                 WHERE wallet_id=?
+                """+cursor+" ORDER BY created_at DESC,id DESC LIMIT ?";
+        var mapper=(org.springframework.jdbc.core.RowMapper<AdminUserResponses.WalletHistoryEntry>)(rs,n)->new AdminUserResponses.WalletHistoryEntry(
+                rs.getObject("id",UUID.class),rs.getString("direction"),rs.getString("entry_type"),rs.getLong("amount_satang"),
+                rs.getLong("balance_before_satang"),rs.getLong("balance_after_satang"),rs.getString("reference_type"),
+                rs.getObject("reference_id",UUID.class),rs.getString("description"),rs.getObject("created_at",OffsetDateTime.class));
+        return beforeCreatedAt==null?jdbcTemplate.query(sql,mapper,walletId,limit)
+                :jdbcTemplate.query(sql,mapper,walletId,beforeCreatedAt,beforeId,limit);
     }
 }

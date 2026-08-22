@@ -181,11 +181,11 @@ class StoreRepositoryIntegrationTests {
         assertThat(cipher.decrypt(
                 runtimeBot.ciphertext(), runtimeBot.nonce(), runtimeBot.keyVersion()
         )).isEqualTo("discord-token");
-        assertThat(runtimeRepository.findFeatures(bot.id()))
+        assertThat(runtimeRepository.findFeatures(List.of(bot.id())))
                 .singleElement()
                 .satisfies(feature -> {
                     assertThat(feature.runtimeKey()).isEqualTo("integration-feature");
-                    assertThat(runtimeRepository.findConfig(feature.configSetId()))
+                    assertThat(runtimeRepository.findConfig(List.of(feature.configSetId())).get(feature.configSetId()))
                             .containsEntry(
                                     "WELCOME_TEXT",
                                     JsonMapper.builder().build().getNodeFactory().textNode("Hello")

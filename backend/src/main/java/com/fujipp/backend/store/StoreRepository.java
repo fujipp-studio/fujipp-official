@@ -372,6 +372,19 @@ public class StoreRepository {
         );
     }
 
+    public List<BotResponse> findBotsPage(UUID ownerUserId, OffsetDateTime afterCreatedAt, UUID afterId, int limit) {
+        String cursor = afterCreatedAt == null ? "" : " AND (created_at, id) > (?, ?)";
+        String sql = """
+                SELECT id,name,discord_application_id,discord_guild_id,discord_username,
+                       discord_avatar_url,status::text,desired_state::text,restart_revision,created_at,updated_at
+                  FROM bots.bot_instances
+                 WHERE owner_user_id = ? AND status <> 'DECOMMISSIONED'
+                """ + cursor + " ORDER BY created_at, id LIMIT ?";
+        return afterCreatedAt == null
+                ? jdbcTemplate.query(sql, this::mapBot, ownerUserId, limit)
+                : jdbcTemplate.query(sql, this::mapBot, ownerUserId, afterCreatedAt, afterId, limit);
+    }
+
     public BotResponse createBot(
             UUID ownerUserId,
             String name,

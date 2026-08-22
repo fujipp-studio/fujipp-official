@@ -1,5 +1,30 @@
 import type { Session } from '@supabase/supabase-js'
 
+interface CursorPage<T> {
+  items: T[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
+async function fetchAllCursorPages<T>(
+  initialUrl: URL,
+  headers: Record<string, string>,
+  errorMessage: string,
+): Promise<T[]> {
+  const items: T[] = []
+  let cursor: string | null = null
+  do {
+    const url = new URL(initialUrl)
+    url.searchParams.set('limit', '100')
+    if (cursor) url.searchParams.set('cursor', cursor)
+    const response = await fetch(url, { headers })
+    const page = await readJson<CursorPage<T>>(response, errorMessage)
+    items.push(...page.items)
+    cursor = page.hasMore ? page.nextCursor : null
+  } while (cursor)
+  return items
+}
+
 export interface CurrentUser {
   id: string
   email: string | null
@@ -318,12 +343,9 @@ export async function fetchCurrentUser(session: Session): Promise<CurrentUser> {
 }
 
 export async function fetchWorks(locale: WorkLocale): Promise<WorkSummary[]> {
-  const query = new URLSearchParams({ locale })
-  const response = await fetch(`${backendUrl}/api/v1/works?${query}`, {
-    headers: { Accept: 'application/json' },
-  })
-
-  return readJson<WorkSummary[]>(response, 'Unable to load portfolio projects.')
+  const url = new URL(`${backendUrl}/api/v2/works`)
+  url.searchParams.set('locale', locale)
+  return fetchAllCursorPages<WorkSummary>(url, { Accept: 'application/json' }, 'Unable to load portfolio projects.')
 }
 
 export async function fetchWork(slug: string, locale: WorkLocale): Promise<WorkDetail> {
@@ -434,10 +456,7 @@ export async function renewRuntime(subscriptionId: string, session: Session) {
 }
 
 export async function fetchBots(session: Session): Promise<UserBot[]> {
-  const response = await fetch(`${backendUrl}/api/v1/bots`, {
-    headers: authenticatedHeaders(session),
-  })
-  return readJson<UserBot[]>(response, 'Unable to load your bots.')
+  return fetchAllCursorPages<UserBot>(new URL(`${backendUrl}/api/v2/bots`), authenticatedHeaders(session), 'Unable to load your bots.')
 }
 
 export async function createBot(
@@ -830,27 +849,9 @@ export async function fetchAdminUsers(
   session: Session,
   query?: string,
 ): Promise<AdminUserSummary[]> {
-  const url = new URL(`${backendUrl}/api/v1/admin/users`)
+  const url = new URL(`${backendUrl}/api/v2/admin/users`)
   if (query) url.searchParams.set('query', query)
-  const response = await fetch(url.toString(), {
-    headers: adminHeaders(session, false),
-  })
-  if (!response.ok) {
-    if (response.status === 403) {
-      throw new Error('บัญชีของคุณยังไม่มีสิทธิ์ ADMIN (HTTP 403 Forbidden)')
-    }
-    if (response.status === 401) {
-      throw new Error('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่ (HTTP 401 Unauthorized)')
-    }
-    let bodyText = ''
-    try {
-      bodyText = await response.text()
-    } catch {}
-    throw new Error(
-      `โหลดรายการผู้ใช้ไม่สำเร็จ (HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''})`,
-    )
-  }
-  return response.json()
+  return fetchAllCursorPages<AdminUserSummary>(url, adminHeaders(session, false), 'โหลดรายการผู้ใช้ไม่สำเร็จ')
 }
 
 export async function adjustUserWallet(
@@ -1120,13 +1121,9 @@ export const deleteAdminFeatureImage = (featureId: string, session: Session) =>
   )
 
 export async function fetchAdminBots(session: Session, query?: string) {
-  const suffix = query ? `?query=${encodeURIComponent(query)}` : ''
-  return adminRequest<AdminBot[]>(
-    `/api/v1/admin/bots${suffix}`,
-    session,
-    { method: 'GET' },
-    'Unable to load bots.',
-  )
+  const url = new URL(`${backendUrl}/api/v2/admin/bots`)
+  if (query) url.searchParams.set('query', query)
+  return fetchAllCursorPages<AdminBot>(url, adminHeaders(session, false), 'Unable to load bots.')
 }
 export const transferAdminBot = (botId: string, newOwnerUserId: string, session: Session) =>
   adminRequest<AdminBot>(
@@ -1177,13 +1174,11 @@ export const updateAdminRuntimePlan = (
     { method: 'PUT', body: JSON.stringify(input) },
     'Unable to update runtime plan.',
   )
-export const fetchAdminRuntimeSubscriptions = (session: Session, ownerUserId?: string) =>
-  adminRequest<AdminRuntimeSubscription[]>(
-    `/api/v1/admin/runtime/subscriptions${ownerUserId ? `?ownerUserId=${encodeURIComponent(ownerUserId)}` : ''}`,
-    session,
-    { method: 'GET' },
-    'Unable to load runtime subscriptions.',
-  )
+export const fetchAdminRuntimeSubscriptions = (session: Session, ownerUserId?: string) => {
+  const url = new URL(`${backendUrl}/api/v2/admin/runtime/subscriptions`)
+  if (ownerUserId) url.searchParams.set('ownerUserId', ownerUserId)
+  return fetchAllCursorPages<AdminRuntimeSubscription>(url, adminHeaders(session, false), 'Unable to load runtime subscriptions.')
+}
 export const grantAdminRuntime = (
   input: {
     ownerUserId: string
@@ -1237,5 +1232,8 @@ export async function fetchUserWalletHistory(
       `โหลดประวัติกระเป๋าไม่สำเร็จ (HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''})`,
     )
   }
-  return response.json()
+  const metadata = (await response.json()) as AdminWalletHistoryResponse
+  const url = new URL(`${backendUrl}/api/v2/admin/users/${encodeURIComponent(customerId)}/wallet/history`)
+  metadata.entries = await fetchAllCursorPages<AdminWalletHistoryEntry>(url, adminHeaders(session, false), 'โหลดประวัติกระเป๋าไม่สำเร็จ')
+  return metadata
 }

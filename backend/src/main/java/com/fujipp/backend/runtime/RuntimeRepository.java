@@ -10,6 +10,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.sql.PreparedStatement;
 
 @Repository
 public class RuntimeRepository {
@@ -68,41 +70,46 @@ public class RuntimeRepository {
         );
     }
 
-    public List<FeatureRow> findFeatures(UUID botId) {
-        return jdbcTemplate.query(
+    public List<FeatureRow> findFeatures(List<UUID> botIds) {
+        if (botIds.isEmpty()) return List.of();
+        return queryByIds(
                 """
-                SELECT installation.id, product.code, version.version,
+                SELECT installation.id, installation.bot_id, product.code, version.version,
                        version.runtime_key, config.id AS config_set_id,
-                       config.revision
+                       config.revision, state.state::text AS runtime_state
                   FROM private.bot_feature_installations AS installation
                   JOIN private.feature_licenses AS license ON license.id = installation.license_id
                   JOIN shop.feature_products AS product ON product.id = installation.feature_product_id
                   JOIN shop.feature_versions AS version ON version.id = installation.feature_version_id
                   JOIN private.feature_config_sets AS config ON config.license_id = license.id
-                 WHERE installation.bot_id = ?
+                  LEFT JOIN private.feature_runtime_states AS state ON state.installation_id = installation.id
+                 WHERE installation.bot_id = ANY (?)
                    AND installation.removed_at IS NULL
                    AND installation.status IN ('INSTALLING', 'ACTIVE')
                    AND license.status = 'ACTIVE'
                    AND (license.expires_at IS NULL OR license.expires_at > now())
-                 ORDER BY product.code
+                 ORDER BY installation.bot_id, product.code
                 """,
                 (rs, row) -> new FeatureRow(
                         rs.getObject("id", UUID.class),
+                        rs.getObject("bot_id", UUID.class),
                         rs.getString("code"),
                         rs.getString("version"),
                         rs.getString("runtime_key"),
                         rs.getObject("config_set_id", UUID.class),
-                        rs.getLong("revision")
+                        rs.getLong("revision"),
+                        rs.getString("runtime_state") == null ? Map.of() : objectFields(parseJson(rs.getString("runtime_state")))
                 ),
-                botId
+                botIds
         );
     }
 
-    public Map<String, JsonNode> findConfig(UUID configSetId) {
-        Map<String, JsonNode> values = new LinkedHashMap<>();
-        jdbcTemplate.query(
+    public Map<UUID, Map<String, JsonNode>> findConfig(List<UUID> configSetIds) {
+        Map<UUID, Map<String, JsonNode>> values = new LinkedHashMap<>();
+        if (configSetIds.isEmpty()) return values;
+        queryByIds(
                 """
-                SELECT definition.config_key,
+                SELECT config.id, definition.config_key,
                        COALESCE(value.value, definition.default_value)::text
                   FROM private.feature_config_sets AS config
                   JOIN shop.feature_config_definitions AS definition
@@ -111,63 +118,75 @@ public class RuntimeRepository {
                   LEFT JOIN private.feature_config_values AS value
                     ON value.config_set_id = config.id
                    AND value.definition_id = definition.id
-                 WHERE config.id = ?
+                 WHERE config.id = ANY (?)
                    AND COALESCE(value.value, definition.default_value) IS NOT NULL
                  ORDER BY definition.config_key
                 """,
-                (RowCallbackHandler) rs -> values.put(rs.getString(1), parseJson(rs.getString(2))),
-                configSetId
+                (RowCallbackHandler) rs -> values.computeIfAbsent(rs.getObject(1, UUID.class), ignored -> new LinkedHashMap<>())
+                        .put(rs.getString(2), parseJson(rs.getString(3))),
+                configSetIds
         );
         return values;
     }
 
-    public List<SecretRow> findSecrets(UUID configSetId) {
-        return jdbcTemplate.query(
+    public List<SecretRow> findSecrets(List<UUID> configSetIds) {
+        if (configSetIds.isEmpty()) return List.of();
+        return queryByIds(
                 """
-                SELECT definition.config_key, secret.ciphertext, secret.nonce,
+                SELECT secret.config_set_id, definition.config_key, secret.ciphertext, secret.nonce,
                        secret.encryption_key_version
                   FROM private.feature_secret_values AS secret
                   JOIN shop.feature_config_definitions AS definition
                     ON definition.id = secret.definition_id
-                 WHERE secret.config_set_id = ?
+                 WHERE secret.config_set_id = ANY (?)
                  ORDER BY definition.config_key
                 """,
                 (rs, row) -> new SecretRow(
-                        rs.getString("config_key"),
+                        rs.getObject("config_set_id", UUID.class), rs.getString("config_key"),
                         rs.getBytes("ciphertext"),
                         rs.getBytes("nonce"),
                         rs.getString("encryption_key_version")
                 ),
-                configSetId
+                configSetIds
         );
     }
 
-    public Map<String, JsonNode> findPresentations(UUID configSetId) {
-        Map<String, JsonNode> values = new LinkedHashMap<>();
-        jdbcTemplate.query(
+    public Map<UUID, Map<String, JsonNode>> findPresentations(List<UUID> configSetIds) {
+        Map<UUID, Map<String, JsonNode>> values = new LinkedHashMap<>();
+        if (configSetIds.isEmpty()) return values;
+        queryByIds(
                 """
-                SELECT slot.slot_key, COALESCE(override.definition, slot.default_definition)::text
+                SELECT config.id, slot.slot_key, COALESCE(override.definition, slot.default_definition)::text
                   FROM shop.feature_presentation_slots AS slot
                   JOIN private.feature_config_sets AS config
                     ON config.feature_version_id = slot.feature_version_id
                   LEFT JOIN private.feature_presentation_overrides AS override
                     ON override.config_set_id = config.id
                    AND override.presentation_slot_id = slot.id
-                 WHERE config.id = ?
+                 WHERE config.id = ANY (?)
                  ORDER BY slot.slot_key
                 """,
-                (RowCallbackHandler) rs -> values.put(rs.getString(1), parseJson(rs.getString(2))),
-                configSetId
+                (RowCallbackHandler) rs -> values.computeIfAbsent(rs.getObject(1, UUID.class), ignored -> new LinkedHashMap<>())
+                        .put(rs.getString(2), parseJson(rs.getString(3))),
+                configSetIds
         );
         return values;
     }
 
-    public Map<String, JsonNode> findState(UUID installationId) {
-        return jdbcTemplate.query(
-                "SELECT state::text FROM private.feature_runtime_states WHERE installation_id = ?",
-                rs -> rs.next() ? objectFields(parseJson(rs.getString(1))) : Map.of(),
-                installationId
-        );
+    private <T> List<T> queryByIds(String sql, org.springframework.jdbc.core.RowMapper<T> mapper, List<UUID> ids) {
+        return jdbcTemplate.query(connection -> {
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setArray(1, connection.createArrayOf("uuid", ids.toArray()));
+            return statement;
+        }, mapper);
+    }
+
+    private void queryByIds(String sql, RowCallbackHandler handler, List<UUID> ids) {
+        jdbcTemplate.query(connection -> {
+            PreparedStatement statement = connection.prepareStatement(sql);
+            statement.setArray(1, connection.createArrayOf("uuid", ids.toArray()));
+            return statement;
+        }, handler);
     }
 
     public boolean upsertState(RuntimeStateRequest request) {
@@ -238,10 +257,10 @@ public class RuntimeRepository {
                          byte[] ciphertext, byte[] nonce, String keyVersion) {
     }
 
-    public record FeatureRow(UUID installationId, String code, String version,
-                             String runtimeKey, UUID configSetId, long revision) {
+    public record FeatureRow(UUID installationId, UUID botId, String code, String version,
+                             String runtimeKey, UUID configSetId, long revision, Map<String, JsonNode> state) {
     }
 
-    public record SecretRow(String key, byte[] ciphertext, byte[] nonce, String keyVersion) {
+    public record SecretRow(UUID configSetId, String key, byte[] ciphertext, byte[] nonce, String keyVersion) {
     }
 }

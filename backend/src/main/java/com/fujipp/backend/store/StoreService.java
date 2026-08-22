@@ -3,6 +3,7 @@ package com.fujipp.backend.store;
 import com.fujipp.backend.auth.CurrentUserRepository;
 import com.fujipp.backend.auth.CurrentUserService;
 import com.fujipp.backend.runtime.RuntimeSlotService;
+import com.fujipp.backend.runtime.RuntimeService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import com.fujipp.backend.pagination.CursorCodec;
+import com.fujipp.backend.pagination.CursorPage;
 
 @Service
 public class StoreService {
@@ -29,6 +32,8 @@ public class StoreService {
     private final RuntimeSlotService runtimeSlots;
     private final DiscordBotProfileClient discordProfiles;
     private final ObjectMapper objectMapper;
+    private final CursorCodec cursors;
+    private final RuntimeService runtime;
 
     public StoreService(
             StoreRepository repository,
@@ -36,7 +41,9 @@ public class StoreService {
             StoreSecretCipher secretCipher,
             RuntimeSlotService runtimeSlots,
             DiscordBotProfileClient discordProfiles,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            CursorCodec cursors,
+            RuntimeService runtime
     ) {
         this.repository = repository;
         this.currentUserService = currentUserService;
@@ -44,6 +51,8 @@ public class StoreService {
         this.runtimeSlots = runtimeSlots;
         this.discordProfiles = discordProfiles;
         this.objectMapper = objectMapper;
+        this.cursors = cursors;
+        this.runtime = runtime;
     }
 
     @Transactional(readOnly = true)
@@ -54,6 +63,16 @@ public class StoreService {
     @Transactional(readOnly = true)
     public List<BotResponse> listBots(String subject) {
         return repository.findBots(activeUser(subject).id());
+    }
+
+    @Transactional(readOnly = true)
+    public CursorPage<BotResponse> listBotsV2(String subject, int limit, String cursor) {
+        UUID owner = activeUser(subject).id();
+        var values = cursors.decode(cursor, "bots", owner.toString(), 2);
+        OffsetDateTime createdAt = values.isEmpty() ? null : cursors.dateTime(values.get(0));
+        UUID id = values.isEmpty() ? null : cursors.uuid(values.get(1));
+        return CursorPage.of(repository.findBotsPage(owner, createdAt, id, limit + 1), limit,
+                bot -> cursors.encode("bots", owner.toString(), List.of(bot.createdAt().toString(), bot.id().toString())));
     }
 
     @Transactional
@@ -86,7 +105,9 @@ public class StoreService {
     public BotResponse controlBot(String subject, UUID botId, String action) {
         UUID ownerId = activeUser(subject).id();
         if (!"stop".equals(action)) runtimeSlots.requireRunnable(botId, ownerId);
-        return repository.controlBot(botId, ownerId, action);
+        BotResponse response=repository.controlBot(botId, ownerId, action);
+        runtime.invalidateBootstrap();
+        return response;
     }
 
     @Transactional
@@ -106,6 +127,7 @@ public class StoreService {
                 "DISCORD_TOKEN",
                 secretCipher.encrypt(token)
         );
+        runtime.invalidateBootstrap();
         return syncDiscordProfile(userId, botId, token);
     }
 
@@ -214,6 +236,7 @@ public class StoreService {
         try {
             UUID installationId = repository.installFeature(license, userId, request.botId());
             repository.clearConfigValidation(license.configSetId());
+            runtime.invalidateBootstrap();
             return installationId;
         } catch (DataIntegrityViolationException exception) {
             throw new StoreConflictException(
@@ -229,6 +252,7 @@ public class StoreService {
         if (!repository.removeInstallation(installationId, userId)) {
             throw new StoreNotFoundException("Active feature installation was not found");
         }
+        runtime.invalidateBootstrap();
     }
 
     @Transactional(readOnly = true)
@@ -319,6 +343,7 @@ public class StoreService {
                 || !request.secrets().isEmpty()
                 || !request.presentations().isEmpty()) {
             repository.bumpConfigRevision(license.configSetId());
+            runtime.invalidateBootstrap();
         }
         StoreRepository.LicenseContext refreshed = ownedLicense(licenseId, userId);
         return repository.findConfiguration(refreshed);

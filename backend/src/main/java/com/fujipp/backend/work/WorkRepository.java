@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 @Repository
 public class WorkRepository {
@@ -76,6 +77,44 @@ public class WorkRepository {
                         findMedia(project.id(), "GALLERY").stream().findFirst().orElse(null)
                 ))
                 .toList();
+    }
+
+    public List<WorkPageRow> findPublishedPage(String locale,String category,Boolean featured,
+            List<String> after,int limit) {
+        String cursor=after.isEmpty()?"":"""
+                   AND ROW(CASE WHEN project.is_featured THEN 0 ELSE 1 END,
+                           COALESCE(project.featured_order,2147483647),
+                           -extract(epoch from project.published_at),project.slug,project.id::text)
+                       > ROW(?::int,?::int,?::numeric,?::text,?::text)
+                """;
+        String sql="""
+                SELECT project.id,project.slug,translation.name,translation.short_description,
+                       NULL::text AS overview,NULL::text AS feasibility,NULL::text AS target_users,
+                       project.status::text,project.started_on,project.completed_on,project.is_featured,
+                       project.featured_order,project.published_at,category.code AS category_code,category.name AS category_name
+                  FROM portfolio.projects project JOIN portfolio.project_translations translation
+                    ON translation.project_id=project.id AND translation.locale=?
+                  JOIN portfolio.project_categories category ON category.id=project.category_id
+                 WHERE project.publication_status='PUBLISHED' AND (?::text IS NULL OR category.code=?)
+                   AND (?::boolean IS NULL OR project.is_featured=?)
+                """+cursor+"""
+                 ORDER BY project.is_featured DESC,project.featured_order ASC NULLS LAST,
+                          project.published_at DESC,project.slug,project.id LIMIT ?
+                """;
+        Object[] base=after.isEmpty()
+                ?new Object[]{locale,category,category,featured,featured,limit}
+                :new Object[]{locale,category,category,featured,featured,after.get(0),after.get(1),after.get(2),after.get(3),after.get(4),limit};
+        return jdbcTemplate.query(sql,(rs,n)->{
+            ProjectRow project=PROJECT_ROW_MAPPER.mapRow(rs,n);
+            WorkSummaryResponse item=new WorkSummaryResponse(project.slug(),project.name(),project.shortDescription(),
+                    project.status(),project.startedOn(),project.completedOn(),project.featured(),project.category(),
+                    findPositions(project.id()),findTechnologies(project.id()),findMedia(project.id(),"GALLERY").stream().findFirst().orElse(null));
+            int order=rs.getObject("featured_order",Integer.class)==null?2147483647:rs.getInt("featured_order");
+            var instant=project.publishedAt().toInstant();
+            String epochSort=BigDecimal.valueOf(instant.getEpochSecond())
+                    .add(BigDecimal.valueOf(instant.getNano(),9)).negate().stripTrailingZeros().toPlainString();
+            return new WorkPageRow(item,project.id(),project.featured()?0:1,order,epochSort,project.slug());
+        },base);
     }
 
     public Optional<WorkDetailResponse> findPublishedBySlug(String slug, String locale) {
@@ -316,4 +355,7 @@ public class WorkRepository {
 
     public record ContentItem(String title, String description) {
     }
+
+    public record WorkPageRow(WorkSummaryResponse item,UUID id,int featuredSort,int featuredOrder,
+                              String publishedEpochSort,String slug){}
 }

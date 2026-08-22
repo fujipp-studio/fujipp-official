@@ -13,7 +13,8 @@ import static org.mockito.Mockito.when;
 class WorkServiceTests {
 
     private final WorkRepository repository = mock(WorkRepository.class);
-    private final WorkService service = new WorkService(repository);
+    private final WorkService service = new WorkService(repository,
+            new com.fujipp.backend.pagination.CursorCodec(tools.jackson.databind.json.JsonMapper.builder().build()));
 
     @Test
     void normalizesCategoryFilter() {
