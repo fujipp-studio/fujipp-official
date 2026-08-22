@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-22 | Eliminated runtime bootstrap N+1 queries, added cache-aware metrics and invalidation, and introduced backward-compatible cursor-paginated APIs for growing collections. |
 | 2026-08-13 | Added Wallet Top-up 2.0 with serialized Top Spender synchronization and full Discord-member reconciliation so Top 1 and Top 10 roles cannot remain over-assigned. |
 | 2026-08-12 | Isolated the temporary Wallet slip role from Top Spender synchronization, retried expired-session cleanup, and enforced slip-role removal as the final successful top-up step. |
 | 2026-08-12 | Added customer License upgrades and administrator access to installed Feature configuration on customer Bots. |
