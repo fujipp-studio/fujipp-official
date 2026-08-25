@@ -75,7 +75,7 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/fujipp-official-bot-runner
     steps:
       - uses: actions/checkout@v6
-      - uses: docker/setup-buildx-action@v4.2.0
+      - uses: docker/setup-buildx-action@v4.3.0
       - uses: docker/login-action@v4.6.0
         with:
           registry: ghcr.io
