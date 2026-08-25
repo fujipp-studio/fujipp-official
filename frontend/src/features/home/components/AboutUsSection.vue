@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -7,10 +7,6 @@ import { useRouter } from 'vue-router'
 import { icons } from '../../../config'
 import { AppButton, AppProgressiveImage } from '../../../shared/ui'
 import { useThemeStore } from '../../../stores'
-import { useScrollFade } from '../composables/useScrollFade'
-
-const section = ref<HTMLElement>()
-const fadeStyle = useScrollFade(section, 'both')
 const router = useRouter()
 const { locale, t } = useI18n()
 const { isDarkTheme } = storeToRefs(useThemeStore())
@@ -33,11 +29,10 @@ function navigateTo(path: '/about' | '/work') {
 <template>
   <section
     id="about-us"
-    ref="section"
     class="about-us-section"
     aria-labelledby="about-us-title"
   >
-    <div class="about-us-section__layout" :style="fadeStyle">
+    <div class="about-us-section__layout">
       <div class="about-us-section__portrait">
         <AppProgressiveImage
           class="about-us-section__image"

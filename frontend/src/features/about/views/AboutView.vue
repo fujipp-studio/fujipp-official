@@ -450,6 +450,9 @@ onBeforeUnmount(() => {
   z-index: 2;
   right: var(--space-md);
   bottom: var(--space-md);
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--corner-radius-sm);
+  background: rgb(0 0 0 / 72%);
   color: var(--semantic-color-text-text-inverse);
   font-family: var(--font-family-display);
   font-size: var(--font-size-heading-h2);
@@ -469,14 +472,14 @@ onBeforeUnmount(() => {
 .about-profile__age,
 .about-profile__location {
   margin: 0;
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-large);
   line-height: var(--line-height-body);
 }
 
 .about-profile .about-profile__age,
 .about-profile .about-profile__location {
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
 }
 
 .about-profile .about-copy {
@@ -537,7 +540,7 @@ onBeforeUnmount(() => {
 }
 
 .about-profile__education span {
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-label-medium);
 }
 
@@ -719,7 +722,7 @@ onBeforeUnmount(() => {
 
 .about-experience__summary p {
   margin: 0;
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
   line-height: var(--line-height-body);
 }
 
@@ -754,7 +757,7 @@ onBeforeUnmount(() => {
 }
 
 .about-experience__number {
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-label-medium);
 }

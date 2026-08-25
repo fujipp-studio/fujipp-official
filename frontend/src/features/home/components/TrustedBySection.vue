@@ -1,24 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { trustedCommunities } from '../config'
 import { AppProgressiveImage } from '../../../shared/ui'
-import { useScrollFade } from '../composables/useScrollFade'
-
-const section = ref<HTMLElement>()
-const fadeStyle = useScrollFade(section, 'both')
 const { t } = useI18n()
 </script>
 
 <template>
   <section
     id="trusted-by"
-    ref="section"
     class="trusted-by-section"
     aria-labelledby="trusted-by-title"
   >
-    <div class="trusted-by-section__container" :style="fadeStyle">
+    <div class="trusted-by-section__container">
       <div class="trusted-by-section__copy">
         <h2 id="trusted-by-title">{{ t('home.trusted.title') }}</h2>
         <p>{{ t('home.trusted.description') }}</p>

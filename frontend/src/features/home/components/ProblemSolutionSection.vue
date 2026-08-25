@@ -1,24 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { AppProgressiveImage } from '../../../shared/ui'
 import { homeFeatures } from '../config'
-import { useScrollFade } from '../composables/useScrollFade'
-
-const section = ref<HTMLElement>()
-const fadeStyle = useScrollFade(section, 'both')
 const { t } = useI18n()
 </script>
 
 <template>
   <section
     id="discord-bot-services"
-    ref="section"
     class="bot-services-section"
     aria-labelledby="bot-services-title"
   >
-    <div class="bot-services-section__content" :style="fadeStyle">
+    <div class="bot-services-section__content">
       <div class="bot-services-section__intro">
         <div class="bot-services-section__copy">
           <h2 id="bot-services-title">{{ t('home.problem.title') }}</h2>
