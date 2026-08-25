@@ -395,7 +395,7 @@ onBeforeUnmount(() => observer?.disconnect())
 
 .calendar-body {
   display: grid;
-  grid-template-columns: 0.75rem auto;
+  grid-template-columns: 1.5rem auto;
   gap: 0.3125rem;
 }
 
@@ -406,7 +406,7 @@ onBeforeUnmount(() => observer?.disconnect())
 
 .month-labels {
   display: grid;
-  grid-template-columns: repeat(var(--contribution-week-count), 0.75rem);
+  grid-template-columns: repeat(var(--contribution-week-count), 1.5rem);
   gap: 0.3125rem;
   text-align: left;
 }
@@ -421,14 +421,14 @@ onBeforeUnmount(() => observer?.disconnect())
 .weekday-labels,
 .contribution-week {
   display: flex;
-  width: 0.75rem;
+  width: 1.5rem;
   flex-direction: column;
   gap: 0.3125rem;
 }
 
 .weekday-labels span {
-  height: 0.75rem;
-  line-height: 0.75rem;
+  height: 1.5rem;
+  line-height: 1.5rem;
 }
 
 .contribution-weeks {
@@ -440,8 +440,8 @@ onBeforeUnmount(() => observer?.disconnect())
   position: relative;
   box-sizing: border-box;
   display: block;
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex: none;
   border: 1px solid color-mix(in srgb, var(--semantic-color-text-text-muted) 42%, transparent);
   border-radius: 0.1875rem;

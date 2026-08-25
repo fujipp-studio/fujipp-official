@@ -12,6 +12,16 @@ module.exports = {
         throttlingMethod: 'provided',
       },
     },
+    assert: {
+      ...mobile.ci.assert,
+      assertions: {
+        ...mobile.ci.assert.assertions,
+        'categories:performance': [
+          'error',
+          { minScore: 0.9, aggregationMethod: 'median-run' },
+        ],
+      },
+    },
     upload: { target: 'filesystem', outputDir: '.lighthouseci/desktop' },
   },
 }
