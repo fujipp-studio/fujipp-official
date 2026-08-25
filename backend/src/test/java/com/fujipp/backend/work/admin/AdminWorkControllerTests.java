@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -84,11 +85,34 @@ class AdminWorkControllerTests {
     void editorCanLoadWorkCatalog() throws Exception {
         authorizeAs(AppRole.EDITOR);
         when(adminWorkService.catalog()).thenReturn(new AdminWorkCatalogResponse(
-                List.of(), List.of(), List.of()
+                List.of(), List.of(), List.of(), List.of()
         ));
 
         mockMvc.perform(get("/api/v1/admin/works/catalog").with(jwt()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void editorCanCreateCatalogTechnology() throws Exception {
+        authorizeAs(AppRole.EDITOR);
+        when(adminWorkService.createTechnology(any(CreateTechnologyRequest.class)))
+                .thenReturn(new AdminWorkCatalogResponse.Technology(
+                        "spring-boot", "Spring Boot", "backend", "Backend"
+                ));
+
+        mockMvc.perform(post("/api/v1/admin/works/catalog/technologies")
+                        .with(jwt())
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "slug": "spring-boot",
+                                  "name": "Spring Boot",
+                                  "groupCode": "backend",
+                                  "iconUrl": "https://cdn.simpleicons.org/springboot",
+                                  "officialUrl": "https://spring.io/projects/spring-boot"
+                                }
+                                """))
+                .andExpect(status().isCreated());
     }
 
     @Test

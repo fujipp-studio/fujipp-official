@@ -39,6 +39,18 @@ public class AdminWorkService {
         return repository.findCatalog();
     }
 
+    @Transactional
+    public AdminWorkCatalogResponse.Technology createTechnology(CreateTechnologyRequest request) {
+        if (!repository.activeTechnologyGroupExists(request.groupCode())) {
+            throw new AdminWorkValidationException("Technology group must reference an active group");
+        }
+        try {
+            return repository.createTechnology(request);
+        } catch (DataIntegrityViolationException exception) {
+            throw new AdminWorkConflictException("A technology already uses this slug");
+        }
+    }
+
     @Transactional(readOnly = true)
     public AdminWorkResponse get(UUID id) {
         return reload(id);
