@@ -819,7 +819,6 @@ onBeforeUnmount(() => {
 
 .about-contact__action span {
   font-size: var(--font-size-label-medium);
-  opacity: 0.7;
 }
 
 .about-contact__action > a {
