@@ -6,6 +6,14 @@
  * when Inter does not contain a character.
  */
 @font-face {
+  font-family: 'Bruno Ace';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('@fontsource/bruno-ace/files/bruno-ace-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
   font-family: 'Kanit';
   font-style: normal;
   font-display: optional;
@@ -95,6 +103,7 @@
     'Segoe UI', sans-serif;
   --font-family-mono: 'Roboto Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-family-handwriting: 'Caveat Variable', cursive;
+  --font-family-brand: 'Bruno Ace', sans-serif;
 }
 
 @theme inline {
@@ -102,4 +111,5 @@
   --font-mono: var(--font-family-mono);
   --font-numeric: var(--font-family-mono);
   --font-handwriting: var(--font-family-handwriting);
+  --font-brand: var(--font-family-brand);
 }

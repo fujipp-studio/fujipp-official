@@ -8,19 +8,19 @@ import { i18n } from '../i18n'
 
 describe('App', () => {
   it(
-    'renders the design system route',
+    'renders the component catalog route',
     async () => {
       const router = createRouter({
         history: createMemoryHistory(),
         routes: [
           {
-            path: '/design-system',
+            path: '/components',
             component: () => import('../views/DesignSystemView.vue'),
           },
         ],
       })
 
-      await router.push('/design-system')
+      await router.push('/components')
       await router.isReady()
 
       const wrapper = mount(App, {
@@ -29,8 +29,9 @@ describe('App', () => {
         },
       })
 
-      expect(wrapper.text()).toContain('Navbar')
-      expect(wrapper.text()).toContain('Authentication: Off')
+      expect(wrapper.get('h1').text()).toBe('Components')
+      expect(wrapper.text()).toContain('AppNavbar')
+      expect(wrapper.text()).toContain('AppTurnstile')
     },
     15_000,
   )

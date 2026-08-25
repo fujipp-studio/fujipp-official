@@ -5,10 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import {
   createAdminWork,
-  createAdminWorkContent,
-  createAdminWorkLink,
-  deleteAdminWorkContent,
-  deleteAdminWorkLink,
+  createAdminTechnology,
   deleteAdminWorkMedia,
   fetchAdminWork,
   fetchAdminWorkCatalog,
@@ -16,14 +13,9 @@ import {
   fetchAdminWorkLinks,
   fetchAdminWorkMedia,
   publishAdminWork,
-  replaceAdminWorkCodes,
-  updateAdminWork,
-  updateAdminWorkContent,
-  updateAdminWorkLink,
+  saveAdminWorkDraft,
   unpublishAdminWork,
   uploadAdminWorkMedia,
-  upsertAdminWorkContentTranslation,
-  upsertAdminWorkTranslation,
   type AdminWorkContent,
   type AdminWorkCatalog,
   type AdminWorkInput,
@@ -34,7 +26,7 @@ import {
   type WorkLocale,
 } from '../../../services/backend'
 import { AppFooter } from '../../../shared/layout'
-import { AppButton, AppFileField, AppImageLightbox, AppMultiSelect, AppSectionIndicator, AppTextArea, AppTextField, AppToast } from '../../../shared/ui'
+import { AppButton, AppFileField, AppImageLightbox, AppModal, AppMultiSelect, AppSectionIndicator, AppTextArea, AppTextField, AppToast } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'
 
 type TranslationInput = Omit<AdminWorkTranslation, 'locale'>
@@ -55,7 +47,12 @@ const saving = ref(false)
 const error = ref('')
 const toastOpen = ref(false)
 const toastMessage = ref('')
-const catalog = ref<AdminWorkCatalog>({ categories: [], positions: [], technologies: [] })
+const catalog = ref<AdminWorkCatalog>({ categories: [], positions: [], technologyGroups: [], technologies: [] })
+const simpleIcons = ref<Array<{ title: string; slug: string; source: string }>>([])
+const technologySearch = ref('')
+const technologyModalOpen = ref(false)
+const creatingTechnology = ref(false)
+const pendingTechnology = reactive({ name: '', slug: '', groupCode: '', officialUrl: '', fromSimpleIcons: false })
 const contentItems = ref<EditorContent[]>([])
 const links = ref<EditorLink[]>([])
 const media = ref<AdminWorkMedia[]>([])
@@ -120,7 +117,62 @@ const editorSections = [
 ] as const
 const categoryOptions = computed(() => catalog.value.categories.map((item) => ({ label: item.name, value: item.code })))
 const positionOptions = computed(() => catalog.value.positions.map((item) => ({ label: item.name, value: item.code })))
-const technologyOptions = computed(() => catalog.value.technologies.map((item) => ({ label: item.name, value: item.slug, group: item.groupName })))
+const technologyGroupOptions = computed(() => catalog.value.technologyGroups.map((item) => ({ label: item.name, value: item.code })))
+const technologyOptions = computed(() => {
+  const existing = catalog.value.technologies.map((item) => ({ label: item.name, value: item.slug, group: item.groupName }))
+  const query = technologySearch.value.trim().toLowerCase()
+  if (query.length < 2) return existing
+  const existingSlugs = new Set(catalog.value.technologies.map((item) => item.slug))
+  const matches = simpleIcons.value
+    .filter((item) => !existingSlugs.has(item.slug) && `${item.title} ${item.slug}`.toLowerCase().includes(query))
+    .slice(0, 50)
+    .map((item) => ({ label: item.title, value: item.slug, group: 'Simple Icons · add to catalog' }))
+  return [...existing, ...matches]
+})
+
+function openTechnologyModal(icon?: { title: string; slug: string; source: string }) {
+  Object.assign(pendingTechnology, {
+    name: icon?.title ?? '',
+    slug: icon?.slug ?? '',
+    groupCode: catalog.value.technologyGroups[0]?.code ?? '',
+    officialUrl: icon?.source ?? '',
+    fromSimpleIcons: Boolean(icon),
+  })
+  technologyModalOpen.value = true
+}
+
+function updateTechnologies(next: string[]) {
+  const newSlug = next.find((slug) => !form.technologies.includes(slug))
+  if (!newSlug || catalog.value.technologies.some((item) => item.slug === newSlug)) {
+    form.technologies = next
+    return
+  }
+  const icon = simpleIcons.value.find((item) => item.slug === newSlug)
+  if (icon) openTechnologyModal(icon)
+}
+
+async function confirmTechnology() {
+  if (!authStore.session || !pendingTechnology.name.trim() || !pendingTechnology.slug.trim() || !pendingTechnology.groupCode) return
+  creatingTechnology.value = true
+  try {
+    const technology = await createAdminTechnology({
+      name: pendingTechnology.name.trim(),
+      slug: pendingTechnology.slug.trim().toLowerCase(),
+      groupCode: pendingTechnology.groupCode,
+      officialUrl: pendingTechnology.officialUrl.trim() || null,
+      iconUrl: pendingTechnology.fromSimpleIcons ? `https://cdn.simpleicons.org/${pendingTechnology.slug.trim().toLowerCase()}` : null,
+    }, authStore.session)
+    catalog.value.technologies.push(technology)
+    if (!form.technologies.includes(technology.slug)) form.technologies.push(technology.slug)
+    technologyModalOpen.value = false
+    technologySearch.value = ''
+  } catch (reason) {
+    toastMessage.value = reason instanceof Error ? reason.message : 'Unable to create the technology.'
+    toastOpen.value = true
+  } finally {
+    creatingTechnology.value = false
+  }
+}
 
 function applyTranslation(locale: WorkLocale, translation?: AdminWorkTranslation) {
   if (!translation) return
@@ -212,37 +264,45 @@ async function saveWork() {
     }
     const saved = creating
       ? await createAdminWork(input, authStore.session)
-      : await updateAdminWork(workId.value, input, authStore.session)
+      : { id: workId.value }
 
     if (creating) await router.replace({ name: 'work-edit', params: { id: saved.id } })
-
-    for (const locale of ['en', 'th'] as const) {
-      await upsertAdminWorkTranslation(saved.id, locale, translations[locale], authStore.session)
-    }
-    await replaceAdminWorkCodes(saved.id, 'positions', form.positions, authStore.session)
-    await replaceAdminWorkCodes(saved.id, 'technologies', form.technologies, authStore.session)
-
-    await Promise.all(removedContentIds.value.map((id) => deleteAdminWorkContent(saved.id, id, authStore.session!)))
     normalizeContentOrder()
-    for (const item of contentItems.value) {
-      const savedItem = item.id
-        ? await updateAdminWorkContent(saved.id, item.id, item, authStore.session)
-        : await createAdminWorkContent(saved.id, item, authStore.session)
-      item.id = savedItem.id
-      for (const locale of ['en', 'th'] as const) {
-        await upsertAdminWorkContentTranslation(saved.id, savedItem.id, locale, item.translations[locale], authStore.session)
-      }
-    }
+    links.value.forEach((link, index) => { link.sortOrder = index + 1 })
+    const result = await saveAdminWorkDraft(saved.id, {
+      work: input,
+      en: translations.en,
+      th: translations.th,
+      positions: { codes: form.positions },
+      technologies: { codes: form.technologies },
+      content: contentItems.value.map((item) => ({
+        id: item.id,
+        type: item.type,
+        sortOrder: item.sortOrder,
+        en: item.translations.en,
+        th: item.translations.th,
+      })),
+      links: links.value.map((link) => ({
+        id: link.id,
+        value: {
+          type: link.type,
+          label: link.label,
+          url: link.url,
+          sortOrder: link.sortOrder,
+        },
+      })),
+    }, authStore.session)
+    contentItems.value = result.content.map((item) => ({
+      id: item.id,
+      type: item.type,
+      sortOrder: item.sortOrder,
+      translations: {
+        en: item.translations.find((translation) => translation.locale === 'en') ?? { title: '', description: '' },
+        th: item.translations.find((translation) => translation.locale === 'th') ?? { title: '', description: '' },
+      },
+    }))
+    links.value = result.links
     removedContentIds.value = []
-
-    await Promise.all(removedLinkIds.value.map((id) => deleteAdminWorkLink(saved.id, id, authStore.session!)))
-    for (const [index, link] of links.value.entries()) {
-      link.sortOrder = index + 1
-      const savedLink = link.id
-        ? await updateAdminWorkLink(saved.id, link.id, link, authStore.session)
-        : await createAdminWorkLink(saved.id, link, authStore.session)
-      link.id = savedLink.id
-    }
     removedLinkIds.value = []
 
     toastMessage.value = creating ? 'Work created successfully.' : 'Work updated successfully.'
@@ -360,6 +420,10 @@ async function togglePublication() {
 }
 
 onMounted(async () => {
+  void fetch('/data/simple-icons.json')
+    .then((response) => response.ok ? response.json() : [])
+    .then((items) => { simpleIcons.value = items })
+    .catch(() => { simpleIcons.value = [] })
   await authStore.initialize()
   if (canEdit.value && authStore.session) {
     try {
@@ -410,8 +474,6 @@ onMounted(async () => {
             {{ saving ? 'Saving…' : 'Save draft' }}
           </AppButton>
         </header>
-
-        <p v-if="error" class="editor-error" role="alert">{{ error }}</p>
 
         <section id="editor-project-setup" class="editor-section" aria-labelledby="project-setup-heading">
           <div class="editor-section__heading">
@@ -468,7 +530,18 @@ onMounted(async () => {
           </div>
           <div class="editor-grid">
             <AppMultiSelect v-model="form.positions" label="Positions" :options="positionOptions" placeholder="Search positions…" support-text="Selection order controls display order." />
-            <AppMultiSelect v-model="form.technologies" label="Technologies" :options="technologyOptions" placeholder="Search technologies…" support-text="Search by technology, group, or code." />
+            <div class="technology-picker">
+              <AppMultiSelect
+                :model-value="form.technologies"
+                label="Technologies"
+                :options="technologyOptions"
+                placeholder="Search technologies…"
+                support-text="Search the saved catalog or Simple Icons. Type at least 2 characters."
+                @search="technologySearch = $event"
+                @update:model-value="updateTechnologies"
+              />
+              <AppButton type="button" variant="secondary" @click="openTechnologyModal()">Add custom technology</AppButton>
+            </div>
           </div>
         </section>
 
@@ -606,6 +679,23 @@ onMounted(async () => {
     </main>
     <AppSectionIndicator v-if="canEdit && !loading" :sections="editorSections" aria-label="Work editor sections" />
     <AppFooter />
+    <AppModal
+      v-model:open="technologyModalOpen"
+      title="Add technology"
+      subtitle="Choose a group before saving this technology to the reusable catalog."
+      :disabled="creatingTechnology"
+    >
+      <div class="technology-modal-fields">
+        <AppTextField v-model="pendingTechnology.name" label="Name" required :maxlength="100" />
+        <AppTextField v-model="pendingTechnology.slug" label="Slug" required placeholder="spring-boot" />
+        <AppTextField v-model="pendingTechnology.groupCode" label="Group" variant="dropdown" :options="technologyGroupOptions" required />
+        <AppTextField v-model="pendingTechnology.officialUrl" label="Official URL" input-type="url" placeholder="https://" />
+      </div>
+      <template #actions>
+        <AppButton type="button" variant="secondary" :disabled="creatingTechnology" @click="technologyModalOpen = false">Cancel</AppButton>
+        <AppButton type="button" :loading="creatingTechnology" @click="confirmTechnology">Add technology</AppButton>
+      </template>
+    </AppModal>
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="error ? 'error' : 'success'" />
     <AppImageLightbox v-if="previewMedia" v-model:open="mediaLightboxOpen" :src="previewMedia.url" :alt="previewMedia.altText ?? ''" :caption="previewMedia.altText ?? previewMedia.type" />
   </div>
@@ -623,7 +713,6 @@ onMounted(async () => {
 .editor-header h1 { margin: 0; font-size: clamp(3.5rem, 9vw, 7.5rem); line-height: 0.9; letter-spacing: -0.065em; }
 .editor-eyebrow { margin: 0 0 var(--space-sm); font-size: var(--font-size-body-small); font-weight: var(--typography-font-weight-bold); letter-spacing: 0.08em; text-transform: uppercase; }
 .editor-save { width: auto; min-width: 9rem; }
-.editor-error { padding: var(--space-md); border: 1px solid var(--semantic-color-error-error-border); border-radius: var(--radius-md); background: var(--semantic-color-error-error-bg); color: var(--semantic-color-error-error-text); }
 .editor-section { padding-block: var(--space-3xl); border-top: 1px solid var(--semantic-color-border-border-default); scroll-margin-top: 4rem; }
 .editor-section__heading { display: grid; grid-template-columns: 3rem minmax(0, 1fr); gap: var(--space-md); margin-bottom: var(--space-2xl); }
 .editor-section__heading--action { grid-template-columns: 3rem minmax(0, 1fr) auto; align-items: end; }
@@ -631,6 +720,9 @@ onMounted(async () => {
 .editor-section__heading h2 { margin: 0; font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -0.04em; }
 .editor-section__heading p { margin: var(--space-xs) 0 0; color: var(--semantic-color-text-text-secondary); }
 .editor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); padding-left: calc(3rem + var(--space-md)); }
+.technology-picker { display: grid; align-content: start; gap: var(--space-sm); }
+.technology-picker > :last-child { width: 100%; }
+.technology-modal-fields { display: grid; gap: var(--space-md); }
 .editor-small-button { width: auto; }
 .editor-collection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-lg); padding-left: calc(3rem + var(--space-md)); }
 .content-groups { display: grid; gap: var(--space-3xl); padding-left: calc(3rem + var(--space-md)); }

@@ -4,8 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 const sections = [
   { id: 'home-hero', labelKey: 'home.sections.introduction' },
-  { id: 'problem-solution', labelKey: 'home.sections.botSetup' },
-  { id: 'services-features', labelKey: 'home.sections.services' },
+  { id: 'discord-bot-services', labelKey: 'home.sections.botServices' },
   { id: 'trusted-by', labelKey: 'home.sections.communities' },
   { id: 'about-us', labelKey: 'home.sections.developer' },
 ] as const
@@ -108,22 +107,33 @@ onBeforeUnmount(() => {
 }
 
 .scroll-progress__tick {
-  width: 0.5rem;
+  width: 0.875rem;
   height: 2px;
   background: var(--semantic-color-text-text-muted);
   opacity: 0.55;
+  transform: scaleX(0.5714);
+  transform-origin: right center;
   transition:
-    width 180ms ease,
-    opacity 180ms ease,
-    background-color 180ms ease;
+    transform 180ms ease,
+    opacity 180ms ease;
 }
 
-.scroll-progress__button:hover .scroll-progress__tick,
-.scroll-progress__button:focus-visible .scroll-progress__tick,
 .scroll-progress__button--active .scroll-progress__tick {
-  width: 0.875rem;
   background: var(--semantic-color-text-text-primary);
   opacity: 1;
+  transform: scaleX(1);
+}
+
+.scroll-progress__button:not(.scroll-progress__button--active):hover .scroll-progress__tick,
+.scroll-progress__button:not(.scroll-progress__button--active):focus-visible .scroll-progress__tick {
+  opacity: 0.85;
+  transform: scaleX(0.7143);
+}
+
+.scroll-progress__button:focus-visible {
+  border-radius: var(--corner-radius-sm);
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: 1px;
 }
 
 @media (max-width: 47.99rem) {

@@ -1,0 +1,54 @@
+<svg width="1080" height="1080" viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Fujipp mascot with changing pixel faces</title>
+  <style>
+    .face { opacity: 0; animation: show-face 24s steps(1, end) infinite; }
+    .face:nth-of-type(1) { animation-delay: 0s; }
+    .face:nth-of-type(2) { animation-delay: -22s; }
+    .face:nth-of-type(3) { animation-delay: -20s; }
+    .face:nth-of-type(4) { animation-delay: -18s; }
+    .face:nth-of-type(5) { animation-delay: -16s; }
+    .face:nth-of-type(6) { animation-delay: -14s; }
+    .face:nth-of-type(7) { animation-delay: -12s; }
+    .face:nth-of-type(8) { animation-delay: -10s; }
+    .face:nth-of-type(9) { animation-delay: -8s; }
+    .face:nth-of-type(10) { animation-delay: -6s; }
+    .face:nth-of-type(11) { animation-delay: -4s; }
+    .face:nth-of-type(12) { animation-delay: -2s; }
+    @keyframes show-face {
+      0%, 8.32% { opacity: 1; }
+      8.33%, 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .face { animation: none; }
+      .face:first-of-type { opacity: 1; }
+    }
+  </style>
+  <path id="mascot-body" d="M540 92L1057 988H23L540 92Z" fill="inherit"/>
+  <!-- 16 x 16 canvas; one pixel = 25 -->
+  <g id="mascot-faces" fill="inherit" shape-rendering="crispEdges" aria-hidden="true">
+    <!-- Happy -->
+    <g id="mascot-face-1" class="face"><path d="M440 617h25v25h-25zM615 617h25v25h-25zM415 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM640 642h25v25h-25zM465 742h25v25h-25zM590 742h25v25h-25zM490 767h25v25h-25zM565 767h25v25h-25zM515 792h25v25h-25zM540 792h25v25h-25z"/></g>
+    <!-- Sleepy -->
+    <g id="mascot-face-2" class="face"><path d="M415 642h25v25h-25zM440 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM615 642h25v25h-25zM640 642h25v25h-25zM515 767h25v25h-25zM565 767h25v25h-25zM540 792h25v25h-25z"/></g>
+    <!-- Surprised -->
+    <g id="mascot-face-3" class="face"><path d="M415 592h25v25h-25zM440 592h25v25h-25zM465 592h25v25h-25zM590 592h25v25h-25zM615 592h25v25h-25zM640 592h25v25h-25zM415 617h25v25h-25zM440 617h25v25h-25zM465 617h25v25h-25zM590 617h25v25h-25zM615 617h25v25h-25zM640 617h25v25h-25zM415 642h25v25h-25zM440 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM615 642h25v25h-25zM640 642h25v25h-25zM515 742h25v25h-25zM540 742h25v25h-25zM490 767h25v25h-25zM565 767h25v25h-25zM490 792h25v25h-25zM565 792h25v25h-25zM515 817h25v25h-25zM540 817h25v25h-25z"/></g>
+    <!-- Wink -->
+    <g id="mascot-face-4" class="face"><path d="M615 617h25v25h-25zM415 642h25v25h-25zM440 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM640 642h25v25h-25zM465 742h25v25h-25zM590 742h25v25h-25zM490 767h25v25h-25zM565 767h25v25h-25zM515 792h25v25h-25zM540 792h25v25h-25z"/></g>
+    <!-- In love -->
+    <g id="mascot-face-5" class="face"><path d="M415 592h25v25h-25zM465 592h25v25h-25zM590 592h25v25h-25zM640 592h25v25h-25zM390 617h25v25h-25zM415 617h25v25h-25zM440 617h25v25h-25zM465 617h25v25h-25zM490 617h25v25h-25zM565 617h25v25h-25zM590 617h25v25h-25zM615 617h25v25h-25zM640 617h25v25h-25zM665 617h25v25h-25zM415 642h25v25h-25zM440 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM615 642h25v25h-25zM640 642h25v25h-25zM440 667h25v25h-25zM615 667h25v25h-25zM465 742h25v25h-25zM590 742h25v25h-25zM490 767h25v25h-25zM565 767h25v25h-25zM515 792h25v25h-25zM540 792h25v25h-25z"/></g>
+    <!-- Curious -->
+    <g id="mascot-face-6" class="face"><path d="M590 592h25v25h-25zM615 592h25v25h-25zM640 592h25v25h-25zM440 617h25v25h-25zM590 617h25v25h-25zM615 617h25v25h-25zM640 617h25v25h-25zM440 642h25v25h-25zM590 642h25v25h-25zM615 642h25v25h-25zM640 642h25v25h-25zM490 742h25v25h-25zM540 742h25v25h-25zM590 742h25v25h-25zM465 767h25v25h-25zM515 767h25v25h-25zM565 767h25v25h-25z"/></g>
+    <!-- Sad -->
+    <g id="mascot-face-7" class="face"><path d="M440 617h25v25h-25zM615 617h25v25h-25zM440 642h25v25h-25zM615 642h25v25h-25zM515 742h25v25h-25zM540 742h25v25h-25zM490 767h25v25h-25zM565 767h25v25h-25zM465 792h25v25h-25zM590 792h25v25h-25z"/></g>
+    <!-- Cool -->
+    <g id="mascot-face-8" class="face"><path d="M390 592h25v25h-25zM415 592h25v25h-25zM440 592h25v25h-25zM465 592h25v25h-25zM490 592h25v25h-25zM565 592h25v25h-25zM590 592h25v25h-25zM615 592h25v25h-25zM640 592h25v25h-25zM665 592h25v25h-25zM515 617h25v25h-25zM540 617h25v25h-25zM415 642h25v25h-25zM440 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM615 642h25v25h-25zM640 642h25v25h-25zM465 742h25v25h-25zM490 742h25v25h-25zM515 742h25v25h-25zM540 742h25v25h-25zM565 742h25v25h-25zM590 742h25v25h-25zM465 767h25v25h-25zM590 767h25v25h-25zM490 792h25v25h-25zM515 792h25v25h-25zM540 792h25v25h-25zM565 792h25v25h-25z"/></g>
+    <!-- Cheeky -->
+    <g id="mascot-face-9" class="face"><path d="M440 617h25v25h-25zM615 617h25v25h-25zM440 642h25v25h-25zM615 642h25v25h-25zM465 742h25v25h-25zM490 742h25v25h-25zM515 742h25v25h-25zM540 742h25v25h-25zM565 742h25v25h-25zM590 742h25v25h-25zM490 767h25v25h-25zM515 767h25v25h-25zM540 767h25v25h-25zM565 767h25v25h-25zM515 792h25v25h-25zM540 792h25v25h-25zM540 817h25v25h-25z"/></g>
+    <!-- Glitch -->
+    <g id="mascot-face-10" class="face"><path d="M390 592h25v25h-25zM415 592h25v25h-25zM465 592h25v25h-25zM565 592h25v25h-25zM440 617h25v25h-25zM615 617h25v25h-25zM415 642h25v25h-25zM465 642h25v25h-25zM490 642h25v25h-25zM615 642h25v25h-25zM665 667h25v25h-25zM490 742h25v25h-25zM540 742h25v25h-25zM590 742h25v25h-25zM465 767h25v25h-25zM515 767h25v25h-25zM565 767h25v25h-25z"/></g>
+    <!-- Laughing -->
+    <g id="mascot-face-11" class="face"><path d="M440 617h25v25h-25zM615 617h25v25h-25zM415 642h25v25h-25zM465 642h25v25h-25zM590 642h25v25h-25zM640 642h25v25h-25zM490 742h25v25h-25zM515 742h25v25h-25zM540 742h25v25h-25zM565 742h25v25h-25zM465 767h25v25h-25zM590 767h25v25h-25zM465 792h25v25h-25zM590 792h25v25h-25zM490 817h25v25h-25zM515 817h25v25h-25zM540 817h25v25h-25zM565 817h25v25h-25z"/></g>
+    <!-- Tiny smile -->
+    <g id="mascot-face-12" class="face"><path d="M440 617h25v25h-25zM615 617h25v25h-25zM440 642h25v25h-25zM615 642h25v25h-25zM515 767h25v25h-25zM565 767h25v25h-25zM540 792h25v25h-25z"/></g>
+  </g>
+</svg>

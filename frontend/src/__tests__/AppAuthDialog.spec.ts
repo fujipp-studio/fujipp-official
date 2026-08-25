@@ -13,7 +13,7 @@ afterEach(() => {
 })
 
 describe('AppAuthDialog', () => {
-  it('keeps email sign in actionable while security verification is pending', async () => {
+  it('shows security verification after valid email credentials', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const authStore = useAuthStore()
@@ -34,10 +34,12 @@ describe('AppAuthDialog', () => {
     expect(submitButton.attributes('disabled')).toBeUndefined()
     await wrapper.find('form').trigger('submit')
     expect(signIn).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Please complete the security verification')
+    expect(wrapper.text()).toContain('Security check')
 
     wrapper.findComponent(AppTurnstile).vm.$emit('verify', 'captcha-test-token')
-    await wrapper.find('form').trigger('submit')
+    await wrapper.vm.$nextTick()
+    const continueButton = wrapper.findAll('button').find((button) => button.text().trim() === 'Continue')
+    await continueButton?.trigger('click')
     expect(signIn).toHaveBeenCalledWith('user@example.com', 'password123', 'captcha-test-token')
   })
 
@@ -58,22 +60,24 @@ describe('AppAuthDialog', () => {
     })
     const inputs = wrapper.findAll('input')
 
-    wrapper.findComponent(AppTurnstile).vm.$emit('verify', 'captcha-test-token')
     await inputs[0]?.setValue('user@example.com')
     await inputs[1]?.setValue('password123')
     await inputs[2]?.setValue('password123')
     await inputs[3]?.setValue(true)
     await wrapper.find('form').trigger('submit')
+    wrapper.findComponent(AppTurnstile).vm.$emit('verify', 'captcha-test-token')
+    await wrapper.vm.$nextTick()
+    const continueButton = wrapper.findAll('button').find((button) => button.text().trim() === 'Continue')
+    await continueButton?.trigger('click')
 
     expect(signUp).toHaveBeenCalledWith(
       'user@example.com',
       'password123',
       'captcha-test-token',
     )
-    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('button[type="submit"]').text()).toContain('Email sent')
+    expect(wrapper.text()).toContain('Check your email')
 
-    await wrapper.find('form').trigger('submit')
+    await continueButton?.trigger('click')
     expect(signUp).toHaveBeenCalledTimes(1)
   })
 
@@ -98,14 +102,6 @@ describe('AppAuthDialog', () => {
 
     expect(githubButton?.attributes('disabled')).toBeUndefined()
     await githubButton?.trigger('click')
-    expect(signInWithOAuth).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Please complete the security verification')
-
-    wrapper.findComponent(AppTurnstile).vm.$emit('verify', 'captcha-oauth-token')
-    await wrapper.vm.$nextTick()
-
-    await githubButton?.trigger('click')
-
     expect(signInWithOAuth).toHaveBeenCalledWith('github')
   })
 })

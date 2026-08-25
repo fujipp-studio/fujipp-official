@@ -1,29 +1,18 @@
 import {
-  siApachemaven,
-  siApachenifi,
-  siCss,
-  siDart,
   siDocker,
-  siFirebase,
   siFlutter,
   siGithubactions,
-  siHtml5,
   siJavascript,
-  siJsonwebtokens,
   siLinux,
-  siLua,
   siMongodb,
   siMysql,
   siNginx,
   siNodedotjs,
   siOpenjdk,
-  siPm2,
   siPostgresql,
   siReact,
-  siSocketdotio,
   siSpringboot,
   siTypescript,
-  siVite,
   siVuedotjs,
   type SimpleIcon,
 } from 'simple-icons'
@@ -41,8 +30,8 @@ export interface SkillGroup {
 
 export const aboutSections = [
   { id: 'about-profile', labelKey: 'about.sections.profile' },
-  { id: 'about-skills', labelKey: 'about.sections.skills' },
   { id: 'about-experience', labelKey: 'about.sections.experience' },
+  { id: 'about-skills', labelKey: 'about.sections.skills' },
   { id: 'about-contact', labelKey: 'about.sections.contact' },
 ] as const
 
@@ -51,13 +40,9 @@ export const skillGroups = [
     titleKey: 'about.skills.language',
     category: 'language',
     skills: [
-      { label: 'HTML', icon: siHtml5 },
-      { label: 'CSS', icon: siCss },
       { label: 'JavaScript', icon: siJavascript },
       { label: 'TypeScript', icon: siTypescript },
       { label: 'Java', icon: siOpenjdk },
-      { label: 'Dart', icon: siDart },
-      { label: 'Lua', icon: siLua },
     ],
   },
   {
@@ -65,7 +50,6 @@ export const skillGroups = [
     category: 'frontend',
     skills: [
       { label: 'Vue.js', icon: siVuedotjs },
-      { label: 'Vite.js', icon: siVite },
       { label: 'Flutter', icon: siFlutter },
       { label: 'React', icon: siReact },
     ],
@@ -76,8 +60,6 @@ export const skillGroups = [
     skills: [
       { label: 'Node.js', icon: siNodedotjs },
       { label: 'Spring Boot', icon: siSpringboot },
-      { label: 'JWT', icon: siJsonwebtokens },
-      { label: 'Socket.IO', icon: siSocketdotio },
     ],
   },
   {
@@ -87,7 +69,6 @@ export const skillGroups = [
       { label: 'MySQL', icon: siMysql },
       { label: 'PostgreSQL', icon: siPostgresql },
       { label: 'MongoDB', icon: siMongodb },
-      { label: 'Firebase', icon: siFirebase },
     ],
   },
   {
@@ -96,11 +77,8 @@ export const skillGroups = [
     skills: [
       { label: 'GitHub Actions', icon: siGithubactions },
       { label: 'Docker', icon: siDocker },
-      { label: 'PM2', icon: siPm2 },
       { label: 'Nginx', icon: siNginx },
       { label: 'Linux Server', icon: siLinux },
-      { label: 'NiFi', icon: siApachenifi },
-      { label: 'Maven', icon: siApachemaven },
     ],
   },
 ] satisfies readonly SkillGroup[]

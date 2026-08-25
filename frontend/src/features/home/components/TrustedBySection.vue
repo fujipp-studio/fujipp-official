@@ -48,13 +48,12 @@ const { t } = useI18n()
   display: flex;
   width: 100%;
   max-width: var(--layout-content-max-width);
-  height: min(60rem, calc(100dvh - 4rem));
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
   margin-inline: auto;
   overflow: hidden;
-  padding: 0 var(--layout-page-gutter);
+  padding: var(--space-4xl) var(--layout-page-gutter);
   color: var(--semantic-color-text-text-inverse);
   text-align: center;
 }
@@ -63,13 +62,13 @@ const { t } = useI18n()
   box-sizing: border-box;
   display: flex;
   width: 100%;
-  max-width: 100%;
+  max-width: var(--layout-reading-max-width);
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-lg);
+  align-items: center;
+  gap: var(--space-xl);
   border: 1px solid color-mix(in srgb, var(--semantic-color-border-border-default) 35%, transparent);
   border-radius: var(--corner-radius-lg);
-  padding: var(--space-5xl) var(--space-xl);
+  padding: var(--space-2xl);
   background: color-mix(
     in srgb,
     var(--semantic-color-background-bg-inverse) 70%,
@@ -80,9 +79,10 @@ const { t } = useI18n()
 
 .trusted-by-section__copy {
   display: flex;
-  align-self: stretch;
+  width: 100%;
+  max-width: var(--layout-reading-max-width);
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-xxs);
 }
 
@@ -105,7 +105,6 @@ const { t } = useI18n()
 
 .trusted-by-section__communities {
   display: flex;
-  align-self: stretch;
   align-items: center;
   justify-content: center;
   gap: var(--space-md);
@@ -115,18 +114,19 @@ const { t } = useI18n()
 }
 
 .trusted-by-section__community-image {
-  width: 8rem;
-  height: 8rem;
+  width: 6.5rem;
+  height: 6.5rem;
   background: transparent;
 }
 
 @media (max-width: 47.99rem) {
   .trusted-by-section {
-    height: calc(100dvh - 4rem);
+    padding-block: var(--space-3xl);
   }
 
   .trusted-by-section__container {
-    padding: var(--space-3xl) var(--space-md);
+    gap: var(--space-lg);
+    padding: var(--space-xl) var(--space-md);
   }
 
   .trusted-by-section__communities {
@@ -134,8 +134,8 @@ const { t } = useI18n()
   }
 
   .trusted-by-section__community-image {
-    width: min(25vw, 6rem);
-    height: min(25vw, 6rem);
+    width: min(24vw, 5rem);
+    height: min(24vw, 5rem);
   }
 }
 </style>

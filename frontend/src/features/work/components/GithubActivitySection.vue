@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, RotateCcw } from 'lucide-vue-next'
+import { RotateCcw } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { WorkLocale } from '../../../services/backend'
@@ -47,7 +47,6 @@ const copy = computed(() =>
         unavailable: 'ไม่สามารถโหลด GitHub Activity ได้ในขณะนี้',
         loading: 'กำลังโหลดข้อมูลจาก GitHub…',
         retry: 'ลองอีกครั้ง',
-        profile: 'ดู GitHub profile',
       }
     : {
         title: 'GitHub Activity',
@@ -55,7 +54,6 @@ const copy = computed(() =>
         unavailable: 'GitHub activity is temporarily unavailable.',
         loading: 'Loading GitHub activity…',
         retry: 'Try again',
-        profile: 'View GitHub profile',
       },
 )
 
@@ -162,17 +160,6 @@ onBeforeUnmount(() => observer?.disconnect())
           <h2 id="github-activity-title">{{ copy.title }}</h2>
         </div>
 
-        <AppButton
-          class="github-activity__profile-link"
-          :href="GITHUB_PROFILE_URL"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span class="github-activity__button-label">
-            {{ copy.profile }}
-            <ExternalLink :size="17" aria-hidden="true" />
-          </span>
-        </AppButton>
       </header>
 
       <div class="github-activity__toolbar">
@@ -327,7 +314,6 @@ onBeforeUnmount(() => observer?.disconnect())
   color: var(--semantic-color-text-text-secondary);
 }
 
-.github-activity__profile-link,
 .github-activity__retry {
   width: max-content;
 }
@@ -457,15 +443,28 @@ onBeforeUnmount(() => observer?.disconnect())
   width: 0.75rem;
   height: 0.75rem;
   flex: none;
-  border: 1px solid var(--semantic-color-border-border-subtle);
+  border: 1px solid color-mix(in srgb, var(--semantic-color-text-text-muted) 42%, transparent);
   border-radius: 0.1875rem;
-  background: var(--semantic-color-background-bg-surface-hover);
+  background: color-mix(
+    in srgb,
+    var(--semantic-color-background-bg-surface) 84%,
+    var(--semantic-color-text-text-muted) 16%
+  );
   cursor: pointer;
   text-decoration: none;
 }
 
 .contribution-day[data-intensity='1'] {
-  background: color-mix(in srgb, var(--semantic-color-success-success-bg) 72%, var(--semantic-color-background-bg-surface));
+  border-color: color-mix(
+    in srgb,
+    var(--semantic-color-success-success-border) 72%,
+    var(--semantic-color-border-border-default)
+  );
+  background: color-mix(
+    in srgb,
+    var(--semantic-color-success-success-bg) 82%,
+    var(--semantic-color-success-success-text) 18%
+  );
 }
 
 .contribution-day[data-intensity='2'] {
@@ -564,10 +563,6 @@ onBeforeUnmount(() => observer?.disconnect())
   .github-activity__toolbar {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .github-activity__profile-link {
-    width: 100%;
   }
 
   .year-picker {

@@ -17,15 +17,18 @@ export const messages = {
     },
     home: {
       hero: {
-        title: 'Building ideas into',
-        accent: 'real experiences.',
+        title: 'Have an idea? Build it.',
+        accent: "Here's what I've made.",
         summary:
-          'A personal platform for thoughtful software, practical projects, and Discord bot services built to run reliably.',
+          'This website is a collection of projects I have designed and developed—a place to share what happens when an idea becomes something real.',
+        workAction: 'View my work',
+        galleryLabel: 'Portrait gallery',
+        gallerySlide: 'Show portrait {number}',
       },
       problem: {
-        title: 'Say Goodbye to Complicated Bot Setup.',
+        title: 'Discord Bots, Without the Setup Headache.',
         description:
-          'Building and hosting a Discord bot used to be a headache. Not anymore. We make it effortless to set up, customize, and run your dream bot without the technical hassle.',
+          'From custom features to reliable hosting, I build Discord bots that are straightforward to launch, easy to shape around your community, and ready to keep running.',
         imageAlt: 'Discord developer portal displayed on a floating Studio Display',
       },
       services: {
@@ -44,16 +47,17 @@ export const messages = {
         listLabel: 'Trusted communities',
       },
       about: {
-        title: 'The Developer Behind the Bots',
+        title: 'I build ideas into software that works.',
         description:
-          "More than just a bot shop, this platform is my personal web application and portfolio. I built this space to showcase my development skills while providing top-tier Discord bot services for server creators. Let's build something awesome together!",
-        action: 'View all my projects',
+          'I’m Anawat, a full-stack developer focused on practical products, thoughtful interfaces, automation, and systems that remain maintainable after launch.',
+        imageAlt: 'Portrait of Anawat Boripakhirun',
+        aboutAction: 'More about me',
+        workAction: 'View my work',
       },
       sections: {
         navigationLabel: 'Home sections',
         introduction: 'Introduction',
-        botSetup: 'Bot setup',
-        services: 'Services and hosting',
+        botServices: 'Discord bot services',
         communities: 'Trusted communities',
         developer: 'About the developer',
         goTo: 'Go to {section}',
@@ -113,7 +117,8 @@ export const messages = {
     },
     about: {
       profile: {
-        portraitAlt: 'Portrait of Anawat Grudtoop',
+        name: 'Anawat Boripakhirun',
+        portraitAlt: 'Portrait of Anawat Boripakhirun',
         age: '{years} Years {days} Days',
         location: 'Thai · Bangkok',
         introduction:
@@ -134,9 +139,9 @@ export const messages = {
         infra: 'Infrastructure',
       },
       experience: {
-        title: 'Build with ownership.\nLearn for a lifetime.',
-        role: 'Programmer (Full Stack Developer)',
-        duration: '6 month internship',
+        title: 'Learning through\nreal systems.',
+        role: 'Full Stack Developer Intern',
+        duration: '6 months',
         company: 'Yip In Tsoi & Co., Ltd.',
         automationTitle: 'Automation workflow',
         automationDescription: 'Automated email-based document intake, protection, and delivery.',
@@ -150,10 +155,16 @@ export const messages = {
           'Documented operations so the organization could maintain and continue the work.',
       },
       contact: {
-        title: 'Could I be a fit for your team?',
+        title: 'Let’s build something useful together.',
         description:
-          "I'm exploring software development opportunities across frontend, backend, full-stack, automation, and application development.",
-        action: 'Contact me',
+          "I'm open to software development opportunities where I can contribute, learn, and take ownership of work from idea to delivery.",
+        rolesLabel: 'Roles of interest',
+        frontend: 'Frontend',
+        backend: 'Backend',
+        fullStack: 'Full Stack',
+        automation: 'Automation',
+        emailLabel: 'The best way to reach me',
+        action: 'Email me',
       },
       sections: {
         navigationLabel: 'About sections',
@@ -451,15 +462,18 @@ export const messages = {
     },
     home: {
       hero: {
-        title: 'เปลี่ยนไอเดียให้กลายเป็น',
-        accent: 'ประสบการณ์จริง',
+        title: 'มีไอเดีย ก็สร้างมันออกมา',
+        accent: 'นี่คือผลงานของผม',
         summary:
-          'แพลตฟอร์มส่วนตัวสำหรับซอฟต์แวร์ที่ผ่านการคิดอย่างรอบคอบ โปรเจกต์ที่ใช้งานได้จริง และบริการ Discord Bot ที่สร้างมาให้ทำงานได้อย่างมั่นใจ',
+          'เว็บไซต์นี้คือพื้นที่รวบรวมโปรเจกต์ที่ผมออกแบบและพัฒนา เพื่อแบ่งปันสิ่งที่เกิดขึ้นเมื่อไอเดียหนึ่งถูกสร้างให้กลายเป็นของจริง',
+        workAction: 'ดูผลงานทั้งหมด',
+        galleryLabel: 'แกลเลอรีภาพตัวละคร',
+        gallerySlide: 'แสดงภาพที่ {number}',
       },
       problem: {
-        title: 'บอกลาการตั้งค่าบอทที่ยุ่งยาก',
+        title: 'Discord Bot ที่พร้อมใช้ โดยไม่ต้องวุ่นวายกับการตั้งค่า',
         description:
-          'การสร้างและโฮสต์ Discord Bot เคยเป็นเรื่องวุ่นวาย แต่ไม่ใช่อีกต่อไป เราช่วยให้คุณตั้งค่า ปรับแต่ง และเปิดใช้งานบอทในฝันได้อย่างง่ายดายโดยไม่ต้องกังวลเรื่องเทคนิค',
+          'ตั้งแต่ฟีเจอร์เฉพาะทางไปจนถึงระบบโฮสต์ที่ไว้ใจได้ ผมสร้าง Discord Bot ที่เริ่มใช้งานง่าย ปรับให้เข้ากับคอมมูนิตี้ได้ และพร้อมทำงานอย่างต่อเนื่อง',
         imageAlt: 'หน้า Discord Developer Portal บนจอ Studio Display',
       },
       services: {
@@ -478,16 +492,17 @@ export const messages = {
         listLabel: 'ชุมชนที่ไว้วางใจเรา',
       },
       about: {
-        title: 'นักพัฒนาที่อยู่เบื้องหลังบอท',
+        title: 'ผมเปลี่ยนไอเดียให้เป็นซอฟต์แวร์ที่ใช้งานได้จริง',
         description:
-          'ที่นี่เป็นมากกว่าร้านบอท เพราะเป็นทั้งเว็บแอปพลิเคชันส่วนตัวและ Portfolio ของผม พื้นที่นี้สร้างขึ้นเพื่อแสดงทักษะการพัฒนา พร้อมให้บริการ Discord Bot คุณภาพสูงสำหรับเจ้าของเซิร์ฟเวอร์ มาสร้างสิ่งดี ๆ ไปด้วยกันครับ',
-        action: 'ดูโปรเจกต์ทั้งหมดของผม',
+          'ผมอนวัช นักพัฒนา Full Stack ที่ให้ความสำคัญกับผลิตภัณฑ์ที่ใช้งานได้จริง การออกแบบส่วนติดต่อ ระบบอัตโนมัติ และระบบที่ดูแลต่อได้หลังเปิดใช้งาน',
+        imageAlt: 'ภาพถ่ายของอนวัตร บริภักดิ์หิรัณย์',
+        aboutAction: 'รู้จักผมเพิ่มเติม',
+        workAction: 'ดูผลงานของผม',
       },
       sections: {
         navigationLabel: 'ส่วนต่าง ๆ ของหน้าแรก',
         introduction: 'บทนำ',
-        botSetup: 'การตั้งค่าบอท',
-        services: 'บริการและโฮสต์',
+        botServices: 'บริการ Discord Bot',
         communities: 'ชุมชนที่ไว้วางใจ',
         developer: 'เกี่ยวกับนักพัฒนา',
         goTo: 'ไปยังส่วน {section}',
@@ -546,7 +561,8 @@ export const messages = {
     },
     about: {
       profile: {
-        portraitAlt: 'ภาพถ่ายของอนวัช กรุดทูป',
+        name: 'อนวัตร บริภักดิ์หิรัณย์',
+        portraitAlt: 'ภาพถ่ายของอนวัตร บริภักดิ์หิรัณย์',
         age: '{years} ปี {days} วัน',
         location: 'คนไทย · กรุงเทพมหานคร',
         introduction:
@@ -567,9 +583,9 @@ export const messages = {
         infra: 'โครงสร้างพื้นฐาน',
       },
       experience: {
-        title: 'สร้างงานอย่างมีความรับผิดชอบ\nและเรียนรู้ตลอดชีวิต',
-        role: 'โปรแกรมเมอร์ (Full Stack Developer)',
-        duration: 'ฝึกงาน 6 เดือน',
+        title: 'เรียนรู้ผ่าน\nระบบที่ใช้งานจริง',
+        role: 'นักพัฒนา Full Stack (ฝึกงาน)',
+        duration: '6 เดือน',
         company: 'บริษัท ยิบอินซอย จำกัด',
         automationTitle: 'ระบบงานอัตโนมัติ',
         automationDescription: 'พัฒนากระบวนการรับ ปกป้อง และส่งเอกสารจากอีเมลแบบอัตโนมัติ',
@@ -583,10 +599,16 @@ export const messages = {
           'จัดทำเอกสารการดูแลระบบ เพื่อให้องค์กรสามารถบำรุงรักษาและพัฒนางานต่อได้',
       },
       contact: {
-        title: 'ผมเหมาะกับทีมของคุณไหม?',
+        title: 'มาสร้างสิ่งที่มีประโยชน์ไปด้วยกัน',
         description:
-          'ผมกำลังมองหาโอกาสด้านการพัฒนาซอฟต์แวร์ ทั้ง Frontend, Backend, Full Stack, Automation และ Application Development',
-        action: 'ติดต่อผม',
+          'ผมเปิดรับโอกาสด้านการพัฒนาซอฟต์แวร์ ที่ได้ร่วมสร้าง เรียนรู้ และรับผิดชอบงานตั้งแต่ไอเดียไปจนถึงการส่งมอบจริง',
+        rolesLabel: 'ตำแหน่งงานที่สนใจ',
+        frontend: 'Frontend',
+        backend: 'Backend',
+        fullStack: 'Full Stack',
+        automation: 'Automation',
+        emailLabel: 'ช่องทางติดต่อที่สะดวกที่สุด',
+        action: 'ส่งอีเมลหาผม',
       },
       sections: {
         navigationLabel: 'ส่วนต่าง ๆ ของหน้าเกี่ยวกับ',

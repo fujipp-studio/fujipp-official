@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 
 import type { TextFieldState } from './types'
 
@@ -29,7 +29,10 @@ const props = withDefaults(defineProps<{
   required: false,
 })
 
-const emit = defineEmits<{ 'update:modelValue': [value: string[]] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: string[]]
+  search: [value: string]
+}>()
 const root = ref<HTMLElement>()
 const search = ref('')
 const open = ref(false)
@@ -48,6 +51,8 @@ const filteredOptions = computed(() => {
     return `${option.label} ${option.value} ${option.group ?? ''}`.toLowerCase().includes(query)
   })
 })
+
+watch(search, (value) => emit('search', value))
 
 function select(option: MultiSelectOption) {
   if (option.disabled) return

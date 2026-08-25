@@ -5,12 +5,12 @@ import { applySeoMetadata, type SeoMetadata } from '../services/seo'
 
 const pageSeo = {
   home: {
-    title: 'Fujipp — Software Developer Portfolio',
-    description: "Anawat Grudtoop's software development portfolio, featuring practical applications, automation, and Discord bot services.",
+    title: 'Fujipp',
+    description: "Anawat Boripakhirun's software development portfolio, featuring practical applications, automation, and Discord bot services.",
   },
   about: {
     title: 'About',
-    description: 'Learn about Anawat Grudtoop, the developer behind Fujipp, his experience, skills, and approach to building software.',
+    description: 'Learn about Anawat Boripakhirun, the developer behind Fujipp, his experience, skills, and approach to building software.',
   },
   work: {
     title: 'Work',
@@ -38,6 +38,19 @@ const router = createRouter({
       meta: { seo: pageSeo.home },
     },
     {
+      path: '/components',
+      name: 'components',
+      component: () => import('../views/DesignSystemView.vue'),
+      meta: {
+        hideGlobalNavbar: true,
+        seo: {
+          title: 'Component Catalog',
+          description: 'Fujipp shared interface component catalog for UI and UX review.',
+          noIndex: true,
+        },
+      },
+    },
+    {
       path: '/design-system',
       name: 'design-system',
       component: () => import('../views/DesignSystemView.vue'),
@@ -53,19 +66,25 @@ const router = createRouter({
       path: '/store',
       name: 'store',
       component: () => import('../features/store/views/StoreView.vue'),
-      meta: { seo: pageSeo.store },
+      meta: { requiresAuth: true, seo: pageSeo.store },
     },
     {
       path: '/store/packages',
       name: 'store-packages',
       component: () => import('../features/store/views/StoreView.vue'),
-      meta: { seo: { ...pageSeo.store, title: 'Bot Packages' } },
+      meta: { requiresAuth: true, seo: { ...pageSeo.store, title: 'Bot Packages' } },
     },
     {
       path: '/store/runtime',
       name: 'store-runtime',
       component: () => import('../features/store/views/StoreView.vue'),
-      meta: { seo: { ...pageSeo.store, title: 'Managed Runtime' } },
+      meta: { requiresAuth: true, seo: { ...pageSeo.store, title: 'Managed Runtime' } },
+    },
+    {
+      path: '/add-credit',
+      name: 'add-credit',
+      component: () => import('../features/store/views/StoreView.vue'),
+      meta: { requiresAuth: true, seo: { ...pageSeo.store, title: 'Top up' } },
     },
     {
       path: '/my-bot',

@@ -19,7 +19,9 @@ import type { NavbarLink } from '../../../config'
 import type { ThemeMode } from '../../../config/theme'
 import { setAppLocale } from '../../../i18n'
 import { useAuthStore, useThemeStore } from '../../../stores'
+import { useAdminToolsVisibility } from '../../../features/admin/composables/useAdminToolsVisibility'
 import AppButton from '../../ui/buttons/AppButton.vue'
+import AppToggle from '../../ui/buttons/AppToggle.vue'
 import AppIcon from '../../ui/icons/AppIcon.vue'
 import type { AuthDialogMode } from '../../ui/dialogs/types'
 
@@ -50,6 +52,7 @@ const isAtPageTop = ref(true)
 const showScrolledBackground = computed(() => route.path !== '/' && !isAtPageTop.value)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
+const openNavigationMenu = ref<string>()
 const isAuthDialogOpen = ref(false)
 const authDialogComponent = shallowRef<Component>()
 const authLoadingOverlayComponent = shallowRef<Component>()
@@ -60,6 +63,7 @@ const profileSheetDrag = ref(0)
 const isProfileSheetDragging = ref(false)
 const isProfileSheetExpanded = ref(false)
 const navigationElement = ref<HTMLElement>()
+const mobileNavigationElement = ref<HTMLElement>()
 const navigationButtons = ref<HTMLButtonElement[]>([])
 const navigationPill = ref({ left: 0, width: 0 })
 const isNavigationDragging = ref(false)
@@ -101,10 +105,8 @@ const resolvedWalletBalance = computed(
       : 0),
 )
 const themeStore = useThemeStore()
-const { currentTheme, isDarkTheme, selectedTheme } = storeToRefs(themeStore)
-const brandLockup = computed(() =>
-  isDarkTheme.value ? icons.brand.lockupDark : icons.brand.lockup,
-)
+const { currentTheme, selectedTheme } = storeToRefs(themeStore)
+const { visible: adminToolsVisible, initialize: initializeAdminToolsVisibility, setVisible: setAdminToolsVisible } = useAdminToolsVisibility()
 const formattedWalletBalance = computed(
   () =>
     `${resolvedWalletBalance.value.toLocaleString('en-US', {
@@ -149,12 +151,7 @@ function prefetchImage(source: string, sourceSet?: string) {
 
 function prefetchNavigationImages(path: string) {
   prefetchRoute(path)
-  if (path === '/') {
-    prefetchImage(
-      '/images/home/hero-background-1280.webp',
-      '/images/home/hero-background-1280.webp 1280w, /images/home/hero-background-2048.webp 2048w',
-    )
-  } else if (path === '/about') {
+  if (path === '/about') {
     prefetchImage('/images/about/anawat-grudtoop-profile-cropped-768.webp')
     prefetchImage('/images/about/anawat-grudtoop-profile-512.webp')
   }
@@ -214,12 +211,26 @@ function navigateToItem(label: string) {
   const item = navbarLinks.value.find((link) => link.label === label)
   if (!item) return
 
-  const targetRoute = router.resolve({ path: item.path, query: localeQuery() })
+  if (item.children?.length) {
+    openNavigationMenu.value = openNavigationMenu.value === label ? undefined : label
+    return
+  }
+
+  navigateToPath(item.path, item.label)
+}
+
+function navigateToPath(path: string, label: string) {
+  openNavigationMenu.value = undefined
+
+  const targetRoute = router.resolve(path)
   if (targetRoute.matched.length === 0) return
 
   selectedItem.value = label
-  if (router.currentRoute.value.path !== targetRoute.path) {
-    void router.push({ path: targetRoute.path, query: localeQuery() })
+  if (
+    router.currentRoute.value.path !== targetRoute.path ||
+    router.currentRoute.value.hash !== targetRoute.hash
+  ) {
+    void router.push({ path: targetRoute.path, hash: targetRoute.hash, query: localeQuery() })
     return
   }
 
@@ -404,12 +415,29 @@ function finishProfileSheetDrag(event: PointerEvent) {
   profileSheetDrag.value = 0
 }
 
-function handleDocumentClick() {
+function handleDocumentClick(event: MouseEvent) {
+  const target = event.target as Node
+  if (
+    !navigationElement.value?.contains(target) &&
+    !mobileNavigationElement.value?.contains(target)
+  ) {
+    openNavigationMenu.value = undefined
+  }
   closeProfileMenu()
 }
 
 function selectMobileItem(label: string) {
+  const item = navbarLinks.value.find((link) => link.label === label)
+  if (item?.children?.length) {
+    openNavigationMenu.value = openNavigationMenu.value === label ? undefined : label
+    return
+  }
   navigateToItem(label)
+  closeMobileMenu()
+}
+
+function selectNavigationChild(item: NavbarLink, parentLabel: string) {
+  navigateToPath(item.path, parentLabel)
   closeMobileMenu()
 }
 
@@ -417,6 +445,7 @@ function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape') {
     closeMobileMenu()
     closeProfileMenu()
+    openNavigationMenu.value = undefined
   }
 }
 
@@ -455,6 +484,7 @@ watch(
 )
 
 onMounted(() => {
+  initializeAdminToolsVisibility()
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('resize', handleNavigationResize)
@@ -490,7 +520,19 @@ onBeforeUnmount(() => {
         @focus="prefetchNavigationImages('/')"
         @click="navigateHome"
       >
-        <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
+        <span class="brand__lockup" aria-hidden="true">
+          <svg class="brand__mascot" viewBox="0 0 1080 1080">
+            <use class="brand__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
+            <use
+              v-for="faceIndex in 12"
+              :key="faceIndex"
+              class="brand__mascot-face"
+              :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
+              :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
+            />
+          </svg>
+          <span class="brand__wordmark">FUJIPP</span>
+        </span>
       </button>
 
       <nav
@@ -511,21 +553,51 @@ onBeforeUnmount(() => {
           }"
           aria-hidden="true"
         />
-        <button
+        <div
           v-for="(item, index) in navbarLinks"
           :key="item.path"
-          :ref="(element) => setNavigationButtonRef(element, index)"
-          type="button"
-          class="navigation__link"
-          :class="{ 'navigation__link--active': item.label === selectedItem }"
-          :data-navigation-label="item.label"
-          :aria-current="item.label === selectedItem ? 'page' : undefined"
-          @click="selectNavigationItem(item.label)"
-          @pointerenter="previewNavigationItem(item.label)"
-          @pointerdown="startNavigationDrag($event, item.label)"
+          class="navigation__item"
         >
-          {{ navigationLabel(item) }}
-        </button>
+          <button
+            :ref="(element) => setNavigationButtonRef(element, index)"
+            type="button"
+            class="navigation__link"
+            :class="{ 'navigation__link--active': item.label === selectedItem }"
+            :data-navigation-label="item.label"
+            :aria-current="item.label === selectedItem ? 'page' : undefined"
+            :aria-expanded="item.children?.length ? openNavigationMenu === item.label : undefined"
+            :aria-haspopup="item.children?.length ? 'menu' : undefined"
+            @click="selectNavigationItem(item.label)"
+            @pointerenter="previewNavigationItem(item.label)"
+            @pointerdown="!item.children?.length && startNavigationDrag($event, item.label)"
+          >
+            <span>{{ navigationLabel(item) }}</span>
+            <AppIcon
+              v-if="item.children?.length"
+              class="navigation__chevron"
+              :class="{ 'navigation__chevron--open': openNavigationMenu === item.label }"
+              :source="icons.base.arrowDown"
+            />
+          </button>
+          <Transition name="navigation-menu">
+            <div
+              v-if="item.children?.length && openNavigationMenu === item.label"
+              class="navigation__dropdown"
+              role="menu"
+            >
+              <button
+                v-for="child in item.children"
+                :key="child.path"
+                type="button"
+                role="menuitem"
+                @click.stop="selectNavigationChild(child, item.label)"
+              >
+                <AppIcon v-if="child.icon" :source="child.icon" />
+                <span>{{ child.label }}</span>
+              </button>
+            </div>
+          </Transition>
+        </div>
       </nav>
 
       <div class="actions" :class="{ 'actions--authenticated': resolvedAuthenticated }">
@@ -599,7 +671,19 @@ onBeforeUnmount(() => {
         </button>
 
         <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
-          <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
+          <span class="brand__lockup" aria-hidden="true">
+            <svg class="brand__mascot" viewBox="0 0 1080 1080">
+              <use class="brand__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
+              <use
+                v-for="faceIndex in 12"
+                :key="faceIndex"
+                class="brand__mascot-face"
+                :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
+                :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
+              />
+            </svg>
+            <span class="brand__wordmark">FUJIPP</span>
+          </span>
         </button>
       </div>
 
@@ -753,6 +837,15 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
+          <div v-if="currentUser?.role === 'ADMIN'" class="profile-dialog__row">
+            <span class="profile-dialog__label">Admin tools</span>
+            <AppToggle
+              :model-value="adminToolsVisible"
+              aria-label="Show Admin tools button"
+              @change="setAdminToolsVisible"
+            />
+          </div>
+
           <button class="profile-dialog__row profile-dialog__manage" type="button">
             <span class="profile-dialog__label">{{ t('navigation.manageAccount') }}</span>
             <AppIcon
@@ -785,7 +878,19 @@ onBeforeUnmount(() => {
           >
             <div class="mobile-menu__header">
               <button class="brand" type="button" aria-label="Fujipp home">
-                <img class="brand__lockup" :src="brandLockup" alt="Fujipp" />
+                <span class="brand__lockup" aria-hidden="true">
+                  <svg class="brand__mascot" viewBox="0 0 1080 1080">
+                    <use class="brand__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
+                    <use
+                      v-for="faceIndex in 12"
+                      :key="faceIndex"
+                      class="brand__mascot-face"
+                      :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
+                      :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
+                    />
+                  </svg>
+                  <span class="brand__wordmark">FUJIPP</span>
+                </span>
               </button>
 
               <button
@@ -801,29 +906,52 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <nav class="mobile-menu__navigation" aria-label="Mobile main navigation">
-              <button
-                v-for="item in navbarLinks"
-                :key="item.path"
-                type="button"
-                class="mobile-menu__row"
-                :aria-current="item.label === selectedItem ? 'page' : undefined"
-                @click="selectMobileItem(item.label)"
-              >
-                <span class="mobile-menu__row-label">
+            <nav
+              ref="mobileNavigationElement"
+              class="mobile-menu__navigation"
+              aria-label="Mobile main navigation"
+            >
+              <template v-for="item in navbarLinks" :key="item.path">
+                <button
+                  type="button"
+                  class="mobile-menu__row"
+                  :aria-current="item.label === selectedItem ? 'page' : undefined"
+                  :aria-expanded="item.children?.length ? openNavigationMenu === item.label : undefined"
+                  @click="selectMobileItem(item.label)"
+                >
+                  <span class="mobile-menu__row-label">
+                    <AppIcon
+                      v-if="item.icon"
+                      class="mobile-icon mobile-icon--24"
+                      :source="item.icon"
+                    />
+                    <span>{{ navigationLabel(item) }}</span>
+                  </span>
                   <AppIcon
-                    v-if="item.icon"
-                    class="mobile-icon mobile-icon--24"
-                    :source="item.icon"
+                    class="mobile-icon mobile-icon--16"
+                    :class="{ 'mobile-menu__chevron--open': openNavigationMenu === item.label }"
+                    :source="item.children?.length ? icons.base.arrowDown : icons.base.arrowRight"
                   />
-                  <span>{{ navigationLabel(item) }}</span>
-                </span>
-
-                <AppIcon
-                  class="mobile-icon mobile-icon--16"
-                  :source="icons.base.arrowRight"
-                />
-              </button>
+                </button>
+                <div
+                  v-if="item.children?.length && openNavigationMenu === item.label"
+                  class="mobile-menu__children"
+                >
+                  <button
+                    v-for="child in item.children"
+                    :key="child.path"
+                    type="button"
+                    @click="selectNavigationChild(child, item.label)"
+                  >
+                    <AppIcon
+                      v-if="child.icon"
+                      class="mobile-icon mobile-icon--24"
+                      :source="child.icon"
+                    />
+                    <span>{{ child.label }}</span>
+                  </button>
+                </div>
+              </template>
             </nav>
 
             <AppButton
@@ -921,10 +1049,51 @@ onBeforeUnmount(() => {
 }
 
 .brand__lockup {
-  width: var(--brand-lockup-width);
+  display: flex;
+  width: auto;
   height: var(--brand-lockup-height);
+  align-items: center;
+  gap: var(--space-xs);
   transform-origin: left top;
   transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.brand__mascot {
+  width: var(--brand-logo-size);
+  height: var(--brand-logo-size);
+}
+
+.brand__mascot-body {
+  fill: var(--semantic-color-text-text-primary);
+}
+
+.brand__mascot-face {
+  fill: var(--semantic-color-text-text-inverse);
+  opacity: 0;
+  transform: scale(1.45);
+  transform-box: view-box;
+  transform-origin: 50% 64%;
+  animation: brand-face 24s steps(1, end) infinite;
+}
+
+@keyframes brand-face {
+  0%,
+  8.32% {
+    opacity: 1;
+  }
+
+  8.33%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.brand__wordmark {
+  font-family: var(--font-family-brand);
+  font-size: 1.25rem;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.04em;
 }
 
 .navbar--at-top .desktop-navbar > .brand .brand__lockup {
@@ -932,6 +1101,14 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand__mascot-face {
+    animation: none;
+  }
+
+  .brand__mascot-face:nth-of-type(2) {
+    opacity: 1;
+  }
+
   .navbar::before {
     transition: none;
   }
@@ -1015,12 +1192,83 @@ onBeforeUnmount(() => {
     transform 160ms ease;
 }
 
-.navigation__link:nth-child(2) {
+.navigation__item {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.navigation__item:nth-of-type(2) .navigation__link {
   min-width: 5.125rem;
 }
 
-.navigation__link:nth-child(3) {
+.navigation__item:nth-of-type(3) .navigation__link {
   min-width: 3.6875rem;
+}
+
+.navigation__chevron {
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
+  margin-left: var(--space-xxs);
+  transition: transform 160ms ease;
+}
+
+.navigation__chevron--open {
+  transform: rotate(180deg);
+}
+
+.navigation__dropdown {
+  position: absolute;
+  z-index: var(--z-popover);
+  top: calc(100% + var(--space-xs));
+  left: 50%;
+  display: grid;
+  width: 12rem;
+  gap: var(--space-xxs);
+  padding: var(--space-xs);
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-md);
+  background: var(--semantic-color-background-bg-elevated);
+  box-shadow: var(--effect-shadow-lg);
+  transform: translateX(-50%);
+}
+
+.navigation__dropdown button {
+  display: flex;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: var(--space-xs);
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--corner-radius-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-label-medium);
+  text-align: left;
+}
+
+.navigation__dropdown button:hover,
+.navigation__dropdown button:focus-visible {
+  background: var(--semantic-color-background-bg-surface-hover);
+  outline: none;
+}
+
+.navigation__dropdown button :deep(.app-icon) {
+  width: var(--icon-size-20);
+  height: var(--icon-size-20);
+}
+
+.navigation-menu-enter-active,
+.navigation-menu-leave-active {
+  transition: opacity 140ms ease, transform 160ms ease;
+}
+
+.navigation-menu-enter-from,
+.navigation-menu-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-0.25rem);
 }
 
 .navigation__link:hover {
@@ -1537,7 +1785,7 @@ onBeforeUnmount(() => {
 
   .mobile-navbar .brand__lockup,
   .mobile-menu .brand__lockup {
-    width: var(--brand-lockup-width);
+    width: auto;
     height: var(--brand-lockup-height);
   }
 
@@ -1711,6 +1959,38 @@ onBeforeUnmount(() => {
     display: flex;
     align-items: center;
     gap: var(--space-xxs);
+  }
+
+  .mobile-menu__chevron--open {
+    transform: rotate(180deg);
+  }
+
+  .mobile-menu__children {
+    display: grid;
+    gap: var(--space-xxs);
+    padding-left: var(--space-lg);
+  }
+
+  .mobile-menu__children button {
+    display: flex;
+    min-height: 2.5rem;
+    align-items: center;
+    gap: var(--space-xs);
+    cursor: pointer;
+    border: 0;
+    border-radius: var(--corner-radius-sm);
+    padding: var(--space-xs);
+    background: transparent;
+    color: var(--semantic-color-text-text-secondary);
+    font: inherit;
+    text-align: left;
+  }
+
+  .mobile-menu__children button:hover,
+  .mobile-menu__children button:focus-visible {
+    background: var(--semantic-color-background-bg-surface-hover);
+    color: var(--semantic-color-text-text-primary);
+    outline: none;
   }
 }
 
