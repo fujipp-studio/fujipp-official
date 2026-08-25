@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
                 <span>{{ t('about.profile.education') }}</span>
                 <strong>{{ t('about.profile.university') }}</strong>
               </div>
-              <div class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
+              <nav class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
                 <AppButton
                   href="https://github.com/Fujipp"
                   target="_blank"
@@ -255,7 +255,7 @@ onBeforeUnmount(() => {
                 >
                   {{ t('about.profile.mail') }}
                 </AppButton>
-              </div>
+              </nav>
           </div>
       </section>
 
