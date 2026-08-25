@@ -68,9 +68,9 @@ const resolvedLinks = computed(() =>
 <template>
   <footer class="footer">
     <div class="footer__layout">
-      <a class="footer__brand" href="/" aria-label="Fujipp home">
-        <span class="footer__brand-lockup" aria-hidden="true">
-          <svg class="footer__mascot" viewBox="0 0 1080 1080">
+      <a class="footer__brand" href="/">
+        <span class="footer__brand-lockup">
+          <svg class="footer__mascot" viewBox="0 0 1080 1080" aria-hidden="true">
             <use class="footer__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
             <use
               v-for="faceIndex in 12"
