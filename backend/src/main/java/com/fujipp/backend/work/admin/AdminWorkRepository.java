@@ -55,6 +55,17 @@ public class AdminWorkRepository {
                         resultSet.getString("code"), resultSet.getString("name")
                 )
         );
+        List<AdminWorkCatalogResponse.TechnologyGroup> technologyGroups = jdbcTemplate.query(
+                """
+                SELECT code, name
+                  FROM portfolio.technology_groups
+                 WHERE is_active = true
+                 ORDER BY sort_order, name
+                """,
+                (resultSet, rowNumber) -> new AdminWorkCatalogResponse.TechnologyGroup(
+                        resultSet.getString("code"), resultSet.getString("name")
+                )
+        );
         List<AdminWorkCatalogResponse.Technology> technologies = jdbcTemplate.query(
                 """
                 SELECT technology.slug,
@@ -75,7 +86,44 @@ public class AdminWorkRepository {
                         resultSet.getString("group_name")
                 )
         );
-        return new AdminWorkCatalogResponse(categories, positions, technologies);
+        return new AdminWorkCatalogResponse(categories, positions, technologyGroups, technologies);
+    }
+
+    public boolean activeTechnologyGroupExists(String code) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM portfolio.technology_groups WHERE code = ? AND is_active = true",
+                Integer.class,
+                code
+        );
+        return count != null && count > 0;
+    }
+
+    public AdminWorkCatalogResponse.Technology createTechnology(CreateTechnologyRequest request) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO portfolio.technologies (group_id, slug, name, icon_url, official_url)
+                SELECT id, ?, ?, ?, ?
+                  FROM portfolio.technology_groups
+                 WHERE code = ?
+                   AND is_active = true
+                """,
+                request.slug(), request.name(), request.iconUrl(), request.officialUrl(), request.groupCode()
+        );
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT technology.slug, technology.name,
+                       technology_group.code AS group_code,
+                       technology_group.name AS group_name
+                  FROM portfolio.technologies AS technology
+                  JOIN portfolio.technology_groups AS technology_group ON technology_group.id = technology.group_id
+                 WHERE technology.slug = ?
+                """,
+                (resultSet, rowNumber) -> new AdminWorkCatalogResponse.Technology(
+                        resultSet.getString("slug"), resultSet.getString("name"),
+                        resultSet.getString("group_code"), resultSet.getString("group_name")
+                ),
+                request.slug()
+        );
     }
 
     public Optional<AdminWorkResponse> findById(UUID id) {

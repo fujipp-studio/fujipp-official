@@ -42,6 +42,14 @@ public class AdminWorkController {
         return adminWorkService.catalog();
     }
 
+    @PostMapping("/catalog/technologies")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AdminWorkCatalogResponse.Technology createTechnology(
+            @Valid @RequestBody CreateTechnologyRequest request
+    ) {
+        return adminWorkService.createTechnology(request);
+    }
+
     @GetMapping("/{id}")
     public AdminWorkResponse getWork(@PathVariable UUID id) {
         return adminWorkService.get(id);
