@@ -73,6 +73,15 @@ public class AdminWorkController {
         return adminWorkService.update(jwt.getSubject(), id, request);
     }
 
+    @PutMapping("/{id}/draft")
+    public SaveWorkDraftResponse saveDraft(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @Valid @RequestBody SaveWorkDraftRequest request
+    ) {
+        return adminWorkService.saveDraft(jwt.getSubject(), id, request);
+    }
+
     @PutMapping("/{id}/translations/{locale}")
     public AdminWorkResponse upsertTranslation(
             @AuthenticationPrincipal Jwt jwt,
