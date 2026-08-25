@@ -10,7 +10,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminWorkService {
@@ -89,6 +92,77 @@ public class AdminWorkService {
         } catch (DataIntegrityViolationException exception) {
             throw new AdminWorkConflictException("The work could not be updated with these values");
         }
+    }
+
+    @Transactional
+    public SaveWorkDraftResponse saveDraft(
+            String subject,
+            UUID id,
+            SaveWorkDraftRequest request
+    ) {
+        update(subject, id, request.work());
+        upsertTranslation(subject, id, WorkLocale.en, request.en());
+        upsertTranslation(subject, id, WorkLocale.th, request.th());
+        replacePositions(subject, id, request.positions());
+        replaceTechnologies(subject, id, request.technologies());
+
+        Map<UUID, AdminWorkContentResponse> existingContent = repository.findContent(id).stream()
+                .collect(Collectors.toMap(AdminWorkContentResponse::id, Function.identity()));
+        validateUniqueIds(request.content().stream().map(SaveWorkDraftRequest.Content::id).toList());
+        HashSet<UUID> retainedContentIds = request.content().stream()
+                .map(SaveWorkDraftRequest.Content::id)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        existingContent.keySet().stream()
+                .filter(contentId -> !retainedContentIds.contains(contentId))
+                .forEach(contentId -> deleteContent(subject, id, contentId));
+
+        for (SaveWorkDraftRequest.Content item : request.content()) {
+            UUID contentId = item.id();
+            if (contentId == null) {
+                contentId = createContent(
+                        subject,
+                        id,
+                        new CreateWorkContentRequest(item.type(), item.sortOrder())
+                ).id();
+            } else {
+                AdminWorkContentResponse existing = existingContent.get(contentId);
+                if (existing == null) throw new AdminWorkNotFoundException();
+                if (!existing.type().equals(item.type().name())
+                        || existing.sortOrder() != item.sortOrder()) {
+                    updateContent(
+                            subject,
+                            id,
+                            contentId,
+                            new UpdateWorkContentRequest(item.type(), item.sortOrder())
+                    );
+                }
+            }
+            upsertContentTranslation(subject, id, contentId, WorkLocale.en, item.en());
+            upsertContentTranslation(subject, id, contentId, WorkLocale.th, item.th());
+        }
+
+        Map<UUID, AdminWorkLinkResponse> existingLinks = repository.findLinks(id).stream()
+                .collect(Collectors.toMap(AdminWorkLinkResponse::id, Function.identity()));
+        validateUniqueIds(request.links().stream().map(SaveWorkDraftRequest.Link::id).toList());
+        HashSet<UUID> retainedLinkIds = request.links().stream()
+                .map(SaveWorkDraftRequest.Link::id)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        existingLinks.keySet().stream()
+                .filter(linkId -> !retainedLinkIds.contains(linkId))
+                .forEach(linkId -> deleteLink(subject, id, linkId));
+
+        for (SaveWorkDraftRequest.Link link : request.links()) {
+            if (link.id() == null) {
+                createLink(subject, id, link.value());
+            } else {
+                if (!existingLinks.containsKey(link.id())) throw new AdminWorkNotFoundException();
+                updateLink(subject, id, link.id(), link.value());
+            }
+        }
+
+        return new SaveWorkDraftResponse(reload(id), repository.findContent(id), repository.findLinks(id));
     }
 
     @Transactional
@@ -457,6 +531,13 @@ public class AdminWorkService {
     private void validateUniqueCodes(List<String> codes) {
         if (new HashSet<>(codes).size() != codes.size()) {
             throw new AdminWorkValidationException("codes cannot contain duplicates");
+        }
+    }
+
+    private void validateUniqueIds(List<UUID> ids) {
+        List<UUID> presentIds = ids.stream().filter(java.util.Objects::nonNull).toList();
+        if (new HashSet<>(presentIds).size() != presentIds.size()) {
+            throw new AdminWorkValidationException("ids cannot contain duplicates");
         }
     }
 

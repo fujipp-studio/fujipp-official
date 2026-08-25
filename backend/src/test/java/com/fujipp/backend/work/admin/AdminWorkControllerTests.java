@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminWorkController.class)
@@ -124,6 +125,46 @@ class AdminWorkControllerTests {
                         .contentType("application/json")
                         .content("{}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void editorCanSaveDraftInOneRequest() throws Exception {
+        authorizeAs(AppRole.EDITOR);
+        UUID workId = UUID.randomUUID();
+
+        mockMvc.perform(put("/api/v1/admin/works/{id}/draft", workId)
+                        .with(jwt())
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "work": {
+                                    "slug": "my-work",
+                                    "categoryCode": "personal",
+                                    "status": "ACTIVE",
+                                    "startedOn": null,
+                                    "completedOn": null
+                                  },
+                                  "en": {
+                                    "name": "My work",
+                                    "shortDescription": "Description",
+                                    "overview": "Overview",
+                                    "feasibility": "Feasibility",
+                                    "targetUsers": "Target users"
+                                  },
+                                  "th": {
+                                    "name": "ผลงาน",
+                                    "shortDescription": "คำอธิบาย",
+                                    "overview": "ภาพรวม",
+                                    "feasibility": "ความเป็นไปได้",
+                                    "targetUsers": "ผู้ใช้งาน"
+                                  },
+                                  "positions": { "codes": [] },
+                                  "technologies": { "codes": [] },
+                                  "content": [],
+                                  "links": []
+                                }
+                                """))
+                .andExpect(status().isOk());
     }
 
     private void authorizeAs(AppRole role) {
