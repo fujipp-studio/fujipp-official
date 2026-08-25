@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /auth/
+Disallow: /my-bot/
+Disallow: /design-system
+
+Sitemap: https://fujipp.com/sitemap.xml

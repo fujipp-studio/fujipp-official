@@ -9,7 +9,6 @@ import AppTextField from '../fields/AppTextField.vue'
 import type { TextFieldState } from '../fields/types'
 import AppIcon from '../icons/AppIcon.vue'
 import AppTurnstile from '../security/AppTurnstile.vue'
-import AuthMark from './AuthMark.vue'
 import type { AuthDialogMode } from './types'
 
 const props = withDefaults(
@@ -39,6 +38,7 @@ const captchaToken = ref('')
 const captchaResetKey = ref(0)
 const feedback = ref('')
 const awaitingEmailConfirmation = ref(false)
+const authStep = ref<'credentials' | 'verification'>('credentials')
 const sheetDrag = ref(0)
 const isDragging = ref(false)
 const isExpanded = ref(false)
@@ -46,7 +46,10 @@ let pointerId: number | undefined
 let startY = 0
 
 const isRegister = computed(() => props.mode === 'register')
-const title = computed(() => (isRegister.value ? 'Sign up to' : 'Sign in to'))
+const title = computed(() => {
+  if (authStep.value === 'verification') return 'Security check'
+  return isRegister.value ? 'Sign up to' : 'Sign in to'
+})
 const authStore = useAuthStore()
 const { error, loading } = storeToRefs(authStore)
 const hasValidEmail = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
@@ -77,6 +80,7 @@ const passwordSupport = computed(() =>
 function close() {
   emit('update:open', false)
   awaitingEmailConfirmation.value = false
+  authStep.value = 'credentials'
   resetCaptcha()
   sheetDrag.value = 0
   isDragging.value = false
@@ -89,19 +93,29 @@ function close() {
 function switchMode(mode: AuthDialogMode) {
   feedback.value = ''
   awaitingEmailConfirmation.value = false
+  authStep.value = 'credentials'
   resetCaptcha()
   authStore.clearError()
   emit('update:mode', mode)
 }
 
-async function submitEmailAuth() {
+function beginEmailVerification() {
   if (loading.value || awaitingEmailConfirmation.value) return
+  feedback.value = ''
+  resetCaptcha()
+  authStep.value = 'verification'
+}
+
+function returnToCredentials() {
+  feedback.value = ''
+  resetCaptcha()
+  authStep.value = 'credentials'
+}
+
+async function completeEmailAuth() {
+  if (loading.value || awaitingEmailConfirmation.value || !captchaToken.value) return
 
   feedback.value = ''
-  if (!captchaToken.value) {
-    feedback.value = 'Please complete the security verification before continuing.'
-    return
-  }
 
   const result = isRegister.value
     ? await authStore.signUp(email.value, password.value, captchaToken.value)
@@ -124,11 +138,6 @@ async function submitOAuth(provider: 'google' | 'discord' | 'github') {
   if (loading.value || awaitingEmailConfirmation.value) return
 
   feedback.value = ''
-  if (!captchaToken.value) {
-    feedback.value = 'Please complete the security verification before continuing.'
-    return
-  }
-
   await authStore.signInWithOAuth(provider)
 }
 
@@ -241,19 +250,31 @@ onBeforeUnmount(() => {
           <span class="auth-dialog__indicator" aria-hidden="true" />
           <div class="auth-dialog__header">
             <span class="auth-dialog__header-spacer" />
-            <AuthMark class="auth-dialog__mark" />
+            <svg class="auth-dialog__mark" viewBox="0 0 1080 1080" aria-hidden="true">
+              <use
+                class="auth-dialog__mark-body"
+                :href="`${icons.brand.mascot}#mascot-body`"
+              />
+              <use
+                v-for="faceIndex in 12"
+                :key="faceIndex"
+                class="auth-dialog__mark-face"
+                :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
+                :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
+              />
+            </svg>
             <button class="auth-dialog__close" type="button" aria-label="Close" @click="close">
               <AppIcon :source="icons.base.close" />
             </button>
           </div>
         </div>
 
-        <h2 class="auth-dialog__title">
+        <h2 class="auth-dialog__title" :class="{ 'auth-dialog__title--verification': authStep === 'verification' }">
           <strong>{{ title }}</strong>
-          <span> Fujipp</span>
+          <span v-if="authStep === 'credentials'"> Fujipp</span>
         </h2>
 
-        <form class="auth-dialog__form" @submit.prevent="submitEmailAuth">
+        <form v-if="authStep === 'credentials'" class="auth-dialog__form" @submit.prevent="beginEmailVerification">
           <AppTextField
             v-model="email"
             input-type="email"
@@ -301,15 +322,6 @@ onBeforeUnmount(() => {
             </span>
           </label>
 
-          <AppTurnstile
-            v-if="!awaitingEmailConfirmation"
-            :site-key="turnstileSiteKey"
-            :reset-key="captchaResetKey"
-            @verify="captchaToken = $event"
-            @expired="resetCaptcha"
-            @error="handleCaptchaError"
-          />
-
           <p v-if="error || feedback" class="auth-dialog__feedback" aria-live="polite">
             {{ error ?? feedback }}
           </p>
@@ -325,13 +337,37 @@ onBeforeUnmount(() => {
           </AppButton>
         </form>
 
-        <div class="auth-dialog__separator">
+        <section v-else class="auth-dialog__verification" aria-labelledby="security-check-description">
+          <p id="security-check-description">
+            Complete this quick verification to keep your account secure.
+          </p>
+          <AppTurnstile
+            :site-key="turnstileSiteKey"
+            :reset-key="captchaResetKey"
+            @verify="captchaToken = $event"
+            @expired="resetCaptcha"
+            @error="handleCaptchaError"
+          />
+          <p v-if="error || feedback" class="auth-dialog__feedback" aria-live="polite">
+            {{ error ?? feedback }}
+          </p>
+          <div class="auth-dialog__verification-actions">
+            <AppButton variant="secondary" :disabled="loading" @click="returnToCredentials">
+              Back
+            </AppButton>
+            <AppButton :disabled="!captchaToken || loading" :loading="loading" @click="completeEmailAuth">
+              Continue
+            </AppButton>
+          </div>
+        </section>
+
+        <div v-if="authStep === 'credentials'" class="auth-dialog__separator">
           <span />
           <small>or</small>
           <span />
         </div>
 
-        <div class="auth-dialog__socials">
+        <div v-if="authStep === 'credentials'" class="auth-dialog__socials">
           <AppButton
             :left-icon="icons.social.google"
             :disabled="loading || awaitingEmailConfirmation"
@@ -355,7 +391,7 @@ onBeforeUnmount(() => {
           </AppButton>
         </div>
 
-        <p class="auth-dialog__switch">
+        <p v-if="authStep === 'credentials'" class="auth-dialog__switch">
           <span>{{ isRegister ? 'Already have an account?' : 'New here?' }}</span>
           <button type="button" @click="switchMode(isRegister ? 'login' : 'register')">
             {{ isRegister ? 'Sign in' : 'Create an account' }}
@@ -429,6 +465,31 @@ onBeforeUnmount(() => {
   justify-self: center;
 }
 
+.auth-dialog__mark-body {
+  fill: var(--semantic-color-text-text-primary);
+}
+
+.auth-dialog__mark-face {
+  fill: var(--semantic-color-text-text-inverse);
+  opacity: 0;
+  transform: scale(1.45);
+  transform-box: view-box;
+  transform-origin: 50% 64%;
+  animation: auth-dialog-mark-face 24s steps(1, end) infinite;
+}
+
+@keyframes auth-dialog-mark-face {
+  0%,
+  8.32% {
+    opacity: 1;
+  }
+
+  8.33%,
+  100% {
+    opacity: 0;
+  }
+}
+
 .auth-dialog__close {
   display: grid;
   width: var(--icon-size-32);
@@ -468,6 +529,28 @@ onBeforeUnmount(() => {
   display: grid;
   width: min(100%, 30rem);
   gap: var(--space-xs);
+}
+
+.auth-dialog__verification {
+  display: grid;
+  width: min(100%, 30rem);
+  justify-items: center;
+  gap: var(--space-md);
+  padding-block: var(--space-sm) var(--space-md);
+  text-align: center;
+}
+
+.auth-dialog__verification > p:first-child {
+  max-width: 24rem;
+  color: var(--semantic-color-text-text-secondary);
+  line-height: var(--line-height-body);
+}
+
+.auth-dialog__verification-actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
 }
 
 .auth-dialog__terms {
@@ -632,6 +715,14 @@ onBeforeUnmount(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .auth-dialog__mark-face {
+    animation: none;
+  }
+
+  .auth-dialog__mark-face:nth-of-type(2) {
+    opacity: 1;
+  }
+
   .auth-dialog,
   .auth-dialog-enter-active,
   .auth-dialog-leave-active,

@@ -51,7 +51,7 @@ const copy = computed(() =>
   text-align: center;
 }
 .not-found-eyebrow {
-  color: var(--semantic-color-text-text-accent);
+  color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-label-large);
   font-weight: var(--typography-font-weight-semibold);
 }

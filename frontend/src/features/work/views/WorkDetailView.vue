@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { fetchWork, type WorkContentItem, type WorkDetail, type WorkLocale } from '../../../services/backend'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton } from '../../../shared/ui'
+import { applySeoMetadata } from '../../../services/seo'
 
 const route = useRoute()
 const { locale: appLocale } = useI18n()
@@ -98,6 +99,11 @@ async function loadWork() {
   error.value = ''
   try {
     work.value = await getWork(locale.value)
+    applySeoMetadata({
+      title: work.value.name,
+      description: work.value.shortDescription,
+      path: route.path,
+    })
     void getWork(locale.value === 'en' ? 'th' : 'en').catch(() => undefined)
   } catch (reason) {
     error.value = reason instanceof Error ? reason.message : 'Unable to load this project.'
@@ -113,6 +119,11 @@ async function applyRouteLocale(value: WorkLocale) {
   try {
     work.value = await getWork(value)
     locale.value = value
+    applySeoMetadata({
+      title: work.value.name,
+      description: work.value.shortDescription,
+      path: route.path,
+    })
     await nextTick()
     window.scrollTo(scrollPosition.left, scrollPosition.top)
   } catch (reason) {
@@ -388,7 +399,7 @@ onBeforeUnmount(() => {
       </button>
     </nav>
 
-    <AppFooter />
+    <AppFooter v-if="!loading" />
   </div>
 </template>
 
@@ -433,22 +444,33 @@ onBeforeUnmount(() => {
 }
 
 .section-indicator span {
-  width: 0.5rem;
+  width: 0.875rem;
   height: 2px;
   background: var(--semantic-color-text-text-muted);
   opacity: 0.55;
+  transform: scaleX(0.5714);
+  transform-origin: right center;
   transition:
-    width 180ms ease,
-    background-color 180ms ease,
+    transform 180ms ease,
     opacity 180ms ease;
 }
 
-.section-indicator button:hover span,
-.section-indicator button:focus-visible span,
 .section-indicator button.active span {
-  width: 0.875rem;
   background: var(--semantic-color-text-text-primary);
   opacity: 1;
+  transform: scaleX(1);
+}
+
+.section-indicator button:not(.active):hover span,
+.section-indicator button:not(.active):focus-visible span {
+  opacity: 0.85;
+  transform: scaleX(0.7143);
+}
+
+.section-indicator button:focus-visible {
+  border-radius: var(--corner-radius-sm);
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: 1px;
 }
 
 .detail-toolbar,

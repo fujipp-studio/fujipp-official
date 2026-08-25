@@ -895,22 +895,33 @@ onBeforeUnmount(() => {
 }
 
 .section-indicator span {
-  width: 0.5rem;
+  width: 0.875rem;
   height: 2px;
   background: var(--semantic-color-text-text-muted);
   opacity: 0.55;
+  transform: scaleX(0.5714);
+  transform-origin: right center;
   transition:
-    width 180ms ease,
-    background-color 180ms ease,
+    transform 180ms ease,
     opacity 180ms ease;
 }
 
-.section-indicator button:hover span,
-.section-indicator button:focus-visible span,
 .section-indicator button.active span {
-  width: 0.875rem;
   background: var(--semantic-color-text-text-primary);
   opacity: 1;
+  transform: scaleX(1);
+}
+
+.section-indicator button:not(.active):hover span,
+.section-indicator button:not(.active):focus-visible span {
+  opacity: 0.85;
+  transform: scaleX(0.7143);
+}
+
+.section-indicator button:focus-visible {
+  border-radius: var(--corner-radius-sm);
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: 1px;
 }
 
 .work-filters {

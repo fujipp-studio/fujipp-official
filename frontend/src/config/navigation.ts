@@ -4,6 +4,7 @@ export interface NavbarLink {
   label: string
   path: string
   icon?: IconSource
+  children?: readonly NavbarLink[]
 }
 
 /**
@@ -20,7 +21,16 @@ export const guestNavbarLinks = [
 
 export const authenticatedNavbarLinks = [
   { label: 'Home', path: '/', icon: icons.navigation.home },
-  { label: 'Store', path: '/store', icon: icons.navigation.store },
-  { label: 'My bot', path: '/my-bot', icon: icons.navigation.myBot },
-  { label: 'Add credit', path: '/add-credit', icon: icons.navigation.addCredit },
+  { label: 'Work', path: '/work', icon: icons.navigation.work },
+  { label: 'About', path: '/about', icon: icons.navigation.about },
+  {
+    label: 'My bot',
+    path: '/my-bot',
+    icon: icons.navigation.myBot,
+    children: [
+      { label: 'Dashboard', path: '/my-bot', icon: icons.navigation.myBot },
+      { label: 'Store', path: '/store', icon: icons.navigation.store },
+      { label: 'Top up', path: '/add-credit', icon: icons.navigation.addCredit },
+    ],
+  },
 ] satisfies readonly NavbarLink[]

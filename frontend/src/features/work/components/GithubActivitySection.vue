@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ExternalLink, RotateCcw } from 'lucide-vue-next'
-import { computed, onMounted, ref, watch } from 'vue'
+import { RotateCcw } from 'lucide-vue-next'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import type { WorkLocale } from '../../../services/backend'
 import { AppButton } from '../../../shared/ui/buttons'
@@ -34,6 +34,9 @@ const contributionTotal = ref<number | null>(null)
 const contributionWeeks = ref<GithubContributionDay[][]>([])
 const contributionError = ref(false)
 const contributionYear = ref('last')
+const sectionElement = ref<HTMLElement>()
+let observer: IntersectionObserver | undefined
+let loadingStarted = false
 let contributionRequestId = 0
 
 const copy = computed(() =>
@@ -44,7 +47,6 @@ const copy = computed(() =>
         unavailable: 'ไม่สามารถโหลด GitHub Activity ได้ในขณะนี้',
         loading: 'กำลังโหลดข้อมูลจาก GitHub…',
         retry: 'ลองอีกครั้ง',
-        profile: 'ดู GitHub profile',
       }
     : {
         title: 'GitHub Activity',
@@ -52,7 +54,6 @@ const copy = computed(() =>
         unavailable: 'GitHub activity is temporarily unavailable.',
         loading: 'Loading GitHub activity…',
         retry: 'Try again',
-        profile: 'View GitHub profile',
       },
 )
 
@@ -120,29 +121,45 @@ function contributionUrl(date: string) {
   return `${GITHUB_PROFILE_URL}?${query.toString()}`
 }
 
-watch(contributionYear, () => void fetchGithubContributions())
-onMounted(() => void fetchGithubContributions())
+function startLoading() {
+  if (loadingStarted) return
+  loadingStarted = true
+  observer?.disconnect()
+  observer = undefined
+  void fetchGithubContributions()
+}
+
+watch(contributionYear, () => {
+  if (loadingStarted) void fetchGithubContributions()
+})
+onMounted(() => {
+  if (!('IntersectionObserver' in window)) {
+    startLoading()
+    return
+  }
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) startLoading()
+    },
+    { rootMargin: '300px 0px' },
+  )
+  if (sectionElement.value) observer.observe(sectionElement.value)
+})
+onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
-  <section class="github-activity page-container" aria-labelledby="github-activity-title">
+  <section
+    ref="sectionElement"
+    class="github-activity page-container"
+    aria-labelledby="github-activity-title"
+  >
     <div class="github-activity__panel">
       <header class="github-activity__header">
         <div>
           <h2 id="github-activity-title">{{ copy.title }}</h2>
         </div>
 
-        <AppButton
-          class="github-activity__profile-link"
-          :href="GITHUB_PROFILE_URL"
-          target="_blank"
-          rel="noreferrer"
-        >
-          <span class="github-activity__button-label">
-            {{ copy.profile }}
-            <ExternalLink :size="17" aria-hidden="true" />
-          </span>
-        </AppButton>
       </header>
 
       <div class="github-activity__toolbar">
@@ -297,7 +314,6 @@ onMounted(() => void fetchGithubContributions())
   color: var(--semantic-color-text-text-secondary);
 }
 
-.github-activity__profile-link,
 .github-activity__retry {
   width: max-content;
 }
@@ -379,7 +395,7 @@ onMounted(() => void fetchGithubContributions())
 
 .calendar-body {
   display: grid;
-  grid-template-columns: 0.75rem auto;
+  grid-template-columns: 1.5rem auto;
   gap: 0.3125rem;
 }
 
@@ -390,7 +406,7 @@ onMounted(() => void fetchGithubContributions())
 
 .month-labels {
   display: grid;
-  grid-template-columns: repeat(var(--contribution-week-count), 0.75rem);
+  grid-template-columns: repeat(var(--contribution-week-count), 1.5rem);
   gap: 0.3125rem;
   text-align: left;
 }
@@ -405,14 +421,14 @@ onMounted(() => void fetchGithubContributions())
 .weekday-labels,
 .contribution-week {
   display: flex;
-  width: 0.75rem;
+  width: 1.5rem;
   flex-direction: column;
   gap: 0.3125rem;
 }
 
 .weekday-labels span {
-  height: 0.75rem;
-  line-height: 0.75rem;
+  height: 1.5rem;
+  line-height: 1.5rem;
 }
 
 .contribution-weeks {
@@ -424,18 +440,31 @@ onMounted(() => void fetchGithubContributions())
   position: relative;
   box-sizing: border-box;
   display: block;
-  width: 0.75rem;
-  height: 0.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex: none;
-  border: 1px solid var(--semantic-color-border-border-subtle);
+  border: 1px solid color-mix(in srgb, var(--semantic-color-text-text-muted) 42%, transparent);
   border-radius: 0.1875rem;
-  background: var(--semantic-color-background-bg-surface-hover);
+  background: color-mix(
+    in srgb,
+    var(--semantic-color-background-bg-surface) 84%,
+    var(--semantic-color-text-text-muted) 16%
+  );
   cursor: pointer;
   text-decoration: none;
 }
 
 .contribution-day[data-intensity='1'] {
-  background: color-mix(in srgb, var(--semantic-color-success-success-bg) 72%, var(--semantic-color-background-bg-surface));
+  border-color: color-mix(
+    in srgb,
+    var(--semantic-color-success-success-border) 72%,
+    var(--semantic-color-border-border-default)
+  );
+  background: color-mix(
+    in srgb,
+    var(--semantic-color-success-success-bg) 82%,
+    var(--semantic-color-success-success-text) 18%
+  );
 }
 
 .contribution-day[data-intensity='2'] {
@@ -534,10 +563,6 @@ onMounted(() => void fetchGithubContributions())
   .github-activity__toolbar {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .github-activity__profile-link {
-    width: 100%;
   }
 
   .year-picker {

@@ -226,11 +226,13 @@ onBeforeUnmount(() => {
           </div>
 
           <div class="about-copy">
-              <h1>Anawat Grudtoop</h1>
+              <h1>{{ t('about.profile.name') }}</h1>
               <p>{{ t('about.profile.introduction') }}</p>
-              <h2 class="about-copy__education">{{ t('about.profile.education') }}</h2>
-              <p>{{ t('about.profile.university') }}</p>
-              <div class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
+              <div class="about-profile__education">
+                <span>{{ t('about.profile.education') }}</span>
+                <strong>{{ t('about.profile.university') }}</strong>
+              </div>
+              <nav class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
                 <AppButton
                   href="https://github.com/Fujipp"
                   target="_blank"
@@ -240,7 +242,7 @@ onBeforeUnmount(() => {
                   GitHub
                 </AppButton>
                 <AppButton
-                  href="https://www.linkedin.com/in/anawat-grudtoop-aa1799426/"
+                  href="https://www.linkedin.com/in/anawat-boripakhirun-aa1799426"
                   target="_blank"
                   rel="noopener noreferrer"
                   :left-icon="icons.social.linkedin"
@@ -248,13 +250,34 @@ onBeforeUnmount(() => {
                   LinkedIn
                 </AppButton>
                 <AppButton
-                  href="mailto:anawat.grudtoop@gmail.com"
+                  href="mailto:anawat.boripakhirun@gmail.com"
                   :left-icon="icons.social.email"
                 >
                   {{ t('about.profile.mail') }}
                 </AppButton>
-              </div>
+              </nav>
           </div>
+      </section>
+
+      <section id="about-experience" class="about-section about-experience">
+        <header class="about-experience__heading">
+          <h2>{{ t('about.experience.title') }}</h2>
+          <div class="about-experience__summary">
+            <div class="about-experience__role">
+              <strong>{{ t('about.experience.role') }}</strong>
+              <span>{{ t('about.experience.duration') }}</span>
+            </div>
+            <p>{{ t('about.experience.company') }}</p>
+          </div>
+        </header>
+
+        <div class="about-experience__grid">
+          <article v-for="(highlight, index) in experienceHighlights" :key="highlight.titleKey">
+            <span class="about-experience__number" aria-hidden="true">0{{ index + 1 }}</span>
+            <h3>{{ t(highlight.titleKey) }}</h3>
+            <p>{{ t(highlight.descriptionKey) }}</p>
+          </article>
+        </div>
       </section>
 
       <section id="about-skills" class="about-section about-skills">
@@ -272,48 +295,29 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section id="about-experience" class="about-section about-experience">
-        <div class="about-experience__heading">
-          <h2>{{ t('about.experience.title') }}</h2>
-          <div class="about-experience__role">
-            <strong>{{ t('about.experience.role') }}</strong>
-            <span>{{ t('about.experience.duration') }}</span>
-          </div>
-          <p>{{ t('about.experience.company') }}</p>
-        </div>
-
-        <div class="about-experience__grid">
-          <article v-for="highlight in experienceHighlights" :key="highlight.titleKey">
-            <h3>{{ t(highlight.titleKey) }}</h3>
-            <p>{{ t(highlight.descriptionKey) }}</p>
-          </article>
-        </div>
-      </section>
-
       <section id="about-contact" class="about-section about-contact">
         <div class="about-contact__container">
-          <AppProgressiveImage
-            class="about-contact__portrait"
-            :src="profileImageSrc"
-            :placeholder-src="profilePlaceholderSrc"
-            alt=""
-            width="512"
-            height="512"
-            loading="lazy"
-          />
-
           <div class="about-copy">
             <h2>{{ t('about.contact.title') }}</h2>
             <p>{{ t('about.contact.description') }}</p>
-            <div class="about-contact__button">
-              <AppButton
-                variant="primary"
-                href="mailto:anawat.grudtoop@gmail.com"
-                :left-icon="icons.social.email"
-              >
-                {{ t('about.contact.action') }}
-              </AppButton>
-            </div>
+            <ul class="about-contact__roles" :aria-label="t('about.contact.rolesLabel')">
+              <li>{{ t('about.contact.frontend') }}</li>
+              <li>{{ t('about.contact.backend') }}</li>
+              <li>{{ t('about.contact.fullStack') }}</li>
+              <li>{{ t('about.contact.automation') }}</li>
+            </ul>
+          </div>
+
+          <div class="about-contact__action">
+            <span>{{ t('about.contact.emailLabel') }}</span>
+            <a href="mailto:anawat.boripakhirun@gmail.com">anawat.boripakhirun@gmail.com</a>
+            <AppButton
+              variant="primary"
+              href="mailto:anawat.boripakhirun@gmail.com"
+              :left-icon="icons.social.email"
+            >
+              {{ t('about.contact.action') }}
+            </AppButton>
           </div>
         </div>
       </section>
@@ -371,7 +375,7 @@ onBeforeUnmount(() => {
   display: flex;
   width: min(100%, 66rem);
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: clamp(var(--space-lg), 5vw, var(--space-4xl));
   border: 1px solid color-mix(
     in srgb,
@@ -379,7 +383,7 @@ onBeforeUnmount(() => {
     transparent
   );
   border-radius: var(--corner-radius-lg);
-  padding: var(--space-5xl) var(--space-xl);
+  padding: var(--space-4xl);
   background: color-mix(
     in srgb,
     var(--semantic-color-background-bg-inverse) 70%,
@@ -396,12 +400,13 @@ onBeforeUnmount(() => {
 
 .about-profile {
   position: relative;
-  display: flex;
+  display: grid;
   overflow: hidden;
   max-width: none;
+  grid-template-columns: minmax(18rem, 26rem) minmax(0, 38rem);
   align-items: center;
   justify-content: center;
-  gap: clamp(var(--space-xl), 7vw, 7rem);
+  gap: clamp(var(--space-2xl), 7vw, 7rem);
   background: transparent;
   color: var(--semantic-color-text-text-primary);
   padding-inline: max(
@@ -413,8 +418,7 @@ onBeforeUnmount(() => {
 .about-profile__portrait {
   position: relative;
   z-index: 2;
-  width: 20rem;
-  height: 20rem;
+  width: 100%;
   flex-shrink: 0;
 }
 
@@ -422,19 +426,13 @@ onBeforeUnmount(() => {
   position: relative;
   z-index: 1;
   overflow: hidden;
-  width: 20rem;
-  height: 20rem;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 5;
   margin-inline: auto;
   border: 1px solid color-mix(in srgb, var(--global-color-white-100) 16%, transparent);
-  border-radius: var(--corner-radius-full);
-  background: transparent;
-}
-
-.about-contact__portrait {
-  width: 16rem;
-  height: 16rem;
-  border-radius: var(--corner-radius-full);
-  object-fit: cover;
+  border-radius: var(--corner-radius-lg);
+  background: var(--semantic-color-background-bg-surface);
 }
 
 .about-profile__picture {
@@ -450,68 +448,38 @@ onBeforeUnmount(() => {
 .about-profile__name {
   position: absolute;
   z-index: 2;
-  top: 50%;
-  left: 50%;
-  color: var(--global-color-white-100);
+  right: var(--space-md);
+  bottom: var(--space-md);
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--corner-radius-sm);
+  background: rgb(0 0 0 / 72%);
+  color: var(--semantic-color-text-text-inverse);
   font-family: var(--font-family-display);
-  font-size: var(--font-size-display-small);
+  font-size: var(--font-size-heading-h2);
   line-height: var(--line-height-heading);
-  opacity: 0;
   text-shadow: 0 2px 12px rgb(0 0 0 / 45%);
-  transform: translate(-50%, calc(-50% + 0.75rem));
-  transition:
-    transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 200ms ease;
   white-space: nowrap;
 }
 
 .about-profile__details {
-  position: absolute;
-  z-index: 0;
-  top: calc(100% + var(--space-md));
-  bottom: auto;
-  left: 50%;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  opacity: 0;
-  text-align: center;
-  transform: translate(-50%, -3.5rem);
-  transition:
-    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 180ms ease;
-  white-space: nowrap;
-}
-
-.about-profile__portrait:hover .about-profile__picture :deep(img) {
-  filter: brightness(0.52);
-  transform: scale(1.07);
-}
-
-.about-profile__portrait:hover .about-profile__name,
-.about-profile__portrait:hover .about-profile__details {
-  opacity: 1;
-}
-
-.about-profile__portrait:hover .about-profile__name {
-  transform: translate(-50%, -50%);
-}
-
-.about-profile__portrait:hover .about-profile__details {
-  transform: translate(-50%, 0);
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
 }
 
 .about-profile__age,
 .about-profile__location {
   margin: 0;
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-large);
   line-height: var(--line-height-body);
 }
 
 .about-profile .about-profile__age,
 .about-profile .about-profile__location {
-  color: var(--semantic-color-text-text-muted);
+  color: var(--semantic-color-text-text-secondary);
 }
 
 .about-profile .about-copy {
@@ -530,10 +498,10 @@ onBeforeUnmount(() => {
 
 .about-copy {
   display: flex;
-  width: min(100%, 32rem);
+  width: 100%;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-xxs);
+  gap: var(--space-md);
 }
 
 .about-profile__links {
@@ -554,17 +522,30 @@ onBeforeUnmount(() => {
   margin: 0;
 }
 
-.about-copy h1,
-.about-copy h2 {
+.about-copy h1 {
   align-self: stretch;
-  font-size: var(--font-size-body-large);
-  line-height: var(--line-height-body);
+  font-size: clamp(3rem, 7vw, 6.5rem);
+  font-weight: var(--typography-font-weight-medium);
+  letter-spacing: -0.06em;
+  line-height: 0.9;
 }
 
-.about-copy .about-copy__education {
-  margin-top: var(--space-md);
+.about-profile__education {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  border-top: 1px solid var(--semantic-color-border-border-default);
+  padding-top: var(--space-md);
+}
+
+.about-profile__education span {
+  color: var(--semantic-color-text-text-secondary);
+  font-size: var(--font-size-label-medium);
+}
+
+.about-profile__education strong {
   font-size: var(--font-size-body-large);
-  /* font-weight: var(--typography-font-weight-semibold); */
   line-height: var(--line-height-body);
 }
 
@@ -627,104 +608,80 @@ onBeforeUnmount(() => {
 }
 
 .about-skills__grid {
-  position: relative;
+  display: grid;
   width: min(100%, 66rem);
-  height: 50rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--space-md);
   margin-inline: auto;
 }
 
 .about-skills__grid :deep(.skill-group-card) {
-  position: absolute;
   display: flex;
-  aspect-ratio: 1;
-  align-items: center;
-  justify-content: center;
   flex-direction: column;
-  gap: var(--space-md);
+  align-self: start;
+  justify-content: flex-start;
+  gap: var(--space-lg);
   border: 1px solid color-mix(
     in srgb,
     var(--semantic-color-border-border-default) 70%,
     transparent
   );
-  border-radius: 50%;
+  border-radius: var(--corner-radius-lg);
   padding: var(--space-xl);
-  background: var(--semantic-color-background-bg-default);
-  box-shadow: 0 1.5rem 4rem color-mix(
+  background: color-mix(
     in srgb,
-    var(--semantic-color-text-text-primary) 8%,
+    var(--semantic-color-background-bg-surface) 82%,
     transparent
   );
   backdrop-filter: none;
-  text-align: center;
-  animation: capability-float 8s ease-in-out infinite alternate;
-  will-change: transform;
+  text-align: left;
 }
 
 .about-skills__grid :deep(.skill-group-card h3) {
   margin: 0;
-  font-size: var(--font-size-heading-h2);
+  font-size: var(--font-size-heading-h3);
 }
 
 .about-skills__grid :deep(.skill-group-card ul) {
-  justify-content: center;
-  gap: var(--space-xs) var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
 }
 
 .about-skills__grid :deep(.skill-group-card li) {
-  min-height: auto;
-  border: 0;
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
+  min-width: 0;
+  min-height: 2.75rem;
+  border-color: color-mix(
+    in srgb,
+    var(--semantic-color-border-border-default) 65%,
+    transparent
+  );
+  border-radius: var(--corner-radius-md);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--semantic-color-background-bg-default);
   font-size: var(--font-size-label-medium);
+  white-space: nowrap;
 }
 
 .about-skills__grid :deep(.skill-group-card--language) {
-  top: 0;
-  left: 0;
-  width: 23rem;
+  grid-column: auto;
 }
 
 .about-skills__grid :deep(.skill-group-card--frontend) {
-  top: 1rem;
-  left: 39%;
-  width: 19rem;
-  animation-delay: -2.5s;
-  animation-duration: 9.5s;
+  grid-column: auto;
 }
 
 .about-skills__grid :deep(.skill-group-card--backend) {
-  top: 2rem;
-  right: -2rem;
-  width: 18rem;
-  animation-delay: -5s;
-  animation-duration: 10.5s;
+  grid-column: auto;
 }
 
 .about-skills__grid :deep(.skill-group-card--database) {
-  bottom: 0;
-  left: 18%;
-  width: 18rem;
-  animation-delay: -4s;
-  animation-duration: 11s;
+  grid-column: auto;
 }
 
 .about-skills__grid :deep(.skill-group-card--infra) {
-  right: 8%;
-  bottom: -1rem;
-  width: 24rem;
-  animation-delay: -7s;
-  animation-duration: 12s;
-}
-
-@keyframes capability-float {
-  from {
-    transform: translate3d(-0.35rem, -0.5rem, 0);
-  }
-
-  to {
-    transform: translate3d(0.5rem, 0.75rem, 0);
-  }
+  grid-column: 1 / -1;
 }
 
 .about-experience {
@@ -732,19 +689,24 @@ onBeforeUnmount(() => {
   max-width: none;
   flex-direction: column;
   justify-content: center;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
   background: transparent;
   color: var(--semantic-color-text-text-primary);
 }
 
 .about-experience__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xxs);
+  display: grid;
+  width: min(100%, 66rem);
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, 24rem);
+  align-items: end;
+  gap: var(--space-xl);
+  margin-inline: auto;
+  border-bottom: 1px solid var(--semantic-color-border-border-default);
+  padding-bottom: var(--space-xl);
 }
 
 .about-experience__heading h2 {
-  margin-block: var(--space-md) var(--space-xl);
+  margin: 0;
   font-size: clamp(2.75rem, 7vw, 6rem);
   font-weight: var(--typography-font-weight-medium);
   letter-spacing: -0.055em;
@@ -752,17 +714,23 @@ onBeforeUnmount(() => {
   white-space: pre-line;
 }
 
-.about-experience .about-eyebrow,
-.about-experience__heading > p:not(.about-eyebrow) {
+.about-experience__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.about-experience__summary p {
+  margin: 0;
   color: var(--semantic-color-text-text-secondary);
+  line-height: var(--line-height-body);
 }
 
 .about-experience__role {
   display: flex;
+  flex-direction: column;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-lg);
-  margin-top: var(--space-sm);
+  gap: var(--space-xxs);
   font-size: var(--font-size-label-large);
   line-height: var(--line-height-label);
 }
@@ -774,11 +742,24 @@ onBeforeUnmount(() => {
 }
 
 .about-experience__grid article {
-  border-top: 1px solid var(--semantic-color-border-border-default);
-  border-radius: 0;
-  padding: var(--space-xl) 0;
-  background: transparent;
+  display: grid;
+  min-height: 15rem;
+  grid-template-rows: auto 1fr auto;
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-lg);
+  padding: var(--space-xl);
+  background: color-mix(
+    in srgb,
+    var(--semantic-color-background-bg-surface) 82%,
+    transparent
+  );
   color: var(--semantic-color-text-text-primary);
+}
+
+.about-experience__number {
+  color: var(--semantic-color-text-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-label-medium);
 }
 
 .about-experience__grid h3,
@@ -787,23 +768,63 @@ onBeforeUnmount(() => {
 }
 
 .about-experience__grid h3 {
+  align-self: end;
   font-size: var(--font-size-heading-h3);
   line-height: var(--line-height-heading);
 }
 
 .about-experience__grid p {
-  margin-top: var(--space-xxs);
+  margin-top: var(--space-sm);
+  color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-medium);
   line-height: var(--line-height-body);
 }
 
-.about-contact__portrait {
-  flex-shrink: 0;
+.about-contact__container .about-copy {
+  width: min(100%, 38rem);
 }
 
-.about-contact__button {
-  width: fit-content;
-  margin-top: var(--space-md);
+.about-contact__container h2 {
+  font-size: clamp(2.75rem, 6vw, 5.5rem);
+  font-weight: var(--typography-font-weight-medium);
+  letter-spacing: -0.055em;
+  line-height: 0.92;
+}
+
+.about-contact__roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  margin: var(--space-sm) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.about-contact__roles li {
+  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-radius: var(--corner-radius-full);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--font-size-label-medium);
+}
+
+.about-contact__action {
+  display: flex;
+  min-width: 18rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  border-inline-start: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+  padding-inline-start: var(--space-xl);
+}
+
+.about-contact__action span {
+  font-size: var(--font-size-label-medium);
+}
+
+.about-contact__action > a {
+  color: inherit;
+  font-size: var(--font-size-body-medium);
+  text-decoration: none;
 }
 
 @media (max-width: 63.99rem) {
@@ -826,22 +847,23 @@ onBeforeUnmount(() => {
   }
 
   .about-skills__grid {
-    display: flex;
-    height: auto;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: var(--space-lg);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .about-skills__grid :deep(.skill-group-card) {
-    position: relative;
-    inset: auto;
-    width: min(100%, 19rem);
+    grid-column: auto;
   }
 
-  .about-contact__portrait {
-    width: 12rem;
-    height: 12rem;
+  .about-skills__grid :deep(.skill-group-card--infra) {
+    grid-column: 1 / -1;
+  }
+
+  .about-contact__action {
+    width: 100%;
+    border-inline-start: 0;
+    border-top: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    padding-block-start: var(--space-xl);
+    padding-inline-start: 0;
   }
 }
 
@@ -855,13 +877,14 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
   }
 
-  .about-contact__container {
-    padding: var(--space-3xl) var(--space-md);
-    text-align: center;
+  .about-experience__heading {
+    grid-template-columns: 1fr;
   }
 
-  .about-contact__container .about-copy {
-    align-items: center;
+  .about-contact__container {
+    align-items: flex-start;
+    padding: var(--space-2xl) var(--space-md);
+    text-align: left;
   }
 
   .about-skills__heading {
@@ -870,12 +893,12 @@ onBeforeUnmount(() => {
 
   .about-profile {
     min-height: auto;
+    grid-template-columns: 1fr;
+    justify-items: center;
   }
 
-  .about-profile__portrait,
-  .about-profile__image {
-    width: 16rem;
-    height: 16rem;
+  .about-profile__portrait {
+    width: min(100%, 20rem);
   }
 
   .about-profile .about-copy h1 {
@@ -887,7 +910,11 @@ onBeforeUnmount(() => {
   }
 
   .about-skills__grid :deep(.skill-group-card) {
-    width: min(100%, 18rem);
+    grid-column: 1;
+  }
+
+  .about-skills__grid {
+    grid-template-columns: 1fr;
   }
 
   .about-experience__role {
@@ -896,28 +923,4 @@ onBeforeUnmount(() => {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .about-skills__grid :deep(.skill-group-card) {
-    animation: none;
-  }
-}
-
-@media (hover: none) {
-  .about-profile__portrait {
-    margin-bottom: 5rem;
-  }
-
-  .about-profile__name,
-  .about-profile__details {
-    opacity: 1;
-  }
-
-  .about-profile__name {
-    transform: translate(-50%, -50%);
-  }
-
-  .about-profile__details {
-    transform: translate(-50%, 0);
-  }
-}
 </style>

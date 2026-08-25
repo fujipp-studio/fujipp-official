@@ -292,6 +292,31 @@ export interface AdminWorkContent {
   translations: Array<{ locale: WorkLocale; title: string; description: string }>
 }
 
+export interface SaveAdminWorkDraftInput {
+  work: AdminWorkInput
+  en: Omit<AdminWorkTranslation, 'locale'>
+  th: Omit<AdminWorkTranslation, 'locale'>
+  positions: { codes: string[] }
+  technologies: { codes: string[] }
+  content: Array<{
+    id?: string
+    type: AdminWorkContent['type']
+    sortOrder: number
+    en: { title: string; description: string }
+    th: { title: string; description: string }
+  }>
+  links: Array<{
+    id?: string
+    value: Omit<AdminWorkLink, 'id'>
+  }>
+}
+
+export interface SaveAdminWorkDraftResponse {
+  work: AdminWork
+  content: AdminWorkContent[]
+  links: AdminWorkLink[]
+}
+
 export interface AdminWorkMedia {
   id: string
   type: 'GALLERY' | 'ARCHITECTURE'
@@ -307,7 +332,16 @@ export interface AdminWorkMedia {
 export interface AdminWorkCatalog {
   categories: Array<{ code: string; name: string }>
   positions: Array<{ code: string; name: string }>
+  technologyGroups: Array<{ code: string; name: string }>
   technologies: Array<{ slug: string; name: string; groupCode: string; groupName: string }>
+}
+
+export interface CreateAdminTechnologyInput {
+  slug: string
+  name: string
+  groupCode: string
+  iconUrl: string | null
+  officialUrl: string | null
 }
 
 async function readJson<T>(response: Response, fallbackMessage: string): Promise<T> {
@@ -585,6 +619,13 @@ export async function fetchAdminWork(id: string, session: Session): Promise<Admi
   return readJson<AdminWork>(response, 'Unable to load this work.')
 }
 
+export async function fetchAdminWorks(session: Session): Promise<AdminWork[]> {
+  const response = await fetch(`${backendUrl}/api/v1/admin/works`, {
+    headers: adminHeaders(session, false),
+  })
+  return readJson<AdminWork[]>(response, 'Unable to load works.')
+}
+
 export async function createAdminWork(input: AdminWorkInput, session: Session): Promise<AdminWork> {
   const response = await fetch(`${backendUrl}/api/v1/admin/works`, {
     method: 'POST',
@@ -655,6 +696,17 @@ async function adminRequest<T>(
   return readJson<T>(response, fallback)
 }
 
+export const saveAdminWorkDraft = (
+  id: string,
+  input: SaveAdminWorkDraftInput,
+  session: Session,
+) => adminRequest<SaveAdminWorkDraftResponse>(
+  `/api/v1/admin/works/${id}/draft`,
+  session,
+  { method: 'PUT', body: JSON.stringify(input) },
+  'Unable to save this draft.',
+)
+
 export const fetchAdminWorkLinks = (id: string, session: Session) =>
   adminRequest<AdminWorkLink[]>(
     `/api/v1/admin/works/${id}/links`,
@@ -669,6 +721,14 @@ export const fetchAdminWorkCatalog = (session: Session) =>
     session,
     { method: 'GET' },
     'Unable to load the work catalog.',
+  )
+
+export const createAdminTechnology = (input: CreateAdminTechnologyInput, session: Session) =>
+  adminRequest<AdminWorkCatalog['technologies'][number]>(
+    '/api/v1/admin/works/catalog/technologies',
+    session,
+    { method: 'POST', body: JSON.stringify(input) },
+    'Unable to create the technology.',
   )
 
 export const createAdminWorkLink = (

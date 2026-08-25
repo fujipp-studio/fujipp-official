@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { nextTick, ref, useId, watch } from 'vue'
 
+import { icons } from '../../../config'
+import AppIcon from '../icons/AppIcon.vue'
+
 const props = withDefaults(
   defineProps<{
     open?: boolean
@@ -34,6 +37,7 @@ watch(
     await nextTick()
     if (isOpen && dialogElement.value && !dialogElement.value.open) {
       dialogElement.value.showModal()
+      dialogElement.value.focus({ preventScroll: true })
     } else if (!isOpen && dialogElement.value?.open) {
       dialogElement.value.close()
     }
@@ -59,6 +63,7 @@ function handleBackdropClick(event: MouseEvent) {
     v-if="open"
     ref="dialogElement"
     class="app-modal"
+    tabindex="-1"
     :class="`app-modal--${size}`"
     :aria-labelledby="title ? titleId : undefined"
     :aria-describedby="subtitle ? subtitleId : undefined"
@@ -81,7 +86,7 @@ function handleBackdropClick(event: MouseEvent) {
           :disabled="disabled"
           @click="handleClose"
         >
-          ×
+          <AppIcon class="app-modal__close-icon" :source="icons.base.close" />
         </button>
       </header>
 
@@ -109,6 +114,10 @@ function handleBackdropClick(event: MouseEvent) {
   background: var(--semantic-color-background-bg-elevated, #111827);
   color: var(--semantic-color-text-text-primary, #ffffff);
   box-shadow: var(--effect-shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.5));
+}
+
+.app-modal:focus {
+  outline: none;
 }
 
 .app-modal--sm {
@@ -158,29 +167,35 @@ function handleBackdropClick(event: MouseEvent) {
 
 .app-modal__close {
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: 0 0 2.25rem;
+  width: var(--icon-size-32);
+  height: var(--icon-size-32);
+  flex: 0 0 var(--icon-size-32);
   place-items: center;
-  border: 1px solid var(--semantic-color-border-border-default, #374151);
-  border-radius: var(--corner-radius-full, 9999px);
-  background: var(--semantic-color-background-bg-surface, #1f2937);
-  color: var(--semantic-color-text-text-secondary, #9ca3af);
-  font-size: 1.25rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--semantic-color-text-text-primary, #ffffff);
   cursor: pointer;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
+  transition: opacity 150ms ease;
+}
+
+.app-modal__close-icon {
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
 }
 
 .app-modal__close:hover:not(:disabled) {
-  background: var(--semantic-color-background-bg-surface-hover, #374151);
-  color: var(--semantic-color-text-text-primary, #ffffff);
+  opacity: 0.68;
 }
 
 .app-modal__close:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.app-modal__close:focus-visible {
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: 2px;
 }
 
 .app-modal__body {

@@ -344,7 +344,7 @@ onBeforeUnmount(() => storeRequest?.abort())
               <h2 id="runtime-capacity-title" class="text-2xl font-extrabold tracking-tight">
                 {{ t('store.runtimeAvailability') }}
               </h2>
-              <p class="mt-xxs text-xs text-text-muted tablet:text-sm">
+              <p class="mt-xxs text-xs text-text-secondary tablet:text-sm">
                 {{ t('store.runtimeOneSlotOneBot') }}
               </p>
             </div>
@@ -422,7 +422,7 @@ onBeforeUnmount(() => storeRequest?.abort())
                   decoding="async"
                 />
                 <template v-else>
-                  <span class="text-xs font-semibold uppercase tracking-widest text-text-muted">{{
+                  <span class="text-xs font-semibold uppercase tracking-widest text-text-secondary">{{
                     t('store.artworkComingSoon')
                   }}</span>
                 </template>
@@ -436,7 +436,7 @@ onBeforeUnmount(() => storeRequest?.abort())
                 <div>
                   <div class="flex items-start justify-between gap-sm">
                     <h2 class="text-xl font-semibold">{{ card.feature.name }}</h2>
-                    <span class="rounded-md bg-bg-elevated px-xs py-xxs text-xs text-text-muted"
+                    <span class="rounded-md bg-bg-elevated px-xs py-xxs text-xs text-text-secondary"
                       >v{{ card.feature.version }}</span
                     >
                   </div>
@@ -448,7 +448,7 @@ onBeforeUnmount(() => storeRequest?.abort())
                   <div class="mb-sm flex items-end justify-between gap-sm">
                     <div>
                       <p class="font-semibold">{{ offerName(card.offer) }}</p>
-                      <p class="mt-xxs flex items-center gap-xxs text-xs text-text-muted">
+                      <p class="mt-xxs flex items-center gap-xxs text-xs text-text-secondary">
                         <Clock3 :size="14" />{{ offerCaption(card.offer) }} ·
                         {{ t('store.slots', { count: card.offer.installationLimit }) }}
                       </p>
@@ -613,7 +613,7 @@ onBeforeUnmount(() => storeRequest?.abort())
   text-align: center;
 }
 .runtime-capacity-stats dt {
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
   font-weight: 500;
 }
@@ -668,7 +668,11 @@ onBeforeUnmount(() => storeRequest?.abort())
 .runtime-slot__badge--available {
   border: 1px solid color-mix(in srgb, var(--semantic-color-success-success-text) 30%, transparent);
   background: color-mix(in srgb, var(--semantic-color-success-success-text) 12%, transparent);
-  color: var(--semantic-color-success-success-text);
+  color: color-mix(
+    in srgb,
+    var(--semantic-color-success-success-text) 78%,
+    var(--semantic-color-text-text-primary)
+  );
 }
 .runtime-slot__badge--available .runtime-slot__dot {
   width: 0.375rem;
@@ -680,7 +684,7 @@ onBeforeUnmount(() => storeRequest?.abort())
 .runtime-slot__badge--occupied {
   border: 1px solid var(--color-border-subtle);
   background: var(--color-bg-surface);
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 .runtime-slot__badge--occupied .runtime-slot__dot {
   width: 0.375rem;
@@ -690,10 +694,10 @@ onBeforeUnmount(() => storeRequest?.abort())
   opacity: 0.6;
 }
 .runtime-slot--occupied {
-  opacity: 0.75;
+  border-style: dashed;
 }
 .runtime-slot--occupied .runtime-slot__label {
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 .store-menu-card {
   display: flex;

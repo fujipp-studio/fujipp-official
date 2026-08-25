@@ -1,41 +1,67 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
 import { icons } from '../../../config'
-import { AppButton } from '../../../shared/ui'
-import { useScrollFade } from '../composables/useScrollFade'
-
-const section = ref<HTMLElement>()
-const fadeStyle = useScrollFade(section, 'both')
+import { AppButton, AppProgressiveImage } from '../../../shared/ui'
+import { useThemeStore } from '../../../stores'
 const router = useRouter()
 const { locale, t } = useI18n()
+const { isDarkTheme } = storeToRefs(useThemeStore())
+const profileImageSrc = computed(() =>
+  isDarkTheme.value
+    ? '/images/about/anawat-grudtoop-profile-cropped-768.webp'
+    : '/images/about/anawat-grudtoop-profile-512.webp',
+)
+const profilePlaceholderSrc = computed(() =>
+  isDarkTheme.value
+    ? '/images/about/anawat-grudtoop-profile-cropped-lqip.webp'
+    : '/images/about/anawat-grudtoop-profile-512-lqip.webp',
+)
 
-function viewProjects() {
-  void router.push({ path: '/work', query: locale.value === 'th' ? { locale: 'th' } : {} })
+function navigateTo(path: '/about' | '/work') {
+  void router.push({ path, query: locale.value === 'th' ? { locale: 'th' } : {} })
 }
 </script>
 
 <template>
   <section
     id="about-us"
-    ref="section"
     class="about-us-section"
     aria-labelledby="about-us-title"
   >
-    <div class="about-us-section__content" :style="fadeStyle">
-      <h2 id="about-us-title">{{ t('home.about.title') }}</h2>
-      <p>{{ t('home.about.description') }}</p>
+    <div class="about-us-section__layout">
+      <div class="about-us-section__portrait">
+        <AppProgressiveImage
+          class="about-us-section__image"
+          :src="profileImageSrc"
+          :placeholder-src="profilePlaceholderSrc"
+          :alt="t('home.about.imageAlt')"
+          width="512"
+          height="512"
+          loading="lazy"
+          fit="cover"
+        />
+      </div>
 
-      <div class="about-us-section__button">
-        <AppButton
-          variant="primary"
-          :right-icon="icons.base.arrowRight"
-          @click="viewProjects"
-        >
-          {{ t('home.about.action') }}
-        </AppButton>
+      <div class="about-us-section__content">
+        <h2 id="about-us-title">{{ t('home.about.title') }}</h2>
+        <p>{{ t('home.about.description') }}</p>
+
+        <div class="about-us-section__actions">
+          <AppButton
+            variant="primary"
+            :right-icon="icons.base.arrowRight"
+            @click="navigateTo('/about')"
+          >
+            {{ t('home.about.aboutAction') }}
+          </AppButton>
+          <AppButton variant="secondary" @click="navigateTo('/work')">
+            {{ t('home.about.workAction') }}
+          </AppButton>
+        </div>
       </div>
     </div>
   </section>
@@ -56,12 +82,32 @@ function viewProjects() {
   text-align: left;
 }
 
+.about-us-section__layout {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: var(--space-3xl);
+}
+
+.about-us-section__portrait {
+  overflow: hidden;
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-lg);
+  aspect-ratio: 1;
+}
+
+.about-us-section__image {
+  width: 100%;
+  height: 100%;
+}
+
 .about-us-section__content {
   display: flex;
-  width: min(100%, 36rem);
+  width: min(100%, var(--layout-reading-max-width));
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-xxs);
+  gap: var(--space-sm);
 }
 
 .about-us-section h2,
@@ -82,14 +128,32 @@ function viewProjects() {
   line-height: var(--line-height-body);
 }
 
-.about-us-section__button {
-  width: fit-content;
-  margin-top: calc(var(--space-lg) - var(--space-xxs));
+.about-us-section__actions {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
 }
 
 @media (max-width: 47.99rem) {
   .about-us-section {
-    height: calc(100dvh - 4rem);
+    height: auto;
+    min-height: calc(100dvh - 4rem);
+    padding-block: var(--space-3xl);
+  }
+
+  .about-us-section__layout {
+    grid-template-columns: 1fr;
+    gap: var(--space-xl);
+  }
+
+  .about-us-section__portrait {
+    width: min(100%, 20rem);
+  }
+
+  .about-us-section__actions {
+    grid-template-columns: 1fr;
   }
 }
 </style>

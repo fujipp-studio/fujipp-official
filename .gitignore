@@ -13,6 +13,7 @@ target/
 out/
 .vite/
 coverage/
+.lighthouseci/
 
 # Logs
 *.log

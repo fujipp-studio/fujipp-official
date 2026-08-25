@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -29,14 +29,51 @@ const props = withDefaults(
 )
 
 const loaded = ref(false)
+const rootElement = ref<HTMLElement>()
+const activated = ref(props.loading === 'eager')
+let observer: IntersectionObserver | undefined
+const resolvedSrc = computed(() => (activated.value ? props.src : undefined))
+const resolvedSrcset = computed(() => (activated.value ? props.srcset : undefined))
+
 watch(
   () => props.src,
-  () => (loaded.value = false),
+  () => {
+    loaded.value = false
+    activated.value = props.loading === 'eager'
+    observeWhenNeeded()
+  },
 )
+
+function activate() {
+  activated.value = true
+  observer?.disconnect()
+  observer = undefined
+}
+
+function observeWhenNeeded() {
+  observer?.disconnect()
+  observer = undefined
+  if (activated.value) return
+  if (!('IntersectionObserver' in window)) {
+    activate()
+    return
+  }
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) activate()
+    },
+    { rootMargin: '300px 0px' },
+  )
+  if (rootElement.value) observer.observe(rootElement.value)
+}
+
+onMounted(observeWhenNeeded)
+onBeforeUnmount(() => observer?.disconnect())
 </script>
 
 <template>
   <span
+    ref="rootElement"
     class="progressive-image"
     :class="{ 'progressive-image--loaded': loaded }"
     :style="{
@@ -50,11 +87,12 @@ watch(
       alt=""
       aria-hidden="true"
       decoding="async"
+      :loading="loading"
     />
     <img
       class="progressive-image__full"
-      :src="src"
-      :srcset="srcset"
+      :src="resolvedSrc"
+      :srcset="resolvedSrcset"
       :sizes="sizes"
       :alt="alt"
       :width="width"

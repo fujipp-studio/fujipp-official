@@ -7,66 +7,21 @@ import { aboutSections } from '../config'
 const activeSection = ref(0)
 const { t } = useI18n()
 let animationFrame: number | undefined
-let scrollAnimationFrame: number | undefined
-let previousScrollBehavior = ''
 
-function restoreScrollBehavior() {
-  document.documentElement.style.scrollBehavior = previousScrollBehavior
-}
-
-function cancelScrollAnimation() {
-  if (scrollAnimationFrame === undefined) return
-  cancelAnimationFrame(scrollAnimationFrame)
-  scrollAnimationFrame = undefined
-  restoreScrollBehavior()
-}
-
-function smoothScrollTo(targetY: number) {
-  cancelScrollAnimation()
-
-  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-  const startY = window.scrollY
-  const distance = targetY - startY
-  if (reducedMotion || Math.abs(distance) < 2) {
-    window.scrollTo({ top: targetY })
-    return
-  }
-
-  const duration = Math.min(1300, Math.max(850, Math.abs(distance) * 0.8))
-  const startTime = performance.now()
-  previousScrollBehavior = document.documentElement.style.scrollBehavior
-  document.documentElement.style.scrollBehavior = 'auto'
-
-  function animateScroll(currentTime: number) {
-    const elapsed = Math.min(1, (currentTime - startTime) / duration)
-    const eased =
-      elapsed < 0.5
-        ? 4 * elapsed * elapsed * elapsed
-        : 1 - Math.pow(-2 * elapsed + 2, 3) / 2
-
-    window.scrollTo({ top: startY + distance * eased })
-
-    if (elapsed < 1) {
-      scrollAnimationFrame = requestAnimationFrame(animateScroll)
-      return
-    }
-
-    scrollAnimationFrame = undefined
-    restoreScrollBehavior()
-  }
-
-  scrollAnimationFrame = requestAnimationFrame(animateScroll)
-}
-
-function updateActiveSection() {
+function updateProgress() {
   animationFrame = undefined
+  const sectionElements = aboutSections
+    .map(({ id }) => document.getElementById(id))
+    .filter((element): element is HTMLElement => element !== null)
+
+  if (!sectionElements.length) return
+
+  const navbarOffset = 64
   let closestIndex = 0
   let closestDistance = Number.POSITIVE_INFINITY
 
-  aboutSections.forEach((section, index) => {
-    const element = document.getElementById(section.id)
-    if (!element) return
-    const distance = Math.abs(element.getBoundingClientRect().top - 64)
+  sectionElements.forEach((element, index) => {
+    const distance = Math.abs(element.getBoundingClientRect().top - navbarOffset)
     if (distance < closestDistance) {
       closestDistance = distance
       closestIndex = index
@@ -77,30 +32,26 @@ function updateActiveSection() {
 }
 
 function requestUpdate() {
-  if (animationFrame === undefined) animationFrame = requestAnimationFrame(updateActiveSection)
+  if (animationFrame === undefined) animationFrame = window.requestAnimationFrame(updateProgress)
 }
 
 function goToSection(id: string) {
-  const target = document.getElementById(id)
-  if (!target) return
-  smoothScrollTo(target.getBoundingClientRect().top + window.scrollY - 64)
+  document.getElementById(id)?.scrollIntoView({
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    block: 'start',
+  })
 }
 
 onMounted(() => {
-  updateActiveSection()
-  addEventListener('scroll', requestUpdate, { passive: true })
-  addEventListener('resize', requestUpdate)
-  addEventListener('wheel', cancelScrollAnimation, { passive: true })
-  addEventListener('touchstart', cancelScrollAnimation, { passive: true })
+  updateProgress()
+  window.addEventListener('scroll', requestUpdate, { passive: true })
+  window.addEventListener('resize', requestUpdate)
 })
 
 onBeforeUnmount(() => {
-  removeEventListener('scroll', requestUpdate)
-  removeEventListener('resize', requestUpdate)
-  removeEventListener('wheel', cancelScrollAnimation)
-  removeEventListener('touchstart', cancelScrollAnimation)
-  if (animationFrame !== undefined) cancelAnimationFrame(animationFrame)
-  cancelScrollAnimation()
+  window.removeEventListener('scroll', requestUpdate)
+  window.removeEventListener('resize', requestUpdate)
+  if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame)
 })
 </script>
 
@@ -127,6 +78,7 @@ onBeforeUnmount(() => {
   top: 50%;
   right: var(--space-xs);
   display: flex;
+  width: var(--space-sm);
   flex-direction: column;
   align-items: flex-end;
   gap: var(--space-xs);
@@ -146,20 +98,44 @@ onBeforeUnmount(() => {
 }
 
 .about-section-navigation span {
-  width: 0.5rem;
+  width: 0.875rem;
   height: 2px;
   background: var(--semantic-color-text-text-muted);
   opacity: 0.55;
+  transform: scaleX(0.5714);
+  transform-origin: right center;
   transition:
-    width 180ms ease,
+    transform 180ms ease,
     opacity 180ms ease;
 }
 
-.about-section-navigation button:hover span,
-.about-section-navigation button:focus-visible span,
 .about-section-navigation__button--active span {
-  width: 0.875rem;
   background: var(--semantic-color-text-text-primary);
   opacity: 1;
+  transform: scaleX(1);
+}
+
+.about-section-navigation button:not(.about-section-navigation__button--active):hover span,
+.about-section-navigation button:not(.about-section-navigation__button--active):focus-visible span {
+  opacity: 0.85;
+  transform: scaleX(0.7143);
+}
+
+.about-section-navigation button:focus-visible {
+  border-radius: var(--corner-radius-sm);
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: 1px;
+}
+
+@media (max-width: 47.99rem) {
+  .about-section-navigation {
+    right: var(--space-xxs);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-section-navigation span {
+    transition: none;
+  }
 }
 </style>

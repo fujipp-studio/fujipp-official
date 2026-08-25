@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AuthMark from '../shared/ui/dialogs/AuthMark.vue'
+import AppAuthLoadingOverlay from '../shared/ui/dialogs/AppAuthLoadingOverlay.vue'
 import { useAuthStore } from '../stores'
 import DesignSystemView from './DesignSystemView.vue'
 
@@ -47,20 +48,9 @@ function getCallbackError() {
   <main class="auth-callback-page">
     <DesignSystemView />
 
-    <section
-      v-if="!failed"
-      class="auth-callback auth-callback__status"
-      role="status"
-      aria-live="polite"
-      aria-label="Completing sign in"
-    >
-      <span class="auth-callback__loader" aria-hidden="true">
-        <AuthMark class="auth-callback__mark" />
-      </span>
-      <p class="auth-callback__sr-only">{{ message }}</p>
-    </section>
+    <AppAuthLoadingOverlay :open="!failed" :message="message" />
 
-    <section v-else class="auth-callback auth-callback__failed">
+    <section v-if="failed" class="auth-callback auth-callback__failed">
       <div class="auth-callback__error" role="alert">
         <AuthMark class="auth-callback__error-mark" />
         <p>{{ message }}</p>
@@ -90,34 +80,8 @@ function getCallbackError() {
   font-family: var(--font-family-sans);
 }
 
-.auth-callback__status {
-  cursor: wait;
-}
-
 .auth-callback__failed {
   cursor: default;
-}
-
-.auth-callback__loader {
-  display: block;
-}
-
-.auth-callback__mark {
-  display: block;
-  width: var(--icon-size-128);
-  height: var(--icon-size-128);
-  color: var(--semantic-color-text-text-primary);
-  animation: auth-mark-spin 1.15s linear infinite;
-}
-
-.auth-callback__sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  margin: -1px;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
 }
 
 .auth-callback__error {
@@ -158,15 +122,4 @@ function getCallbackError() {
   font-weight: var(--typography-font-weight-semibold);
 }
 
-@keyframes auth-mark-spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auth-callback__mark {
-    animation: none;
-  }
-}
 </style>

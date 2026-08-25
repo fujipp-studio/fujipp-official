@@ -16,4 +16,6 @@ app.use(i18n)
 
 app.mount('#app')
 
-void useAuthStore(pinia).initialize()
+const auth = useAuthStore(pinia)
+auth.initializeGuestState()
+if (!auth.initialized) void auth.initialize()

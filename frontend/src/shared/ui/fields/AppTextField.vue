@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { Eye, EyeOff } from 'lucide-vue-next'
 
 import { icons } from '../../../config'
 import AppIcon from '../icons/AppIcon.vue'
-import SecretCharacter from './SecretCharacter.vue'
 import type { TextFieldOption, TextFieldState, TextFieldVariant } from './types'
 
 const props = withDefaults(
@@ -60,7 +60,6 @@ const isDropdownOpen = ref(false)
 const isInsideDialog = ref(false)
 const dropdownSearch = ref('')
 const isSecretVisible = ref(false)
-const isSecretFocused = ref(false)
 const highlightedOptionIndex = ref(-1)
 const dropdownStyle = ref<Record<string, string>>({})
 const generatedId = useId()
@@ -85,8 +84,6 @@ const resolvedInputType = computed(() => {
   if (props.variant !== 'secret') return props.inputType
   return isSecretVisible.value ? 'text' : 'password'
 })
-const isSecretWatching = computed(() => isSecretVisible.value || isSecretFocused.value)
-const secretGazeOffset = computed(() => -Math.min(4 + props.modelValue.length * 0.5, 10))
 
 function updateTextValue(event: Event) {
   emit('update:modelValue', (event.target as HTMLInputElement).value)
@@ -269,8 +266,6 @@ onBeforeUnmount(() => {
         :aria-invalid="state === 'error'"
         :aria-describedby="supportText ? supportId : undefined"
         @input="updateTextValue"
-        @focus="isSecretFocused = true"
-        @blur="isSecretFocused = false"
       />
 
       <button
@@ -306,13 +301,8 @@ onBeforeUnmount(() => {
         :aria-pressed="isSecretVisible"
         @click="isSecretVisible = !isSecretVisible"
       >
-        <span
-          class="text-field__secret-character"
-          :class="{ 'text-field__secret-character--visible': isSecretWatching }"
-          aria-hidden="true"
-        >
-          <SecretCharacter :awake="isSecretWatching" :gaze="secretGazeOffset" />
-        </span>
+        <EyeOff v-if="isSecretVisible" class="text-field__secret-icon" aria-hidden="true" />
+        <Eye v-else class="text-field__secret-icon" aria-hidden="true" />
       </button>
 
       <Teleport to="body" :disabled="isInsideDialog">
@@ -485,18 +475,20 @@ onBeforeUnmount(() => {
   padding-right: 2rem;
 }
 
-.text-field__secret-character {
-  display: grid;
+.text-field__secret-icon {
   width: var(--icon-size-24);
   height: var(--icon-size-24);
-  transition: transform 220ms cubic-bezier(0.22, 1.35, 0.36, 1);
+  color: var(--semantic-color-text-text-secondary);
+  stroke-width: 1.75;
+  transition: transform 160ms ease, color 160ms ease;
 }
 
-.text-field__secret-toggle:hover .text-field__secret-character {
+.text-field__secret-toggle:hover .text-field__secret-icon {
+  color: var(--semantic-color-text-text-primary);
   transform: scale(1.08);
 }
 
-.text-field__secret-toggle:active .text-field__secret-character {
+.text-field__secret-toggle:active .text-field__secret-icon {
   transform: scale(0.9);
 }
 
@@ -643,7 +635,7 @@ onBeforeUnmount(() => {
   }
 
   .text-field__icon,
-  .text-field__secret-character,
+  .text-field__secret-icon,
   .text-field-dropdown-enter-active,
   .text-field-dropdown-leave-active {
     transition: none;
