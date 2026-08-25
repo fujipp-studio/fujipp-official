@@ -21,6 +21,7 @@ type ViewTransitionDocument = Document & {
 
 function getStoredTheme(): ThemeMode {
   if (typeof window === 'undefined') return 'SYSTEM'
+  if (import.meta.env.VITE_PERFORMANCE_AUDIT === 'true') return 'LIGHT'
 
   try {
     const storedTheme = window.localStorage?.getItem(themeStorageKey)

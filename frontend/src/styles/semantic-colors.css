@@ -64,7 +64,11 @@
   --semantic-color-text-text-muted: var(--global-color-gray-400);
   --semantic-color-text-text-disabled: var(--global-color-gray-300);
   --semantic-color-text-text-inverse: var(--global-color-white-100);
-  --semantic-color-text-text-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-text-text-accent: color-mix(
+    in srgb,
+    var(--semantic-color-brand-rgb) 50%,
+    var(--global-color-black-100)
+  );
 
   --semantic-color-action-backgrounds-bg-primary: var(--global-color-white-100);
   --semantic-color-action-backgrounds-bg-primary-hover: var(--global-color-white-100);
