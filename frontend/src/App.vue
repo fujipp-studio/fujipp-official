@@ -30,6 +30,12 @@ watch(
   [initialized, isAuthenticated, currentUser, () => route.fullPath],
   async ([ready, authenticated, user]) => {
     if (!ready) return
+    if (
+      import.meta.env.VITE_PERFORMANCE_AUDIT === 'true' &&
+      route.path.startsWith('/store')
+    ) {
+      return
+    }
     const requiresAuth = route.matched.some((record) => record.meta.requiresAuth)
     const roles = route.matched.flatMap((record) => record.meta.roles ?? [])
     const unauthorized = roles.length > 0 && (!user || !roles.includes(user.role))

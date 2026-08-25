@@ -279,6 +279,9 @@ router.afterEach((to) => {
 router.beforeEach(async (to) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const roles = to.matched.flatMap((record) => record.meta.roles ?? [])
+  const isPerformanceStoreRoute =
+    import.meta.env.VITE_PERFORMANCE_AUDIT === 'true' && to.path.startsWith('/store')
+  if (isPerformanceStoreRoute) return true
   if (!requiresAuth && roles.length === 0) return true
 
   const auth = useAuthStore()

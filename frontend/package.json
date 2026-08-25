@@ -13,7 +13,7 @@
     "test:e2e:headed": "playwright test --headed",
     "build-only": "vite build",
     "generate:simple-icons": "bun scripts/generate-simple-icons-catalog.ts",
-    "build:performance": "VITE_BACKEND_URL=http://127.0.0.1:4173 vite build",
+    "build:performance": "VITE_BACKEND_URL=http://127.0.0.1:4173 VITE_PERFORMANCE_AUDIT=true vite build",
     "performance:serve": "bun scripts/performance-server.ts",
     "performance:bundle": "bun scripts/check-bundle-budget.ts",
     "performance:network": "bun scripts/check-performance-network.ts",
