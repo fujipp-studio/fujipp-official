@@ -668,7 +668,11 @@ onBeforeUnmount(() => storeRequest?.abort())
 .runtime-slot__badge--available {
   border: 1px solid color-mix(in srgb, var(--semantic-color-success-success-text) 30%, transparent);
   background: color-mix(in srgb, var(--semantic-color-success-success-text) 12%, transparent);
-  color: var(--semantic-color-success-success-text);
+  color: color-mix(
+    in srgb,
+    var(--semantic-color-success-success-text) 78%,
+    var(--semantic-color-text-text-primary)
+  );
 }
 .runtime-slot__badge--available .runtime-slot__dot {
   width: 0.375rem;
