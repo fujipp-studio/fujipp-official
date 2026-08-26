@@ -3,8 +3,10 @@ import { computed, defineAsyncComponent, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 
+import darkFaviconUrl from './assets/brand/fujipp-tab-dark.svg?url'
+import lightFaviconUrl from './assets/brand/fujipp-tab-light.svg?url'
 import { AppNavbar } from './shared/layout'
-import { useAuthStore } from './stores'
+import { useAuthStore, useThemeStore } from './stores'
 import { useAdminToolsVisibility } from './features/admin/composables/useAdminToolsVisibility'
 
 const AdminTools = defineAsyncComponent(
@@ -14,7 +16,13 @@ const AdminTools = defineAsyncComponent(
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const theme = useThemeStore()
 const { currentUser, initialized, isAuthenticated } = storeToRefs(auth)
+const { isDarkTheme } = storeToRefs(theme)
+const themeFaviconUrls = new Map([
+  ['dark', darkFaviconUrl],
+  ['light', lightFaviconUrl],
+])
 const { visible: adminToolsVisible, initialize: initializeAdminToolsVisibility } = useAdminToolsVisibility()
 const activeNavigationItem = computed(() => {
   if (route.path === '/about') return 'About'
@@ -25,6 +33,29 @@ const activeNavigationItem = computed(() => {
 })
 
 onMounted(initializeAdminToolsVisibility)
+
+watch(
+  isDarkTheme,
+  (dark) => {
+    const activeTheme = dark ? 'dark' : 'light'
+    const href = themeFaviconUrls.get(activeTheme)
+    if (!href) return
+    const themedHref = new URL(href, window.location.href)
+    themedHref.searchParams.set('theme', activeTheme)
+
+    document.querySelectorAll<HTMLLinkElement>('[data-theme-favicon]').forEach((favicon) => {
+      favicon.remove()
+    })
+    const favicon = document.createElement('link')
+    favicon.rel = 'icon'
+    favicon.type = 'image/svg+xml'
+    favicon.setAttribute('sizes', 'any')
+    favicon.href = themedHref.href
+    favicon.dataset.themeFavicon = activeTheme
+    document.head.append(favicon)
+  },
+  { immediate: true },
+)
 
 watch(
   [initialized, isAuthenticated, currentUser, () => route.fullPath],
