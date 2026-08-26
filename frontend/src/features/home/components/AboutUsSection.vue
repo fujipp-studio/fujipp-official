@@ -70,6 +70,8 @@ function navigateTo(path: '/about' | '/work') {
 <style scoped>
 .about-us-section {
   box-sizing: border-box;
+  content-visibility: auto;
+  contain-intrinsic-block-size: 100dvh;
   display: flex;
   width: 100%;
   max-width: var(--layout-content-max-width);
@@ -150,6 +152,7 @@ function navigateTo(path: '/about' | '/work') {
 
   .about-us-section__portrait {
     width: min(100%, 20rem);
+    margin-inline: auto;
   }
 
   .about-us-section__actions {

@@ -17,9 +17,21 @@ const heroSection = ref<HTMLElement>()
 const heroFadeStyle = useScrollFade(heroSection, 'exit')
 const { t } = useI18n()
 const heroPortraits = [
-  '/images/home/fujipp-portrait-blue.webp',
-  '/images/home/fujipp-portrait-cyan.webp',
-  '/images/home/fujipp-portrait-coral.webp',
+  {
+    src: '/images/home/fujipp-portrait-blue-768.webp',
+    srcset:
+      '/images/home/fujipp-portrait-blue-480.webp 480w, /images/home/fujipp-portrait-blue-768.webp 768w, /images/home/fujipp-portrait-blue-960.webp 960w, /images/home/fujipp-portrait-blue.webp 1372w',
+  },
+  {
+    src: '/images/home/fujipp-portrait-cyan-768.webp',
+    srcset:
+      '/images/home/fujipp-portrait-cyan-480.webp 480w, /images/home/fujipp-portrait-cyan-768.webp 768w, /images/home/fujipp-portrait-cyan-960.webp 960w, /images/home/fujipp-portrait-cyan.webp 1372w',
+  },
+  {
+    src: '/images/home/fujipp-portrait-coral-768.webp',
+    srcset:
+      '/images/home/fujipp-portrait-coral-480.webp 480w, /images/home/fujipp-portrait-coral-768.webp 768w, /images/home/fujipp-portrait-coral-960.webp 960w, /images/home/fujipp-portrait-coral.webp 1372w',
+  },
 ] as const
 const activeHeroPortrait = ref(0)
 let heroCarouselTimer: number | undefined
@@ -111,7 +123,7 @@ onBeforeUnmount(() => {
           >
             <button
               v-for="(portrait, index) in heroPortraits"
-              :key="portrait"
+              :key="portrait.src"
               type="button"
               class="home-hero__portrait"
               :class="`home-hero__portrait--${heroPortraitPosition(index)}`"
@@ -120,12 +132,15 @@ onBeforeUnmount(() => {
               @click="showHeroPortrait(index)"
             >
               <img
-                :src="portrait"
-                width="1372"
-                height="1372"
+                :src="portrait.src"
+                :srcset="portrait.srcset"
+                sizes="(max-width: 767px) 64vw, 352px"
+                width="768"
+                height="768"
                 alt=""
                 draggable="false"
-                :fetchpriority="index === 0 ? 'high' : 'auto'"
+                :fetchpriority="index === 0 ? 'high' : 'low'"
+                :loading="index === 0 ? 'eager' : 'lazy'"
                 decoding="async"
               />
             </button>

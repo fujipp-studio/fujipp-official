@@ -55,6 +55,8 @@ const { t } = useI18n()
 <style scoped>
 .bot-services-section {
   box-sizing: border-box;
+  content-visibility: auto;
+  contain-intrinsic-block-size: 100dvh;
   display: flex;
   width: 100%;
   max-width: var(--layout-content-max-width);
