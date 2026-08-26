@@ -375,7 +375,7 @@ onBeforeUnmount(() => {
             @pointerup="featuredPaused = false"
           >
           <article
-            v-for="work in filteredFeaturedWorks"
+            v-for="(work, index) in filteredFeaturedWorks"
             :key="work.slug"
             class="featured-card"
           >
@@ -389,8 +389,9 @@ onBeforeUnmount(() => {
                   v-if="work.cover"
                   :src="work.cover.url"
                   :alt="work.cover.altText ?? ''"
-                  loading="eager"
+                  :loading="index === 0 ? 'eager' : 'lazy'"
                   decoding="async"
+                  :fetchpriority="index === 0 ? 'high' : 'low'"
                 />
                 <div v-else class="featured-card__placeholder" aria-hidden="true">
                   <span>{{ work.name }}</span>
