@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { icons } from '../../../config'
@@ -34,6 +34,9 @@ const heroPortraits = [
   },
 ] as const
 const activeHeroPortrait = ref(0)
+const loadedHeroPortraits = ref(new Set([0]))
+const readyHeroPortraits = ref(new Set<number>())
+const heroStackReady = computed(() => readyHeroPortraits.value.size === heroPortraits.length)
 let heroCarouselTimer: number | undefined
 let heroPointerStartX: number | undefined
 
@@ -43,17 +46,30 @@ function heroPortraitPosition(index: number) {
 }
 
 function showHeroPortrait(index: number) {
+  loadedHeroPortraits.value = new Set(loadedHeroPortraits.value).add(index)
   activeHeroPortrait.value = index
   startHeroCarousel()
 }
 
 function showNextHeroPortrait() {
-  activeHeroPortrait.value = (activeHeroPortrait.value + 1) % heroPortraits.length
+  const nextIndex = (activeHeroPortrait.value + 1) % heroPortraits.length
+  loadedHeroPortraits.value = new Set(loadedHeroPortraits.value).add(nextIndex)
+  activeHeroPortrait.value = nextIndex
 }
 
 function showPreviousHeroPortrait() {
-  activeHeroPortrait.value =
+  const previousIndex =
     (activeHeroPortrait.value - 1 + heroPortraits.length) % heroPortraits.length
+  loadedHeroPortraits.value = new Set(loadedHeroPortraits.value).add(previousIndex)
+  activeHeroPortrait.value = previousIndex
+}
+
+function handleHeroPortraitLoad(index: number) {
+  readyHeroPortraits.value = new Set(readyHeroPortraits.value).add(index)
+  if (index === 0 && loadedHeroPortraits.value.size !== heroPortraits.length) {
+    loadedHeroPortraits.value = new Set(heroPortraits.map((_, portraitIndex) => portraitIndex))
+  }
+  if (readyHeroPortraits.value.size === heroPortraits.length) startHeroCarousel()
 }
 
 function stopHeroCarousel() {
@@ -63,6 +79,7 @@ function stopHeroCarousel() {
 
 function startHeroCarousel() {
   stopHeroCarousel()
+  if (!heroStackReady.value) return
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
   heroCarouselTimer = window.setInterval(showNextHeroPortrait, 3600)
 }
@@ -126,14 +143,18 @@ onBeforeUnmount(() => {
               :key="portrait.src"
               type="button"
               class="home-hero__portrait"
-              :class="`home-hero__portrait--${heroPortraitPosition(index)}`"
+              :class="[
+                `home-hero__portrait--${heroPortraitPosition(index)}`,
+                { 'home-hero__portrait--waiting': !heroStackReady && index !== activeHeroPortrait },
+              ]"
+              :disabled="!heroStackReady && index !== activeHeroPortrait"
               :aria-label="t('home.hero.gallerySlide', { number: index + 1 })"
               :aria-current="index === activeHeroPortrait ? 'true' : undefined"
               @click="showHeroPortrait(index)"
             >
               <img
-                :src="portrait.src"
-                :srcset="portrait.srcset"
+                :src="loadedHeroPortraits.has(index) ? portrait.src : undefined"
+                :srcset="loadedHeroPortraits.has(index) ? portrait.srcset : undefined"
                 sizes="(max-width: 767px) 64vw, 352px"
                 width="768"
                 height="768"
@@ -142,6 +163,7 @@ onBeforeUnmount(() => {
                 :fetchpriority="index === 0 ? 'high' : 'low'"
                 :loading="index === 0 ? 'eager' : 'lazy'"
                 decoding="async"
+                @load="handleHeroPortraitLoad(index)"
               />
             </button>
           </div>
@@ -293,6 +315,13 @@ onBeforeUnmount(() => {
   opacity: 0.7;
   filter: saturate(0.82);
   transform: translateX(48%) skewY(-1.6deg) scale(0.78);
+}
+
+.home-hero__portrait--waiting {
+  opacity: 0;
+  filter: none;
+  pointer-events: none;
+  transform: translateX(0) scale(0.92);
 }
 
 .home-hero__portrait:focus-visible {
