@@ -39,7 +39,7 @@ public class AdminRuntimeService {
         OffsetDateTime end=request.periodEnd();
         if(end!=null&&!end.isAfter(OffsetDateTime.now())) throw new StoreValidationException("periodEnd must be in the future");
         try {
-            UUID id=repository.grant(request.ownerUserId(),request.planId(),request.botId(),end,request.autoRenew());
+            UUID id=repository.grant(request.ownerUserId(),request.planId(),request.botId(),end,request.autoRenew(),request.renewalPriceSatang());
             runtime.invalidateBootstrap();
             return find(id);
         } catch(DataAccessException exception){throw new StoreConflictException("Runtime could not be granted; check owner, plan, bot, and slot availability",exception);}

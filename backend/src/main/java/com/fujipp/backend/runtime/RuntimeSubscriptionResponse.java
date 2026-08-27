@@ -5,6 +5,7 @@ import java.util.UUID;
 
 public record RuntimeSubscriptionResponse(
         UUID id, int slotNumber, UUID planId, String planName, int durationDays,
-        long priceSatang, String currency, UUID botId, String botName, String status,
+        long priceSatang, Long renewalPriceSatang, long effectiveRenewalPriceSatang,
+        String currency, UUID botId, String botName, String status,
         boolean autoRenew, OffsetDateTime currentPeriodEnd, OffsetDateTime graceUntil
 ) {}

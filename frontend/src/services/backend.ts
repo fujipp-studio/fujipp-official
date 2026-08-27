@@ -144,6 +144,8 @@ export interface RuntimeSubscription {
   planName: string
   durationDays: number
   priceSatang: number
+  renewalPriceSatang: number | null
+  effectiveRenewalPriceSatang: number
   currency: string
   botId: string | null
   botName: string | null
@@ -1103,6 +1105,9 @@ export interface AdminRuntimeSubscription {
   periodStart: string
   periodEnd: string
   graceUntil: string | null
+  planPriceSatang: number
+  renewalPriceSatang: number | null
+  effectiveRenewalPriceSatang: number
 }
 
 export const updateAdminUser = (
@@ -1322,6 +1327,7 @@ export const grantAdminRuntime = (
     botId?: string
     periodEnd?: string
     autoRenew: boolean
+    renewalPriceSatang?: number | null
   },
   session: Session,
 ) =>
@@ -1339,6 +1345,7 @@ export const updateAdminRuntime = (
     botId?: string | null
     periodEnd: string
     autoRenew: boolean
+    renewalPriceSatang: number | null
   },
   session: Session,
 ) =>

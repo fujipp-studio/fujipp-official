@@ -406,6 +406,10 @@ export const messages = {
         botIdOptional: 'Bot ID (optional)',
         expiry: 'Expiry date',
         autoRenew: 'Auto renew',
+        renewalPriceOverride: 'Renewal price override',
+        renewalPriceDefault: 'Plan price: ฿{price}',
+        renewalPriceHelp: 'Leave blank to use the current plan price for manual and automatic renewals.',
+        renewalPriceValue: 'Renews at ฿{price}',
         saveRuntime: 'Save Runtime',
       },
       users: {
@@ -920,6 +924,10 @@ export const messages = {
         botIdOptional: 'Bot ID (ถ้ามี)',
         expiry: 'วันหมดอายุ',
         autoRenew: 'ต่ออายุอัตโนมัติ',
+        renewalPriceOverride: 'ราคา Renew เฉพาะรายการ',
+        renewalPriceDefault: 'ราคา Plan: ฿{price}',
+        renewalPriceHelp: 'เว้นว่างเพื่อใช้ราคา Plan ปัจจุบัน ทั้งการต่อเองและ Auto-renew',
+        renewalPriceValue: 'ต่ออายุ ฿{price}',
         saveRuntime: 'บันทึก Runtime',
       },
       users: {

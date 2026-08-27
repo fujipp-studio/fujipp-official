@@ -45,7 +45,8 @@ public class RuntimeSlotRepository {
     public List<RuntimeSubscriptionResponse> subscriptions(UUID ownerId) {
         return jdbc.query("""
             SELECT subscription.id,slot.slot_number,plan.id,plan.name,plan.duration_days,
-                   plan.price_satang,plan.currency,subscription.bot_id,bot.name,
+                   plan.price_satang,subscription.renewal_price_satang,
+                   COALESCE(subscription.renewal_price_satang,plan.price_satang),plan.currency,subscription.bot_id,bot.name,
                    subscription.status::text,subscription.auto_renew,
                    subscription.current_period_end,subscription.grace_until
               FROM private.runtime_subscriptions subscription
@@ -54,9 +55,9 @@ public class RuntimeSlotRepository {
               LEFT JOIN bots.bot_instances bot ON bot.id=subscription.bot_id
              WHERE subscription.owner_user_id=? ORDER BY subscription.created_at DESC
             """, (rs,n) -> new RuntimeSubscriptionResponse(rs.getObject(1,UUID.class),rs.getInt(2),
-                rs.getObject(3,UUID.class),rs.getString(4),rs.getInt(5),rs.getLong(6),rs.getString(7),
-                rs.getObject(8,UUID.class),rs.getString(9),rs.getString(10),rs.getBoolean(11),
-                rs.getObject(12,java.time.OffsetDateTime.class),rs.getObject(13,java.time.OffsetDateTime.class)), ownerId);
+                rs.getObject(3,UUID.class),rs.getString(4),rs.getInt(5),rs.getLong(6),rs.getObject(7,Long.class),
+                rs.getLong(8),rs.getString(9),rs.getObject(10,UUID.class),rs.getString(11),rs.getString(12),rs.getBoolean(13),
+                rs.getObject(14,java.time.OffsetDateTime.class),rs.getObject(15,java.time.OffsetDateTime.class)), ownerId);
     }
 
     public UUID purchase(UUID ownerId, UUID planId) {
