@@ -42,5 +42,5 @@ public final class AdminStoreRequests {
             OffsetDateTime endsAt
     ) {}
 
-    public record TransferBotRequest(@NotNull UUID newOwnerUserId) {}
+    public record TransferBotRequest(@NotNull UUID newOwnerUserId, boolean keepRunning) {}
 }
