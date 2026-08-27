@@ -57,6 +57,19 @@ const router = createRouter({
       meta: { hideGlobalNavbar: true, seo: { title: 'Design System', description: 'Fujipp interface design system.', noIndex: true } },
     },
     {
+      path: '/components/topup',
+      alias: '/design-system/topup',
+      name: 'topup-design',
+      component: () => import('../features/topup/views/WalletTopupDesignView.vue'),
+      meta: {
+        seo: {
+          title: 'Top-up Design Sandbox',
+          description: 'Non-functional wallet top-up interface preview.',
+          noIndex: true,
+        },
+      },
+    },
+    {
       path: '/about',
       name: 'about',
       component: () => import('../features/about/views/AboutView.vue'),
@@ -83,7 +96,7 @@ const router = createRouter({
     {
       path: '/add-credit',
       name: 'add-credit',
-      component: () => import('../features/store/views/StoreView.vue'),
+      component: () => import('../features/topup/views/WalletTopupView.vue'),
       meta: { requiresAuth: true, seo: { ...pageSeo.store, title: 'Top up' } },
     },
     {

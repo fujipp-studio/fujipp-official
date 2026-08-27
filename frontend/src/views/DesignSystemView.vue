@@ -66,6 +66,7 @@ function showLoading() {
       <h1>Components</h1>
       <p>Shared components and their primary states, collected for UI/UX review.</p>
       <span>{{ iconEntries.length }} icons · 18 shared components</span>
+      <RouterLink class="sandbox-link" to="/components/topup">Open Top-up Design Sandbox →</RouterLink>
     </header>
     <AppSectionIndicator :sections="sections" aria-label="Component groups" />
 
@@ -180,6 +181,7 @@ function showLoading() {
 .catalog-hero h1 { font-size: clamp(2.75rem, 8vw, 6rem); font-weight: var(--typography-font-weight-bold); line-height: .95; }
 .catalog-hero > p:last-of-type { max-width: 42rem; color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-body-large); }
 .catalog-hero span, .catalog-eyebrow { color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); font-weight: var(--typography-font-weight-medium); letter-spacing: .08em; text-transform: uppercase; }
+.sandbox-link { width: fit-content; margin-top: var(--space-sm); color: var(--semantic-color-text-text-primary); font-weight: var(--typography-font-weight-bold); text-underline-offset: .25em; }
 .catalog-section { display: grid; gap: var(--space-lg); padding-block: var(--space-2xl); scroll-margin-top: var(--space-lg); }
 .section-heading { display: grid; gap: var(--space-xxs); }
 .section-heading p { color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); letter-spacing: .08em; text-transform: uppercase; }
