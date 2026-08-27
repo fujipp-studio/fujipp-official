@@ -1,5 +1,7 @@
 package com.fujipp.backend.topup;
 
+import com.fujipp.backend.pagination.CursorCodec;
+import com.fujipp.backend.pagination.CursorPage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -8,8 +10,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.OffsetDateTime;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,8 +31,9 @@ class TopupService {
     private final long maximumSatang;
     private final long maxFileBytes;
     private final int expiryMinutes;
+    private final CursorCodec cursors;
 
-    TopupService(TopupRepository repository, SlipOkClient slipOk, PromptPayQrGenerator promptPayQr,
+    TopupService(TopupRepository repository, SlipOkClient slipOk, PromptPayQrGenerator promptPayQr, CursorCodec cursors,
             @Value("${app.topup.promptpay-id:}") String promptPayId,
             @Value("${app.topup.account-name:}") String accountName,
             @Value("${app.topup.minimum-satang:1000}") long minimumSatang,
@@ -37,7 +42,7 @@ class TopupService {
             @Value("${app.topup.expiry-minutes:15}") int expiryMinutes) {
         this.repository=repository; this.slipOk=slipOk; this.promptPayQr=promptPayQr; this.promptPayId=promptPayId;
         this.accountName=accountName; this.minimumSatang=minimumSatang; this.maximumSatang=maximumSatang;
-        this.maxFileBytes=maxFileBytes; this.expiryMinutes=Math.max(1,Math.min(60,expiryMinutes));
+        this.maxFileBytes=maxFileBytes; this.expiryMinutes=Math.max(1,Math.min(60,expiryMinutes)); this.cursors=cursors;
     }
 
     TopupResponses.Invoice create(String subject, TopupRequests.Create request) {
@@ -54,6 +59,19 @@ class TopupService {
         requireConfigured();
         return response(repository.owned(invoiceId,userId(subject)).orElseThrow(() -> new TopupException(
                 "TOPUP_NOT_FOUND", "Top-up invoice was not found", TopupException.Kind.NOT_FOUND)));
+    }
+
+    CursorPage<TopupResponses.Summary> list(String subject, int requestedLimit, String cursor) {
+        requireConfigured();
+        UUID userId=userId(subject);
+        int limit=Math.max(1,Math.min(50,requestedLimit));
+        var values=cursors.decode(cursor,"website-topups",userId.toString(),2);
+        OffsetDateTime createdAt=values.isEmpty()?null:cursors.dateTime(values.get(0));
+        UUID invoiceId=values.isEmpty()?null:cursors.uuid(values.get(1));
+        List<TopupRepository.Invoice> rows=repository.list(userId,createdAt,invoiceId,limit+1);
+        var page=CursorPage.of(rows,limit,row->cursors.encode("website-topups",userId.toString(),
+                List.of(row.createdAt().toString(),row.id().toString())));
+        return new CursorPage<>(page.items().stream().map(this::summary).toList(),page.nextCursor(),page.hasMore());
     }
 
     TopupResponses.Invoice verify(String subject, UUID invoiceId, MultipartFile file) {
@@ -104,7 +122,13 @@ class TopupService {
                 ? invoice.qrPayload()
                 : promptPayQr.pngDataUri(invoice.qrPayload());
         return new TopupResponses.Invoice(invoice.id(),invoice.invoiceNumber(),invoice.amountSatang(),invoice.currency(),
-                invoice.status(),accountName,image,invoice.balanceSatang(),invoice.expiresAt(),invoice.succeededAt());
+                invoice.status(),accountName,image,invoice.balanceSatang(),invoice.expiresAt(),invoice.succeededAt(),
+                invoice.createdAt());
+    }
+
+    private TopupResponses.Summary summary(TopupRepository.Invoice invoice) {
+        return new TopupResponses.Summary(invoice.id(),invoice.invoiceNumber(),invoice.amountSatang(),invoice.currency(),
+                invoice.status(),invoice.expiresAt(),invoice.succeededAt(),invoice.createdAt());
     }
 
     private static UUID userId(String subject) {

@@ -1,5 +1,6 @@
 package com.fujipp.backend.topup;
 
+import com.fujipp.backend.pagination.CursorCodec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -8,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -21,13 +23,14 @@ import static org.mockito.Mockito.when;
 class TopupServiceTests {
     @Mock TopupRepository repository;
     @Mock SlipOkClient slipOk;
+    @Mock CursorCodec cursors;
     private final PromptPayQrGenerator promptPayQr=new PromptPayQrGenerator();
     private TopupService service;
     private UUID userId;
 
     @BeforeEach
     void setUp() {
-        service=new TopupService(repository,slipOk,promptPayQr,"0812345678","FUJIPP",1000,10000000,5242880,15);
+        service=new TopupService(repository,slipOk,promptPayQr,cursors,"0812345678","FUJIPP",1000,10000000,5242880,15);
         userId=UUID.randomUUID();
     }
 
@@ -49,6 +52,19 @@ class TopupServiceTests {
         TopupException exception=assertThrows(TopupException.class,
                 () -> service.create(userId.toString(),new TopupRequests.Create(999,"topup:test-2")));
         assertEquals("INVALID_TOPUP_AMOUNT",exception.code());
+    }
+
+    @Test
+    void listsOnlyTheAuthenticatedUsersTopupsWithCursorPagination() {
+        TopupRepository.Invoice invoice=invoice("PENDING",5000,0);
+        when(cursors.decode(null,"website-topups",userId.toString(),2)).thenReturn(List.of());
+        when(repository.list(userId,null,null,3)).thenReturn(List.of(invoice));
+
+        var page=service.list(userId.toString(),2,null);
+
+        assertEquals(1,page.items().size());
+        assertEquals(invoice.id(),page.items().getFirst().invoiceId());
+        verify(repository).list(userId,null,null,3);
     }
 
     @Test
@@ -97,6 +113,6 @@ class TopupServiceTests {
     private TopupRepository.Invoice invoice(UUID id,String status,long amount,long balance) {
         return new TopupRepository.Invoice(id,"TPU_TEST",userId,amount,"THB",status,
                 "https://promptpay.io/test.png",balance,OffsetDateTime.now().plusMinutes(15),
-                "SUCCESS".equals(status)?OffsetDateTime.now():null);
+                "SUCCESS".equals(status)?OffsetDateTime.now():null,OffsetDateTime.now());
     }
 }

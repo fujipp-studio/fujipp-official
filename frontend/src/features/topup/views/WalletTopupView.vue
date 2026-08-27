@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { CheckCircle2, Clock3, ImagePlus, Upload } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
@@ -7,8 +7,10 @@ import { useI18n } from 'vue-i18n'
 import {
   createWalletTopup,
   fetchWalletTopup,
+  listWalletTopups,
   verifyWalletTopupSlip,
   type WalletTopupInvoice,
+  type WalletTopupSummary,
 } from '../../../services/backend'
 import { useAuthStore } from '../../../stores'
 import { AppButton, AppToast } from '../../../shared/ui'
@@ -29,6 +31,11 @@ const now = ref(Date.now())
 const toastOpen = ref(false)
 const toastMessage = ref('')
 const toastVariant = ref<'info' | 'success' | 'error'>('info')
+const history = ref<WalletTopupSummary[]>([])
+const historyCursor = ref<string | null>(null)
+const historyHasMore = ref(false)
+const historyLoading = ref(false)
+const resumingId = ref<string | null>(null)
 let timer: number | undefined
 
 const amountBaht = computed(() => {
@@ -58,6 +65,54 @@ function money(satang: number) {
     currency: 'THB',
     minimumFractionDigits: 2,
   }).format(satang / 100)
+}
+
+function dateTime(value: string) {
+  return new Intl.DateTimeFormat(locale.value === 'th' ? 'th-TH' : 'en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
+}
+
+function canResume(item: WalletTopupSummary) {
+  return ['PENDING', 'FAILED'].includes(item.status) && new Date(item.expiresAt).getTime() > Date.now()
+}
+
+function replaceHistoryItem(item: WalletTopupInvoice) {
+  const index = history.value.findIndex((entry) => entry.invoiceId === item.invoiceId)
+  if (index >= 0) history.value[index] = item
+  else history.value.unshift(item)
+}
+
+async function loadHistory(reset = false) {
+  if (!session.value || historyLoading.value) return
+  historyLoading.value = true
+  try {
+    const page = await listWalletTopups(session.value, reset ? null : historyCursor.value)
+    history.value = reset ? page.items : [...history.value, ...page.items]
+    historyCursor.value = page.nextCursor
+    historyHasMore.value = page.hasMore
+  } catch (cause) {
+    notify(cause instanceof Error ? cause.message : t('topup.historyLoadError'), 'error')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+async function resumeInvoice(item: WalletTopupSummary) {
+  if (!session.value || resumingId.value) return
+  resumingId.value = item.invoiceId
+  try {
+    invoice.value = await fetchWalletTopup(item.invoiceId, session.value)
+    replaceHistoryItem(invoice.value)
+    slip.value = null
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    startTimer()
+  } catch (cause) {
+    notify(cause instanceof Error ? cause.message : t('topup.historyLoadError'), 'error')
+  } finally {
+    resumingId.value = null
+  }
 }
 
 function choosePreset(amount: number) {
@@ -101,6 +156,7 @@ async function createInvoice() {
       session.value,
       `web-topup:${crypto.randomUUID()}`,
     )
+    replaceHistoryItem(invoice.value)
     slip.value = null
     startTimer()
   } catch (cause) {
@@ -115,6 +171,7 @@ async function submitSlip() {
   verifying.value = true
   try {
     invoice.value = await verifyWalletTopupSlip(invoice.value.invoiceId, slip.value, session.value)
+    replaceHistoryItem(invoice.value)
     await authStore.reloadCurrentUser()
     stopTimer()
     notify(t('topup.successToast'), 'success')
@@ -168,6 +225,8 @@ onBeforeUnmount(() => {
   stopTimer()
   if (slipPreview.value) URL.revokeObjectURL(slipPreview.value)
 })
+
+onMounted(() => void loadHistory(true))
 </script>
 
 <template>
@@ -294,6 +353,47 @@ onBeforeUnmount(() => {
         <span>PromptPay · SlipOK</span>
       </footer>
       </section>
+
+      <section class="history-section" aria-labelledby="topup-history-heading">
+        <header class="history-header">
+          <div>
+            <p class="topup-eyebrow">{{ t('topup.historyEyebrow') }}</p>
+            <h2 id="topup-history-heading">{{ t('topup.historyTitle') }}</h2>
+          </div>
+        </header>
+
+        <div v-if="history.length" class="history-list">
+          <article v-for="item in history" :key="item.invoiceId" class="history-item">
+            <div class="history-reference">
+              <code>{{ item.invoiceNumber }}</code>
+              <span>{{ dateTime(item.createdAt) }}</span>
+            </div>
+            <strong class="history-amount">{{ money(item.amountSatang) }}</strong>
+            <span class="history-status" :data-status="item.status">
+              {{ t(`topup.status.${item.status.toLowerCase()}`) }}
+            </span>
+            <button
+              v-if="canResume(item)"
+              type="button"
+              class="resume-button"
+              :disabled="Boolean(resumingId)"
+              @click="resumeInvoice(item)"
+            >
+              {{ resumingId === item.invoiceId ? t('topup.loading') : t('topup.resume') }}
+            </button>
+          </article>
+        </div>
+        <p v-else-if="!historyLoading" class="history-empty">{{ t('topup.historyEmpty') }}</p>
+        <AppButton
+          v-if="historyHasMore"
+          class="history-more"
+          variant="secondary"
+          :loading="historyLoading"
+          @click="loadHistory()"
+        >
+          {{ t('topup.loadMore') }}
+        </AppButton>
+      </section>
     </div>
 
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
@@ -353,12 +453,27 @@ onBeforeUnmount(() => {
 .success-balance span { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
 .success-balance strong { font-size: var(--font-size-heading-h2); }
 .desk-footer { display:flex; justify-content:space-between; gap:1rem; padding:1rem clamp(1.5rem,3vw,2.5rem); border-top:1px solid var(--color-border-default); color:var(--color-text-muted); font-size:.68rem; letter-spacing:.04em; }
+.history-section { display:grid; gap:1rem; margin-top:clamp(2rem,5vw,4rem); }
+.history-header h2 { margin-top:.25rem; font-size:clamp(1.7rem,4vw,2.5rem); font-weight:800; letter-spacing:-.04em; }
+.history-list { border-top:1px solid var(--color-border-default); }
+.history-item { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(7rem,.7fr) minmax(6rem,.55fr) auto; align-items:center; gap:1rem; min-height:5.5rem; padding:1rem 0; border-bottom:1px solid var(--color-border-default); }
+.history-reference { display:grid; min-width:0; gap:.3rem; }.history-reference code { overflow:hidden; color:var(--color-text-primary); font-size:.75rem; text-overflow:ellipsis; white-space:nowrap; }.history-reference span { color:var(--color-text-muted); font-size:var(--font-size-xs); }
+.history-amount { font-size:1.1rem; }
+.history-status { width:fit-content; padding:.35rem .55rem; border-radius:999px; background:var(--color-bg-elevated); color:var(--color-text-secondary); font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+.history-status[data-status="SUCCESS"] { color:var(--color-success-text); }
+.history-status[data-status="FAILED"] { color:var(--color-error-text); }
+.resume-button { min-height:2.5rem; padding:0 .9rem; border:1px solid var(--color-border-default); border-radius:.6rem; background:transparent; color:var(--color-text-primary); cursor:pointer; font:700 .78rem/1 inherit; }
+.resume-button:hover { border-color:var(--color-text-primary); }
+.history-empty { padding:2rem 0; border-block:1px solid var(--color-border-default); color:var(--color-text-muted); }
+.history-more { justify-self:start; width:auto; }
 @media (max-width: 48rem) {
   .topup-header { align-items:start; }
   .balance-card span { display:none; }.balance-card strong { font-size:1rem; }
   .payment-layout { grid-template-columns:1fr; }.slip-panel { border-top:1px solid var(--color-border-default); border-left:0; }
   .amount-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .desk-footer { flex-direction:column; }
+  .history-item { grid-template-columns:minmax(0,1fr) auto; gap:.65rem 1rem; }
+  .history-amount { text-align:right; }.history-status { grid-column:1; }.resume-button { grid-column:2; grid-row:2; }
 }
 @media (prefers-reduced-motion: reduce) { .amount-grid button { transition: none; } }
 </style>
