@@ -61,6 +61,21 @@ class TopupRepository {
     }
 
     @Transactional
+    List<Invoice> list(UUID userId, OffsetDateTime beforeCreatedAt, UUID beforeId, int limit) {
+        jdbc.update("""
+                UPDATE billing.topup_invoices i SET status='EXPIRED'
+                 FROM billing.customers c
+                 WHERE i.customer_id=c.id AND c.user_id=? AND i.status IN ('PENDING','FAILED')
+                   AND i.expires_at<=now()
+                """, userId);
+        String cursor=beforeCreatedAt==null?"":" AND (i.created_at,i.id)<(?,?)";
+        String sql=INVOICE_SELECT+" WHERE c.user_id=?"+cursor+" ORDER BY i.created_at DESC,i.id DESC LIMIT ?";
+        return beforeCreatedAt==null
+                ? jdbc.query(sql,this::mapInvoice,userId,limit)
+                : jdbc.query(sql,this::mapInvoice,userId,beforeCreatedAt,beforeId,limit);
+    }
+
+    @Transactional
     Verification beginVerification(UUID invoiceId, UUID userId, String slipFingerprint) {
         Invoice invoice = jdbc.query(INVOICE_SELECT + " WHERE i.id=? AND c.user_id=? FOR UPDATE", this::mapInvoice, invoiceId,userId)
                 .stream().findFirst().orElseThrow(() -> new TopupException(
@@ -132,12 +147,13 @@ class TopupRepository {
         return new Invoice(rs.getObject("id",UUID.class),rs.getString("invoice_number"),
                 rs.getObject("user_id",UUID.class),rs.getLong("amount_satang"),rs.getString("currency"),
                 rs.getString("status"),rs.getString("qr_payload"),rs.getLong("balance_satang"),
-                rs.getObject("expires_at",OffsetDateTime.class),rs.getObject("succeeded_at",OffsetDateTime.class));
+                rs.getObject("expires_at",OffsetDateTime.class),rs.getObject("succeeded_at",OffsetDateTime.class),
+                rs.getObject("created_at",OffsetDateTime.class));
     }
 
     private static final String INVOICE_SELECT = """
             SELECT i.id,i.invoice_number,c.user_id,i.amount_satang,i.currency,i.status,i.qr_payload,
-                   w.balance_satang,i.expires_at,i.succeeded_at
+                   w.balance_satang,i.expires_at,i.succeeded_at,i.created_at
               FROM billing.topup_invoices i
               JOIN billing.customers c ON c.id=i.customer_id
               JOIN billing.wallets w ON w.id=i.wallet_id
@@ -145,6 +161,7 @@ class TopupRepository {
 
     record CustomerWallet(UUID customerId, UUID walletId, long balanceSatang) {}
     record Invoice(UUID id,String invoiceNumber,UUID userId,long amountSatang,String currency,String status,
-                   String qrPayload,long balanceSatang,OffsetDateTime expiresAt,OffsetDateTime succeededAt) {}
+                   String qrPayload,long balanceSatang,OffsetDateTime expiresAt,OffsetDateTime succeededAt,
+                   OffsetDateTime createdAt) {}
     record Verification(UUID id, Invoice invoice) {}
 }

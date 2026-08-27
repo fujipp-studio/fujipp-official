@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-08-27 | Added a responsive bilingual PromptPay wallet top-up flow with SlipOK verification, drag-and-drop slip previews, and a design sandbox. |
+| 2026-08-27 | Added a responsive bilingual PromptPay wallet top-up flow with SlipOK verification, resumable transaction history, drag-and-drop slip previews, and a design sandbox. |
 | 2026-08-22 | Migrated portfolio, Bot, user, wallet, and Runtime collection loading to cursor-paginated backend APIs. |
 | 2026-08-12 | Added customer Feature upgrade controls and administrator editing for Features installed on customer Bots. |
 | 2026-08-10 | Redirected authentication callbacks to the home page and corrected profile menu icon rendering. |

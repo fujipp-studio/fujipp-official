@@ -27,6 +27,14 @@ class TopupController {
         return service.get(jwt.getSubject(),invoiceId);
     }
 
+    @GetMapping
+    com.fujipp.backend.pagination.CursorPage<TopupResponses.Summary> list(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue="20") int limit,
+            @RequestParam(required=false) String cursor) {
+        return service.list(jwt.getSubject(),limit,cursor);
+    }
+
     @PostMapping(path="/{invoiceId}/slip",consumes="multipart/form-data")
     TopupResponses.Invoice verify(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID invoiceId,
             @RequestParam("file") MultipartFile file) {

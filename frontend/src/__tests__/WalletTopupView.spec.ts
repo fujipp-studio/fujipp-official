@@ -6,8 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WalletTopupView from '../features/topup/views/WalletTopupView.vue'
 import { i18n } from '../i18n'
 import { useAuthStore } from '../stores'
-import { createWalletTopup } from '../services/backend'
-import type { WalletTopupInvoice } from '../services/backend'
+import { createWalletTopup, fetchWalletTopup, listWalletTopups } from '../services/backend'
+import type { CursorPage, WalletTopupInvoice, WalletTopupSummary } from '../services/backend'
 
 vi.mock('../services/backend', () => ({
   createWalletTopup: vi.fn<
@@ -19,6 +19,15 @@ vi.mock('../services/backend', () => ({
   verifyWalletTopupSlip: vi.fn<
     (invoiceId: string, file: File, session: Session) => Promise<WalletTopupInvoice>
   >(),
+  listWalletTopups: vi
+    .fn<
+      (
+        session: Session,
+        cursor?: string | null,
+        limit?: number,
+      ) => Promise<CursorPage<WalletTopupSummary>>
+    >()
+    .mockResolvedValue({ items: [], nextCursor: null, hasMore: false }),
 }))
 
 const pendingInvoice = {
@@ -32,11 +41,13 @@ const pendingInvoice = {
   balanceSatang: 12500,
   expiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
   completedAt: null,
+  createdAt: new Date().toISOString(),
 }
 
 describe('WalletTopupView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal('scrollTo', vi.fn())
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
@@ -98,6 +109,24 @@ describe('WalletTopupView', () => {
       expect.objectContaining({ access_token: 'test-token' }),
       expect.stringMatching(/^web-topup:/),
     )
+    wrapper.unmount()
+  })
+
+  it('loads an unfinished invoice and lets the user continue it', async () => {
+    vi.mocked(listWalletTopups).mockResolvedValue({
+      items: [pendingInvoice],
+      nextCursor: null,
+      hasMore: false,
+    })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Top-up history')
+    vi.mocked(fetchWalletTopup).mockResolvedValue(pendingInvoice)
+    await wrapper.get('.resume-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.qr-frame img').attributes('src')).toBe(pendingInvoice.qrImageUrl)
     wrapper.unmount()
   })
 })

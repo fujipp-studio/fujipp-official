@@ -1,6 +1,6 @@
 import type { Session } from '@supabase/supabase-js'
 
-interface CursorPage<T> {
+export interface CursorPage<T> {
   items: T[]
   nextCursor: string | null
   hasMore: boolean
@@ -122,7 +122,20 @@ export interface WalletTopupInvoice {
   balanceSatang: number
   expiresAt: string
   completedAt: string | null
+  createdAt: string
 }
+
+export type WalletTopupSummary = Pick<
+  WalletTopupInvoice,
+  | 'invoiceId'
+  | 'invoiceNumber'
+  | 'amountSatang'
+  | 'currency'
+  | 'status'
+  | 'expiresAt'
+  | 'completedAt'
+  | 'createdAt'
+>
 
 export interface RuntimeSubscription {
   id: string
@@ -464,6 +477,18 @@ export async function fetchWalletTopup(
     { headers: authenticatedHeaders(session) },
   )
   return readJson<WalletTopupInvoice>(response, 'Unable to load the top-up request.')
+}
+
+export async function listWalletTopups(
+  session: Session,
+  cursor?: string | null,
+  limit = 10,
+): Promise<CursorPage<WalletTopupSummary>> {
+  const url = new URL(`${backendUrl}/api/v1/wallet/topups`)
+  url.searchParams.set('limit', String(limit))
+  if (cursor) url.searchParams.set('cursor', cursor)
+  const response = await fetch(url, { headers: authenticatedHeaders(session) })
+  return readJson<CursorPage<WalletTopupSummary>>(response, 'Unable to load top-up history.')
 }
 
 export async function verifyWalletTopupSlip(

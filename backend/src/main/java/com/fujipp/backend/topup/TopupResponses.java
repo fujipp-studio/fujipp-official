@@ -16,6 +16,18 @@ final class TopupResponses {
             String qrImageUrl,
             long balanceSatang,
             OffsetDateTime expiresAt,
-            OffsetDateTime completedAt
+            OffsetDateTime completedAt,
+            OffsetDateTime createdAt
+    ) {}
+
+    record Summary(
+            UUID invoiceId,
+            String invoiceNumber,
+            long amountSatang,
+            String currency,
+            String status,
+            OffsetDateTime expiresAt,
+            OffsetDateTime completedAt,
+            OffsetDateTime createdAt
     ) {}
 }
