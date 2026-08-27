@@ -65,8 +65,9 @@ public class AdminBotRepository {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM private.user_accounts WHERE user_id=?)", Boolean.class, userId));
     }
 
-    public boolean transfer(UUID botId, UUID newOwnerUserId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT private.admin_transfer_bot(?,?)", Boolean.class, botId, newOwnerUserId));
+    public boolean transfer(UUID botId, UUID newOwnerUserId, boolean keepRunning) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT private.admin_transfer_bot(?,?,?)", Boolean.class, botId, newOwnerUserId, keepRunning));
     }
 
     public boolean control(UUID botId, String action) {

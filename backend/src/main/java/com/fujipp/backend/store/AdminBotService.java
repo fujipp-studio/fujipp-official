@@ -43,10 +43,10 @@ public class AdminBotService {
     }
 
     @Transactional
-    public AdminStoreResponses.Bot transfer(UUID botId, UUID newOwnerUserId) {
+    public AdminStoreResponses.Bot transfer(UUID botId, UUID newOwnerUserId, boolean keepRunning) {
         if (!repository.userExists(newOwnerUserId)) throw new StoreNotFoundException("New bot owner was not found");
         try {
-            if (!repository.transfer(botId, newOwnerUserId)) throw new StoreNotFoundException("Bot was not found");
+            if (!repository.transfer(botId, newOwnerUserId, keepRunning)) throw new StoreNotFoundException("Bot was not found");
             runtime.invalidateBootstrap();
             return repository.findBot(botId).orElseThrow(() -> new StoreNotFoundException("Bot was not found"));
         } catch (DataAccessException exception) {

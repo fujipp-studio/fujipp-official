@@ -47,7 +47,7 @@ public class AdminBotController {
             @PathVariable UUID botId,
             @Valid @RequestBody AdminStoreRequests.TransferBotRequest request
     ) {
-        return service.transfer(botId, request.newOwnerUserId());
+        return service.transfer(botId, request.newOwnerUserId(), request.keepRunning());
     }
 
     @PostMapping("/{botId}/start")

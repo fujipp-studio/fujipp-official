@@ -10,6 +10,7 @@ import {
   AppSectionIndicator,
   AppTextField,
   AppToast,
+  AppToggle,
 } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'
 import {
@@ -33,6 +34,7 @@ const bots = ref<AdminBot[]>([]),
 const selected = ref<AdminBot | null>(null),
   ownerId = ref(''),
   ownerIdTouched = ref(false),
+  keepRunning = ref(false),
   saving = ref(false),
   toast = ref('')
 const toastVariant = ref<'success' | 'error'>('success')
@@ -72,13 +74,14 @@ function openTransfer(bot: AdminBot) {
   selected.value = bot
   ownerId.value = ''
   ownerIdTouched.value = false
+  keepRunning.value = false
 }
 async function transfer() {
   ownerIdTouched.value = true
   if (!session.value || !selected.value || !ownerId.value.trim()) return
   saving.value = true
   try {
-    await transferAdminBot(selected.value.id, ownerId.value.trim(), session.value)
+    await transferAdminBot(selected.value.id, ownerId.value.trim(), keepRunning.value, session.value)
     selected.value = null
     toastVariant.value = 'success'
     toast.value = t('admin.page.transferSuccess')
@@ -226,6 +229,18 @@ onMounted(load)
             :state="ownerIdTouched && !ownerId.trim() ? 'error' : 'default'"
             :support-text="ownerIdTouched && !ownerId.trim() ? t('admin.common.required') : ''"
           />
+          <AppToggle
+            :model-value="keepRunning"
+            :disabled="selected?.desiredState !== 'RUNNING'"
+            @change="(value) => (keepRunning = value)"
+          >{{ t('admin.page.transferKeepRunning') }}</AppToggle>
+          <p class="text-xs leading-relaxed text-text-muted">
+            {{
+              selected?.desiredState === 'RUNNING'
+                ? t('admin.page.transferKeepRunningHelp')
+                : t('admin.page.transferAlreadyStoppedHelp')
+            }}
+          </p>
         </div>
         <template #actions
           ><AppButton variant="primary" :disabled="saving" @click="selected = null">{{

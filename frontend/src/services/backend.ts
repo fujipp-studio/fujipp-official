@@ -1261,11 +1261,11 @@ export async function fetchAdminBots(session: Session, query?: string) {
   if (query) url.searchParams.set('query', query)
   return fetchAllCursorPages<AdminBot>(url, adminHeaders(session, false), 'Unable to load bots.')
 }
-export const transferAdminBot = (botId: string, newOwnerUserId: string, session: Session) =>
+export const transferAdminBot = (botId: string, newOwnerUserId: string, keepRunning: boolean, session: Session) =>
   adminRequest<AdminBot>(
     `/api/v1/admin/bots/${botId}/transfer`,
     session,
-    { method: 'POST', body: JSON.stringify({ newOwnerUserId }) },
+    { method: 'POST', body: JSON.stringify({ newOwnerUserId, keepRunning }) },
     'Unable to transfer bot.',
   )
 export const controlAdminBot = (botId: string, action: 'start' | 'stop' | 'restart', session: Session) =>
