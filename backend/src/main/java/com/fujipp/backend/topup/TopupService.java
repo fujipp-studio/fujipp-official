@@ -6,9 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -23,6 +20,7 @@ class TopupService {
 
     private final TopupRepository repository;
     private final SlipOkClient slipOk;
+    private final PromptPayQrGenerator promptPayQr;
     private final String promptPayId;
     private final String accountName;
     private final long minimumSatang;
@@ -30,14 +28,14 @@ class TopupService {
     private final long maxFileBytes;
     private final int expiryMinutes;
 
-    TopupService(TopupRepository repository, SlipOkClient slipOk,
+    TopupService(TopupRepository repository, SlipOkClient slipOk, PromptPayQrGenerator promptPayQr,
             @Value("${app.topup.promptpay-id:}") String promptPayId,
             @Value("${app.topup.account-name:}") String accountName,
             @Value("${app.topup.minimum-satang:1000}") long minimumSatang,
             @Value("${app.topup.maximum-satang:10000000}") long maximumSatang,
             @Value("${app.topup.max-slip-file-bytes:5242880}") long maxFileBytes,
             @Value("${app.topup.expiry-minutes:15}") int expiryMinutes) {
-        this.repository=repository; this.slipOk=slipOk; this.promptPayId=promptPayId;
+        this.repository=repository; this.slipOk=slipOk; this.promptPayQr=promptPayQr; this.promptPayId=promptPayId;
         this.accountName=accountName; this.minimumSatang=minimumSatang; this.maximumSatang=maximumSatang;
         this.maxFileBytes=maxFileBytes; this.expiryMinutes=Math.max(1,Math.min(60,expiryMinutes));
     }
@@ -48,8 +46,8 @@ class TopupService {
             throw new TopupException("INVALID_TOPUP_AMOUNT",
                     "Top-up amount must be between configured minimum and maximum", TopupException.Kind.VALIDATION);
         }
-        String qrUrl = qrUrl(request.amountSatang());
-        return response(repository.create(userId(subject),request.amountSatang(),request.idempotencyKey(),qrUrl,expiryMinutes));
+        PromptPayQrGenerator.PaymentQr qr = promptPayQr.generate(promptPayId, request.amountSatang());
+        return response(repository.create(userId(subject),request.amountSatang(),request.idempotencyKey(),qr.payload(),expiryMinutes));
     }
 
     TopupResponses.Invoice get(String subject, UUID invoiceId) {
@@ -101,14 +99,12 @@ class TopupService {
         }
     }
 
-    private String qrUrl(long amountSatang) {
-        String amount=BigDecimal.valueOf(amountSatang,2).toPlainString();
-        return "https://promptpay.io/"+URLEncoder.encode(promptPayId,StandardCharsets.UTF_8)+"/"+amount+".png";
-    }
-
     private TopupResponses.Invoice response(TopupRepository.Invoice invoice) {
+        String image = invoice.qrPayload().startsWith("data:image/") || invoice.qrPayload().startsWith("http")
+                ? invoice.qrPayload()
+                : promptPayQr.pngDataUri(invoice.qrPayload());
         return new TopupResponses.Invoice(invoice.id(),invoice.invoiceNumber(),invoice.amountSatang(),invoice.currency(),
-                invoice.status(),accountName,invoice.qrPayload(),invoice.balanceSatang(),invoice.expiresAt(),invoice.succeededAt());
+                invoice.status(),accountName,image,invoice.balanceSatang(),invoice.expiresAt(),invoice.succeededAt());
     }
 
     private static UUID userId(String subject) {

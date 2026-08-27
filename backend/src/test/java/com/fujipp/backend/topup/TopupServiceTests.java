@@ -21,12 +21,13 @@ import static org.mockito.Mockito.when;
 class TopupServiceTests {
     @Mock TopupRepository repository;
     @Mock SlipOkClient slipOk;
+    private final PromptPayQrGenerator promptPayQr=new PromptPayQrGenerator();
     private TopupService service;
     private UUID userId;
 
     @BeforeEach
     void setUp() {
-        service=new TopupService(repository,slipOk,"0812345678","FUJIPP",1000,10000000,5242880,15);
+        service=new TopupService(repository,slipOk,promptPayQr,"0812345678","FUJIPP",1000,10000000,5242880,15);
         userId=UUID.randomUUID();
     }
 
@@ -39,7 +40,8 @@ class TopupServiceTests {
 
         assertEquals(5000,response.amountSatang());
         assertEquals("FUJIPP",response.promptPayAccountName());
-        verify(repository).create(eq(userId),eq(5000L),eq("topup:test-1"),contains("50.00.png"),eq(15));
+        verify(repository).create(eq(userId),eq(5000L),eq("topup:test-1"),
+                startsWith("00020101021229370016A00000067701011101130066812345678"),eq(15));
     }
 
     @Test
