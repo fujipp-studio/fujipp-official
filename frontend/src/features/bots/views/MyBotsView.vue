@@ -589,6 +589,9 @@ onBeforeUnmount(() => {
                   <td class="table-cell">{{ index + 1 }}</td>
                   <td class="table-cell font-semibold">
                     SLOT-{{ runtime.slotNumber }} · {{ runtime.planName }}
+                    <p class="text-xs font-normal text-text-muted">
+                      ต่ออายุ ฿{{ (runtime.effectiveRenewalPriceSatang / 100).toLocaleString() }}
+                    </p>
                   </td>
                   <td class="table-cell">
                     <span>{{ runtime.status }}</span>

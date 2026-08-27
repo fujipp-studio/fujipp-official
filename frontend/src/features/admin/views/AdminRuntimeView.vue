@@ -45,6 +45,7 @@ const planForm = ref({ name: '', days: '', price: '', active: true, sort: '0' })
     status: 'ACTIVE',
     periodEnd: '',
     autoRenew: false,
+    renewalPrice: '',
   })
 function localDate(value: string) {
   const d = new Date(value)
@@ -84,6 +85,7 @@ function openGrant() {
     status: 'ACTIVE',
     periodEnd: '',
     autoRenew: false,
+    renewalPrice: '',
   }
 }
 function editSub(x: AdminRuntimeSubscription) {
@@ -95,6 +97,7 @@ function editSub(x: AdminRuntimeSubscription) {
     status: x.status,
     periodEnd: localDate(x.periodEnd),
     autoRenew: x.autoRenew,
+    renewalPrice: x.renewalPriceSatang == null ? '' : String(x.renewalPriceSatang / 100),
   }
 }
 function closeRuntimeModal() {
@@ -137,6 +140,9 @@ async function saveRuntime() {
           botId: runtimeForm.value.botId || null,
           periodEnd: new Date(runtimeForm.value.periodEnd).toISOString(),
           autoRenew: runtimeForm.value.autoRenew,
+          renewalPriceSatang: runtimeForm.value.renewalPrice
+            ? Math.round(Number(runtimeForm.value.renewalPrice) * 100)
+            : null,
         },
         session.value,
       )
@@ -150,6 +156,9 @@ async function saveRuntime() {
             ? new Date(runtimeForm.value.periodEnd).toISOString()
             : undefined,
           autoRenew: runtimeForm.value.autoRenew,
+          renewalPriceSatang: runtimeForm.value.renewalPrice
+            ? Math.round(Number(runtimeForm.value.renewalPrice) * 100)
+            : null,
         },
         session.value,
       )
@@ -255,6 +264,13 @@ onMounted(load)
                     <p class="text-xs text-text-muted">
                       {{ x.botName ?? t('admin.page.unassignedBot') }}
                     </p>
+                    <p class="text-xs text-text-accent">
+                      {{
+                        t('admin.page.renewalPriceValue', {
+                          price: (x.effectiveRenewalPriceSatang / 100).toLocaleString(),
+                        })
+                      }}
+                    </p>
                   </td>
                   <td><AdminStatusBadge :value="x.status" /></td>
                   <td class="text-text-secondary">{{ new Date(x.periodEnd).toLocaleString() }}</td>
@@ -346,6 +362,17 @@ onMounted(load)
             v-model="runtimeForm.periodEnd"
             input-type="date"
             :label="t('admin.page.expiry')"
+          /><AppTextField
+            v-model="runtimeForm.renewalPrice"
+            input-type="number"
+            unit="฿"
+            :label="t('admin.page.renewalPriceOverride')"
+            :placeholder="
+              t('admin.page.renewalPriceDefault', {
+                price: ((plans.find((x) => x.id === runtimeForm.planId)?.priceSatang ?? 0) / 100).toLocaleString(),
+              })
+            "
+            :support-text="t('admin.page.renewalPriceHelp')"
           /><AppToggle
             :model-value="runtimeForm.autoRenew"
             @change="(v) => (runtimeForm.autoRenew = v)"

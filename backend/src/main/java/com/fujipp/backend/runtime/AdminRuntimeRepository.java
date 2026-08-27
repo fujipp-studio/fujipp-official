@@ -29,7 +29,8 @@ public class AdminRuntimeRepository {
         String sql="""
             SELECT s.id,slot.slot_number,s.owner_user_id,COALESCE(p.display_name,p.username,'User'),
                    s.plan_id,plan.name,s.bot_id,bot.name,s.status::text,s.auto_renew,
-                   s.current_period_start,s.current_period_end,s.grace_until
+                   s.current_period_start,s.current_period_end,s.grace_until,plan.price_satang,
+                   s.renewal_price_satang,COALESCE(s.renewal_price_satang,plan.price_satang)
               FROM private.runtime_subscriptions s JOIN private.runtime_slots slot ON slot.id=s.runtime_slot_id
               JOIN shop.runtime_plans plan ON plan.id=s.plan_id LEFT JOIN public.profiles p ON p.id=s.owner_user_id
               LEFT JOIN bots.bot_instances bot ON bot.id=s.bot_id
@@ -42,12 +43,13 @@ public class AdminRuntimeRepository {
         String sql="""
             SELECT s.id,slot.slot_number,s.owner_user_id,COALESCE(p.display_name,p.username,'User'),
                    s.plan_id,plan.name,s.bot_id,bot.name,s.status::text,s.auto_renew,
-                   s.current_period_start,s.current_period_end,s.grace_until,s.created_at
+                   s.current_period_start,s.current_period_end,s.grace_until,plan.price_satang,
+                   s.renewal_price_satang,COALESCE(s.renewal_price_satang,plan.price_satang),s.created_at
               FROM private.runtime_subscriptions s JOIN private.runtime_slots slot ON slot.id=s.runtime_slot_id
               JOIN shop.runtime_plans plan ON plan.id=s.plan_id LEFT JOIN public.profiles p ON p.id=s.owner_user_id
               LEFT JOIN bots.bot_instances bot ON bot.id=s.bot_id WHERE true
             """+filter+cursor+" ORDER BY s.created_at DESC,s.id DESC LIMIT ?";
-        var mapper=(org.springframework.jdbc.core.RowMapper<SubscriptionPageRow>)(rs,n)->new SubscriptionPageRow(map(rs),rs.getObject(14,OffsetDateTime.class));
+        var mapper=(org.springframework.jdbc.core.RowMapper<SubscriptionPageRow>)(rs,n)->new SubscriptionPageRow(map(rs),rs.getObject(17,OffsetDateTime.class));
         if(owner==null&&beforeCreatedAt==null)return jdbc.query(sql,mapper,limit);
         if(owner!=null&&beforeCreatedAt==null)return jdbc.query(sql,mapper,owner,limit);
         if(owner==null)return jdbc.query(sql,mapper,beforeCreatedAt,beforeId,limit);
@@ -56,32 +58,34 @@ public class AdminRuntimeRepository {
     public Optional<AdminRuntimeResponses.Subscription> findSubscription(UUID id){return jdbc.query("""
         SELECT s.id,slot.slot_number,s.owner_user_id,COALESCE(p.display_name,p.username,'User'),
                s.plan_id,plan.name,s.bot_id,bot.name,s.status::text,s.auto_renew,
-               s.current_period_start,s.current_period_end,s.grace_until
+               s.current_period_start,s.current_period_end,s.grace_until,plan.price_satang,
+               s.renewal_price_satang,COALESCE(s.renewal_price_satang,plan.price_satang)
           FROM private.runtime_subscriptions s JOIN private.runtime_slots slot ON slot.id=s.runtime_slot_id
           JOIN shop.runtime_plans plan ON plan.id=s.plan_id LEFT JOIN public.profiles p ON p.id=s.owner_user_id
           LEFT JOIN bots.bot_instances bot ON bot.id=s.bot_id WHERE s.id=?
         """,(rs,n)->map(rs),id).stream().findFirst();}
-    public UUID grant(UUID owner,UUID plan,UUID bot,OffsetDateTime end,boolean autoRenew){return jdbc.queryForObject("""
+    public UUID grant(UUID owner,UUID plan,UUID bot,OffsetDateTime end,boolean autoRenew,Long renewalPrice){return jdbc.queryForObject("""
         WITH selected_plan AS (SELECT id,duration_days FROM shop.runtime_plans WHERE id=?),
         selected_slot AS (SELECT slot.id FROM private.runtime_slots slot WHERE slot.is_enabled AND NOT EXISTS(
           SELECT 1 FROM private.runtime_subscriptions s WHERE s.runtime_slot_id=slot.id AND s.status IN ('ACTIVE','GRACE'))
           ORDER BY slot.slot_number FOR UPDATE SKIP LOCKED LIMIT 1), inserted AS (
-          INSERT INTO private.runtime_subscriptions(owner_user_id,runtime_slot_id,plan_id,bot_id,auto_renew,current_period_end)
-          SELECT ?,slot.id,plan.id,?,?,COALESCE(?,now()+make_interval(days=>plan.duration_days)) FROM selected_slot slot CROSS JOIN selected_plan plan
+          INSERT INTO private.runtime_subscriptions(owner_user_id,runtime_slot_id,plan_id,bot_id,auto_renew,current_period_end,renewal_price_satang)
+          SELECT ?,slot.id,plan.id,?,?,COALESCE(?,now()+make_interval(days=>plan.duration_days)),? FROM selected_slot slot CROSS JOIN selected_plan plan
           RETURNING id) SELECT id FROM inserted
-        """,UUID.class,plan,owner,bot,autoRenew,end);}
+        """,UUID.class,plan,owner,bot,autoRenew,end,renewalPrice);}
     public boolean updateSubscription(UUID id,String status,AdminRuntimeRequests.UpdateSubscriptionRequest r){
         OffsetDateTime grace="GRACE".equals(status)?r.periodEnd().plusHours(3):null;
         return jdbc.update("""
             UPDATE private.runtime_subscriptions s SET status=?::private.runtime_subscription_status,plan_id=?,bot_id=?,
-                   auto_renew=?,current_period_end=?,grace_until=?,updated_at=now()
+                   auto_renew=?,current_period_end=?,grace_until=?,renewal_price_satang=?,updated_at=now()
              WHERE id=? AND EXISTS(SELECT 1 FROM shop.runtime_plans WHERE id=?)
                AND (? IS NULL OR EXISTS(SELECT 1 FROM bots.bot_instances b WHERE b.id=? AND b.owner_user_id=s.owner_user_id AND b.status<>'DECOMMISSIONED'))
-            """,status,r.planId(),r.botId(),r.autoRenew(),r.periodEnd(),grace,id,r.planId(),r.botId(),r.botId())==1;
+            """,status,r.planId(),r.botId(),r.autoRenew(),r.periodEnd(),grace,r.renewalPriceSatang(),id,r.planId(),r.botId(),r.botId())==1;
     }
     private AdminRuntimeResponses.Subscription map(java.sql.ResultSet rs)throws java.sql.SQLException{return new AdminRuntimeResponses.Subscription(
         rs.getObject(1,UUID.class),rs.getInt(2),rs.getObject(3,UUID.class),rs.getString(4),rs.getObject(5,UUID.class),rs.getString(6),
         rs.getObject(7,UUID.class),rs.getString(8),rs.getString(9),rs.getBoolean(10),rs.getObject(11,OffsetDateTime.class),
-        rs.getObject(12,OffsetDateTime.class),rs.getObject(13,OffsetDateTime.class));}
+        rs.getObject(12,OffsetDateTime.class),rs.getObject(13,OffsetDateTime.class),rs.getLong(14),
+        rs.getObject(15,Long.class),rs.getLong(16));}
     public record SubscriptionPageRow(AdminRuntimeResponses.Subscription item,OffsetDateTime createdAt){}
 }

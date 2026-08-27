@@ -13,7 +13,8 @@ public final class AdminRuntimeRequests {
     public record UpdatePlanRequest(@NotBlank @Size(max=100) String name, @Min(1) int durationDays,
                                     @Min(1) long priceSatang, boolean active, @Min(0) int sortOrder) {}
     public record GrantRequest(@NotNull UUID ownerUserId, @NotNull UUID planId, UUID botId,
-                               OffsetDateTime periodEnd, boolean autoRenew) {}
+                               OffsetDateTime periodEnd, boolean autoRenew, @Min(1) Long renewalPriceSatang) {}
     public record UpdateSubscriptionRequest(@NotBlank String status, @NotNull UUID planId, UUID botId,
-                                            @NotNull OffsetDateTime periodEnd, boolean autoRenew) {}
+                                            @NotNull OffsetDateTime periodEnd, boolean autoRenew,
+                                            @Min(1) Long renewalPriceSatang) {}
 }

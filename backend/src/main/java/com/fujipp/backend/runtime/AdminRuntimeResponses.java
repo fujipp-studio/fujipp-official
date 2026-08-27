@@ -10,5 +10,6 @@ public final class AdminRuntimeResponses {
     public record Subscription(UUID id,int slotNumber,UUID ownerUserId,String ownerDisplayName,
                                UUID planId,String planName,UUID botId,String botName,String status,
                                boolean autoRenew,OffsetDateTime periodStart,OffsetDateTime periodEnd,
-                               OffsetDateTime graceUntil) {}
+                               OffsetDateTime graceUntil,long planPriceSatang,Long renewalPriceSatang,
+                               long effectiveRenewalPriceSatang) {}
 }
