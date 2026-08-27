@@ -40,7 +40,8 @@ done
 
 for required_key in \
   SUPABASE_URL DB_URL DB_USERNAME DB_PASSWORD STORE_SECRET_KEY_BASE64 \
-  RUNNER_API_TOKEN APP_CORS_ALLOWED_ORIGINS; do
+  RUNNER_API_TOKEN APP_CORS_ALLOWED_ORIGINS PROMPTPAY_ID \
+  PROMPTPAY_ACCOUNT_NAME SLIPOK_BRANCH_ID SLIPOK_API_KEY; do
   if ! grep -qE "^${required_key}=.+" "$runtime_env"; then
     echo "required runtime setting is missing or empty: $required_key" >&2
     exit 78

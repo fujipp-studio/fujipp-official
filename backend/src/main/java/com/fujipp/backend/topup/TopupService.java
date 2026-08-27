@@ -1,0 +1,125 @@
+package com.fujipp.backend.topup;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+class TopupService {
+    private static final Set<String> TYPES = Set.of("image/jpeg","image/png","image/webp");
+    private static final Set<String> EXTENSIONS = Set.of("jpg","jpeg","png","jfif","webp");
+
+    private final TopupRepository repository;
+    private final SlipOkClient slipOk;
+    private final String promptPayId;
+    private final String accountName;
+    private final long minimumSatang;
+    private final long maximumSatang;
+    private final long maxFileBytes;
+    private final int expiryMinutes;
+
+    TopupService(TopupRepository repository, SlipOkClient slipOk,
+            @Value("${app.topup.promptpay-id:}") String promptPayId,
+            @Value("${app.topup.account-name:}") String accountName,
+            @Value("${app.topup.minimum-satang:1000}") long minimumSatang,
+            @Value("${app.topup.maximum-satang:10000000}") long maximumSatang,
+            @Value("${app.topup.max-slip-file-bytes:5242880}") long maxFileBytes,
+            @Value("${app.topup.expiry-minutes:15}") int expiryMinutes) {
+        this.repository=repository; this.slipOk=slipOk; this.promptPayId=promptPayId;
+        this.accountName=accountName; this.minimumSatang=minimumSatang; this.maximumSatang=maximumSatang;
+        this.maxFileBytes=maxFileBytes; this.expiryMinutes=Math.max(1,Math.min(60,expiryMinutes));
+    }
+
+    TopupResponses.Invoice create(String subject, TopupRequests.Create request) {
+        requireConfigured();
+        if (request.amountSatang()<minimumSatang || request.amountSatang()>maximumSatang) {
+            throw new TopupException("INVALID_TOPUP_AMOUNT",
+                    "Top-up amount must be between configured minimum and maximum", TopupException.Kind.VALIDATION);
+        }
+        String qrUrl = qrUrl(request.amountSatang());
+        return response(repository.create(userId(subject),request.amountSatang(),request.idempotencyKey(),qrUrl,expiryMinutes));
+    }
+
+    TopupResponses.Invoice get(String subject, UUID invoiceId) {
+        requireConfigured();
+        return response(repository.owned(invoiceId,userId(subject)).orElseThrow(() -> new TopupException(
+                "TOPUP_NOT_FOUND", "Top-up invoice was not found", TopupException.Kind.NOT_FOUND)));
+    }
+
+    TopupResponses.Invoice verify(String subject, UUID invoiceId, MultipartFile file) {
+        requireConfigured();
+        byte[] bytes=validateAndRead(file);
+        TopupRepository.Verification verification=repository.beginVerification(invoiceId,userId(subject),"sha256:"+sha256(bytes));
+        try {
+            MediaType type=MediaType.parseMediaType(file.getContentType());
+            SlipOkClient.Result result=slipOk.verify(bytes,file.getOriginalFilename(),type,verification.invoice().amountSatang());
+            return response(repository.complete(verification,result));
+        } catch (TopupException exception) {
+            repository.reject(verification,exception.code(),exception.getMessage(),exception.kind()==TopupException.Kind.UPSTREAM);
+            throw exception;
+        } catch (RuntimeException exception) {
+            repository.reject(verification,"VERIFICATION_ERROR","Slip verification failed",true);
+            throw new TopupException("VERIFICATION_ERROR","Slip verification failed",TopupException.Kind.UPSTREAM);
+        }
+    }
+
+    private byte[] validateAndRead(MultipartFile file) {
+        if (file==null || file.isEmpty()) throw invalidFile();
+        if (file.getSize()>maxFileBytes) {
+            throw new TopupException("SLIP_FILE_TOO_LARGE","Slip image is too large",TopupException.Kind.VALIDATION);
+        }
+        String contentType=file.getContentType();
+        String name=file.getOriginalFilename()==null?"":file.getOriginalFilename();
+        int dot=name.lastIndexOf('.');
+        String extension=dot<0?"":name.substring(dot+1).toLowerCase(Locale.ROOT);
+        if (!TYPES.contains(contentType) || !EXTENSIONS.contains(extension)) throw invalidFile();
+        try { return file.getBytes(); }
+        catch (IOException exception) {
+            throw new TopupException("SLIP_FILE_UNREADABLE","Could not read slip image",TopupException.Kind.VALIDATION);
+        }
+    }
+
+    private TopupException invalidFile() {
+        return new TopupException("INVALID_SLIP_FILE","Slip must be a JPG, PNG, JFIF, or WEBP image",TopupException.Kind.VALIDATION);
+    }
+
+    private void requireConfigured() {
+        if (promptPayId.isBlank() || accountName.isBlank()) {
+            throw new TopupException("TOPUP_NOT_CONFIGURED","Website top-up is not configured",TopupException.Kind.CONFIGURATION);
+        }
+    }
+
+    private String qrUrl(long amountSatang) {
+        String amount=BigDecimal.valueOf(amountSatang,2).toPlainString();
+        return "https://promptpay.io/"+URLEncoder.encode(promptPayId,StandardCharsets.UTF_8)+"/"+amount+".png";
+    }
+
+    private TopupResponses.Invoice response(TopupRepository.Invoice invoice) {
+        return new TopupResponses.Invoice(invoice.id(),invoice.invoiceNumber(),invoice.amountSatang(),invoice.currency(),
+                invoice.status(),accountName,invoice.qrPayload(),invoice.balanceSatang(),invoice.expiresAt(),invoice.succeededAt());
+    }
+
+    private static UUID userId(String subject) {
+        try { return UUID.fromString(subject); }
+        catch (IllegalArgumentException exception) {
+            throw new TopupException("INVALID_AUTHENTICATION","Authenticated user id is invalid",TopupException.Kind.VALIDATION);
+        }
+    }
+
+    private static String sha256(byte[] bytes) {
+        try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)); }
+        catch (NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }
+    }
+}
