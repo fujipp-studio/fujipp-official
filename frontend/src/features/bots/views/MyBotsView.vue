@@ -29,6 +29,11 @@ import {
   type BotControlAction,
   type BotRuntimeDisplayState,
 } from '../runtime-status'
+import {
+  groupPackageInventory,
+  nextInstallableLicense,
+  type PackageInventoryGroup,
+} from '../package-inventory'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -47,7 +52,7 @@ const busyAction = ref<BotControlAction | null>(null)
 const installingLicenseId = ref('')
 const featureSearch = ref('')
 const runtimeSearch = ref('')
-const targetBotByLicense = ref<Record<string, string>>({})
+const targetBotByPackage = ref<Record<string, string>>({})
 const targetBotByRuntime = ref<Record<string, string>>({})
 const createForm = ref({ name: '', discordApplicationId: '', discordGuildId: '', token: '' })
 const showAutoRenewModal = ref(false)
@@ -57,6 +62,7 @@ const updatingAutoRenew = ref(false)
 const showInstallModal = ref(false)
 const pendingInstall = ref<{
   license: FeatureLicense
+  packageKey: string
   botId: string
   botName: string
 } | null>(null)
@@ -91,15 +97,8 @@ function showToast(message: string, variant: 'info' | 'success' | 'error' = 'inf
   })
 }
 
-const featureLicenses = computed(() =>
-  licenses.value.filter((license) => {
-    const text = `${license.featureCode} ${license.featureName}`.toLowerCase()
-    return (
-      license.installations.length === 0 &&
-      !text.includes('runtime') &&
-      text.includes(featureSearch.value.trim().toLowerCase())
-    )
-  }),
+const packageInventory = computed(() =>
+  groupPackageInventory(licenses.value, featureSearch.value),
 )
 const botOptions = computed(() =>
   bots.value.map((bot) => ({
@@ -136,15 +135,6 @@ const runtimeLabels: Record<BotRuntimeDisplayState, string> = {
 function runtimeLabel(bot: UserBot) {
   const pendingAction = busyBotId.value === bot.id ? busyAction.value : null
   return runtimeLabels[botRuntimeDisplayState(bot, pendingAction)]
-}
-
-function installedBotNames(license: FeatureLicense) {
-  if (!license.installations.length) return 'พร้อมใช้งาน'
-  return license.installations.map((item) => item.botName).join(', ')
-}
-
-function remainingSlots(license: FeatureLicense) {
-  return Math.max(0, license.installationLimit - license.installations.length)
 }
 
 async function loadDashboard() {
@@ -245,22 +235,29 @@ async function runControl(bot: UserBot, action: BotControlAction) {
   }
 }
 
-function handlePackageBotSelect(license: FeatureLicense, newBotId: string) {
+function handlePackageBotSelect(group: PackageInventoryGroup, newBotId: string) {
   if (!newBotId) return
-  targetBotByLicense.value[license.id] = newBotId
+  const license = nextInstallableLicense(group)
+  if (!license) return
+  targetBotByPackage.value[group.key] = newBotId
   const bot = bots.value.find((b) => b.id === newBotId)
   pendingInstall.value = {
     license,
+    packageKey: group.key,
     botId: newBotId,
     botName: bot ? bot.name : 'ไม่ระบุ',
   }
   showInstallModal.value = true
 }
 
+function installedPackageLicenses(group: PackageInventoryGroup) {
+  return group.licenses.filter((license) => license.installations.length > 0)
+}
+
 function closeInstallModal() {
   if (installingLicenseId.value) return
   if (pendingInstall.value) {
-    targetBotByLicense.value[pendingInstall.value.license.id] = ''
+    targetBotByPackage.value[pendingInstall.value.packageKey] = ''
   }
   showInstallModal.value = false
   pendingInstall.value = null
@@ -268,16 +265,16 @@ function closeInstallModal() {
 
 async function confirmInstallPackage() {
   if (!session.value || !pendingInstall.value) return
-  const { license, botId, botName } = pendingInstall.value
+  const { license, packageKey, botId, botName } = pendingInstall.value
   installingLicenseId.value = license.id
   try {
     await installFeatureLicense(license.id, botId, session.value)
     showToast(`ติดตั้ง ${license.featureName} ให้กับ ${botName} สำเร็จ`, 'success')
-    targetBotByLicense.value[license.id] = ''
+    targetBotByPackage.value[packageKey] = ''
     await loadDashboard()
   } catch (cause) {
     showToast(cause instanceof Error ? cause.message : 'ติดตั้งรายการไม่สำเร็จ', 'error')
-    targetBotByLicense.value[license.id] = ''
+    targetBotByPackage.value[packageKey] = ''
   } finally {
     installingLicenseId.value = ''
     showInstallModal.value = false
@@ -531,42 +528,47 @@ onBeforeUnmount(() => {
               </thead>
               <tbody>
                 <tr
-                  v-for="(license, index) in featureLicenses"
-                  :key="license.id"
+                  v-for="(group, index) in packageInventory"
+                  :key="group.key"
                   class="border-t border-border-subtle"
                 >
                   <td class="table-cell">{{ index + 1 }}</td>
-                  <td class="table-cell font-semibold">{{ license.featureName }}</td>
+                  <td class="table-cell font-semibold">{{ group.featureName }}</td>
                   <td class="table-cell text-text-secondary">
-                    v{{ license.version }} · {{ installedBotNames(license) }}
+                    v{{ group.version }} · {{ group.availableSlots > 0 ? 'พร้อมใช้งาน' : 'ติดตั้งแล้ว' }}
                   </td>
                   <td class="table-cell whitespace-nowrap text-center tabular-nums">
-                    {{ remainingSlots(license) }}/{{ license.installationLimit }}
+                    {{ group.availableSlots }}/{{ group.installationLimit }}
                   </td>
                   <td class="table-cell">
                     <div class="flex flex-wrap items-center justify-end gap-sm">
                       <AppTextField
-                        v-if="remainingSlots(license)"
-                        :model-value="targetBotByLicense[license.id] || ''"
+                        v-if="group.availableSlots > 0"
+                        :model-value="targetBotByPackage[group.key] || ''"
                         variant="dropdown"
                         label=""
                         :options="botOptions"
                         placeholder="เลือกบอท"
                         class="w-56 min-w-0"
                         :disabled="Boolean(installingLicenseId)"
-                        @update:model-value="(val) => handlePackageBotSelect(license, String(val))"
-                      /><AppButton
-                        v-if="license.installations.length"
+                        @update:model-value="(val) => handlePackageBotSelect(group, String(val))"
+                      />
+                      <AppButton
+                        v-for="license in installedPackageLicenses(group)"
+                        :key="license.id"
                         class="!w-auto min-w-24"
                         variant="secondary"
                         :left-icon="icons.action.setting"
                         @click="openFeatureSettings(license.id)"
-                        >ตั้งค่า</AppButton
                       >
+                        ตั้งค่า<span v-if="installedPackageLicenses(group).length > 1">
+                          · {{ license.installations.map((item) => item.botName).join(', ') }}</span
+                        >
+                      </AppButton>
                     </div>
                   </td>
                 </tr>
-                <tr v-if="!loading && !featureLicenses.length">
+                <tr v-if="!loading && !packageInventory.length">
                   <td colspan="5" class="h-40 text-center text-text-muted">ไม่พบ Package</td>
                 </tr>
               </tbody>
