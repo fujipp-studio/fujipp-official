@@ -5,7 +5,6 @@ on:
     paths:
       - backend/**
       - bot-runner/**
-      - supabase/migrations/**
       - deploy/compose.production.yml
       - deploy/deploy-backend.sh
       - .github/workflows/backend-cd.yml
@@ -14,7 +13,6 @@ on:
     paths:
       - backend/**
       - bot-runner/**
-      - supabase/migrations/**
       - deploy/compose.production.yml
       - deploy/deploy-backend.sh
       - .github/workflows/backend-cd.yml
@@ -59,37 +57,9 @@ jobs:
       - run: npm run build
       - run: npm test
 
-  database:
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    environment:
-      name: production
-    steps:
-      - uses: actions/checkout@v6
-      - uses: supabase/setup-cli@v1
-        with:
-          version: latest
-      - name: Link production database
-        working-directory: supabase
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
-        run: |
-          : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN}"
-          : "${SUPABASE_DB_PASSWORD:?Missing SUPABASE_DB_PASSWORD}"
-          : "${SUPABASE_PROJECT_REF:?Missing SUPABASE_PROJECT_REF}"
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-      - name: Apply database migrations
-        working-directory: supabase
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD"
-
   publish:
     if: github.event_name != 'pull_request'
-    needs: [backend, bot-runner, database]
+    needs: [backend, bot-runner]
     runs-on: ubuntu-latest
     permissions:
       contents: read
