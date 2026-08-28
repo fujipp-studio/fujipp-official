@@ -81,19 +81,21 @@ rollback() {
 
   if [[ $had_previous_release == true && -f $previous_release_env ]]; then
     cp "$previous_release_env" "$release_env"
-    compose pull backend
+    compose --profile runner pull backend bot-runner
     compose up -d --no-deps --wait --wait-timeout 120 backend
+    compose --profile runner up -d --no-deps --wait --wait-timeout 120 bot-runner
   else
-    compose rm --stop --force backend || true
+    compose --profile runner rm --stop --force backend bot-runner || true
   fi
 }
 
 trap rollback ERR
 
-# Pull both artifacts now, but keep the new runner stopped until legacy bots move.
+# Deploy the backend first so the new runner always connects to a compatible API.
 compose --profile runner pull backend bot-runner
 compose up -d --no-deps --wait --wait-timeout 120 backend
 curl --fail --silent --show-error --max-time 10 "$healthcheck_url" >/dev/null
+compose --profile runner up -d --no-deps --wait --wait-timeout 120 bot-runner
 
 trap - ERR
-echo "backend deployment ${commit_sha} is healthy at ${healthcheck_url}"
+echo "backend and bot-runner deployment ${commit_sha} is healthy at ${healthcheck_url}"
