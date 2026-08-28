@@ -75,7 +75,8 @@ function.
 ## Voice Keeper
 
 The bundled `voice-keeper` module keeps one connection open to a Discord voice
-or stage channel. Its guild-only slash command is restricted to administrators:
+or stage channel. Its globally registered slash command is usable only in the
+configured guild and is restricted to administrators:
 
 - `/<COMMAND_NAME> join channel` connects to a channel selected through
   Discord's channel picker and remembers its ID;
