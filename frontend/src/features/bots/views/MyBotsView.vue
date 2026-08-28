@@ -23,6 +23,12 @@ import {
 import { useAuthStore } from '../../../stores'
 import { AppButton, AppModal, AppTextField, AppToast, AppToggle } from '../../../shared/ui'
 import { icons } from '../../../config'
+import {
+  botRuntimeDisplayState,
+  isBotOnline,
+  type BotControlAction,
+  type BotRuntimeDisplayState,
+} from '../runtime-status'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -37,6 +43,7 @@ const toastVariant = ref<'info' | 'success' | 'error'>('info')
 const showCreate = ref(false)
 const creating = ref(false)
 const busyBotId = ref('')
+const busyAction = ref<BotControlAction | null>(null)
 const installingLicenseId = ref('')
 const featureSearch = ref('')
 const runtimeSearch = ref('')
@@ -116,9 +123,19 @@ function runtimeExpiry(runtime: RuntimeSubscription) {
   )
 }
 
+const runtimeLabels: Record<BotRuntimeDisplayState, string> = {
+  starting: 'กำลังเริ่มทำงาน…',
+  stopping: 'กำลังหยุดทำงาน…',
+  restarting: 'กำลังเริ่มใหม่…',
+  running: 'กำลังทำงาน',
+  stopped: 'หยุดทำงาน',
+  crashed: 'การทำงานขัดข้อง',
+  offline: 'ออฟไลน์',
+}
+
 function runtimeLabel(bot: UserBot) {
-  if (bot.desiredState === 'STOPPED') return bot.status === 'RUNNING' ? 'กำลังปิด' : 'หยุดทำงาน'
-  return bot.status === 'RUNNING' ? 'กำลังทำงาน' : 'กำลังเริ่มทำงาน'
+  const pendingAction = busyBotId.value === bot.id ? busyAction.value : null
+  return runtimeLabels[botRuntimeDisplayState(bot, pendingAction)]
 }
 
 function installedBotNames(license: FeatureLicense) {
@@ -208,14 +225,15 @@ function beginEdit(bot: UserBot) {
   void router.push({ name: 'bot-settings', params: { botId: bot.id } })
 }
 
-async function runControl(bot: UserBot, action: 'start' | 'stop' | 'restart') {
+async function runControl(bot: UserBot, action: BotControlAction) {
   if (!session.value) return
   busyBotId.value = bot.id
+  busyAction.value = action
   try {
     const updated = await controlBot(bot.id, action, session.value)
     bots.value = bots.value.map((item) => (item.id === updated.id ? updated : item))
     showToast(
-      `${bot.name}: ${action === 'start' ? 'กำลังเริ่มทำงาน' : action === 'stop' ? 'กำลังหยุดทำงาน' : 'กำลังรีสตาร์ต'}`,
+      `${bot.name}: ${action === 'start' ? 'ส่งคำสั่งเริ่มทำงานแล้ว' : action === 'stop' ? 'ส่งคำสั่งหยุดทำงานแล้ว' : 'ส่งคำสั่งเริ่มใหม่แล้ว'}`,
       'success',
     )
     await refreshBots()
@@ -223,6 +241,7 @@ async function runControl(bot: UserBot, action: 'start' | 'stop' | 'restart') {
     showToast(cause instanceof Error ? cause.message : 'ควบคุมบอทไม่สำเร็จ', 'error')
   } finally {
     busyBotId.value = ''
+    busyAction.value = null
   }
 }
 
@@ -416,9 +435,9 @@ onBeforeUnmount(() => {
                 >
                   <span
                     class="size-2 rounded-full"
-                    :class="bot.status === 'RUNNING' ? 'bg-success-text' : 'bg-text-muted'"
+                    :class="isBotOnline(bot) ? 'bg-success-text' : 'bg-text-muted'"
                   />
-                  {{ bot.status === 'RUNNING' ? 'online' : 'offline' }}
+                  {{ isBotOnline(bot) ? 'online' : 'offline' }}
                 </span>
                 <p class="mt-sm flex items-center gap-xs text-sm text-text-muted">
                   <Clock3 :size="15" />{{ runtimeLabel(bot) }}

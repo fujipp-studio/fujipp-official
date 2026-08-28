@@ -20,7 +20,14 @@ import {
   type UserBot,
 } from '../../../services/backend'
 import { useAuthStore } from '../../../stores'
-import { AppButton, AppModal, AppSectionIndicator, AppTextField, AppToggle } from '../../../shared/ui'
+import {
+  AppButton,
+  AppModal,
+  AppSectionIndicator,
+  AppTextField,
+  AppToast,
+  AppToggle,
+} from '../../../shared/ui'
 import DiscordPresentationPreview from '../components/DiscordPresentationPreview.vue'
 import PriceMapEditor from '../components/PriceMapEditor.vue'
 import RobloxGroupEditor from '../components/RobloxGroupEditor.vue'
@@ -310,8 +317,19 @@ const walletPreviewScope = ref<'all' | 'current'>('all')
 const walletActiveSlotKey = ref('')
 const draggedComponent = ref<{ slotKey: string; index: number } | null>(null)
 const error = ref('')
-const notice = ref('')
+const toastOpen = ref(false)
+const toastMessage = ref('')
+const toastVariant = ref<'success' | 'error'>('success')
 let botRefreshTimer: ReturnType<typeof setInterval> | undefined
+
+function showToast(message: string, variant: 'success' | 'error') {
+  toastMessage.value = message
+  toastVariant.value = variant
+  toastOpen.value = false
+  requestAnimationFrame(() => {
+    toastOpen.value = true
+  })
+}
 
 function clone(value: Record<string, unknown>) {
   return JSON.parse(JSON.stringify(value)) as Record<string, unknown>
@@ -1091,7 +1109,6 @@ async function save(): Promise<boolean> {
   if (!session.value || !configuration.value) return false
   saving.value = true
   error.value = ''
-  notice.value = ''
   try {
     const normalValues: Record<string, FeatureConfigValue> = {}
     const changedSecrets: Record<string, string> = {}
@@ -1114,16 +1131,18 @@ async function save(): Promise<boolean> {
       : await updateFeatureConfiguration(licenseId.value,input,session.value)
     configuration.value = updated
     hydrate(updated)
-    notice.value = text(
-      `Saved · Version ${updated.revision}`,
-      `บันทึกแล้ว · Version ${updated.revision}`,
+    showToast(
+      text(`Saved · Version ${updated.revision}`, `บันทึกแล้ว · Version ${updated.revision}`),
+      'success',
     )
     return true
   } catch (cause) {
-    error.value =
+    showToast(
       cause instanceof Error
         ? cause.message
-        : text('Unable to save feature settings.', 'บันทึกการตั้งค่าไม่สำเร็จ')
+        : text('Unable to save feature settings.', 'บันทึกการตั้งค่าไม่สำเร็จ'),
+      'error',
+    )
     return false
   } finally {
     saving.value = false
@@ -1206,12 +1225,6 @@ onBeforeUnmount(() => {
         class="mt-lg rounded-lg border border-error-border bg-error-bg p-md text-error-text"
       >
         {{ error }}
-      </p>
-      <p
-        v-if="notice"
-        class="mt-lg flex items-center gap-xs rounded-lg border border-success-border bg-success-bg p-md text-success-text"
-      >
-        <Check :size="18" /> {{ notice }}
       </p>
       <div v-if="loading" class="mt-xl grid gap-md desktop:grid-cols-2">
         <div v-for="item in 4" :key="item" class="h-48 animate-pulse rounded-lg bg-bg-surface" />
@@ -2462,6 +2475,7 @@ onBeforeUnmount(() => {
           </AppButton>
         </template>
       </AppModal>
+      <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
     </div>
   </section>
 </template>

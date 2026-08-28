@@ -1,18 +1,26 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Clock3 } from 'lucide-vue-next'
 
 import { icons } from '../../../config'
 import type { UserBot } from '../../../services/backend'
 import { AppButton } from '../../../shared/ui'
+import {
+  botRuntimeDisplayState,
+  isBotOnline,
+  type BotControlAction,
+  type BotRuntimeDisplayState,
+} from '../runtime-status'
 
 const props = withDefaults(
   defineProps<{
     bot: UserBot | null
     loading?: boolean
     controlling?: boolean
+    controlAction?: BotControlAction | null
     trail?: string[]
   }>(),
-  { loading: false, controlling: false, trail: () => [] },
+  { loading: false, controlling: false, controlAction: null, trail: () => [] },
 )
 const emit = defineEmits<{
   back: []
@@ -21,11 +29,20 @@ const emit = defineEmits<{
   control: [action: 'start' | 'stop' | 'restart']
 }>()
 
+const online = computed(() => Boolean(props.bot && isBotOnline(props.bot)))
+const runtimeLabels: Record<BotRuntimeDisplayState, string> = {
+  starting: 'Starting…',
+  stopping: 'Stopping…',
+  restarting: 'Restarting…',
+  running: 'Running',
+  stopped: 'Stopped',
+  crashed: 'Crashed',
+  offline: 'Offline',
+}
+
 function runtimeLabel() {
   if (!props.bot) return ''
-  if (props.bot.desiredState === 'STOPPED')
-    return props.bot.status === 'RUNNING' ? 'Stopping…' : 'Stopped'
-  return props.bot.status === 'RUNNING' ? 'Running' : 'Starting…'
+  return runtimeLabels[botRuntimeDisplayState(props.bot, props.controlAction)]
 }
 </script>
 
@@ -51,8 +68,8 @@ function runtimeLabel() {
       </div>
       <div class="min-w-0">
         <h2>{{ bot.name }}</h2>
-        <strong :class="bot.status === 'RUNNING' ? 'bot-shell-online' : 'bot-shell-offline'">{{
-          bot.status === 'RUNNING' ? 'online' : 'offline'
+        <strong :class="online ? 'bot-shell-online' : 'bot-shell-offline'">{{
+          online ? 'online' : 'offline'
         }}</strong>
         <p><Clock3 :size="16" />{{ runtimeLabel() }}</p>
       </div>

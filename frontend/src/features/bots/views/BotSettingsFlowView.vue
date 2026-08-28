@@ -16,6 +16,7 @@ import {
 import { AppSectionIndicator } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'
 import BotSettingsShell from '../components/BotSettingsShell.vue'
+import type { BotControlAction } from '../runtime-status'
 
 const route = useRoute(),
   router = useRouter(),
@@ -24,7 +25,8 @@ const { session, initialized } = storeToRefs(auth)
 const bot = ref<UserBot | null>(null),
   licenses = ref<FeatureLicense[]>([]),
   loading = ref(true),
-  controlling = ref(false)
+  controlAction = ref<BotControlAction | null>(null)
+const controlling = computed(() => controlAction.value !== null)
 const transitionName = ref('bot-child-forward')
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let refreshing = false
@@ -111,24 +113,25 @@ async function load() {
   }
 }
 async function refreshBot() {
-  if (!session.value || refreshing) return
+  if (!session.value || refreshing || controlling.value) return
   refreshing = true
   try {
     if (adminMode.value) {
-      updateBotIfChanged(await fetchAdminBotSettings(botId.value, session.value))
+      const updated = await fetchAdminBotSettings(botId.value, session.value)
+      if (!controlling.value) updateBotIfChanged(updated)
       return
     }
     const updated = (await fetchBots(session.value)).find((item) => item.id === botId.value)
-    if (updated) updateBotIfChanged(updated)
+    if (updated && !controlling.value) updateBotIfChanged(updated)
   } catch {
     /* retry */
   } finally {
     refreshing = false
   }
 }
-async function runControl(action: 'start' | 'stop' | 'restart') {
+async function runControl(action: BotControlAction) {
   if (!session.value || !bot.value) return
-  controlling.value = true
+  controlAction.value = action
   try {
     if (adminMode.value) {
       await controlAdminBot(bot.value.id, action, session.value)
@@ -137,7 +140,7 @@ async function runControl(action: 'start' | 'stop' | 'restart') {
       bot.value = await controlBot(bot.value.id, action, session.value)
     }
   } finally {
-    controlling.value = false
+    controlAction.value = null
   }
 }
 function goMain() {
@@ -210,6 +213,7 @@ onBeforeUnmount(() => {
           :bot="bot"
           :loading="loading"
           :controlling="controlling"
+          :control-action="controlAction"
           :trail="trail"
           @back="goBack"
           @main="goMain"
