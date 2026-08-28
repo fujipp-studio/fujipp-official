@@ -27,7 +27,6 @@ export const voiceKeeperFeature: FeatureModule = {
     const selfMute = readBoolean(context.config.SELF_MUTE, true);
     const selfDeaf = readBoolean(context.config.SELF_DEAF, true);
     let connection: VoiceConnection | undefined;
-    let registeredCommandId: string | undefined;
     let stopped = false;
 
     const connect = async (channelId: string): Promise<void> => {
@@ -99,8 +98,9 @@ export const voiceKeeperFeature: FeatureModule = {
     context.client.once("clientReady", async () => {
       if (stopped || !context.guildId) return;
       try {
-        const guild = await context.client.guilds.fetch(context.guildId);
-        const command = await guild.commands.create(
+        const application = context.client.application;
+        if (!application) throw new Error("Discord application is unavailable after client ready");
+        await application.commands.create(
           new SlashCommandBuilder()
             .setName(commandName)
             .setDescription("จัดการการออนไลน์ในห้องเสียงตลอด 24 ชั่วโมง")
@@ -117,7 +117,6 @@ export const voiceKeeperFeature: FeatureModule = {
               .setDescription("ออกจากห้องเสียงและไม่กลับเข้าอัตโนมัติ"))
             .toJSON(),
         );
-        registeredCommandId = command.id;
 
         const savedChannelId = context.runtimeState.channelId;
         if (typeof savedChannelId === "string" && savedChannelId.length > 0) {
@@ -132,10 +131,8 @@ export const voiceKeeperFeature: FeatureModule = {
       stopped = true;
       context.client.off("interactionCreate", onInteraction);
       connection?.destroy();
-      if (registeredCommandId && context.guildId && context.client.isReady()) {
-        const guild = await context.client.guilds.fetch(context.guildId).catch(() => null);
-        await guild?.commands.delete(registeredCommandId).catch(() => undefined);
-      }
+      // Keep the global command across ordinary Runner restarts to avoid a
+      // propagation gap. A command reconciler should own removal on uninstall.
     };
   },
 };

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-28 | Registered the Voice Keeper slash command globally and preserved it across Runner restarts. |
 | 2026-08-27 | Added authenticated website wallet top-ups with first-party PromptPay QR generation, SlipOK verification, atomic balance credits, and cursor-paginated customer invoice history. |
 | 2026-08-22 | Eliminated runtime bootstrap N+1 queries, added cache-aware metrics and invalidation, and introduced backward-compatible cursor-paginated APIs for growing collections. |
 | 2026-08-13 | Added Wallet Top-up 2.0 with serialized Top Spender synchronization and full Discord-member reconciliation so Top 1 and Top 10 roles cannot remain over-assigned. |
