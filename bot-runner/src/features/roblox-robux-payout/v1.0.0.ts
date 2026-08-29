@@ -12,14 +12,14 @@ const PANEL_REFRESH_MS=60_000;
 
 export const robloxRobuxPayoutFeature=createRobloxRobuxPayoutFeature("1.0.0",false);
 
-export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean):FeatureModule{return {
+export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux"):FeatureModule{return {
   runtimeKey:"roblox-robux-payout",version,intents:["Guilds"],
   async activate(context){
     const pending=new Map<string,PendingPurchase>();
     const groups=readGroups(context); const command=stringConfig(context.config.PANEL_COMMAND_NAME,"robux-panel");
     const queue=new PayoutQueue(context,groups);
     const panels=new PanelUpdater(context,groups,membershipEnabled);
-    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,interaction).catch((error)=>respondError(context,interaction,error));
+    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,purchaseUsernameMaxLength,purchaseModalTitle,interaction).catch((error)=>respondError(context,interaction,error));
     context.client.on("interactionCreate",listener);
     context.client.once("clientReady",()=>void onReady(context,groups,queue,panels,command).catch((error)=>{console.error(`Robux Payout startup failed for ${context.botId}:`,error);void context.reportFeatureError("FEATURE_STARTUP_FAILED",error);}));
     return()=>{context.client.off("interactionCreate",listener);queue.stop();panels.stop();pending.clear();};
@@ -37,13 +37,13 @@ async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQ
   console.info(`Roblox Robux Payout active: bot ${context.botId}`);
 }
 
-async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,interaction:Interaction){
+async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,purchaseUsernameMaxLength:number,purchaseModalTitle:string,interaction:Interaction){
   if(interaction.isChatInputCommand()&&interaction.commandName===command)return postPanel(context,groups,panels,membershipEnabled,interaction);
   if(membershipEnabled&&interaction.isButton()&&interaction.customId===ID.membership)return startMembershipCheck(groups,interaction);
   if(membershipEnabled&&interaction.isStringSelectMenu()&&interaction.customId===ID.membershipGroup)return showMembershipModal(groups,interaction.values[0]!,interaction);
   if(membershipEnabled&&interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.membershipUser}:`))return checkMembership(context,groups,interaction.customId.slice(ID.membershipUser.length+1),interaction);
-  if(interaction.isButton()&&interaction.customId===ID.buy)return startBuy(context,groups,interaction);
-  if(interaction.isStringSelectMenu()&&interaction.customId===ID.group){const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message);return interaction.update(await buildPanelPayload(context,groups,membershipEnabled) as never);}return showUsernameModal(groups,selected,interaction);}
+  if(interaction.isButton()&&interaction.customId===ID.buy)return startBuy(context,groups,purchaseUsernameMaxLength,purchaseModalTitle,interaction);
+  if(interaction.isStringSelectMenu()&&interaction.customId===ID.group){const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message);return interaction.update(await buildPanelPayload(context,groups,membershipEnabled) as never);}return showUsernameModal(groups,selected,purchaseUsernameMaxLength,purchaseModalTitle,interaction);}
   if(interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.user}:`))return checkUser(context,groups,pending,interaction.customId.slice(ID.user.length+1),interaction);
   if(interaction.isStringSelectMenu()&&interaction.customId.startsWith(`${ID.pkg}:`))return selectPackage(context,pending,interaction.customId.slice(ID.pkg.length+1),interaction.values[0]!,interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.confirm}:`))return confirm(context,groups,queue,pending,interaction.customId.slice(ID.confirm.length+1),interaction);
@@ -123,19 +123,23 @@ async function checkMembership(context:FeatureContext,groups:RobloxGroup[],key:s
 
 function numberEmoji(index:number){return ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"][index]??"🎮";}
 
-async function startBuy(context:FeatureContext,groups:RobloxGroup[],interaction:ButtonInteraction){
+async function startBuy(context:FeatureContext,groups:RobloxGroup[],purchaseUsernameMaxLength:number,purchaseModalTitle:string,interaction:ButtonInteraction){
   if(!groups.length)return interaction.reply({content:"ยังไม่ได้ตั้งค่า Roblox Group และ Credentials สำหรับ Feature นี้",flags:MessageFlags.Ephemeral});
   if(!boolConfig(context.config.ROBUX_ENABLED,true))return interaction.reply({content:"ระบบขาย Robux ปิดให้บริการชั่วคราว",flags:MessageFlags.Ephemeral});
-  if(groups.length===1)return showUsernameModal(groups,groups[0]!.key,interaction);
+  if(groups.length===1)return showUsernameModal(groups,groups[0]!.key,purchaseUsernameMaxLength,purchaseModalTitle,interaction);
   const role=componentConfig(context,"panel","group_select");const menu=new StringSelectMenuBuilder().setCustomId(ID.group).setPlaceholder(String(role.placeholder??"เลือกกลุ่ม Roblox").slice(0,150)).addOptions(groups.slice(0,25).map((g)=>new StringSelectMenuOptionBuilder().setLabel(g.name.slice(0,100)).setValue(g.key)));
   return interaction.reply({content:"เลือกกลุ่มที่ต้องการรับ Robux",components:[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],flags:MessageFlags.Ephemeral});
 }
 
-async function showUsernameModal(groups:RobloxGroup[],key:string,interaction:ButtonInteraction|import("discord.js").StringSelectMenuInteraction){
+async function showUsernameModal(groups:RobloxGroup[],key:string,maxLength:number,title:string,interaction:ButtonInteraction|import("discord.js").StringSelectMenuInteraction){
   const group=groups.find((item)=>item.key===key);if(!group)throw new Error("ไม่พบกลุ่ม Roblox");
-  const modal=new ModalBuilder().setCustomId(`${ID.user}:${key}`).setTitle(`เช็คสิทธิ์รับ Robux (${group.name})`.slice(0,45));
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("username").setLabel("Username Roblox").setPlaceholder("เช่น builderman").setMinLength(3).setMaxLength(20).setRequired(true).setStyle(TextInputStyle.Short)));
-  return interaction.showModal(modal);
+  return interaction.showModal(buildPurchaseUsernameModal(group,maxLength,title));
+}
+
+export function buildPurchaseUsernameModal(group:Pick<RobloxGroup,"key"|"name">,maxLength:number,title:string){
+  const modal=new ModalBuilder().setCustomId(`${ID.user}:${group.key}`).setTitle(`${title} (${group.name})`.slice(0,45));
+  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("username").setLabel("Username Roblox").setPlaceholder("เช่น builderman").setMinLength(3).setMaxLength(maxLength).setRequired(true).setStyle(TextInputStyle.Short)));
+  return modal;
 }
 
 async function checkUser(context:FeatureContext,groups:RobloxGroup[],pending:Map<string,PendingPurchase>,key:string,interaction:ModalSubmitInteraction){
