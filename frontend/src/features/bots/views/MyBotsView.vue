@@ -250,10 +250,6 @@ function handlePackageBotSelect(group: PackageInventoryGroup, newBotId: string) 
   showInstallModal.value = true
 }
 
-function installedPackageLicenses(group: PackageInventoryGroup) {
-  return group.licenses.filter((license) => license.installations.length > 0)
-}
-
 function closeInstallModal() {
   if (installingLicenseId.value) return
   if (pendingInstall.value) {
@@ -365,10 +361,6 @@ async function renew(runtime: RuntimeSubscription) {
   } catch (cause) {
     showToast(cause instanceof Error ? cause.message : 'ต่ออายุไม่สำเร็จ', 'error')
   }
-}
-
-function openFeatureSettings(licenseId: string) {
-  void router.push({ name: 'feature-settings', params: { licenseId } })
 }
 
 onMounted(async () => {
@@ -535,7 +527,7 @@ onBeforeUnmount(() => {
                   <td class="table-cell">{{ index + 1 }}</td>
                   <td class="table-cell font-semibold">{{ group.featureName }}</td>
                   <td class="table-cell text-text-secondary">
-                    v{{ group.version }} · {{ group.availableSlots > 0 ? 'พร้อมใช้งาน' : 'ติดตั้งแล้ว' }}
+                    v{{ group.version }} · พร้อมใช้งาน
                   </td>
                   <td class="table-cell whitespace-nowrap text-center tabular-nums">
                     {{ group.availableSlots }}/{{ group.installationLimit }}
@@ -543,7 +535,6 @@ onBeforeUnmount(() => {
                   <td class="table-cell">
                     <div class="flex flex-wrap items-center justify-end gap-sm">
                       <AppTextField
-                        v-if="group.availableSlots > 0"
                         :model-value="targetBotByPackage[group.key] || ''"
                         variant="dropdown"
                         label=""
@@ -553,18 +544,6 @@ onBeforeUnmount(() => {
                         :disabled="Boolean(installingLicenseId)"
                         @update:model-value="(val) => handlePackageBotSelect(group, String(val))"
                       />
-                      <AppButton
-                        v-for="license in installedPackageLicenses(group)"
-                        :key="license.id"
-                        class="!w-auto min-w-24"
-                        variant="secondary"
-                        :left-icon="icons.action.setting"
-                        @click="openFeatureSettings(license.id)"
-                      >
-                        ตั้งค่า<span v-if="installedPackageLicenses(group).length > 1">
-                          · {{ license.installations.map((item) => item.botName).join(', ') }}</span
-                        >
-                      </AppButton>
                     </div>
                   </td>
                 </tr>
