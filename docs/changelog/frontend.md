@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-29 | Limited Package inventory to items with remaining installation slots and kept installed Package configuration within Bot settings. |
 | 2026-08-28 | Improved Bot management feedback with save toasts, consistent Runtime status, and grouped Package inventory totals. |
 | 2026-08-27 | Added a responsive bilingual PromptPay wallet top-up flow with SlipOK verification, resumable transaction history, drag-and-drop slip previews, and a design sandbox. |
 | 2026-08-22 | Migrated portfolio, Bot, user, wallet, and Runtime collection loading to cursor-paginated backend APIs. |
