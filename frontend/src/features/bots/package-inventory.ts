@@ -71,6 +71,7 @@ export function groupPackageInventory(
           new Date(left.acquiredAt).getTime() - new Date(right.acquiredAt).getTime(),
       ),
     }))
+    .filter((group) => group.availableSlots > 0)
     .sort(
       (left, right) =>
         left.featureName.localeCompare(right.featureName, 'en', { sensitivity: 'base' }) ||

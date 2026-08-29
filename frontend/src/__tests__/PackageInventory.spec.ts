@@ -85,6 +85,24 @@ describe('package inventory grouping', () => {
     expect(groups[0]?.licenses.map((item) => item.id)).toEqual(['available', 'full'])
   })
 
+  it('hides a package group when every installation slot has been used', () => {
+    const full = (id: string) =>
+      license({
+        id,
+        installations: [
+          {
+            id: `installation-${id}`,
+            botId: `bot-${id}`,
+            botName: `Bot ${id}`,
+            status: 'ACTIVE',
+            installedAt: '2026-08-28T00:00:00Z',
+          },
+        ],
+      })
+
+    expect(groupPackageInventory([full('1'), full('2')])).toEqual([])
+  })
+
   it('uses the earliest-expiring license first when installing from a group', () => {
     const groups = groupPackageInventory([
       license({ id: 'later', expiresAt: '2026-10-01T00:00:00Z' }),
