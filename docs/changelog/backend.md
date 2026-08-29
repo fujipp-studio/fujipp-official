@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-29 | Added Roblox Robux Payout 2.0.1 with a longer purchase username field and clearer purchase form title while preserving earlier versions. |
 | 2026-08-28 | Registered the Voice Keeper slash command globally and preserved it across Runner restarts. |
 | 2026-08-27 | Added authenticated website wallet top-ups with first-party PromptPay QR generation, SlipOK verification, atomic balance credits, and cursor-paginated customer invoice history. |
 | 2026-08-22 | Eliminated runtime bootstrap N+1 queries, added cache-aware metrics and invalidation, and introduced backward-compatible cursor-paginated APIs for growing collections. |

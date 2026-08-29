@@ -55,7 +55,7 @@ const isRobloxPayoutFeature = computed(() => {
   const code = license.value?.featureCode
   return code === 'roblox-robux-payout' || 'ROBLOX_GROUPS' in values.value
 })
-const isRobloxPayoutV2 = computed(() => isRobloxPayoutFeature.value && license.value?.version === '2.0.0')
+const isRobloxPayoutV2 = computed(() => isRobloxPayoutFeature.value && license.value?.version.startsWith('2.'))
 const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
 const isPriceReaderFeature = computed(() => license.value?.featureCode === 'price-reader')
 const usesPresentationDesigner = computed(
