@@ -8,7 +8,7 @@ import { AppButton, AppTextField } from '../../../shared/ui'
 const props = defineProps<{ modelValue: string; rate: number }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const text = (english: string, thai: string) => (locale.value === 'th' ? thai : english)
 
 const amounts = ref<string[]>([])
@@ -62,7 +62,9 @@ function remove(index: number) {
 <template>
   <div class="packages-editor">
     <div class="packages-editor__header">
-      <span>{{ text('Robux Amount', 'จำนวน Robux') }}</span><span>{{ text('Calculated Price', 'ราคาที่คำนวณได้') }}</span><span />
+      <span>{{ t('botSettings.robuxAmount') }}</span
+      ><span>{{ t('botSettings.calculatedPrice') }}</span
+      ><span />
     </div>
     <div v-for="(amount, index) in amounts" :key="index" class="packages-editor__row">
       <AppTextField
@@ -82,11 +84,20 @@ function remove(index: number) {
         <Trash2 :size="18" />
       </button>
     </div>
-    <p v-if="!amounts.length" class="packages-editor__empty">{{ text('No Robux packages yet', 'ยังไม่มีแพ็กเกจ Robux') }}</p>
+    <p v-if="!amounts.length" class="packages-editor__empty">
+      {{ t('botSettings.noRobuxPackagesYet') }}
+    </p>
     <AppButton class="packages-editor__add" @click="add"
-      ><Plus :size="18" /> {{ text('Add Package', 'เพิ่มแพ็กเกจ') }}</AppButton
+      ><Plus :size="18" /> {{ t('botSettings.addPackage') }}</AppButton
     >
-    <p class="packages-editor__hint">{{ text(`Price = Robux ÷ ${validRate} (rounded up to THB)`, `ราคา = จำนวน Robux ÷ ${validRate} และปัดขึ้นเป็นบาท`) }}</p>
+    <p class="packages-editor__hint">
+      {{
+        text(
+          `Price = Robux ÷ ${validRate} (rounded up to THB)`,
+          `ราคา = จำนวน Robux ÷ ${validRate} และปัดขึ้นเป็นบาท`,
+        )
+      }}
+    </p>
   </div>
 </template>
 

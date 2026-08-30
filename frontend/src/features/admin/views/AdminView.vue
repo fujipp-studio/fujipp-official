@@ -5,22 +5,6 @@ import { useI18n } from 'vue-i18n'
 
 import { AppButton } from '../../../shared/ui'
 
-import AdminBotsView from './AdminBotsView.vue'
-import AdminDashboardView from './AdminDashboardView.vue'
-import AdminFeatureView from './AdminFeatureView.vue'
-import AdminRuntimeView from './AdminRuntimeView.vue'
-import AdminUsersView from './AdminUsersView.vue'
-
-type AdminSection = 'main' | 'users' | 'packages' | 'runtime' | 'bots'
-
-function deriveSection(path: string): AdminSection {
-  if (path.endsWith('/users')) return 'users'
-  if (path.endsWith('/packages') || path.endsWith('/feature')) return 'packages'
-  if (path.endsWith('/runtime')) return 'runtime'
-  if (path.endsWith('/bots')) return 'bots'
-  return 'main'
-}
-
 const route = useRoute()
 const router = useRouter()
 const { t } = useI18n()
@@ -28,17 +12,10 @@ provide('admin-view-shell', true)
 
 onMounted(() => document.documentElement.classList.add('admin-section-scroll'))
 onBeforeUnmount(() => document.documentElement.classList.remove('admin-section-scroll'))
-const section = ref<AdminSection>(deriveSection(route.path))
+const section = computed(() => route.meta.adminSection ?? 'main')
 const transitionName = ref('admin-forward')
 const sectionScrollY = ref(0)
 
-const currentView = computed(() => {
-  if (section.value === 'users') return AdminUsersView
-  if (section.value === 'packages') return AdminFeatureView
-  if (section.value === 'runtime') return AdminRuntimeView
-  if (section.value === 'bots') return AdminBotsView
-  return AdminDashboardView
-})
 const sectionLabel = computed(() => {
   if (section.value === 'users') return t('admin.dashboard.usersMenu')
   if (section.value === 'packages') return t('admin.dashboard.packagesMenu')
@@ -47,17 +24,12 @@ const sectionLabel = computed(() => {
   return ''
 })
 
-watch(
-  () => route.path,
-  (path) => {
-    const nextSection = deriveSection(path)
-    if (nextSection === section.value) return
-    sectionScrollY.value = window.scrollY
-    transitionName.value = nextSection === 'main' ? 'admin-backward' : 'admin-forward'
-    section.value = nextSection
-    void nextTick(restoreSectionPosition)
-  },
-)
+watch(section, (nextSection, previous) => {
+  if (nextSection === previous) return
+  sectionScrollY.value = window.scrollY
+  transitionName.value = nextSection === 'main' ? 'admin-backward' : 'admin-forward'
+  void nextTick(restoreSectionPosition)
+})
 
 function restoreSectionPosition() {
   window.requestAnimationFrame(() => {
@@ -105,9 +77,11 @@ function restoreSectionPosition() {
       </header>
 
       <div class="admin-shell-content">
-        <Transition :name="transitionName" mode="out-in" @after-enter="restoreSectionPosition">
-          <component :is="currentView" :key="section" />
-        </Transition>
+        <RouterView v-slot="{ Component, route: childRoute }">
+          <Transition :name="transitionName" mode="out-in" @after-enter="restoreSectionPosition">
+            <component :is="Component" :key="childRoute.path" />
+          </Transition>
+        </RouterView>
       </div>
     </div>
   </main>

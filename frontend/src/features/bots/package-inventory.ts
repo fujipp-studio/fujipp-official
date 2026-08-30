@@ -1,4 +1,4 @@
-import type { FeatureLicense } from '../../services/backend'
+import { type FeatureLicense } from '@/features/bots/api'
 
 export interface PackageInventoryGroup {
   key: string

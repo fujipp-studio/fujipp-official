@@ -6,19 +6,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WalletTopupView from '../features/topup/views/WalletTopupView.vue'
 import { i18n } from '../i18n'
 import { useAuthStore } from '../stores'
-import { createWalletTopup, fetchWalletTopup, listWalletTopups } from '../services/backend'
-import type { CursorPage, WalletTopupInvoice, WalletTopupSummary } from '../services/backend'
+import { createWalletTopup, fetchWalletTopup, listWalletTopups } from '@/features/topup/api'
+import { type CursorPage } from '@/shared/api/http'
+import { type WalletTopupInvoice, type WalletTopupSummary } from '@/features/topup/api'
 
-vi.mock('../services/backend', () => ({
-  createWalletTopup: vi.fn<
-    (amountSatang: number, session: Session, idempotencyKey?: string) => Promise<WalletTopupInvoice>
-  >(),
-  fetchWalletTopup: vi.fn<
-    (invoiceId: string, session: Session) => Promise<WalletTopupInvoice>
-  >(),
-  verifyWalletTopupSlip: vi.fn<
-    (invoiceId: string, file: File, session: Session) => Promise<WalletTopupInvoice>
-  >(),
+vi.mock('@/features/topup/api', () => ({
+  createWalletTopup:
+    vi.fn<
+      (
+        amountSatang: number,
+        session: Session,
+        idempotencyKey?: string,
+      ) => Promise<WalletTopupInvoice>
+    >(),
+  fetchWalletTopup: vi.fn<(invoiceId: string, session: Session) => Promise<WalletTopupInvoice>>(),
+  verifyWalletTopupSlip:
+    vi.fn<(invoiceId: string, file: File, session: Session) => Promise<WalletTopupInvoice>>(),
   listWalletTopups: vi
     .fn<
       (

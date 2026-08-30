@@ -14,7 +14,6 @@ import {
 import { useAuthStore } from '../../../stores'
 import {
   adjustUserWallet,
-  fetchAdminFeatures,
   fetchAdminUserFeatures,
   fetchAdminUsers,
   fetchUserWalletHistory,
@@ -23,11 +22,11 @@ import {
   updateAdminUserFeature,
   type AdminAccountRole,
   type AdminAccountStatus,
-  type AdminFeature,
   type AdminFeatureLicense,
   type AdminUserSummary,
   type AdminWalletHistoryEntry,
-} from '../../../services/backend'
+} from '@/features/admin/api/users'
+import { fetchAdminFeatures, type AdminFeature } from '@/features/admin/api/features'
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
 const auth = useAuthStore()
 const { session } = storeToRefs(auth)

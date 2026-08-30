@@ -2,7 +2,15 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { AlertTriangle, Bot, Play, RefreshCw, Settings, Square, UserRoundCog } from 'lucide-vue-next'
+import {
+  AlertTriangle,
+  Bot,
+  Play,
+  RefreshCw,
+  Settings,
+  Square,
+  UserRoundCog,
+} from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
 import {
   AppButton,
@@ -15,12 +23,11 @@ import {
 import { useAuthStore } from '../../../stores'
 import {
   fetchAdminBots,
-  fetchAdminUsers,
   controlAdminBot,
   transferAdminBot,
   type AdminBot,
-  type AdminUserSummary,
-} from '../../../services/backend'
+} from '@/features/admin/api/bots'
+import { fetchAdminUsers, type AdminUserSummary } from '@/features/admin/api/users'
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
 
 const auth = useAuthStore()
@@ -81,7 +88,12 @@ async function transfer() {
   if (!session.value || !selected.value || !ownerId.value.trim()) return
   saving.value = true
   try {
-    await transferAdminBot(selected.value.id, ownerId.value.trim(), keepRunning.value, session.value)
+    await transferAdminBot(
+      selected.value.id,
+      ownerId.value.trim(),
+      keepRunning.value,
+      session.value,
+    )
     selected.value = null
     toastVariant.value = 'success'
     toast.value = t('admin.page.transferSuccess')
@@ -170,7 +182,10 @@ onMounted(load)
                 </div>
               </dl>
               <div class="mt-md flex flex-wrap gap-sm border-t border-border-subtle pt-md">
-                <AppButton class="!w-auto" variant="secondary" @click="router.push({ name: 'admin-bot-settings', params: { botId: item.id } })"
+                <AppButton
+                  class="!w-auto"
+                  variant="secondary"
+                  @click="router.push({ name: 'admin-bot-settings', params: { botId: item.id } })"
                   ><Settings class="size-4" />{{ t('admin.page.botSettings') }}</AppButton
                 >
                 <AppButton
@@ -233,7 +248,8 @@ onMounted(load)
             :model-value="keepRunning"
             :disabled="selected?.desiredState !== 'RUNNING'"
             @change="(value) => (keepRunning = value)"
-          >{{ t('admin.page.transferKeepRunning') }}</AppToggle>
+            >{{ t('admin.page.transferKeepRunning') }}</AppToggle
+          >
           <p class="text-xs leading-relaxed text-text-muted">
             {{
               selected?.desiredState === 'RUNNING'

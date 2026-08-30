@@ -12,7 +12,7 @@ const props = defineProps<{
   compact?: boolean
 }>()
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const text = (english: string, thai: string) => (locale.value === 'th' ? thai : english)
 const activeInteraction = ref('')
 
@@ -35,15 +35,27 @@ const actions = computed(() =>
 )
 const actionDefaults: Record<string, { label: [string, string]; emoji: string; style: string }> = {
   'wallet.topup': { label: ['Top up', 'เติมเงิน'], emoji: '💰', style: 'success' },
-  'wallet.balance': { label: ['Check balance', 'เช็คยอดเงินคงเหลือ'], emoji: '💳', style: 'secondary' },
+  'wallet.balance': {
+    label: ['Check balance', 'เช็คยอดเงินคงเหลือ'],
+    emoji: '💳',
+    style: 'secondary',
+  },
   'wallet.promptpay': { label: ['PromptPay', 'พร้อมเพย์ธนาคาร'], emoji: '🏦', style: 'primary' },
-  'wallet.truemoney': { label: ['TrueMoney gift', 'ซองอั่งเปาทรูมันนี่'], emoji: '🧧', style: 'danger' },
+  'wallet.truemoney': {
+    label: ['TrueMoney gift', 'ซองอั่งเปาทรูมันนี่'],
+    emoji: '🧧',
+    style: 'danger',
+  },
 }
 const actionButtons = computed(() => {
   const value = content.value.action_overrides
   const overrides = isObject(value) ? value : {}
   return actions.value.map((action) => {
-    const defaults = actionDefaults[action] ?? { label: [actionLabel(action), actionLabel(action)] as [string, string], emoji: '', style: 'secondary' }
+    const defaults = actionDefaults[action] ?? {
+      label: [actionLabel(action), actionLabel(action)] as [string, string],
+      emoji: '',
+      style: 'secondary',
+    }
     const override = isObject(overrides[action]) ? overrides[action] : {}
     return {
       action,
@@ -322,14 +334,24 @@ function actionButtonClass(style: string) {
           class="preview-message-content discord-markdown"
           v-html="renderMarkdown(content.content)"
         />
-        <div v-if="mode === 'EMBED'" class="preview-embed" :style="{ borderLeftColor: embedAccentColor }">
+        <div
+          v-if="mode === 'EMBED'"
+          class="preview-embed"
+          :style="{ borderLeftColor: embedAccentColor }"
+        >
           <div class="min-w-0">
             <div v-if="author.name" class="preview-embed-author">
               <img v-if="readUrl(author.icon_url)" :src="readUrl(author.icon_url)" alt="" />
               <span v-html="renderDiscordEmoji(author.name)" />
             </div>
             <h4 v-if="content.title">
-              <a v-if="readUrl(content.url)" :href="readUrl(content.url)" target="_blank" rel="noreferrer" v-html="renderDiscordEmoji(content.title)" />
+              <a
+                v-if="readUrl(content.url)"
+                :href="readUrl(content.url)"
+                target="_blank"
+                rel="noreferrer"
+                v-html="renderDiscordEmoji(content.title)"
+              />
               <span v-else v-html="renderDiscordEmoji(content.title)" />
             </h4>
             <div
@@ -359,7 +381,7 @@ function actionButtonClass(style: string) {
               <img v-if="footerIconUrl" :src="footerIconUrl" alt="" />
               <span v-if="footerText" v-html="renderDiscordEmoji(footerText)" />
               <span v-if="footerText && content.timestamp"> • </span>
-              <span v-if="content.timestamp">{{ text('Today at 14:30', 'วันนี้ เวลา 14:30') }}</span>
+              <span v-if="content.timestamp">{{ t('botSettings.todayAt1430') }}</span>
             </p>
           </div>
           <img
@@ -383,7 +405,10 @@ function actionButtonClass(style: string) {
               v-html="renderMarkdown(block.content)"
             />
             <div v-else-if="block.type === 9" class="preview-section">
-              <div class="preview-copy discord-markdown" v-html="renderMarkdown(sectionContent(block))" />
+              <div
+                class="preview-copy discord-markdown"
+                v-html="renderMarkdown(sectionContent(block))"
+              />
               <img
                 v-if="isPreviewImageUrl(sectionAccessoryUrl(block))"
                 :src="sectionAccessoryUrl(block)"
@@ -398,7 +423,9 @@ function actionButtonClass(style: string) {
             <div v-else-if="block.type === 12" class="preview-gallery">
               <template v-for="(url, mediaIndex) in blockMediaUrls(block)" :key="mediaIndex">
                 <img v-if="isPreviewImageUrl(url)" :src="url" alt="" />
-                <div v-else class="preview-image-placeholder"><ImageIcon :size="24" /> {{ url || 'Media' }}</div>
+                <div v-else class="preview-image-placeholder">
+                  <ImageIcon :size="24" /> {{ url || 'Media' }}
+                </div>
               </template>
             </div>
             <div v-else-if="block.type === 1" class="preview-actions">
@@ -407,29 +434,59 @@ function actionButtonClass(style: string) {
                 :key="buttonIndex"
                 type="button"
                 :class="buttonClass(button)"
-                @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? text('Action', 'คำสั่ง')))"
+                @click="
+                  simulateInteraction(
+                    String(button.custom_id ?? ''),
+                    render(button.label ?? t('botSettings.action')),
+                  )
+                "
               >
                 <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
-                <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? text('Open link', 'เปิดลิงก์'))" />
+                <span
+                  v-html="
+                    renderDiscordEmoji(
+                      button.label ?? button.placeholder ?? t('botSettings.openLink'),
+                    )
+                  "
+                />
               </button>
             </div>
             <div
               v-else-if="block.type === 17"
-              :class="['preview-container', { 'preview-components--spoiler': block.spoiler === true }]"
+              :class="[
+                'preview-container',
+                { 'preview-components--spoiler': block.spoiler === true },
+              ]"
               :style="{ borderLeftColor: containerAccentColor(block) }"
             >
               <template v-for="(child, childIndex) in containerChildren(block)" :key="childIndex">
-                <div v-if="child.type === 10" class="preview-copy discord-markdown" v-html="renderMarkdown(child.content)" />
+                <div
+                  v-if="child.type === 10"
+                  class="preview-copy discord-markdown"
+                  v-html="renderMarkdown(child.content)"
+                />
                 <div v-else-if="child.type === 9" class="preview-section">
-                  <div class="preview-copy discord-markdown" v-html="renderMarkdown(sectionContent(child))" />
-                  <img v-if="isPreviewImageUrl(sectionAccessoryUrl(child))" :src="sectionAccessoryUrl(child)" alt="" />
+                  <div
+                    class="preview-copy discord-markdown"
+                    v-html="renderMarkdown(sectionContent(child))"
+                  />
+                  <img
+                    v-if="isPreviewImageUrl(sectionAccessoryUrl(child))"
+                    :src="sectionAccessoryUrl(child)"
+                    alt=""
+                  />
                 </div>
-                <hr v-else-if="child.type === 14 && child.divider !== false" class="preview-separator" />
+                <hr
+                  v-else-if="child.type === 14 && child.divider !== false"
+                  class="preview-separator"
+                />
                 <div v-else-if="child.type === 14" class="preview-space" />
                 <div v-else-if="child.type === 12" class="preview-gallery">
                   <template v-for="(url, mediaIndex) in blockMediaUrls(child)" :key="mediaIndex">
                     <img v-if="isPreviewImageUrl(url)" :src="url" alt="" />
-                    <div v-else class="preview-image-placeholder"><ImageIcon :size="24" /> {{ url || 'Media' }}</div>
+                    <div v-else class="preview-image-placeholder">
+                      <ImageIcon :size="24" /> {{ url || 'Media' }}
+                    </div>
                   </template>
                 </div>
                 <div v-else-if="child.type === 1" class="preview-actions">
@@ -438,10 +495,24 @@ function actionButtonClass(style: string) {
                     :key="buttonIndex"
                     type="button"
                     :class="buttonClass(button)"
-                    @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? text('Action', 'คำสั่ง')))"
+                    @click="
+                      simulateInteraction(
+                        String(button.custom_id ?? ''),
+                        render(button.label ?? t('botSettings.action')),
+                      )
+                    "
                   >
-                    <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
-                    <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? text('Open link', 'เปิดลิงก์'))" />
+                    <span
+                      v-if="buttonEmoji(button)"
+                      v-html="renderDiscordEmoji(buttonEmoji(button))"
+                    />
+                    <span
+                      v-html="
+                        renderDiscordEmoji(
+                          button.label ?? button.placeholder ?? t('botSettings.openLink'),
+                        )
+                      "
+                    />
                   </button>
                 </div>
               </template>
@@ -458,7 +529,13 @@ function actionButtonClass(style: string) {
           </div>
           <p v-if="content.footer" class="preview-footer">{{ render(content.footer) }}</p>
           <div
-            v-if="actions.length || buttons.length || selectMenus.length || links.length || coFeatures.length"
+            v-if="
+              actions.length ||
+              buttons.length ||
+              selectMenus.length ||
+              links.length ||
+              coFeatures.length
+            "
             class="preview-actions"
           >
             <button
@@ -467,21 +544,39 @@ function actionButtonClass(style: string) {
               type="button"
               :class="actionButtonClass(action.style)"
               @click="simulateInteraction(action.action, action.label)"
-            ><span v-if="action.emoji" v-html="renderDiscordEmoji(action.emoji)" /><span v-html="renderDiscordEmoji(action.label)" /></button>
+            >
+              <span v-if="action.emoji" v-html="renderDiscordEmoji(action.emoji)" /><span
+                v-html="renderDiscordEmoji(action.label)"
+              />
+            </button>
             <button
               v-for="(button, index) in buttons"
               :key="`component-button-${index}`"
               type="button"
               :class="buttonClass(button)"
-              @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? button.placeholder ?? 'Action'))"
-            ><span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" /><span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" /></button>
+              @click="
+                simulateInteraction(
+                  String(button.custom_id ?? ''),
+                  render(button.label ?? button.placeholder ?? 'Action'),
+                )
+              "
+            >
+              <span
+                v-if="buttonEmoji(button)"
+                v-html="renderDiscordEmoji(buttonEmoji(button))"
+              /><span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" />
+            </button>
             <button
               v-for="item in selectMenus"
               :key="`component-select-${item.role}`"
               type="button"
               class="preview-select-menu"
               @click="simulateInteraction(item.role, render(item.config.placeholder))"
-            ><span v-html="renderDiscordEmoji(item.config.placeholder)" /><span aria-hidden="true">⌄</span></button>
+            >
+              <span v-html="renderDiscordEmoji(item.config.placeholder)" /><span aria-hidden="true"
+                >⌄</span
+              >
+            </button>
             <a
               v-for="(link, index) in links"
               :key="`component-link-${index}`"
@@ -489,18 +584,31 @@ function actionButtonClass(style: string) {
               target="_blank"
               rel="noreferrer"
               class="preview-button--link"
-            ><span v-if="link.emoji" v-html="renderDiscordEmoji(link.emoji)" /><span v-html="renderDiscordEmoji(link.label ?? text('Open link', 'เปิดลิงก์'))" /></a>
+              ><span v-if="link.emoji" v-html="renderDiscordEmoji(link.emoji)" /><span
+                v-html="renderDiscordEmoji(link.label ?? t('botSettings.openLink'))"
+            /></a>
             <button
               v-for="item in coFeatures"
               :key="`component-co-${String(item.action)}`"
               type="button"
               :class="coFeatureButtonClass(item)"
               @click="simulateInteraction(String(item.action), render(item.label ?? item.action))"
-            ><span v-if="item.emoji" v-html="renderDiscordEmoji(item.emoji)" /><span v-html="renderDiscordEmoji(item.label ?? item.action)" /></button>
+            >
+              <span v-if="item.emoji" v-html="renderDiscordEmoji(item.emoji)" /><span
+                v-html="renderDiscordEmoji(item.label ?? item.action)"
+              />
+            </button>
           </div>
         </div>
         <div
-          v-if="mode === 'EMBED' && (actions.length || buttons.length || selectMenus.length || links.length || coFeatures.length)"
+          v-if="
+            mode === 'EMBED' &&
+            (actions.length ||
+              buttons.length ||
+              selectMenus.length ||
+              links.length ||
+              coFeatures.length)
+          "
           class="preview-actions"
         >
           <button
@@ -510,14 +618,19 @@ function actionButtonClass(style: string) {
             :class="actionButtonClass(action.style)"
             @click="simulateInteraction(action.action, action.label)"
           >
-            <span v-if="action.emoji" v-html="renderDiscordEmoji(action.emoji)" /> <span v-html="renderDiscordEmoji(action.label)" />
-          </button
+            <span v-if="action.emoji" v-html="renderDiscordEmoji(action.emoji)" />
+            <span v-html="renderDiscordEmoji(action.label)" /></button
           ><button
             v-for="(button, index) in buttons"
             :key="index"
             type="button"
             :class="buttonClass(button)"
-            @click="simulateInteraction(String(button.custom_id ?? ''), render(button.label ?? button.placeholder ?? 'Action'))"
+            @click="
+              simulateInteraction(
+                String(button.custom_id ?? ''),
+                render(button.label ?? button.placeholder ?? 'Action'),
+              )
+            "
           >
             <span v-if="buttonEmoji(button)" v-html="renderDiscordEmoji(buttonEmoji(button))" />
             <span v-html="renderDiscordEmoji(button.label ?? button.placeholder ?? 'Action')" />
@@ -528,7 +641,11 @@ function actionButtonClass(style: string) {
             type="button"
             class="preview-select-menu"
             @click="simulateInteraction(item.role, render(item.config.placeholder))"
-          ><span v-html="renderDiscordEmoji(item.config.placeholder)" /><span aria-hidden="true">⌄</span></button>
+          >
+            <span v-html="renderDiscordEmoji(item.config.placeholder)" /><span aria-hidden="true"
+              >⌄</span
+            >
+          </button>
           <a
             v-for="(link, index) in links"
             :key="`link-${index}`"
@@ -536,9 +653,13 @@ function actionButtonClass(style: string) {
             target="_blank"
             rel="noreferrer"
             class="preview-button--link"
-            @click="!readUrl(link.url) && simulateInteraction('', render(link.label ?? text('Open link', 'เปิดลิงก์')))"
+            @click="
+              !readUrl(link.url) &&
+              simulateInteraction('', render(link.label ?? t('botSettings.openLink')))
+            "
           >
-            <span v-if="link.emoji" v-html="renderDiscordEmoji(link.emoji)" /> <span v-html="renderDiscordEmoji(link.label ?? text('Open link', 'เปิดลิงก์'))" />
+            <span v-if="link.emoji" v-html="renderDiscordEmoji(link.emoji)" />
+            <span v-html="renderDiscordEmoji(link.label ?? t('botSettings.openLink'))" />
           </a>
           <button
             v-for="item in coFeatures"
@@ -547,7 +668,8 @@ function actionButtonClass(style: string) {
             :class="coFeatureButtonClass(item)"
             @click="simulateInteraction(String(item.action), render(item.label ?? item.action))"
           >
-            <span v-if="item.emoji" v-html="renderDiscordEmoji(item.emoji)" /> <span v-html="renderDiscordEmoji(item.label ?? item.action)" />
+            <span v-if="item.emoji" v-html="renderDiscordEmoji(item.emoji)" />
+            <span v-html="renderDiscordEmoji(item.label ?? item.action)" />
           </button>
         </div>
         <p v-if="activeInteraction" class="preview-interaction" role="status">
@@ -556,12 +678,7 @@ function actionButtonClass(style: string) {
       </div>
     </div>
     <p v-if="!compact" class="preview-note">
-      {{
-        text(
-          'Live sample generated from the current settings',
-          'ตัวอย่างแบบเรียลไทม์จากค่าที่กำลังตั้ง',
-        )
-      }}
+      {{ t('botSettings.liveSampleGeneratedFromTheCurrentSettings') }}
     </p>
   </div>
 </template>
@@ -581,8 +698,8 @@ function actionButtonClass(style: string) {
   background: var(--discord-canvas);
   color: var(--discord-text);
 }
-:global([data-theme='dark']) .preview-shell,
-:global(.dark) .preview-shell {
+:global([data-theme='dark'] .preview-shell),
+:global(.dark .preview-shell) {
   --discord-canvas: #313338;
   --discord-surface: #2b2d31;
   --discord-surface-strong: #232428;
@@ -592,7 +709,7 @@ function actionButtonClass(style: string) {
   --discord-code: #1e1f22;
 }
 @media (prefers-color-scheme: dark) {
-  :global([data-theme='system']) .preview-shell {
+  :global([data-theme='system'] .preview-shell) {
     --discord-canvas: #313338;
     --discord-surface: #2b2d31;
     --discord-surface-strong: #232428;
@@ -890,7 +1007,9 @@ h4 {
   cursor: pointer;
   font-size: 0.8rem;
   text-decoration: none;
-  transition: filter 120ms ease, transform 120ms ease;
+  transition:
+    filter 120ms ease,
+    transform 120ms ease;
 }
 .preview-actions .preview-select-menu {
   min-width: min(25rem, 100%);

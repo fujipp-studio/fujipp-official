@@ -9,17 +9,19 @@ import {
   createBot,
   fetchBots,
   fetchFeatureLicenses,
-  fetchRuntimeSubscriptions,
   installFeatureLicense,
-  assignRuntime,
-  renewRuntime,
-  updateRuntimeAutoRenew,
   updateBotDiscordToken,
   syncBotDiscordProfile,
   type FeatureLicense,
-  type RuntimeSubscription,
   type UserBot,
-} from '../../../services/backend'
+} from '@/features/bots/api'
+import {
+  fetchRuntimeSubscriptions,
+  assignRuntime,
+  renewRuntime,
+  updateRuntimeAutoRenew,
+  type RuntimeSubscription,
+} from '@/features/bots/runtime-api'
 import { useAuthStore } from '../../../stores'
 import { AppButton, AppModal, AppTextField, AppToast, AppToggle } from '../../../shared/ui'
 import { icons } from '../../../config'

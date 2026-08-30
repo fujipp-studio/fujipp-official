@@ -1,37 +1,22 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { storeToRefs } from 'pinia'
+import { createBotSettingsData, botSettingsDataKey } from '../composables/useBotSettingsData'
+import AppRequestError from '@/shared/ui/feedback/AppRequestError.vue'
+import { computed, onMounted, provide, ref, watch } from 'vue'
+
 import { useRoute, useRouter } from 'vue-router'
 
-import {
-  controlBot,
-  controlAdminBot,
-  fetchAdminBotSettings,
-  fetchAdminBotLicenses,
-  fetchBots,
-  fetchFeatureLicenses,
-  type FeatureLicense,
-  type UserBot,
-} from '../../../services/backend'
 import { AppSectionIndicator } from '../../../shared/ui'
-import { useAuthStore } from '../../../stores'
-import BotSettingsShell from '../components/BotSettingsShell.vue'
-import type { BotControlAction } from '../runtime-status'
 
-const route = useRoute(),
-  router = useRouter(),
-  auth = useAuthStore()
-const { session, initialized } = storeToRefs(auth)
-const bot = ref<UserBot | null>(null),
-  licenses = ref<FeatureLicense[]>([]),
-  loading = ref(true),
-  controlAction = ref<BotControlAction | null>(null)
-const controlling = computed(() => controlAction.value !== null)
-const transitionName = ref('bot-child-forward')
-let refreshTimer: ReturnType<typeof setInterval> | undefined
-let refreshing = false
+import BotSettingsShell from '../components/BotSettingsShell.vue'
+
+const route = useRoute()
+const router = useRouter()
 const botId = computed(() => String(route.params.botId ?? ''))
 const adminMode = computed(() => route.path.startsWith('/admin/bots/'))
+const data = createBotSettingsData({ botId, adminMode })
+provide(botSettingsDataKey, data)
+const { bot, licenses, loading, controlling, controlAction, error, runControl } = data
+const transitionName = ref('bot-child-forward')
 const licenseName = computed(
   () =>
     licenses.value.find((item) => item.id === String(route.params.licenseId ?? ''))?.featureName ??
@@ -46,8 +31,16 @@ const trail = computed(() => {
   if (route.name === 'bot-package-settings' || route.name === 'admin-bot-package-settings')
     return ['Package settings']
   const result = ['Package settings', licenseName.value]
-  if (route.name === 'bot-feature-embed-settings'||route.name==='admin-bot-feature-embed-settings') result.push('Embed')
-  if (route.name === 'bot-feature-components-v2-settings'||route.name==='admin-bot-feature-components-v2-settings') result.push('Components V2')
+  if (
+    route.name === 'bot-feature-embed-settings' ||
+    route.name === 'admin-bot-feature-embed-settings'
+  )
+    result.push('Embed')
+  if (
+    route.name === 'bot-feature-components-v2-settings' ||
+    route.name === 'admin-bot-feature-components-v2-settings'
+  )
+    result.push('Components V2')
   return result
 })
 const featureRouteNames = new Set([
@@ -64,85 +57,20 @@ const shellSections = [
   { id: 'bot-settings-content', label: 'Settings' },
 ]
 function routeDepth(name: unknown) {
-  if (name === 'bot-settings'||name==='admin-bot-settings') return 0
+  if (name === 'bot-settings' || name === 'admin-bot-settings') return 0
   if (
     name === 'bot-config-settings' ||
     name === 'bot-runtime-settings' ||
     name === 'bot-package-settings' ||
-    name==='admin-bot-config-settings' ||
-    name==='admin-bot-runtime-settings' ||
-    name==='admin-bot-package-settings'
+    name === 'admin-bot-config-settings' ||
+    name === 'admin-bot-runtime-settings' ||
+    name === 'admin-bot-package-settings'
   )
     return 1
-  if (name === 'bot-feature-settings'||name==='admin-bot-feature-settings') return 2
+  if (name === 'bot-feature-settings' || name === 'admin-bot-feature-settings') return 2
   return 3
 }
 
-function botChanged(current: UserBot | null, next: UserBot | null) {
-  if (!current || !next) return current !== next
-  return (
-    current.id !== next.id ||
-    current.name !== next.name ||
-    current.discordAvatarUrl !== next.discordAvatarUrl ||
-    current.status !== next.status ||
-    current.desiredState !== next.desiredState
-  )
-}
-
-function updateBotIfChanged(next: UserBot | null) {
-  if (botChanged(bot.value, next)) bot.value = next
-}
-
-async function load() {
-  if (!initialized.value) await auth.initialize()
-  if (!session.value) return
-  try {
-    if (adminMode.value) {
-      bot.value = await fetchAdminBotSettings(botId.value, session.value)
-      licenses.value = await fetchAdminBotLicenses(botId.value,session.value)
-      return
-    }
-    const [bots, allLicenses] = await Promise.all([
-      fetchBots(session.value),
-      fetchFeatureLicenses(session.value),
-    ])
-    bot.value = bots.find((item) => item.id === botId.value) ?? null
-    licenses.value = allLicenses
-  } finally {
-    loading.value = false
-  }
-}
-async function refreshBot() {
-  if (!session.value || refreshing || controlling.value) return
-  refreshing = true
-  try {
-    if (adminMode.value) {
-      const updated = await fetchAdminBotSettings(botId.value, session.value)
-      if (!controlling.value) updateBotIfChanged(updated)
-      return
-    }
-    const updated = (await fetchBots(session.value)).find((item) => item.id === botId.value)
-    if (updated && !controlling.value) updateBotIfChanged(updated)
-  } catch {
-    /* retry */
-  } finally {
-    refreshing = false
-  }
-}
-async function runControl(action: BotControlAction) {
-  if (!session.value || !bot.value) return
-  controlAction.value = action
-  try {
-    if (adminMode.value) {
-      await controlAdminBot(bot.value.id, action, session.value)
-      bot.value = await fetchAdminBotSettings(bot.value.id, session.value)
-    } else {
-      bot.value = await controlBot(bot.value.id, action, session.value)
-    }
-  } finally {
-    controlAction.value = null
-  }
-}
 function goMain() {
   if (adminMode.value) {
     void router.push({ name: 'admin-bot-settings', params: { botId: botId.value } })
@@ -162,29 +90,35 @@ function goBack() {
   if (
     route.name === 'bot-feature-embed-settings' ||
     route.name === 'bot-feature-components-v2-settings' ||
-    route.name==='admin-bot-feature-embed-settings' ||
-    route.name==='admin-bot-feature-components-v2-settings'
+    route.name === 'admin-bot-feature-embed-settings' ||
+    route.name === 'admin-bot-feature-components-v2-settings'
   ) {
     void router.push({
-      name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
+      name: adminMode.value ? 'admin-bot-feature-settings' : 'bot-feature-settings',
       params: { botId: botId.value, licenseId: route.params.licenseId },
     })
     return
   }
-  if (route.name === 'bot-feature-settings'||route.name==='admin-bot-feature-settings') {
-    void router.push({ name: adminMode.value?'admin-bot-package-settings':'bot-package-settings', params: { botId: botId.value } })
+  if (route.name === 'bot-feature-settings' || route.name === 'admin-bot-feature-settings') {
+    void router.push({
+      name: adminMode.value ? 'admin-bot-package-settings' : 'bot-package-settings',
+      params: { botId: botId.value },
+    })
     return
   }
   goMain()
 }
 function openTrail(index: number) {
   if (index === 0) {
-    void router.push({ name: adminMode.value?'admin-bot-package-settings':'bot-package-settings', params: { botId: botId.value } })
+    void router.push({
+      name: adminMode.value ? 'admin-bot-package-settings' : 'bot-package-settings',
+      params: { botId: botId.value },
+    })
     return
   }
   if (index === 1 && route.params.licenseId) {
     void router.push({
-      name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
+      name: adminMode.value ? 'admin-bot-feature-settings' : 'bot-feature-settings',
       params: { botId: botId.value, licenseId: route.params.licenseId },
     })
   }
@@ -196,13 +130,7 @@ watch(
       routeDepth(name) < routeDepth(previous) ? 'bot-child-backward' : 'bot-child-forward'
   },
 )
-onMounted(async () => {
-  await load()
-  refreshTimer = setInterval(() => void refreshBot(), 3000)
-})
-onBeforeUnmount(() => {
-  if (refreshTimer) clearInterval(refreshTimer)
-})
+onMounted(() => void data.load())
 </script>
 
 <template>
@@ -221,6 +149,7 @@ onBeforeUnmount(() => {
           @control="runControl"
         />
       </div>
+      <AppRequestError v-if="error" :message="error" @retry="data.load(true)" />
       <div id="bot-settings-content" class="bot-child-stage">
         <RouterView v-slot="{ Component, route: childRoute }">
           <Transition :name="transitionName" mode="out-in" appear>

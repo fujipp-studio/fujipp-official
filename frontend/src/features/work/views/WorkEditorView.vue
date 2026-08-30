@@ -24,7 +24,7 @@ import {
   type AdminWorkStatus,
   type AdminWorkTranslation,
   type WorkLocale,
-} from '../../../services/backend'
+} from '@/features/work/api'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton, AppFileField, AppImageLightbox, AppModal, AppMultiSelect, AppSectionIndicator, AppTextArea, AppTextField, AppToast } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'

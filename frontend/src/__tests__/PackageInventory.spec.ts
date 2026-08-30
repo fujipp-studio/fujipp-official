@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  groupPackageInventory,
-  nextInstallableLicense,
-} from '../features/bots/package-inventory'
-import type { FeatureLicense } from '../services/backend'
+import { groupPackageInventory, nextInstallableLicense } from '../features/bots/package-inventory'
+import { type FeatureLicense } from '@/features/bots/api'
 
 function license(overrides: Partial<FeatureLicense> = {}): FeatureLicense {
   return {

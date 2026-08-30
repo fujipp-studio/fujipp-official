@@ -7,7 +7,7 @@ import {
   isBotOnline,
   type BotControlAction,
 } from '../features/bots/runtime-status'
-import type { UserBot } from '../services/backend'
+import { type UserBot } from '@/features/bots/api'
 
 const state = (status: string, desiredState: 'RUNNING' | 'STOPPED') => ({
   status,

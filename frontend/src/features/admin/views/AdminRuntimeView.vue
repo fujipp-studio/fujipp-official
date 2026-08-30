@@ -20,7 +20,7 @@ import {
   updateAdminRuntimePlan,
   type AdminRuntimePlan,
   type AdminRuntimeSubscription,
-} from '../../../services/backend'
+} from '@/features/admin/api/runtime'
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
 const auth = useAuthStore()
 const { session } = storeToRefs(auth)
@@ -369,7 +369,9 @@ onMounted(load)
             :label="t('admin.page.renewalPriceOverride')"
             :placeholder="
               t('admin.page.renewalPriceDefault', {
-                price: ((plans.find((x) => x.id === runtimeForm.planId)?.priceSatang ?? 0) / 100).toLocaleString(),
+                price: (
+                  (plans.find((x) => x.id === runtimeForm.planId)?.priceSatang ?? 0) / 100
+                ).toLocaleString(),
               })
             "
             :support-text="t('admin.page.renewalPriceHelp')"

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AppUserMenu from './AppUserMenu.vue'
+import AppMobileNavigation from './AppMobileNavigation.vue'
 import {
   computed,
   markRaw,
@@ -14,14 +16,12 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 
-import { authenticatedNavbarLinks, guestNavbarLinks, icons, ThemeApp } from '../../../config'
+import { authenticatedNavbarLinks, guestNavbarLinks, icons } from '../../../config'
 import type { NavbarLink } from '../../../config'
 import type { ThemeMode } from '../../../config/theme'
 import { setAppLocale } from '../../../i18n'
 import { useAuthStore, useThemeStore } from '../../../stores'
 import { useAdminToolsVisibility } from '../../../features/admin/composables/useAdminToolsVisibility'
-import AppButton from '../../ui/buttons/AppButton.vue'
-import AppToggle from '../../ui/buttons/AppToggle.vue'
 import AppIcon from '../../ui/icons/AppIcon.vue'
 import type { AuthDialogMode } from '../../ui/dialogs/types'
 
@@ -57,21 +57,14 @@ const isAuthDialogOpen = ref(false)
 const authDialogComponent = shallowRef<Component>()
 const authLoadingOverlayComponent = shallowRef<Component>()
 const authDialogMode = ref<AuthDialogMode>('login')
-const selectedLanguage = ref<'TH' | 'EN'>(locale.value === 'th' ? 'TH' : 'EN')
 const profileMenuPosition = ref({ top: 0, right: 12 })
-const profileSheetDrag = ref(0)
-const isProfileSheetDragging = ref(false)
-const isProfileSheetExpanded = ref(false)
 const navigationElement = ref<HTMLElement>()
-const mobileNavigationElement = ref<HTMLElement>()
 const navigationButtons = ref<HTMLButtonElement[]>([])
 const navigationPill = ref({ left: 0, width: 0 })
 const isNavigationDragging = ref(false)
 const draggedNavigationItem = ref<string>()
 let navigationDragStartItem: string | undefined
 let suppressNavigationClick = false
-let profileSheetPointerId: number | undefined
-let profileSheetStartY = 0
 let navbarScrollFrame: number | undefined
 const prefetchedImages = new Set<string>()
 const prefetchedRoutes = new Set<string>()
@@ -106,7 +99,7 @@ const resolvedWalletBalance = computed(
 )
 const themeStore = useThemeStore()
 const { currentTheme, selectedTheme } = storeToRefs(themeStore)
-const { visible: adminToolsVisible, initialize: initializeAdminToolsVisibility, setVisible: setAdminToolsVisible } = useAdminToolsVisibility()
+const { initialize: initializeAdminToolsVisibility } = useAdminToolsVisibility()
 const formattedWalletBalance = computed(
   () =>
     `${resolvedWalletBalance.value.toLocaleString('en-US', {
@@ -237,6 +230,11 @@ function navigateToPath(path: string, label: string) {
   scrollToPageTop()
 }
 
+function navigateMobileHome() {
+  navigateHome()
+  closeMobileMenu()
+}
+
 function navigateHome() {
   selectedItem.value = 'Home'
   if (router.currentRoute.value.path !== '/') {
@@ -319,20 +317,6 @@ async function openAuthDialog(mode: AuthDialogMode) {
   isAuthDialogOpen.value = true
 }
 
-function closeProfileMenu() {
-  isProfileMenuOpen.value = false
-  profileSheetDrag.value = 0
-  isProfileSheetDragging.value = false
-  isProfileSheetExpanded.value = false
-  profileSheetPointerId = undefined
-}
-
-async function signOut() {
-  if (authLoading.value) return
-  const result = await authStore.signOut()
-  if (result.success) closeProfileMenu()
-}
-
 function toggleProfileMenu(event: MouseEvent) {
   const target = event.currentTarget as HTMLButtonElement
 
@@ -350,77 +334,9 @@ function toggleProfileMenu(event: MouseEvent) {
   isProfileMenuOpen.value = true
 }
 
-function selectTheme(mode: ThemeMode, event: MouseEvent) {
-  const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect()
-  themeStore.setTheme(mode, {
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  })
-}
-
-async function selectLanguage(language: 'TH' | 'EN') {
-  if (selectedLanguage.value === language) return
-  selectedLanguage.value = language
-  setAppLocale(language === 'TH' ? 'th' : 'en')
-  const query = { ...route.query }
-  if (language === 'TH') query.locale = 'th'
-  else delete query.locale
-  await router.replace({ query })
-  closeProfileMenu()
-}
-
-function startProfileSheetDrag(event: PointerEvent) {
-  if (!window.matchMedia('(max-width: 47.99rem)').matches) return
-
-  profileSheetPointerId = event.pointerId
-  profileSheetStartY = event.clientY
-  profileSheetDrag.value = 0
-  isProfileSheetDragging.value = true
-  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-}
-
-function moveProfileSheetDrag(event: PointerEvent) {
-  if (!isProfileSheetDragging.value || event.pointerId !== profileSheetPointerId) return
-  const distance = event.clientY - profileSheetStartY
-
-  if (distance <= -48) {
-    isProfileSheetExpanded.value = true
-    profileSheetDrag.value = 0
-    return
-  }
-
-  if (isProfileSheetExpanded.value) {
-    if (distance >= 48) {
-      isProfileSheetExpanded.value = false
-      profileSheetStartY = event.clientY
-    }
-    return
-  }
-
-  profileSheetDrag.value = Math.max(0, distance)
-}
-
-function finishProfileSheetDrag(event: PointerEvent) {
-  if (!isProfileSheetDragging.value || event.pointerId !== profileSheetPointerId) return
-
-  const shouldClose = profileSheetDrag.value >= 96
-  isProfileSheetDragging.value = false
-  profileSheetPointerId = undefined
-
-  if (shouldClose) {
-    closeProfileMenu()
-    return
-  }
-
-  profileSheetDrag.value = 0
-}
-
 function handleDocumentClick(event: MouseEvent) {
   const target = event.target as Node
-  if (
-    !navigationElement.value?.contains(target) &&
-    !mobileNavigationElement.value?.contains(target)
-  ) {
+  if (!navigationElement.value?.contains(target) && !mobileMenu.value?.contains(target)) {
     openNavigationMenu.value = undefined
   }
   closeProfileMenu()
@@ -468,7 +384,6 @@ watch(
   () => route.query.locale,
   (value) => {
     const nextLocale = value === 'th' ? 'th' : 'en'
-    selectedLanguage.value = nextLocale === 'th' ? 'TH' : 'EN'
     setAppLocale(nextLocale)
   },
 )
@@ -501,8 +416,12 @@ onBeforeUnmount(() => {
   if (navbarScrollFrame !== undefined) window.cancelAnimationFrame(navbarScrollFrame)
   document.body.style.overflow = ''
 })
-</script>
 
+const mobileMenu = ref<InstanceType<typeof AppMobileNavigation>>()
+function closeProfileMenu() {
+  isProfileMenuOpen.value = false
+}
+</script>
 <template>
   <header
     class="navbar"
@@ -553,11 +472,7 @@ onBeforeUnmount(() => {
           }"
           aria-hidden="true"
         />
-        <div
-          v-for="(item, index) in navbarLinks"
-          :key="item.path"
-          class="navigation__item"
-        >
+        <div v-for="(item, index) in navbarLinks" :key="item.path" class="navigation__item">
           <button
             :ref="(element) => setNavigationButtonRef(element, index)"
             type="button"
@@ -629,10 +544,7 @@ onBeforeUnmount(() => {
           @click.stop="toggleProfileMenu"
         >
           <span class="profile-navbar__wallet">
-            <AppIcon
-              class="profile-navbar__wallet-icon"
-              :source="icons.common.wallet"
-            />
+            <AppIcon class="profile-navbar__wallet-icon" :source="icons.common.wallet" />
             <span>{{ formattedWalletBalance }}</span>
           </span>
           <span class="profile-navbar__avatar-frame">
@@ -646,10 +558,7 @@ onBeforeUnmount(() => {
           :aria-label="`Theme: ${selectedTheme.toLowerCase()}`"
           @click="toggleQuickTheme"
         >
-          <AppIcon
-            class="theme-toggle__icon"
-            :source="currentTheme.src"
-          />
+          <AppIcon class="theme-toggle__icon" :source="currentTheme.src" />
         </button>
       </div>
     </div>
@@ -664,10 +573,7 @@ onBeforeUnmount(() => {
           aria-controls="mobile-navigation"
           @click="isMobileMenuOpen = true"
         >
-          <AppIcon
-            class="mobile-icon mobile-icon--32"
-            :source="icons.base.burger"
-          />
+          <AppIcon class="mobile-icon mobile-icon--32" :source="icons.base.burger" />
         </button>
 
         <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
@@ -717,253 +623,32 @@ onBeforeUnmount(() => {
           :aria-label="`Theme: ${selectedTheme.toLowerCase()}`"
           @click="toggleQuickTheme"
         >
-          <AppIcon
-            class="theme-toggle__icon"
-            :source="currentTheme.src"
-          />
+          <AppIcon class="theme-toggle__icon" :source="currentTheme.src" />
         </button>
       </div>
     </div>
 
+    <AppUserMenu
+      v-model:open="isProfileMenuOpen"
+      :profile-src="resolvedProfileSrc"
+      :username="resolvedUsername"
+      :email="resolvedEmail"
+      :position="profileMenuPosition"
+    />
     <Teleport to="body">
-      <Transition name="profile-backdrop">
-        <button
-          v-if="isProfileMenuOpen"
-          class="profile-dialog-backdrop"
-          type="button"
-          aria-label="Close user settings"
-          @click="closeProfileMenu"
-        />
-      </Transition>
-
-      <Transition name="profile-dialog">
-        <aside
-          v-if="isProfileMenuOpen"
-          id="profile-dialog"
-          class="profile-dialog"
-          :class="{
-            'profile-dialog--dragging': isProfileSheetDragging,
-            'profile-dialog--expanded': isProfileSheetExpanded,
-          }"
-          :style="{
-            top: `${profileMenuPosition.top}px`,
-            right: `${profileMenuPosition.right}px`,
-            '--profile-sheet-drag': `${profileSheetDrag}px`,
-          }"
-          aria-label="User settings"
-          @click.stop
-        >
-          <div
-            class="profile-dialog__mobile-header"
-            @pointerdown="startProfileSheetDrag"
-            @pointermove="moveProfileSheetDrag"
-            @pointerup="finishProfileSheetDrag"
-            @pointercancel="finishProfileSheetDrag"
-          >
-            <span class="profile-dialog__indicator" aria-hidden="true" />
-            <div class="profile-dialog__title-row">
-              <span class="profile-dialog__title-spacer" aria-hidden="true" />
-              <strong>{{ t('navigation.setting') }}</strong>
-              <button
-                class="mobile-icon-button"
-                type="button"
-                aria-label="Close user settings"
-                @click="closeProfileMenu"
-              >
-                <AppIcon
-                  class="mobile-icon mobile-icon--32"
-                  :source="icons.base.close"
-                />
-              </button>
-            </div>
-          </div>
-
-          <div class="profile-dialog__user">
-            <span class="profile-navbar__avatar-frame">
-              <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
-            </span>
-            <span class="profile-dialog__identity">
-              <span class="profile-dialog__username">{{ resolvedUsername }}</span>
-              <span class="profile-dialog__email">{{ resolvedEmail }}</span>
-            </span>
-          </div>
-
-          <div class="profile-dialog__divider" />
-
-          <div class="profile-dialog__row">
-            <span class="profile-dialog__label">{{ t('navigation.theme') }}</span>
-            <div class="profile-dialog__options" aria-label="Theme">
-              <button
-                v-for="theme in ThemeApp"
-                :key="theme.mode"
-                class="profile-dialog__icon-button"
-                :class="{ 'profile-dialog__icon-button--active': selectedTheme === theme.mode }"
-                type="button"
-                :aria-label="`${theme.mode.toLowerCase()} theme`"
-                :aria-pressed="selectedTheme === theme.mode"
-                @click="selectTheme(theme.mode, $event)"
-              >
-                <AppIcon
-                  class="profile-dialog__theme-icon"
-                  :source="theme.src"
-                />
-              </button>
-            </div>
-          </div>
-
-          <div class="profile-dialog__row">
-            <span class="profile-dialog__label">{{ t('navigation.language') }}</span>
-            <div class="profile-dialog__options" aria-label="Language">
-              <button
-                class="profile-dialog__language-button"
-                :class="{ 'profile-dialog__icon-button--active': selectedLanguage === 'TH' }"
-                type="button"
-                aria-label="Thai"
-                :aria-pressed="selectedLanguage === 'TH'"
-                @click="selectLanguage('TH')"
-              >
-                <img :src="icons.language.thai" alt="" />
-              </button>
-              <button
-                class="profile-dialog__language-button"
-                :class="{ 'profile-dialog__icon-button--active': selectedLanguage === 'EN' }"
-                type="button"
-                aria-label="English"
-                :aria-pressed="selectedLanguage === 'EN'"
-                @click="selectLanguage('EN')"
-              >
-                <img :src="icons.language.english" alt="" />
-              </button>
-            </div>
-          </div>
-
-          <div v-if="currentUser?.role === 'ADMIN'" class="profile-dialog__row">
-            <span class="profile-dialog__label">Admin tools</span>
-            <AppToggle
-              :model-value="adminToolsVisible"
-              aria-label="Show Admin tools button"
-              @change="setAdminToolsVisible"
-            />
-          </div>
-
-          <button class="profile-dialog__row profile-dialog__manage" type="button">
-            <span class="profile-dialog__label">{{ t('navigation.manageAccount') }}</span>
-            <AppIcon
-              class="profile-dialog__arrow"
-              :source="icons.base.arrowRight"
-            />
-          </button>
-
-          <AppButton variant="secondary" :loading="authLoading" @click="signOut">{{
-            t('navigation.signOut')
-          }}</AppButton>
-        </aside>
-      </Transition>
-
-      <Transition name="mobile-navigation" :duration="{ enter: 300, leave: 180 }">
-        <div v-if="isMobileMenuOpen" class="mobile-menu-layer">
-          <button
-            class="mobile-menu-backdrop"
-            type="button"
-            aria-label="Close navigation"
-            @click="closeMobileMenu"
-          />
-
-          <aside
-            id="mobile-navigation"
-            class="mobile-menu"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mobile navigation"
-          >
-            <div class="mobile-menu__header">
-              <button class="brand" type="button" aria-label="Fujipp home">
-                <span class="brand__lockup" aria-hidden="true">
-                  <svg class="brand__mascot" viewBox="0 0 1080 1080">
-                    <use class="brand__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
-                    <use
-                      v-for="faceIndex in 12"
-                      :key="faceIndex"
-                      class="brand__mascot-face"
-                      :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
-                      :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
-                    />
-                  </svg>
-                  <span class="brand__wordmark">FUJIPP</span>
-                </span>
-              </button>
-
-              <button
-                class="mobile-icon-button"
-                type="button"
-                aria-label="Close navigation"
-                @click="closeMobileMenu"
-              >
-                <AppIcon
-                  class="mobile-icon mobile-icon--32"
-                  :source="icons.base.close"
-                />
-              </button>
-            </div>
-
-            <nav
-              ref="mobileNavigationElement"
-              class="mobile-menu__navigation"
-              aria-label="Mobile main navigation"
-            >
-              <template v-for="item in navbarLinks" :key="item.path">
-                <button
-                  type="button"
-                  class="mobile-menu__row"
-                  :aria-current="item.label === selectedItem ? 'page' : undefined"
-                  :aria-expanded="item.children?.length ? openNavigationMenu === item.label : undefined"
-                  @click="selectMobileItem(item.label)"
-                >
-                  <span class="mobile-menu__row-label">
-                    <AppIcon
-                      v-if="item.icon"
-                      class="mobile-icon mobile-icon--24"
-                      :source="item.icon"
-                    />
-                    <span>{{ navigationLabel(item) }}</span>
-                  </span>
-                  <AppIcon
-                    class="mobile-icon mobile-icon--16"
-                    :class="{ 'mobile-menu__chevron--open': openNavigationMenu === item.label }"
-                    :source="item.children?.length ? icons.base.arrowDown : icons.base.arrowRight"
-                  />
-                </button>
-                <div
-                  v-if="item.children?.length && openNavigationMenu === item.label"
-                  class="mobile-menu__children"
-                >
-                  <button
-                    v-for="child in item.children"
-                    :key="child.path"
-                    type="button"
-                    @click="selectNavigationChild(child, item.label)"
-                  >
-                    <AppIcon
-                      v-if="child.icon"
-                      class="mobile-icon mobile-icon--24"
-                      :source="child.icon"
-                    />
-                    <span>{{ child.label }}</span>
-                  </button>
-                </div>
-              </template>
-            </nav>
-
-            <AppButton
-              v-if="!resolvedAuthenticated"
-              variant="secondary"
-              @click="openAuthDialog('register')"
-            >
-              {{ t('navigation.signUp') }}
-            </AppButton>
-          </aside>
-        </div>
-      </Transition>
+      <AppMobileNavigation
+        ref="mobileMenu"
+        :open="isMobileMenuOpen"
+        :links="navbarLinks"
+        :selected-item="selectedItem"
+        :open-menu="openNavigationMenu"
+        :authenticated="resolvedAuthenticated"
+        @close="closeMobileMenu"
+        @select="selectMobileItem"
+        @child="selectNavigationChild"
+        @register="openAuthDialog('register')"
+        @home="navigateMobileHome"
+      />
     </Teleport>
 
     <component
@@ -980,7 +665,6 @@ onBeforeUnmount(() => {
     />
   </header>
 </template>
-
 <style scoped>
 .navbar {
   position: sticky;
@@ -1015,16 +699,8 @@ onBeforeUnmount(() => {
 }
 
 .navbar--scrolled::before {
-  border-color: color-mix(
-    in srgb,
-    var(--semantic-color-border-border-default) 65%,
-    transparent
-  );
-  background: color-mix(
-    in srgb,
-    var(--semantic-color-background-bg-default) 86%,
-    transparent
-  );
+  border-color: color-mix(in srgb, var(--semantic-color-border-border-default) 65%, transparent);
+  background: color-mix(in srgb, var(--semantic-color-background-bg-default) 86%, transparent);
   box-shadow: var(--effect-shadow-sm);
   backdrop-filter: blur(var(--effect-backdrop-blur-sm)) saturate(1.25);
 }
@@ -1260,17 +936,6 @@ onBeforeUnmount(() => {
   height: var(--icon-size-20);
 }
 
-.navigation-menu-enter-active,
-.navigation-menu-leave-active {
-  transition: opacity 140ms ease, transform 160ms ease;
-}
-
-.navigation-menu-enter-from,
-.navigation-menu-leave-to {
-  opacity: 0;
-  transform: translateX(-50%) translateY(-0.25rem);
-}
-
 .navigation__link:hover {
   transform: translateY(-1px);
 }
@@ -1378,7 +1043,7 @@ onBeforeUnmount(() => {
   place-items: center;
   border: 1px solid var(--semantic-color-background-bg-inverse);
   border-radius: var(--corner-radius-full);
-  background: var(--global-color-brand-primary-600);
+  background: var(--semantic-color-background-bg-surface-active);
 }
 
 .profile-navbar__avatar {
@@ -1515,136 +1180,7 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
-.profile-dialog-backdrop,
-.profile-dialog__mobile-header {
-  display: none;
-}
-
-.profile-backdrop-enter-active,
-.profile-backdrop-leave-active {
-  transition: opacity 220ms ease;
-}
-
-.profile-backdrop-enter-from,
-.profile-backdrop-leave-to {
-  opacity: 0;
-}
-
-.profile-dialog__user {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  text-align: left;
-}
-
-.profile-dialog__identity {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-xxs);
-}
-
-.profile-dialog__username,
-.profile-dialog__email {
-  max-width: 14rem;
-  overflow: hidden;
-  line-height: var(--line-height-body);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.profile-dialog__username {
-  font-size: var(--font-size-body-medium);
-}
-
-.profile-dialog__email {
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-body-small);
-}
-
-.profile-dialog__divider {
-  height: 1px;
-  background: var(--semantic-color-border-border-strong);
-}
-
-.profile-dialog__row {
-  display: flex;
-  width: 100%;
-  height: var(--icon-size-32);
-  align-items: center;
-  justify-content: space-between;
-  gap: 1.25rem;
-}
-
-.profile-dialog__label {
-  line-height: var(--line-height-label);
-  font-weight: var(--typography-font-weight-medium);
-}
-
-.profile-dialog__options {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-xxs);
-}
-
-.profile-dialog__icon-button,
-.profile-dialog__language-button {
-  display: grid;
-  width: var(--icon-size-32);
-  height: var(--icon-size-32);
-  cursor: pointer;
-  place-items: center;
-  border: 0;
-  border-radius: var(--corner-radius-sm);
-  padding: var(--space-xxs);
-  background: transparent;
-}
-
-.profile-dialog__icon-button:hover,
-.profile-dialog__language-button:hover,
-.profile-dialog__icon-button--active {
-  background: var(--semantic-color-background-bg-surface-hover);
-  box-shadow: var(--effect-shadow-sm);
-}
-
-.profile-dialog__theme-icon,
-.profile-dialog__arrow {
-  display: block;
-}
-
-.profile-dialog__theme-icon,
-.profile-dialog__language-button img {
-  width: var(--icon-size-24);
-  height: var(--icon-size-24);
-}
-
-.profile-dialog__language-button img {
-  display: block;
-  object-fit: contain;
-}
-
-.profile-dialog__manage {
-  cursor: pointer;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-}
-
-.profile-dialog__manage:hover {
-  color: var(--semantic-color-text-text-accent);
-}
-
-.profile-dialog__arrow {
-  width: var(--icon-size-16);
-  height: var(--icon-size-16);
-}
-
-.mobile-navbar,
-.mobile-menu-layer {
+.mobile-navbar {
   display: none;
 }
 
@@ -1662,18 +1198,6 @@ onBeforeUnmount(() => {
     justify-content: space-between;
     gap: 1.25rem;
     padding: var(--space-xs) var(--space-sm);
-  }
-
-  .profile-dialog-backdrop {
-    position: fixed;
-    z-index: calc(var(--z-popover) - 1);
-    inset: 0;
-    display: block;
-    width: 100%;
-    border: 0;
-    padding: 0;
-    background: var(--global-color-black-10);
-    backdrop-filter: blur(var(--effect-backdrop-blur-sm));
   }
 
   .profile-dialog {
@@ -1695,78 +1219,6 @@ onBeforeUnmount(() => {
       max-height 280ms cubic-bezier(0.22, 1, 0.36, 1),
       transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: transform;
-  }
-
-  .profile-dialog--expanded {
-    height: 88dvh;
-    max-height: 88dvh;
-  }
-
-  .profile-dialog--dragging {
-    transition: none;
-  }
-
-  .profile-dialog-enter-active,
-  .profile-dialog-leave-active {
-    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .profile-dialog-enter-from,
-  .profile-dialog-leave-to {
-    transform: translateY(100%);
-  }
-
-  .profile-dialog__mobile-header {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-xxs);
-    cursor: grab;
-    touch-action: none;
-    user-select: none;
-  }
-
-  .profile-dialog__mobile-header:active {
-    cursor: grabbing;
-  }
-
-  .profile-dialog__indicator {
-    width: 1.5rem;
-    height: 0.25rem;
-    align-self: center;
-    border-radius: var(--corner-radius-full);
-    background: var(--semantic-color-text-text-primary);
-  }
-
-  .profile-dialog__title-row {
-    display: grid;
-    height: var(--icon-size-32);
-    grid-template-columns: var(--icon-size-32) 1fr var(--icon-size-32);
-    align-items: center;
-    font-family: var(--font-family-display);
-    font-size: 1.125rem;
-    line-height: 1.2;
-  }
-
-  .profile-dialog__title-row strong {
-    font-weight: var(--typography-font-weight-semibold);
-  }
-
-  .profile-dialog__title-spacer {
-    width: var(--icon-size-32);
-    height: var(--icon-size-32);
-  }
-
-  .profile-dialog__user {
-    flex-direction: column;
-    justify-content: center;
-    border-radius: 0.75rem;
-    padding: var(--space-xs) var(--space-sm);
-    text-align: center;
-  }
-
-  .profile-dialog__identity {
-    align-items: center;
   }
 
   .mobile-navbar__left {
@@ -1807,16 +1259,6 @@ onBeforeUnmount(() => {
     flex-shrink: 0;
   }
 
-  .mobile-icon--16 {
-    width: var(--icon-size-16);
-    height: var(--icon-size-16);
-  }
-
-  .mobile-icon--24 {
-    width: var(--icon-size-24);
-    height: var(--icon-size-24);
-  }
-
   .mobile-icon--32 {
     width: var(--icon-size-32);
     height: var(--icon-size-32);
@@ -1854,144 +1296,6 @@ onBeforeUnmount(() => {
     width: 100%;
     height: 100%;
   }
-
-  .mobile-menu-layer {
-    position: fixed;
-    z-index: var(--z-overlay);
-    inset: 0;
-    display: block;
-  }
-
-  .mobile-menu-backdrop {
-    position: absolute;
-    z-index: 0;
-    inset: 0;
-    width: 100%;
-    border: 0;
-    padding: 0;
-    background: var(--global-color-black-10);
-    backdrop-filter: blur(var(--effect-backdrop-blur-sm));
-  }
-
-  .mobile-menu {
-    position: relative;
-    z-index: 1;
-    box-sizing: border-box;
-    display: flex;
-    width: min(19.5rem, calc(100vw - 3rem));
-    height: 100vh;
-    height: 100dvh;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-xs);
-    padding: var(--space-xs) var(--space-sm);
-    background: var(--semantic-color-background-bg-default);
-    color: var(--semantic-color-text-text-primary);
-    font-family: var(--font-family-sans);
-    font-size: var(--font-size-label-large);
-    line-height: var(--line-height-label);
-    transform: translateX(0);
-    will-change: transform;
-  }
-
-  .mobile-navigation-enter-active .mobile-menu {
-    transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  .mobile-navigation-leave-active .mobile-menu {
-    transition: transform 180ms cubic-bezier(0.4, 0, 1, 1);
-  }
-
-  .mobile-navigation-enter-active .mobile-menu-backdrop {
-    transition: opacity 260ms ease;
-  }
-
-  .mobile-navigation-leave-active .mobile-menu-backdrop {
-    transition: opacity 160ms ease;
-  }
-
-  .mobile-navigation-enter-from .mobile-menu,
-  .mobile-navigation-leave-to .mobile-menu {
-    transform: translateX(-100%);
-  }
-
-  .mobile-navigation-enter-from .mobile-menu-backdrop,
-  .mobile-navigation-leave-to .mobile-menu-backdrop {
-    opacity: 0;
-  }
-
-  .mobile-menu__header {
-    display: flex;
-    min-height: var(--icon-size-32);
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.25rem;
-  }
-
-  .mobile-menu__navigation {
-    display: grid;
-    gap: var(--space-xs);
-  }
-
-  .mobile-menu__row {
-    display: flex;
-    width: 100%;
-    height: var(--icon-size-32);
-    align-items: center;
-    justify-content: space-between;
-    gap: 1.25rem;
-    cursor: pointer;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-weight: var(--typography-font-weight-medium);
-    text-align: left;
-  }
-
-  .mobile-menu__row:hover,
-  .mobile-menu__row[aria-current='page'] {
-    color: var(--semantic-color-text-text-accent);
-  }
-
-  .mobile-menu__row-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-xxs);
-  }
-
-  .mobile-menu__chevron--open {
-    transform: rotate(180deg);
-  }
-
-  .mobile-menu__children {
-    display: grid;
-    gap: var(--space-xxs);
-    padding-left: var(--space-lg);
-  }
-
-  .mobile-menu__children button {
-    display: flex;
-    min-height: 2.5rem;
-    align-items: center;
-    gap: var(--space-xs);
-    cursor: pointer;
-    border: 0;
-    border-radius: var(--corner-radius-sm);
-    padding: var(--space-xs);
-    background: transparent;
-    color: var(--semantic-color-text-text-secondary);
-    font: inherit;
-    text-align: left;
-  }
-
-  .mobile-menu__children button:hover,
-  .mobile-menu__children button:focus-visible {
-    background: var(--semantic-color-background-bg-surface-hover);
-    color: var(--semantic-color-text-text-primary);
-    outline: none;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2003,13 +1307,7 @@ onBeforeUnmount(() => {
   .action-button--text::after,
   .theme-toggle,
   .theme-toggle__icon,
-  .profile-dialog,
-  .profile-dialog-enter-active,
-  .profile-dialog-leave-active,
-  .profile-backdrop-enter-active,
-  .profile-backdrop-leave-active,
-  .mobile-menu,
-  .mobile-menu-backdrop {
+  .profile-dialog {
     transition: none;
   }
   .auth-loading-placeholder,

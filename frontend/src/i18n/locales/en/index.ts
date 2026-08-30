@@ -1,0 +1,10 @@
+import navigation from './navigation'
+import home from './home'
+import store from './store'
+import topup from './topup'
+import footer from './footer'
+import about from './about'
+import admin from './admin'
+import botSettings from './botSettings'
+import common from './common'
+export default { navigation, home, store, topup, footer, about, admin, botSettings, common }

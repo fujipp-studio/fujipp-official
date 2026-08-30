@@ -25,7 +25,7 @@ import {
   uploadAdminFeatureImage,
   type AdminFeature,
   type AdminFeatureOffer,
-} from '../../../services/backend'
+} from '@/features/admin/api/features'
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
 const auth = useAuthStore()
 const { session } = storeToRefs(auth)

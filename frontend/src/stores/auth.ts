@@ -2,7 +2,7 @@ import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import { fetchCurrentUser, type CurrentUser } from '../services/backend'
+import { fetchCurrentUser, type CurrentUser } from '@/features/auth/api'
 
 type OAuthProvider = 'google' | 'discord' | 'github'
 

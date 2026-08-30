@@ -4,7 +4,12 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 
-import { fetchWork, type WorkContentItem, type WorkDetail, type WorkLocale } from '../../../services/backend'
+import {
+  fetchWork,
+  type WorkContentItem,
+  type WorkDetail,
+  type WorkLocale,
+} from '@/features/work/api'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton } from '../../../shared/ui'
 import { applySeoMetadata } from '../../../services/seo'
@@ -520,7 +525,7 @@ onBeforeUnmount(() => {
 
 .detail-hero__fact dt {
   margin-bottom: var(--space-xs);
-  color: var(--semantic-color-text-text-tertiary);
+  color: var(--semantic-color-text-text-muted);
   font-size: var(--font-size-body-small);
   font-weight: var(--typography-font-weight-medium);
   letter-spacing: 0.06em;
@@ -556,7 +561,7 @@ onBeforeUnmount(() => {
 
 .timeline-separator {
   margin-inline: var(--space-sm);
-  color: var(--semantic-color-text-text-tertiary);
+  color: var(--semantic-color-text-text-muted);
 }
 
 .detail-cover {

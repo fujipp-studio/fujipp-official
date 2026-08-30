@@ -7,7 +7,7 @@ import {
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { fetchWorks, type WorkLocale, type WorkSummary } from '../../../services/backend'
+import { fetchWorks, type WorkLocale, type WorkSummary } from '@/features/work/api'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton, AppToast } from '../../../shared/ui'
 import GithubActivitySection from '../components/GithubActivitySection.vue'

@@ -1,0 +1,15 @@
+export default {
+  home: 'Home',
+  work: 'Work',
+  about: 'About',
+  store: 'Store',
+  myBot: 'My bot',
+  addCredit: 'Add credit',
+  signIn: 'Sign in',
+  signUp: 'Sign up',
+  setting: 'Settings',
+  theme: 'Theme',
+  language: 'Language',
+  manageAccount: 'Manage account',
+  signOut: 'Sign out',
+} as const
