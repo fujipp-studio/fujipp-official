@@ -57,3 +57,15 @@ Failure screenshots, video, and traces are written under `test-results/`.
 
 This suite intentionally does not automate Google, Discord, or GitHub login.
 Those providers may require consent, CAPTCHA, or two-factor authentication.
+
+## Frontend smoke tests
+
+`bun run test:smoke` uses `playwright.smoke.config.ts` and the separate
+`vite.smoke.config.ts` fixture server on loopback port 5176. It renders the real
+components and router with synthetic session/API data; no database, Supabase login,
+CAPTCHA or real payment is involved. It runs on Desktop and Mobile Chromium and
+is included in Frontend CI. `bun run dev:smoke` leaves this UI available for manual
+Light/Dark and responsive checks. Fixture bootstrap files are not production entries.
+
+The default `bun run test:e2e` continues to run only `auth.spec.ts` against the
+local services described above.

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-30 | Organized feature APIs and settings editors, shared Bot settings requests, standardized Admin routing and UI copy, and protected critical account and purchase flows with regression tests. |
 | 2026-08-29 | Kept Roblox membership lookup settings available for Roblox Robux Payout 2.x Feature versions. |
 | 2026-08-29 | Limited Package inventory to items with remaining installation slots and kept installed Package configuration within Bot settings. |
 | 2026-08-28 | Improved Bot management feedback with save toasts, consistent Runtime status, and grouped Package inventory totals. |

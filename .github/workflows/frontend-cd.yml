@@ -37,6 +37,10 @@ jobs:
         working-directory: .
       - run: bun run test:unit --run
       - run: bun run build
+      - run: bun run check:tokens
+      - name: Install browser for isolated UI smoke tests
+        run: bunx playwright install --with-deps chromium
+      - run: bun run test:smoke
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'

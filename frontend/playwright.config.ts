@@ -5,6 +5,7 @@ const backendURL = process.env.E2E_BACKEND_URL ?? 'http://127.0.0.1:8081'
 
 export default defineConfig({
   testDir: './e2e',
+  testMatch: 'auth.spec.ts',
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,

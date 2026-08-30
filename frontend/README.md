@@ -1,73 +1,136 @@
-# frontend
+# Fujipp frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+Vue 3 + TypeScript application built with Vite and Bun. Vue Router owns navigation,
+Pinia holds session/theme state, and Tailwind CSS v4 consumes the shared design tokens.
 
-## Recommended IDE Setup
+## Run locally
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+Use the Bun version pinned in `.github/workflows/frontend-cd.yml` (currently 1.3.14).
 
 ```sh
-bun install
+bun install --frozen-lockfile
+cp .env.example .env.local
+bun run dev
 ```
 
-### Compile and Hot-Reload for Development
+Configure the public Supabase URL/key, Backend URL, Turnstile site key, and site URL
+in `.env.local`. Never place private service keys in `VITE_*` variables or commit
+real environment files. The normal app needs the Backend and Supabase for signed-in
+features; public pages can render without a session.
 
-```sh
-bun dev
+## Source structure
+
+```text
+src/
+  features/
+    auth/api.ts                  Account API and current-user types
+    admin/api/                   Users, bots, packages, runtime administration
+    bots/
+      api.ts, runtime-api.ts     Bot/license and runtime endpoints
+      components/                Config fields, Embed and Components V2 editors
+      composables/               Shared settings data and editor controllers
+      config/                    Feature-provided field/message descriptions
+      models/                    Presentation model helpers
+      styles/                    Styles scoped to the feature root
+      views/                     Routed pages and persistent settings shell
+    store/, topup/, work/        Feature-owned API contracts and UI
+  shared/
+    api/http.ts                  Headers, typed errors, cancellation, timeout, cursors
+    layout/navbar/               Navbar, user menu, mobile navigation
+    ui/                          Reusable controls and request-error feedback
+  router/                        Lazy routes, nested layouts, authentication/role guards
+  stores/                        Shared authentication and theme state
+  i18n/locales/{en,th}/           Translation namespaces
+  styles/                        Semantic colors, typography, spacing and layout tokens
+  __tests__/                     Unit/integration tests and synthetic fixture data
 ```
 
-### Type-Check, Compile and Minify for Production
+`services/seo.ts` remains the document metadata adapter. Feature API consumers import
+from the owning feature; there is no all-features Backend barrel.
+
+## Adding or changing a feature
+
+- Keep endpoint paths, DTOs and domain behavior with their feature. Use the shared
+  transport for headers, response handling and bounded requests. Do not call an API
+  directly from a presentational component.
+- Let routed views coordinate focused components and composables. Use local state
+  for a single view, provide/inject for a persistent route flow, and Pinia only for
+  state shared outside that flow. Never put editable secret values into persistent storage.
+- The bot settings shell provides one `useBotSettingsData` instance to its children.
+  Loads share an in-flight promise, polls run sequentially every three seconds after
+  completion, hidden documents pause polling, and disposed/stale responses cannot
+  replace current data. Children update this shared state after successful mutations.
+- The user API currently exposes a bot list, not a single-bot status endpoint, so a
+  status poll still reads the list. Cursor aggregation remains deliberate for complete
+  inventories and selectors; large datasets will need a dedicated Backend contract
+  before replacing these with visible-page pagination.
+- `useFeatureSettings` handles configuration loading/saving and field conversion;
+  `usePresentationEditor` handles message edits. Their typed context lives only within
+  the feature editor tree. The editor CSS is nested under `.feature-settings` so it
+  applies to extracted children without leaking to other pages.
+- Admin pages are children of the persistent Admin layout. Add a lazy child route
+  with `adminSection` metadata instead of another manual component switch.
+- Add UI copy to matching EN/TH namespaces. Feature-specific overrides for labels
+  supplied by the Backend are kept in `bots/config/feature-editor.ts`.
+- Use Semantic color tokens and shared spacing/radius/layout tokens. Keep mobile as
+  the default and use `tablet`, `desktop`, `wide`. Preserve keyboard focus and
+  reduced-motion support. Run `check:tokens` to catch nonexistent Semantic references.
+
+## Verification
 
 ```sh
+bun run type-check
+bun run test:unit --run
+bun run lint
+bun run check:tokens
 bun run build
+bun run performance:bundle
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+Lint applies fixes; review its diff. Unit/integration tests cover session refresh and
+logout races, route roles, API cancellation/errors, shared bot requests and stale
+responses, configuration serialization, secrets and failed saves, plus the existing
+wallet, authentication UI, inventory and presentation tests.
+
+For deterministic browser tests without a real account or Backend:
 
 ```sh
-bun test:unit
+bunx playwright install chromium
+bun run test:smoke
 ```
 
-### Performance validation
+The smoke suite runs Chromium at Desktop and Mobile sizes. It covers role guards,
+Admin navigation/account edits, checkout retry idempotency, configuration/message
+saving, load-error retry, navigation and Light/Dark themes. CI runs this suite.
 
-The optional performance check builds the production app against a deterministic local
-API and checks the initial bundle budget. Run it manually when reviewing performance;
-it is intentionally not part of every deployment.
+To inspect the same synthetic UI manually:
 
 ```sh
-bun run performance
+bun run dev:smoke
 ```
 
-The enforced budgets are initial JavaScript at or below 180 KiB gzip and initial CSS at
-or below 50 KiB gzip.
+Open `http://127.0.0.1:5176/admin` or
+`http://127.0.0.1:5176/my-bot/fixture-bot/settings/packages/fixture-license`.
+The fixture bootstrap defaults to a fake Admin; append `?role=USER` or `?role=GUEST`
+to check access behavior. This separate Vite config serves only on loopback and is
+not used by production builds. It does not call Supabase, process payments, or write
+real user data. Browser smoke tests do **not** replace the real local email-auth E2E
+suite documented in [e2e/README.md](e2e/README.md).
 
-Production hosting should serve hashed `/assets/*` files with
-`Cache-Control: public, max-age=31536000, immutable`, serve `index.html` with
-`Cache-Control: no-cache`, and enable Brotli or gzip compression for HTML, CSS,
-JavaScript, JSON, and SVG responses. These headers must be configured at the web
-server or CDN because the current FTPS deployment only uploads static files.
+Before committing UI changes, also inspect the affected Desktop/Mobile pages in
+Light/Dark and capture screenshots. Automated smoke assertions do not measure
+pixel-level visual parity, contrast, or screen-reader usability.
 
-### Lint with [ESLint](https://eslint.org/)
+## Production and performance
 
-```sh
-bun lint
-```
+The normal `bun run build` uses `index.html`; it does not include the fixture entry
+or fixture middleware. Keep SPA history fallback enabled (`public/.htaccess`).
+
+`bun run performance` performs the optional performance build and bundle budget
+check. Initial JS must stay at or below 180 KiB gzip and initial CSS at or below
+50 KiB gzip. This budget does not measure images, fonts, or all lazy routes.
+
+Production hosting should serve hashed `/assets/*` with
+`Cache-Control: public, max-age=31536000, immutable`, `index.html` with
+`Cache-Control: no-cache`, and enable Brotli/gzip. These headers belong to the web
+server/CDN; the current deployment uploads static files over FTPS.
