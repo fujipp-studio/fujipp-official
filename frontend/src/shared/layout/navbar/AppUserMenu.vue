@@ -169,8 +169,8 @@ function finishProfileSheetDrag(event: PointerEvent) {
         </div>
 
         <div class="profile-dialog__user">
-          <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="profileSrc" alt="" />
+          <span class="profile-dialog__avatar-frame">
+            <img class="profile-dialog__avatar" :src="profileSrc" alt="" />
           </span>
           <span class="profile-dialog__identity">
             <span class="profile-dialog__username">{{ username }}</span>
@@ -278,9 +278,31 @@ function finishProfileSheetDrag(event: PointerEvent) {
   text-align: left;
 }
 
+.profile-dialog__avatar-frame {
+  box-sizing: border-box;
+  display: grid;
+  width: var(--icon-size-32);
+  height: var(--icon-size-32);
+  flex-shrink: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 1px solid var(--semantic-color-background-bg-inverse);
+  border-radius: var(--corner-radius-full);
+  background: var(--semantic-color-background-bg-surface-active);
+}
+
+.profile-dialog__avatar {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
 .profile-dialog__identity {
   display: flex;
   min-width: 0;
+  max-width: 100%;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-xxs);
@@ -288,7 +310,7 @@ function finishProfileSheetDrag(event: PointerEvent) {
 
 .profile-dialog__username,
 .profile-dialog__email {
-  max-width: 14rem;
+  max-width: min(14rem, 100%);
   overflow: hidden;
   line-height: var(--line-height-body);
   text-overflow: ellipsis;

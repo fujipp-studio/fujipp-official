@@ -128,6 +128,21 @@ for (const theme of ['light', 'dark']) {
     await page.getByRole('button', { name: 'Open profile', exact: true }).click()
     await page.getByRole('button', { name: `${theme} theme`, exact: true }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    const userMenu = page.getByRole('complementary', { name: 'User settings', exact: true })
+    const avatar = userMenu.locator('.profile-dialog__user img')
+    await expect(avatar).toBeVisible()
+    await expect
+      .poll(() =>
+        avatar.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+      )
+      .toBe(true)
+    const avatarBounds = await avatar.boundingBox()
+    expect(avatarBounds).not.toBeNull()
+    expect(avatarBounds!.width).toBeGreaterThan(0)
+    expect(avatarBounds!.width).toBeLessThanOrEqual(48)
+    expect(avatarBounds!.height).toBeLessThanOrEqual(48)
+    expect(await userMenu.evaluate((menu) => menu.scrollWidth <= menu.clientWidth)).toBe(true)
+    await expect(userMenu.getByRole('button', { name: 'Sign out', exact: true })).toBeInViewport()
     await page.keyboard.press('Escape')
     await expect(
       page.getByRole('complementary', { name: 'User settings', exact: true }),
