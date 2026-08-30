@@ -1,8 +1,8 @@
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, onScopeDispose, ref } from 'vue'
 
-import { fetchCurrentUser, type CurrentUser } from '../services/backend'
+import { fetchCurrentUser, type CurrentUser } from '@/features/auth/api'
 
 type OAuthProvider = 'google' | 'discord' | 'github'
 
@@ -29,6 +29,36 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
   let listenerRegistered = false
+  let unsubscribe: (() => void) | undefined
+  let disposed = false
+  let userRequest: { token: string; promise: Promise<void> } | undefined
+  onScopeDispose(() => {
+    disposed = true
+    unsubscribe?.()
+  })
+
+  async function authClient() {
+    const supabase = await loadSupabaseClient()
+    if (!listenerRegistered && !disposed) {
+      listenerRegistered = true
+      const { data } = supabase.auth.onAuthStateChange(
+        (_event: AuthChangeEvent, nextSession: Session | null) => {
+          session.value = nextSession
+          if (!nextSession) {
+            currentUser.value = null
+            userRequest = undefined
+            return
+          }
+          void loadCurrentUser(nextSession).catch((cause) => {
+            if (session.value?.access_token === nextSession.access_token)
+              error.value = getErrorMessage(cause)
+          })
+        },
+      )
+      unsubscribe = () => data.subscription.unsubscribe()
+    }
+    return supabase
+  }
   let initializationPromise: Promise<void> | null = null
 
   const isAuthenticated = computed(() => session.value !== null)
@@ -48,24 +78,12 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function initializeAuth() {
     try {
-      const supabase = await loadSupabaseClient()
+      const supabase = await authClient()
       const { data, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) throw sessionError
 
       session.value = data.session
       if (data.session) await loadCurrentUser(data.session)
-
-      if (!listenerRegistered) {
-        listenerRegistered = true
-        supabase.auth.onAuthStateChange((_event: AuthChangeEvent, nextSession: Session | null) => {
-          session.value = nextSession
-          if (!nextSession) {
-            currentUser.value = null
-            return
-          }
-          void loadCurrentUser(nextSession)
-        })
-      }
     } catch (cause) {
       error.value = getErrorMessage(cause)
     } finally {
@@ -79,7 +97,7 @@ export const useAuthStore = defineStore('auth', () => {
     captchaToken: string,
   ): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const supabase = await loadSupabaseClient()
+      const supabase = await authClient()
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -100,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
     captchaToken: string,
   ): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const supabase = await loadSupabaseClient()
+      const supabase = await authClient()
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -127,7 +145,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signInWithOAuth(provider: OAuthProvider): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const supabase = await loadSupabaseClient()
+      const supabase = await authClient()
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
@@ -143,7 +161,7 @@ export const useAuthStore = defineStore('auth', () => {
     return runAuthAction(async () => {
       const code = new URL(window.location.href).searchParams.get('code')
       if (code) {
-        const supabase = await loadSupabaseClient()
+        const supabase = await authClient()
         const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
         if (exchangeError) throw exchangeError
       }
@@ -156,7 +174,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function signOut(): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const supabase = await loadSupabaseClient()
+      const supabase = await authClient()
       const { error: signOutError } = await supabase.auth.signOut()
       if (signOutError) throw signOutError
       session.value = null
@@ -165,8 +183,18 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
-  async function loadCurrentUser(activeSession: Session) {
-    currentUser.value = await fetchCurrentUser(activeSession)
+  function loadCurrentUser(activeSession: Session): Promise<void> {
+    const token = activeSession.access_token
+    if (userRequest?.token === token) return userRequest.promise
+    const request = fetchCurrentUser(activeSession)
+      .then((user) => {
+        if (!disposed && session.value?.access_token === token) currentUser.value = user
+      })
+      .finally(() => {
+        if (userRequest?.promise === request) userRequest = undefined
+      })
+    userRequest = { token, promise: request }
+    return request
   }
 
   async function runAuthAction(action: () => Promise<AuthActionResult>): Promise<AuthActionResult> {

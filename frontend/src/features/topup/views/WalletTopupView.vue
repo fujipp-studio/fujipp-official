@@ -11,7 +11,7 @@ import {
   verifyWalletTopupSlip,
   type WalletTopupInvoice,
   type WalletTopupSummary,
-} from '../../../services/backend'
+} from '@/features/topup/api'
 import { useAuthStore } from '../../../stores'
 import { AppButton, AppToast } from '../../../shared/ui'
 

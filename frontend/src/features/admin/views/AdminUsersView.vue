@@ -14,7 +14,6 @@ import {
 import { useAuthStore } from '../../../stores'
 import {
   adjustUserWallet,
-  fetchAdminFeatures,
   fetchAdminUserFeatures,
   fetchAdminUsers,
   fetchUserWalletHistory,
@@ -23,11 +22,11 @@ import {
   updateAdminUserFeature,
   type AdminAccountRole,
   type AdminAccountStatus,
-  type AdminFeature,
   type AdminFeatureLicense,
   type AdminUserSummary,
   type AdminWalletHistoryEntry,
-} from '../../../services/backend'
+} from '@/features/admin/api/users'
+import { fetchAdminFeatures, type AdminFeature } from '@/features/admin/api/features'
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
 const auth = useAuthStore()
 const { session } = storeToRefs(auth)
@@ -99,6 +98,9 @@ async function openHistory(x: AdminUserSummary) {
 }
 function close() {
   if (saving.value) return
+  resetSelection()
+}
+function resetSelection() {
   selected.value = null
   mode.value = null
 }
@@ -118,7 +120,7 @@ async function saveAccount() {
       session.value,
     )
     toast.value = t('admin.page.accountSaved')
-    close()
+    resetSelection()
     await load()
   } catch (e) {
     error.value = e instanceof Error ? e.message : t('admin.page.saveError')
@@ -142,7 +144,7 @@ async function saveWallet() {
       session.value,
     )
     toast.value = t('admin.page.walletSaved')
-    close()
+    resetSelection()
     await load()
   } catch (e) {
     error.value = e instanceof Error ? e.message : t('admin.page.saveError')

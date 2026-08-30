@@ -75,7 +75,7 @@ function remove(index: number) { commit(rules.value.filter((_, i) => i !== index
 .permission-summary p { margin-top: var(--space-xxs); color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); }
 .permission-empty { display: grid; min-height: 8rem; place-items: center; align-content: center; gap: var(--space-xxs); border: 1px dashed var(--semantic-color-border-border-default); border-radius: var(--radius-lg); color: var(--semantic-color-text-text-muted); text-align: center; }
 .permission-empty small { color: var(--semantic-color-text-text-secondary); }
-.permission-rule { overflow: hidden; border: 1px solid var(--semantic-color-border-border-default); border-radius: var(--radius-lg); background: var(--semantic-color-background-bg-page); }
+.permission-rule { overflow: hidden; border: 1px solid var(--semantic-color-border-border-default); border-radius: var(--radius-lg); background: var(--semantic-color-background-bg-default); }
 .permission-rule__header { display: flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--semantic-color-border-border-subtle); background: var(--semantic-color-background-bg-surface); }
 .permission-rule__number { font-weight: var(--typography-font-weight-semibold); }
 .permission-rule__admin { display: inline-flex; align-items: center; gap: var(--space-xxs); color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); }

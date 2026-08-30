@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useBotSettingsData } from '../composables/useBotSettingsData'
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
@@ -6,21 +7,13 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { icons } from '../../../config'
 import {
-  fetchBots,
-  fetchAdminBotSettings,
-  fetchAdminBotLicenses,
-  fetchFeatureLicenses,
-  fetchRuntimeSubscriptions,
-  renewRuntime,
   updateBot,
-  updateAdminBotSettings,
   updateBotDiscordToken,
-  updateRuntimeAutoRenew,
   upgradeFeatureLicense,
   type FeatureLicense,
-  type RuntimeSubscription,
-  type UserBot,
-} from '../../../services/backend'
+} from '@/features/bots/api'
+import { updateAdminBotSettings } from '@/features/admin/api/bots'
+import { renewRuntime, updateRuntimeAutoRenew } from '@/features/bots/runtime-api'
 import { AppButton, AppIcon, AppModal, AppTextField, AppToast, AppToggle } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'
 
@@ -30,12 +23,11 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const { session, initialized } = storeToRefs(authStore)
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const botId = computed(() => String(route.params.botId ?? ''))
 const adminMode = computed(() => route.path.startsWith('/admin/bots/'))
-const bot = ref<UserBot | null>(null)
-const licenses = ref<FeatureLicense[]>([])
-const runtimeSubscriptions = ref<RuntimeSubscription[]>([])
+const data = useBotSettingsData({ botId, adminMode })
+const { bot, licenses, runtimeSubscriptions } = data
 function routeView(): SettingsView {
   if (route.name === 'bot-config-settings' || route.name === 'admin-bot-config-settings')
     return 'bot-config'
@@ -49,7 +41,7 @@ const activeView = ref<SettingsView>(routeView())
 const transitionName = ref('settings-forward')
 const saving = ref(false)
 const runtimeBusy = ref(false)
-const upgradingLicenseId=ref('')
+const upgradingLicenseId = ref('')
 const toastOpen = ref(false)
 const toastMessage = ref('')
 const toastVariant = ref<'info' | 'success' | 'error'>('info')
@@ -88,39 +80,10 @@ function syncForm() {
   }
 }
 
-async function loadPage() {
-  if (!session.value) return
-  try {
-    if (adminMode.value) {
-      bot.value = await fetchAdminBotSettings(botId.value, session.value)
-      licenses.value = await fetchAdminBotLicenses(botId.value,session.value)
-      runtimeSubscriptions.value = []
-      syncForm()
-      return
-    }
-    const [allBots, allLicenses, allRuntimeSubscriptions] = await Promise.all([
-      fetchBots(session.value),
-      fetchFeatureLicenses(session.value),
-      fetchRuntimeSubscriptions(session.value),
-    ])
-    bot.value = allBots.find((item) => item.id === botId.value) ?? null
-    licenses.value = allLicenses
-    runtimeSubscriptions.value = allRuntimeSubscriptions
-    if (!bot.value) {
-      showToast(text('Bot not found.', 'ไม่พบบอทนี้'), 'error')
-      return
-    }
-    syncForm()
-  } catch (cause) {
-    showToast(
-      cause instanceof Error
-        ? cause.message
-        : text('Unable to load bot settings.', 'โหลดการตั้งค่าบอทไม่สำเร็จ'),
-      'error',
-    )
-  } finally {
-    // The persistent parent shell owns the route-level loading state.
-  }
+async function loadPage(force = false) {
+  await data.load(force)
+  if (data.error.value) showToast(data.error.value, 'error')
+  else syncForm()
 }
 
 async function saveBot() {
@@ -138,21 +101,13 @@ async function saveBot() {
     if (form.value.token.trim() && !adminMode.value) {
       await updateBotDiscordToken(bot.value.id, form.value.token.trim(), session.value)
     }
-    bot.value = updated
+    data.setBot(updated)
     form.value.token = ''
-    showToast(
-      text(
-        'Bot settings saved. Restart the bot to apply the changes.',
-        'บันทึกการตั้งค่าบอทแล้ว รีสตาร์ตบอทเพื่อใช้ค่าใหม่',
-      ),
-      'success',
-    )
+    showToast(t('botSettings.botSettingsSavedRestartTheBotTo'), 'success')
     if (!adminMode.value) activeView.value = 'main'
   } catch (cause) {
     showToast(
-      cause instanceof Error
-        ? cause.message
-        : text('Unable to save bot settings.', 'บันทึกบอทไม่สำเร็จ'),
+      cause instanceof Error ? cause.message : t('botSettings.unableToSaveBotSettings'),
       'error',
     )
   } finally {
@@ -183,20 +138,29 @@ function openView(view: SettingsView) {
 
 function openFeature(licenseId: string) {
   void router.push({
-    name: adminMode.value?'admin-bot-feature-settings':'bot-feature-settings',
+    name: adminMode.value ? 'admin-bot-feature-settings' : 'bot-feature-settings',
     params: { botId: botId.value, licenseId },
   })
 }
 
-async function upgradeLicense(license:FeatureLicense){
-  if(!session.value||adminMode.value||!license.upgradeAvailable)return
-  upgradingLicenseId.value=license.id
-  try{
-    const updated=await upgradeFeatureLicense(license.id,session.value)
-    licenses.value=licenses.value.map(item=>item.id===updated.id?updated:item)
-    showToast(text(`Upgraded to version ${updated.version}.`,`อัปเกรดเป็นเวอร์ชัน ${updated.version} แล้ว`),'success')
-  }catch(cause){showToast(cause instanceof Error?cause.message:text('Upgrade failed.','อัปเกรดไม่สำเร็จ'),'error')}
-  finally{upgradingLicenseId.value=''}
+async function upgradeLicense(license: FeatureLicense) {
+  if (!session.value || adminMode.value || !license.upgradeAvailable) return
+  upgradingLicenseId.value = license.id
+  try {
+    const updated = await upgradeFeatureLicense(license.id, session.value)
+    licenses.value = licenses.value.map((item) => (item.id === updated.id ? updated : item))
+    showToast(
+      text(
+        `Upgraded to version ${updated.version}.`,
+        `อัปเกรดเป็นเวอร์ชัน ${updated.version} แล้ว`,
+      ),
+      'success',
+    )
+  } catch (cause) {
+    showToast(cause instanceof Error ? cause.message : t('botSettings.upgradeFailed'), 'error')
+  } finally {
+    upgradingLicenseId.value = ''
+  }
 }
 
 watch(
@@ -239,12 +203,9 @@ async function confirmToggleAutoRenew() {
     runtimeSubscriptions.value = runtimeSubscriptions.value.map((item) =>
       item.id === updated.id ? updated : item,
     )
-    showToast(text('Automatic renewal updated.', 'อัปเดตการต่ออายุอัตโนมัติแล้ว'), 'success')
+    showToast(t('botSettings.automaticRenewalUpdated'), 'success')
   } catch (cause) {
-    showToast(
-      cause instanceof Error ? cause.message : text('Update failed.', 'อัปเดตไม่สำเร็จ'),
-      'error',
-    )
+    showToast(cause instanceof Error ? cause.message : t('botSettings.updateFailed'), 'error')
   } finally {
     runtimeBusy.value = false
     showAutoRenewModal.value = false
@@ -259,12 +220,9 @@ async function renewAssignedRuntime() {
     runtimeSubscriptions.value = runtimeSubscriptions.value.map((item) =>
       item.id === updated.id ? updated : item,
     )
-    showToast(text('Runtime renewed.', 'ต่ออายุ Runtime แล้ว'), 'success')
+    showToast(t('botSettings.runtimeRenewed'), 'success')
   } catch (cause) {
-    showToast(
-      cause instanceof Error ? cause.message : text('Renewal failed.', 'ต่ออายุไม่สำเร็จ'),
-      'error',
-    )
+    showToast(cause instanceof Error ? cause.message : t('botSettings.renewalFailed'), 'error')
   } finally {
     runtimeBusy.value = false
   }
@@ -284,29 +242,20 @@ onMounted(async () => {
         id="bot-settings-panel"
         key="main"
         class="setting-menu"
-        :aria-label="text('Settings menu', 'เมนูตั้งค่า')"
+        :aria-label="t('botSettings.settingsMenu')"
       >
         <div class="setting-grid">
           <button class="setting-card" type="button" @click="openView('bot-config')">
-            <AppIcon
-              class="setting-card-icon"
-              :source="icons.social.discord"
-            />
-            <span>{{ text('Bot config', 'ตั้งค่าบอท') }}</span>
+            <AppIcon class="setting-card-icon" :source="icons.social.discord" />
+            <span>{{ t('botSettings.botConfig') }}</span>
           </button>
           <button class="setting-card" type="button" @click="openView('runtime')">
-            <AppIcon
-              class="setting-card-icon"
-              :source="icons.shop.server"
-            />
-            <span>{{ text('Runtime settings', 'ตั้งค่า Runtime') }}</span>
+            <AppIcon class="setting-card-icon" :source="icons.shop.server" />
+            <span>{{ t('botSettings.runtimeSettings') }}</span>
           </button>
           <button class="setting-card" type="button" @click="openView('packages')">
-            <AppIcon
-              class="setting-card-icon"
-              :source="icons.shop.package"
-            />
-            <span>{{ text('Package settings', 'ตั้งค่า Package') }}</span>
+            <AppIcon class="setting-card-icon" :source="icons.shop.package" />
+            <span>{{ t('botSettings.packageSettings') }}</span>
           </button>
         </div>
       </section>
@@ -314,11 +263,11 @@ onMounted(async () => {
       <section v-else id="bot-settings-panel" key="detail" class="space-y-lg">
         <section v-if="activeView === 'bot-config'" class="config-card">
           <div class="config-content">
-            <h2 class="text-2xl font-bold">{{ text('Bot config', 'ตั้งค่าบอท') }}</h2>
+            <h2 class="text-2xl font-bold">{{ t('botSettings.botConfig') }}</h2>
             <form class="space-y-md" @submit.prevent="saveBot">
               <AppTextField
                 v-model="form.name"
-                :label="text('Bot name', 'ชื่อบอท')"
+                :label="t('botSettings.botName')"
                 required
                 :maxlength="100"
                 :disabled="saving"
@@ -326,12 +275,7 @@ onMounted(async () => {
               <AppTextField
                 v-model="form.token"
                 variant="secret"
-                :label="
-                  text(
-                    'Bot Token (leave blank to keep current)',
-                    'Bot Token (เว้นว่างเพื่อใช้ค่าเดิม)',
-                  )
-                "
+                :label="t('botSettings.botTokenLeaveBlankToKeepCurrent')"
                 placeholder="••••••••••••••••"
                 autocomplete="new-password"
                 :disabled="saving"
@@ -356,16 +300,14 @@ onMounted(async () => {
                   type="button"
                   :disabled="saving"
                   @click="openView('main')"
-                  >{{ text('Cancel', 'ยกเลิก') }}</AppButton
+                  >{{ t('botSettings.cancel') }}</AppButton
                 >
                 <AppButton
                   class="settings-hug"
                   type="submit"
                   :left-icon="icons.action.save"
                   :disabled="saving || !form.name.trim()"
-                  >{{
-                    saving ? text('Saving…', 'กำลังบันทึก…') : text('Save', 'บันทึก')
-                  }}</AppButton
+                  >{{ saving ? t('botSettings.saving') : t('botSettings.save') }}</AppButton
                 >
               </div>
             </form>
@@ -373,7 +315,7 @@ onMounted(async () => {
         </section>
 
         <section v-else-if="activeView === 'runtime'" class="items-card">
-          <h2 class="text-2xl font-bold">{{ text('Runtime settings', 'ตั้งค่า Runtime') }}</h2>
+          <h2 class="text-2xl font-bold">{{ t('botSettings.runtimeSettings') }}</h2>
           <article v-if="assignedRuntime" class="runtime-detail">
             <div class="runtime-detail-header">
               <div>
@@ -390,15 +332,15 @@ onMounted(async () => {
             </div>
             <dl class="runtime-detail-grid">
               <div>
-                <dt>{{ text('Connected bot', 'บอทที่เชื่อม') }}</dt>
+                <dt>{{ t('botSettings.connectedBot') }}</dt>
                 <dd>{{ assignedRuntime.botName ?? bot?.name ?? '—' }}</dd>
               </div>
               <div>
-                <dt>{{ text('Current period ends', 'หมดอายุรอบปัจจุบัน') }}</dt>
+                <dt>{{ t('botSettings.currentPeriodEnds') }}</dt>
                 <dd>{{ formatRuntimeDate(assignedRuntime.currentPeriodEnd) }}</dd>
               </div>
               <div>
-                <dt>{{ text('Automatic renewal', 'ต่ออายุอัตโนมัติ') }}</dt>
+                <dt>{{ t('botSettings.automaticRenewal') }}</dt>
                 <dd class="mt-xs">
                   <AppToggle
                     :model-value="assignedRuntime.autoRenew"
@@ -409,7 +351,7 @@ onMounted(async () => {
                 </dd>
               </div>
               <div v-if="assignedRuntime.status === 'GRACE'">
-                <dt>{{ text('Grace period ends', 'สิ้นสุดระยะผ่อนผัน') }}</dt>
+                <dt>{{ t('botSettings.gracePeriodEnds') }}</dt>
                 <dd>{{ formatRuntimeDate(assignedRuntime.graceUntil) }}</dd>
               </div>
             </dl>
@@ -418,17 +360,17 @@ onMounted(async () => {
                 class="settings-hug"
                 :disabled="runtimeBusy"
                 @click="renewAssignedRuntime"
-                >{{ text('Renew now', 'ต่ออายุทันที') }}</AppButton
+                >{{ t('botSettings.renewNow') }}</AppButton
               >
             </div>
           </article>
           <p v-else class="py-2xl text-center text-text-muted">
-            {{ text('No Runtime assigned to this bot.', 'บอทนี้ยังไม่มี Runtime') }}
+            {{ t('botSettings.noRuntimeAssignedToThisBot') }}
           </p>
         </section>
 
         <section v-else class="items-card">
-          <h2 class="text-2xl font-bold">{{ text('Package settings', 'ตั้งค่า Package') }}</h2>
+          <h2 class="text-2xl font-bold">{{ t('botSettings.packageSettings') }}</h2>
           <div v-if="packageLicenses.length" class="item-list">
             <article v-for="license in packageLicenses" :key="license.id" class="setting-item">
               <div>
@@ -441,15 +383,27 @@ onMounted(async () => {
                 :left-icon="icons.action.setting"
                 @click="openFeature(license.id)"
               >
-                {{ text('Settings', 'ตั้งค่า') }}
+                {{ t('botSettings.settings') }}
               </AppButton>
-              <AppButton v-if="!adminMode && license.upgradeAvailable" class="settings-hug" :disabled="Boolean(upgradingLicenseId)" @click="upgradeLicense(license)">
-                {{ upgradingLicenseId===license.id?text('Upgrading…','กำลังอัปเกรด…'):text(`Upgrade to v${license.latestVersion}`,`อัปเกรดเป็น v${license.latestVersion}`) }}
+              <AppButton
+                v-if="!adminMode && license.upgradeAvailable"
+                class="settings-hug"
+                :disabled="Boolean(upgradingLicenseId)"
+                @click="upgradeLicense(license)"
+              >
+                {{
+                  upgradingLicenseId === license.id
+                    ? t('botSettings.upgrading')
+                    : text(
+                        `Upgrade to v${license.latestVersion}`,
+                        `อัปเกรดเป็น v${license.latestVersion}`,
+                      )
+                }}
               </AppButton>
             </article>
           </div>
           <p v-else class="py-2xl text-center text-text-muted">
-            {{ text('No Packages assigned to this bot.', 'บอทนี้ยังไม่มี Package') }}
+            {{ t('botSettings.noPackagesAssignedToThisBot') }}
           </p>
         </section>
       </section>
@@ -462,22 +416,22 @@ onMounted(async () => {
       subtitle="Auto Renew"
       :title="
         assignedRuntime?.autoRenew
-          ? text('Confirm disabling automatic renewal', 'ยืนยันปิดการต่ออายุอัตโนมัติ')
-          : text('Confirm enabling automatic renewal', 'ยืนยันเปิดการต่ออายุอัตโนมัติ')
+          ? t('botSettings.confirmDisablingAutomaticRenewal')
+          : t('botSettings.confirmEnablingAutomaticRenewal')
       "
       :disabled="runtimeBusy"
       @close="closeAutoRenewModal"
     >
       <p v-if="assignedRuntime" class="leading-relaxed">
-        {{ text('Are you sure you want to', 'คุณต้องการ') }}
+        {{ t('botSettings.areYouSureYouWantTo') }}
         <span class="font-bold text-text-primary">{{
-          assignedRuntime.autoRenew ? text('disable', 'ปิด') : text('enable', 'เปิด')
+          assignedRuntime.autoRenew ? t('botSettings.disable') : t('botSettings.enable')
         }}</span>
-        {{ text('automatic renewal (Auto-renew) for', 'การต่ออายุอัตโนมัติ (Auto-renew) สำหรับ') }}
+        {{ t('botSettings.automaticRenewalAutoRenewFor') }}
         <span class="font-semibold text-text-primary"
           >SLOT-{{ assignedRuntime.slotNumber }} · {{ assignedRuntime.planName }}</span
         >
-        {{ text('?', 'ใช่หรือไม่?') }}
+        {{ t('botSettings.label') }}
       </p>
       <template #actions>
         <AppButton
@@ -486,15 +440,15 @@ onMounted(async () => {
           :disabled="runtimeBusy"
           @click="closeAutoRenewModal"
         >
-          {{ text('Cancel', 'ยกเลิก') }}
+          {{ t('botSettings.cancel') }}
         </AppButton>
         <AppButton type="button" :disabled="runtimeBusy" @click="confirmToggleAutoRenew">
           {{
             runtimeBusy
-              ? text('Updating…', 'กำลังอัปเดต…')
+              ? t('botSettings.updating')
               : assignedRuntime?.autoRenew
-                ? text('Confirm disable Auto-renew', 'ยืนยันปิด Auto-renew')
-                : text('Confirm enable Auto-renew', 'ยืนยันเปิด Auto-renew')
+                ? t('botSettings.confirmDisableAutoRenew')
+                : t('botSettings.confirmEnableAutoRenew')
           }}
         </AppButton>
       </template>

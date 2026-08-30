@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { Clock3 } from 'lucide-vue-next'
 
 import { icons } from '../../../config'
-import type { UserBot } from '../../../services/backend'
+import { type UserBot } from '@/features/bots/api'
 import { AppButton } from '../../../shared/ui'
 import {
   botRuntimeDisplayState,

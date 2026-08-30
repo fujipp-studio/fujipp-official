@@ -20,7 +20,10 @@
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "dev:smoke": "VITE_BACKEND_URL=http://127.0.0.1:5176 vite --config vite.smoke.config.ts --host 127.0.0.1 --port 5176 --strictPort",
+    "test:smoke": "playwright test --config playwright.smoke.config.ts",
+    "check:tokens": "bun scripts/check-ui-tokens.ts"
   },
   "dependencies": {
     "@fontsource-variable/caveat": "^5.3.0",

@@ -1,14 +1,8 @@
-import type { UserBot } from '../../services/backend'
+import { type UserBot } from '@/features/bots/api'
 
 export type BotControlAction = 'start' | 'stop' | 'restart'
 export type BotRuntimeDisplayState =
-  | 'starting'
-  | 'stopping'
-  | 'restarting'
-  | 'running'
-  | 'stopped'
-  | 'crashed'
-  | 'offline'
+  'starting' | 'stopping' | 'restarting' | 'running' | 'stopped' | 'crashed' | 'offline'
 
 type BotRuntimeState = Pick<UserBot, 'desiredState' | 'status'>
 

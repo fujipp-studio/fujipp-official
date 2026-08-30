@@ -3,7 +3,7 @@ import { ArrowLeft, Bot, BriefcaseBusiness, CircleGauge, House, PackageOpen, Pen
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { fetchAdminWorks, type AdminWork } from '../../../services/backend'
+import { fetchAdminWorks, type AdminWork } from '@/features/work/api'
 import { useAuthStore } from '../../../stores'
 
 type ToolGroup = 'navigation' | 'work' | 'bots' | 'admin'

@@ -2,7 +2,7 @@
 import { RotateCcw } from 'lucide-vue-next'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import type { WorkLocale } from '../../../services/backend'
+import { type WorkLocale } from '@/features/work/api'
 import { AppButton } from '../../../shared/ui/buttons'
 
 interface GithubContributionDay {

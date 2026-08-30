@@ -1,0 +1,15 @@
+export default {
+  home: 'หน้าแรก',
+  work: 'ผลงาน',
+  about: 'เกี่ยวกับ',
+  store: 'ร้านค้า',
+  myBot: 'บอทของฉัน',
+  addCredit: 'เติมเครดิต',
+  signIn: 'เข้าสู่ระบบ',
+  signUp: 'สมัครสมาชิก',
+  setting: 'การตั้งค่า',
+  theme: 'ธีม',
+  language: 'ภาษา',
+  manageAccount: 'จัดการบัญชี',
+  signOut: 'ออกจากระบบ',
+} as const

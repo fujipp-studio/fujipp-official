@@ -7,13 +7,15 @@ import { useI18n } from 'vue-i18n'
 
 import {
   checkoutStoreOffer,
-  fetchRuntimeAvailability,
   fetchStoreFeatures,
-  purchaseRuntime,
-  type RuntimeAvailability,
   type StoreFeature,
   type StoreOffer,
-} from '../../../services/backend'
+} from '@/features/store/api'
+import {
+  fetchRuntimeAvailability,
+  purchaseRuntime,
+  type RuntimeAvailability,
+} from '@/features/bots/runtime-api'
 import { icons } from '../../../config'
 import { useAuthStore } from '../../../stores'
 import { AppButton, AppIcon, AppModal, AppToast } from '../../../shared/ui'

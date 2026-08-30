@@ -12,7 +12,7 @@ interface PriceRow {
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-const { locale } = useI18n()
+const { locale, t } = useI18n()
 const text = (english: string, thai: string) => (locale.value === 'th' ? thai : english)
 
 const rows = ref<PriceRow[]>([])
@@ -75,7 +75,9 @@ function commit() {
 <template>
   <div class="price-map-editor">
     <div class="price-map-editor__header" aria-hidden="true">
-      <span>{{ text('Discord Price (THB)', 'ราคา Discord (บาท)') }}</span><span>{{ text('Shop Price (THB)', 'ราคาร้าน (บาท)') }}</span><span />
+      <span>{{ t('botSettings.discordPriceThb') }}</span
+      ><span>{{ t('botSettings.shopPriceThb') }}</span
+      ><span />
     </div>
     <div v-for="(row, index) in rows" :key="index" class="price-map-editor__row">
       <AppTextField
@@ -101,9 +103,11 @@ function commit() {
         <Trash2 :size="18" />
       </button>
     </div>
-    <p v-if="!rows.length" class="price-map-editor__empty">{{ text('No price mappings yet', 'ยังไม่มีรายการราคา') }}</p>
+    <p v-if="!rows.length" class="price-map-editor__empty">
+      {{ t('botSettings.noPriceMappingsYet') }}
+    </p>
     <AppButton class="price-map-editor__add" @click="addRow"
-      ><Plus :size="18" /> {{ text('Add Price', 'เพิ่มราคา') }}</AppButton
+      ><Plus :size="18" /> {{ t('botSettings.addPrice') }}</AppButton
     >
   </div>
 </template>

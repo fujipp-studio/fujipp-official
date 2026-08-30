@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-08-30 | Documented Frontend feature ownership, shared data loading, UI standards, and isolated browser verification. |
 | 2026-08-28 | Clarified the global registration and guild-scoped use of the Voice Keeper command. |
 | 2026-08-22 | Documented backend pagination, runtime bootstrap metrics, and the repeatable performance smoke benchmark. |
 | 2026-08-11 | Documented conditional runtime polling and its cache freshness controls. |
