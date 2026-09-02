@@ -4,6 +4,7 @@ import AppRequestError from '@/shared/ui/feedback/AppRequestError.vue'
 import { computed, onMounted, provide, ref, watch } from 'vue'
 
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 import { AppSectionIndicator } from '../../../shared/ui'
 
@@ -11,16 +12,20 @@ import BotSettingsShell from '../components/BotSettingsShell.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const botId = computed(() => String(route.params.botId ?? ''))
 const adminMode = computed(() => route.path.startsWith('/admin/bots/'))
 const data = createBotSettingsData({ botId, adminMode })
 provide(botSettingsDataKey, data)
 const { bot, licenses, loading, controlling, controlAction, error, runControl } = data
 const transitionName = ref('bot-child-forward')
-const licenseName = computed(
+const currentLicense = computed(() =>
+  licenses.value.find((item) => item.id === String(route.params.licenseId ?? '')),
+)
+const isRuntimeAlert = computed(() => currentLicense.value?.featureCode === 'runtime-expiry-alert')
+const featureParentRoute = computed(
   () =>
-    licenses.value.find((item) => item.id === String(route.params.licenseId ?? ''))?.featureName ??
-    'Feature',
+    `${adminMode.value ? 'admin-' : ''}bot-${isRuntimeAlert.value ? 'runtime' : 'package'}-settings`,
 )
 const trail = computed(() => {
   if (route.name === 'bot-settings' || route.name === 'admin-bot-settings') return []
@@ -30,7 +35,10 @@ const trail = computed(() => {
     return ['Runtime settings']
   if (route.name === 'bot-package-settings' || route.name === 'admin-bot-package-settings')
     return ['Package settings']
-  const result = ['Package settings', licenseName.value]
+  const result = [
+    t(isRuntimeAlert.value ? 'botSettings.runtimeSettings' : 'botSettings.packageSettings'),
+    currentLicense.value?.featureName ?? 'Feature',
+  ]
   if (
     route.name === 'bot-feature-embed-settings' ||
     route.name === 'admin-bot-feature-embed-settings'
@@ -101,7 +109,7 @@ function goBack() {
   }
   if (route.name === 'bot-feature-settings' || route.name === 'admin-bot-feature-settings') {
     void router.push({
-      name: adminMode.value ? 'admin-bot-package-settings' : 'bot-package-settings',
+      name: featureParentRoute.value,
       params: { botId: botId.value },
     })
     return
@@ -111,7 +119,7 @@ function goBack() {
 function openTrail(index: number) {
   if (index === 0) {
     void router.push({
-      name: adminMode.value ? 'admin-bot-package-settings' : 'bot-package-settings',
+      name: featureParentRoute.value,
       params: { botId: botId.value },
     })
     return

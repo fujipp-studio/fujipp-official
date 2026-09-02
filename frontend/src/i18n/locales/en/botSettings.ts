@@ -187,6 +187,12 @@ export default {
   gracePeriodEnds: 'Grace period ends',
   renewNow: 'Renew now',
   noRuntimeAssignedToThisBot: 'No Runtime assigned to this bot.',
+  coreFeature: 'Core feature',
+  runtimeExpiryDescription:
+    'Included automatically with every bot. Sends reminders 7 days, 3 days, 1 day, and 1 hour before Runtime expires.',
+  runtimeExpirySetupHint:
+    'Choose a Discord channel or DM recipient to receive alerts. The bot must be running to send them.',
+  configureRuntimeAlerts: 'Configure alerts',
   settings: 'Settings',
   upgrading: 'Upgrading…',
   noPackagesAssignedToThisBot: 'No Packages assigned to this bot.',
