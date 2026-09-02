@@ -4,18 +4,19 @@ import EmbedFieldsEditor from './EmbedFieldsEditor.vue'
 import DiscordPresentationPreview from '@/features/bots/components/DiscordPresentationPreview.vue'
 import EmbedColorField from '@/features/bots/components/EmbedColorField.vue'
 import ComponentsMessageEditor from '@/features/bots/components/ComponentsMessageEditor.vue'
-import { Braces, Check, ChevronDown } from 'lucide-vue-next'
+import { Braces, Check } from 'lucide-vue-next'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const { t } = useI18n()
 const {
   configuration,
   visiblePresentationSlots,
+  editablePresentationSlots,
   usesPresentationDesigner,
   isRobloxPayoutFeature,
   isPriceReaderFeature,
-  walletExpandedSlots,
-  toggleWalletMessage,
+  walletActiveSlotKey,
+  selectPresentationSlot,
   presentationSlotLabel,
   presentationMode,
   slotMode,
@@ -33,6 +34,7 @@ const {
   defaultActionLabel,
   updateActionOverride,
   componentStyles,
+  componentBlocks,
   presentationJson,
   previewAdvancedJson,
   presentationPreviewDefinition,
@@ -62,43 +64,48 @@ const {
           </div>
           <span>{{ visiblePresentationSlots.length }} {{ t('botSettings.messages') }}</span>
         </div>
+        <div
+          v-if="usesPresentationDesigner"
+          class="wallet-message-tabs"
+          role="tablist"
+          :aria-label="t('botSettings.messages')"
+        >
+          <button
+            v-for="(slot, slotIndex) in visiblePresentationSlots"
+            :key="`tab-${slot.slotId}`"
+            type="button"
+            role="tab"
+            :aria-selected="walletActiveSlotKey === slot.key"
+            :class="{ 'wallet-message-tab--active': walletActiveSlotKey === slot.key }"
+            @click="selectPresentationSlot(slot.key)"
+          >
+            <span>{{ slotIndex + 1 }}</span>
+            <strong>{{ presentationSlotLabel(slot) }}</strong>
+            <small>{{ slot.key }}</small>
+          </button>
+        </div>
         <article
-          v-for="(slot, slotIndex) in visiblePresentationSlots"
+          v-for="slot in editablePresentationSlots"
           :key="slot.slotId"
           :class="[
             'rounded-lg border border-border-subtle bg-bg-surface',
             usesPresentationDesigner ? 'wallet-message-card' : 'p-lg',
           ]"
         >
-          <button
-            v-if="usesPresentationDesigner"
-            type="button"
-            class="wallet-message-header"
-            :aria-expanded="walletExpandedSlots.has(slot.key)"
-            @click="toggleWalletMessage(slot.key)"
-          >
-            <ChevronDown
-              :size="20"
-              :class="[
-                'wallet-message-chevron',
-                { 'wallet-message-chevron--open': walletExpandedSlots.has(slot.key) },
-              ]"
-            />
+          <div v-if="usesPresentationDesigner" class="wallet-message-header">
             <span class="min-w-0 flex-1 text-left">
-              <strong
-                >{{ t('botSettings.message') }} {{ slotIndex + 1 }} ·
-                {{ presentationSlotLabel(slot) }}</strong
-              >
+              <strong>{{ presentationSlotLabel(slot) }}</strong>
               <small>{{ slot.key }}</small>
             </span>
             <span class="wallet-fixed-badge"
               >{{ presentationMode ?? slotMode(slot.key) }} · {{ t('botSettings.design') }}</span
             >
-          </button>
-          <div
-            v-show="!usesPresentationDesigner || walletExpandedSlots.has(slot.key)"
-            :class="{ 'wallet-message-body': usesPresentationDesigner }"
-          >
+            <button type="button" class="wallet-advanced-toggle" @click="toggleAdvanced(slot.key)">
+              <Braces :size="15" />
+              {{ advancedSlots.has(slot.key) ? 'Visual editor' : 'JSON' }}
+            </button>
+          </div>
+          <div :class="{ 'wallet-message-body': usesPresentationDesigner }">
             <div
               v-if="!usesPresentationDesigner"
               class="flex flex-col gap-sm tablet:flex-row tablet:items-start tablet:justify-between"
@@ -255,7 +262,9 @@ const {
                     /></label>
                   </div>
                 </details>
-                <template v-if="presentationMode === 'COMPONENTS_V2'">
+                <template
+                  v-if="presentationMode === 'COMPONENTS_V2' && !componentBlocks(slot.key).length"
+                >
                   <label class="text-sm font-medium"
                     >{{ t('botSettings.title') }}
                     <i class="field-counter"

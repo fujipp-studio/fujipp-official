@@ -9,6 +9,8 @@ defineProps<{ messageSlot: FeatureConfiguration['presentations'][number] }>()
 const {
   supportsBlockBuilder,
   componentBlocks,
+  componentCount,
+  componentColor,
   draggedComponent,
   dropComponentBlock,
   blockSummary,
@@ -16,16 +18,33 @@ const {
   removeComponentBlock,
   updateComponentBlock,
   componentBlockValue,
+  sectionTextBlocks,
+  updateSectionText,
+  addSectionText,
+  removeSectionText,
+  sectionAccessory,
+  sectionAccessoryType,
+  setSectionAccessory,
+  updateSectionAccessory,
   mediaItems,
   mediaItemUrl,
+  mediaItemDescription,
   updateMediaItem,
   addMediaItem,
+  updateMediaItemField,
+  removeMediaItem,
+  actionRowButtons,
+  componentEmoji,
+  updateActionRowButton,
+  addActionRowButton,
+  removeActionRowButton,
   updateSeparator,
   updateContainerBlock,
   containerChildren,
   moveContainerChild,
   removeContainerChild,
   updateContainerChildContent,
+  updateContainerChild,
   addContainerChild,
   addComponentBlock,
   systemComponents,
@@ -56,7 +75,7 @@ const {
       </div>
       <div class="component-container-caption">
         <span>{{ t('botSettings.messageBlocks') }}</span>
-        <small>{{ componentBlocks(messageSlot.key).length }}/40</small>
+        <small>{{ componentCount(messageSlot.key) }}/40</small>
       </div>
       <div
         v-for="(block, blockIndex) in componentBlocks(messageSlot.key)"
@@ -95,6 +114,7 @@ const {
           v-if="block.type === 10"
           :value="String(block.content ?? '')"
           rows="3"
+          maxlength="4000"
           class="field-control mt-xs resize-y py-sm"
           :placeholder="
             t('botSettings.messageContentSupportsVariables', { variables: '{{variables}}' })
@@ -108,60 +128,212 @@ const {
             )
           "
         />
-        <div v-if="block.type === 9" class="mt-xs grid gap-xs tablet:grid-cols-2">
-          <textarea
-            :value="componentBlockValue(block, 'sectionContent')"
-            rows="3"
-            maxlength="4000"
-            class="field-control resize-y py-sm"
-            :placeholder="t('botSettings.sectionContent')"
-            @input="
-              updateComponentBlock(
-                messageSlot.key,
-                blockIndex,
-                'sectionContent',
-                ($event.target as HTMLTextAreaElement).value,
-              )
-            "
-          />
-          <input
-            :value="componentBlockValue(block, 'accessoryUrl')"
-            class="field-control h-10"
-            placeholder="https://"
-            @input="
-              updateComponentBlock(
-                messageSlot.key,
-                blockIndex,
-                'accessoryUrl',
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
-        </div>
-        <div v-if="block.type === 12" class="mt-xs grid gap-xs">
-          <label
-            v-for="(item, itemIndex) in mediaItems(block)"
-            :key="itemIndex"
-            class="component-field"
+        <div v-if="block.type === 9" class="mt-xs grid gap-xs">
+          <div
+            v-for="(textBlock, textIndex) in sectionTextBlocks(block)"
+            :key="textIndex"
+            class="builder-subitem"
           >
-            <span>{{ t('botSettings.media') }} {{ itemIndex + 1 }}</span>
-            <input
-              :value="mediaItemUrl(item)"
-              class="field-control h-10"
-              placeholder="https://"
+            <div class="builder-subitem-heading">
+              <strong>{{ t('botSettings.content') }} {{ textIndex + 1 }}</strong>
+              <button
+                type="button"
+                class="builder-delete"
+                :disabled="sectionTextBlocks(block).length <= 1"
+                @click="removeSectionText(messageSlot.key, blockIndex, textIndex)"
+              >
+                {{ t('botSettings.delete') }}
+              </button>
+            </div>
+            <textarea
+              :value="String(textBlock.content ?? '')"
+              rows="3"
+              maxlength="4000"
+              class="field-control resize-y py-sm"
+              :placeholder="t('botSettings.sectionContent')"
               @input="
-                updateMediaItem(
+                updateSectionText(
                   messageSlot.key,
                   blockIndex,
-                  itemIndex,
-                  ($event.target as HTMLInputElement).value,
+                  textIndex,
+                  ($event.target as HTMLTextAreaElement).value,
                 )
               "
             />
-          </label>
+          </div>
           <button
             type="button"
             class="builder-add"
+            :disabled="
+              sectionTextBlocks(block).length >= 3 || componentCount(messageSlot.key) >= 40
+            "
+            @click="addSectionText(messageSlot.key, blockIndex)"
+          >
+            + {{ t('botSettings.content') }}
+          </button>
+          <div class="grid gap-xs tablet:grid-cols-2">
+            <label class="component-field">
+              <span>{{ t('botSettings.section') }} accessory</span>
+              <select
+                class="field-control h-10"
+                :value="sectionAccessoryType(block)"
+                @change="
+                  setSectionAccessory(
+                    messageSlot.key,
+                    blockIndex,
+                    ($event.target as HTMLSelectElement).value,
+                  )
+                "
+              >
+                <option value="thumbnail">{{ t('botSettings.accessoryImage') }}</option>
+                <option value="link">{{ t('botSettings.linkButton') }}</option>
+              </select>
+            </label>
+            <label class="component-field">
+              <span>URL</span>
+              <input
+                :value="
+                  sectionAccessoryType(block) === 'thumbnail'
+                    ? componentBlockValue(block, 'accessoryUrl')
+                    : String(sectionAccessory(block).url ?? '')
+                "
+                type="url"
+                class="field-control h-10"
+                placeholder="https://"
+                @input="
+                  updateSectionAccessory(
+                    messageSlot.key,
+                    blockIndex,
+                    'url',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+            </label>
+            <template v-if="sectionAccessoryType(block) === 'link'">
+              <label class="component-field">
+                <span>{{ t('botSettings.buttonLabel') }}</span>
+                <input
+                  :value="String(sectionAccessory(block).label ?? '')"
+                  maxlength="80"
+                  class="field-control h-10"
+                  @input="
+                    updateSectionAccessory(
+                      messageSlot.key,
+                      blockIndex,
+                      'label',
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+              </label>
+              <label class="component-field">
+                <span>{{ t('botSettings.emoji') }}</span>
+                <input
+                  :value="componentEmoji(sectionAccessory(block).emoji)"
+                  class="field-control h-10"
+                  @input="
+                    updateSectionAccessory(
+                      messageSlot.key,
+                      blockIndex,
+                      'emoji',
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+              </label>
+            </template>
+            <label v-else class="component-field tablet:col-span-2">
+              <span>{{ t('botSettings.description') }}</span>
+              <input
+                :value="String(sectionAccessory(block).description ?? '')"
+                maxlength="1024"
+                class="field-control h-10"
+                @input="
+                  updateSectionAccessory(
+                    messageSlot.key,
+                    blockIndex,
+                    'description',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+            </label>
+          </div>
+        </div>
+        <div v-if="block.type === 12" class="mt-xs grid gap-xs">
+          <div
+            v-for="(item, itemIndex) in mediaItems(block)"
+            :key="itemIndex"
+            class="builder-subitem"
+          >
+            <div class="builder-subitem-heading">
+              <strong>{{ t('botSettings.media') }} {{ itemIndex + 1 }}</strong>
+              <button
+                type="button"
+                class="builder-delete"
+                @click="removeMediaItem(messageSlot.key, blockIndex, itemIndex)"
+              >
+                {{ t('botSettings.delete') }}
+              </button>
+            </div>
+            <div class="grid gap-xs tablet:grid-cols-2">
+              <label class="component-field tablet:col-span-2">
+                <span>URL</span>
+                <input
+                  :value="mediaItemUrl(item)"
+                  type="url"
+                  class="field-control h-10"
+                  placeholder="https://"
+                  @input="
+                    updateMediaItem(
+                      messageSlot.key,
+                      blockIndex,
+                      itemIndex,
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+              </label>
+              <label class="component-field">
+                <span>{{ t('botSettings.description') }}</span>
+                <input
+                  :value="mediaItemDescription(item)"
+                  maxlength="1024"
+                  class="field-control h-10"
+                  @input="
+                    updateMediaItemField(
+                      messageSlot.key,
+                      blockIndex,
+                      itemIndex,
+                      'description',
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+              </label>
+              <label class="component-check-field">
+                <input
+                  type="checkbox"
+                  :checked="item.spoiler === true"
+                  @change="
+                    updateMediaItemField(
+                      messageSlot.key,
+                      blockIndex,
+                      itemIndex,
+                      'spoiler',
+                      ($event.target as HTMLInputElement).checked,
+                    )
+                  "
+                />
+                {{ t('botSettings.markAsSpoiler') }}
+              </label>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="builder-add"
+            :disabled="mediaItems(block).length >= 10"
             @click="addMediaItem(messageSlot.key, blockIndex)"
           >
             + {{ t('botSettings.addMedia') }}
@@ -202,44 +374,77 @@ const {
             />{{ t('botSettings.dividerLine') }}</label
           >
         </div>
-        <div v-if="block.type === 1" class="mt-xs grid gap-xs tablet:grid-cols-[1fr_5rem_2fr]">
-          <input
-            :value="componentBlockValue(block, 'label')"
-            class="field-control h-10"
-            :placeholder="t('botSettings.buttonLabel')"
-            @input="
-              updateComponentBlock(
-                messageSlot.key,
-                blockIndex,
-                'label',
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          /><input
-            :value="componentBlockValue(block, 'emoji')"
-            class="field-control h-10"
-            placeholder="Emoji"
-            @input="
-              updateComponentBlock(
-                messageSlot.key,
-                blockIndex,
-                'emoji',
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          /><input
-            :value="componentBlockValue(block, 'url')"
-            class="field-control h-10"
-            placeholder="https://"
-            @input="
-              updateComponentBlock(
-                messageSlot.key,
-                blockIndex,
-                'url',
-                ($event.target as HTMLInputElement).value,
-              )
-            "
-          />
+        <div v-if="block.type === 1" class="mt-xs grid gap-xs">
+          <div
+            v-for="(button, buttonIndex) in actionRowButtons(block)"
+            :key="buttonIndex"
+            class="builder-subitem"
+          >
+            <div class="builder-subitem-heading">
+              <strong>{{ t('botSettings.linkButton') }} {{ buttonIndex + 1 }}</strong>
+              <button
+                type="button"
+                class="builder-delete"
+                @click="removeActionRowButton(messageSlot.key, blockIndex, buttonIndex)"
+              >
+                {{ t('botSettings.delete') }}
+              </button>
+            </div>
+            <div class="grid gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]">
+              <input
+                :value="String(button.label ?? '')"
+                maxlength="80"
+                class="field-control h-10"
+                :placeholder="t('botSettings.buttonLabel')"
+                @input="
+                  updateActionRowButton(
+                    messageSlot.key,
+                    blockIndex,
+                    buttonIndex,
+                    'label',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+              <input
+                :value="componentEmoji(button.emoji)"
+                class="field-control h-10"
+                placeholder="Emoji"
+                @input="
+                  updateActionRowButton(
+                    messageSlot.key,
+                    blockIndex,
+                    buttonIndex,
+                    'emoji',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+              <input
+                :value="String(button.url ?? '')"
+                type="url"
+                class="field-control h-10"
+                placeholder="https://"
+                @input="
+                  updateActionRowButton(
+                    messageSlot.key,
+                    blockIndex,
+                    buttonIndex,
+                    'url',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+            </div>
+          </div>
+          <button
+            type="button"
+            class="builder-add"
+            :disabled="actionRowButtons(block).length >= 5 || componentCount(messageSlot.key) >= 40"
+            @click="addActionRowButton(messageSlot.key, blockIndex)"
+          >
+            + {{ t('botSettings.addLink') }}
+          </button>
         </div>
         <div v-if="block.type === 17" class="mt-sm grid gap-sm">
           <div class="grid gap-sm tablet:grid-cols-[auto_minmax(0,1fr)] tablet:items-end">
@@ -262,7 +467,7 @@ const {
               <span>{{ t('botSettings.sidebarColor') }}</span>
               <div class="grid grid-cols-[1fr_3rem] gap-xs">
                 <input
-                  :value="String(block.accent_color ?? '#5865f2')"
+                  :value="componentColor(block.accent_color)"
                   class="field-control h-10 font-mono"
                   maxlength="7"
                   @change="
@@ -275,7 +480,7 @@ const {
                   "
                 />
                 <input
-                  :value="String(block.accent_color ?? '#5865f2')"
+                  :value="componentColor(block.accent_color)"
                   type="color"
                   class="field-control h-10 cursor-pointer p-1"
                   @input="
@@ -343,7 +548,125 @@ const {
                   )
                 "
               />
-              <p v-else class="mt-xs text-xs text-text-muted">
+              <input
+                v-if="child.type === 9"
+                :value="componentBlockValue(child, 'accessoryUrl')"
+                type="url"
+                class="field-control mt-xs h-10"
+                placeholder="https://"
+                @input="
+                  updateContainerChild(
+                    messageSlot.key,
+                    blockIndex,
+                    childIndex,
+                    'accessoryUrl',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+              <input
+                v-if="child.type === 12"
+                :value="componentBlockValue(child, 'mediaUrl')"
+                type="url"
+                class="field-control mt-xs h-10"
+                placeholder="https://"
+                @input="
+                  updateContainerChild(
+                    messageSlot.key,
+                    blockIndex,
+                    childIndex,
+                    'mediaUrl',
+                    ($event.target as HTMLInputElement).value,
+                  )
+                "
+              />
+              <div v-if="child.type === 14" class="mt-xs grid gap-xs tablet:grid-cols-2">
+                <select
+                  class="field-control h-10"
+                  :value="Number(child.spacing ?? 1)"
+                  @change="
+                    updateContainerChild(
+                      messageSlot.key,
+                      blockIndex,
+                      childIndex,
+                      'spacing',
+                      Number(($event.target as HTMLSelectElement).value),
+                    )
+                  "
+                >
+                  <option :value="1">{{ t('botSettings.small') }}</option>
+                  <option :value="2">{{ t('botSettings.large') }}</option>
+                </select>
+                <label class="component-check-field">
+                  <input
+                    type="checkbox"
+                    :checked="child.divider !== false"
+                    @change="
+                      updateContainerChild(
+                        messageSlot.key,
+                        blockIndex,
+                        childIndex,
+                        'divider',
+                        ($event.target as HTMLInputElement).checked,
+                      )
+                    "
+                  />
+                  {{ t('botSettings.dividerLine') }}
+                </label>
+              </div>
+              <div
+                v-if="child.type === 1"
+                class="mt-xs grid gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]"
+              >
+                <input
+                  :value="componentBlockValue(child, 'label')"
+                  maxlength="80"
+                  class="field-control h-10"
+                  :placeholder="t('botSettings.buttonLabel')"
+                  @input="
+                    updateContainerChild(
+                      messageSlot.key,
+                      blockIndex,
+                      childIndex,
+                      'label',
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+                <input
+                  :value="componentBlockValue(child, 'emoji')"
+                  class="field-control h-10"
+                  placeholder="Emoji"
+                  @input="
+                    updateContainerChild(
+                      messageSlot.key,
+                      blockIndex,
+                      childIndex,
+                      'emoji',
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+                <input
+                  :value="componentBlockValue(child, 'url')"
+                  type="url"
+                  class="field-control h-10"
+                  placeholder="https://"
+                  @input="
+                    updateContainerChild(
+                      messageSlot.key,
+                      blockIndex,
+                      childIndex,
+                      'url',
+                      ($event.target as HTMLInputElement).value,
+                    )
+                  "
+                />
+              </div>
+              <p
+                v-if="![1, 9, 10, 12, 14].includes(Number(child.type))"
+                class="mt-xs text-xs text-text-muted"
+              >
                 {{ t('botSettings.thisChildKeepsItsConfiguredMediaOr') }}
               </p>
             </div>

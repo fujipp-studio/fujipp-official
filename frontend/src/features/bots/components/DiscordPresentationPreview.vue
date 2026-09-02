@@ -26,6 +26,10 @@ const mode = computed(() => String(props.definition.mode ?? 'EMBED'))
 const content = computed<Record<string, unknown>>(() => {
   if (mode.value === 'EMBED' && isObject(props.definition.embed))
     return { ...props.definition, ...props.definition.embed }
+  if (mode.value === 'EMBED' && Array.isArray(props.definition.embeds)) {
+    const first = props.definition.embeds[0]
+    if (isObject(first)) return { ...props.definition, ...first }
+  }
   if (mode.value === 'COMPONENTS_V2' && isObject(props.definition.components_v2))
     return { ...props.definition, ...props.definition.components_v2 }
   return props.definition
@@ -109,6 +113,8 @@ const rawBlocks = computed(() => {
 })
 function containerAccentColor(block: Record<string, unknown>) {
   const value = block.accent_color
+  if (typeof value === 'number' && Number.isInteger(value))
+    return `#${value.toString(16).padStart(6, '0').slice(-6)}`
   return typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value : '#5865f2'
 }
 function containerChildren(block: Record<string, unknown>) {
@@ -392,9 +398,12 @@ function actionButtonClass(style: string) {
           />
         </div>
         <div v-else class="preview-components">
-          <h4 v-if="content.title" v-html="renderDiscordEmoji(content.title)" />
+          <h4
+            v-if="content.title && !rawBlocks.length"
+            v-html="renderDiscordEmoji(content.title)"
+          />
           <div
-            v-if="content.description"
+            v-if="content.description && !rawBlocks.length"
             class="preview-copy discord-markdown"
             v-html="renderMarkdown(content.description)"
           />
