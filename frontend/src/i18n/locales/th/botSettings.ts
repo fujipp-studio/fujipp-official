@@ -185,6 +185,12 @@ export default {
   gracePeriodEnds: 'สิ้นสุดระยะผ่อนผัน',
   renewNow: 'ต่ออายุทันที',
   noRuntimeAssignedToThisBot: 'บอทนี้ยังไม่มี Runtime',
+  coreFeature: 'ฟีเจอร์หลัก',
+  runtimeExpiryDescription:
+    'ติดตั้งให้ทุกบอทอัตโนมัติ แจ้งเตือนก่อน Runtime หมดอายุ 7 วัน, 3 วัน, 1 วัน และ 1 ชั่วโมง',
+  runtimeExpirySetupHint:
+    'เลือกห้อง Discord หรือผู้รับ DM ก่อนใช้งาน บอทต้องกำลังทำงานจึงจะส่งแจ้งเตือนได้',
+  configureRuntimeAlerts: 'ตั้งค่าการแจ้งเตือน',
   settings: 'ตั้งค่า',
   upgrading: 'กำลังอัปเกรด…',
   noPackagesAssignedToThisBot: 'บอทนี้ยังไม่มี Package',

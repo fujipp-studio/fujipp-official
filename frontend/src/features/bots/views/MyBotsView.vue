@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { Bot, Clock3, Search } from 'lucide-vue-next'
+import { useI18n } from 'vue-i18n'
 
 import {
   controlBot,
@@ -36,9 +37,11 @@ import {
   nextInstallableLicense,
   type PackageInventoryGroup,
 } from '../package-inventory'
+import { filterRuntimeInventory, runtimeBotSelections } from '../runtime-inventory'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const { locale, t } = useI18n()
 const { session, initialized } = storeToRefs(authStore)
 const bots = ref<UserBot[]>([])
 const licenses = ref<FeatureLicense[]>([])
@@ -99,9 +102,7 @@ function showToast(message: string, variant: 'info' | 'success' | 'error' = 'inf
   })
 }
 
-const packageInventory = computed(() =>
-  groupPackageInventory(licenses.value, featureSearch.value),
-)
+const packageInventory = computed(() => groupPackageInventory(licenses.value, featureSearch.value))
 const botOptions = computed(() =>
   bots.value.map((bot) => ({
     label: bot.name,
@@ -109,34 +110,74 @@ const botOptions = computed(() =>
   })),
 )
 const visibleRuntimeSubscriptions = computed(() =>
-  runtimeSubscriptions.value.filter((runtime) =>
-    `${runtime.planName} SLOT-${runtime.slotNumber} ${runtime.botName ?? ''}`
-      .toLowerCase()
-      .includes(runtimeSearch.value.trim().toLowerCase()),
+  filterRuntimeInventory(
+    runtimeSubscriptions.value,
+    runtimeSearch.value,
+    (runtime) =>
+      `${runtimeSlotLabel(runtime)} ${runtimePlanLabel(runtime)} ${runtimeStatusLabel(runtime)}`,
   ),
 )
 
 function runtimeExpiry(runtime: RuntimeSubscription) {
   const date =
     runtime.status === 'GRACE' && runtime.graceUntil ? runtime.graceUntil : runtime.currentPeriodEnd
-  return new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(date),
-  )
+  return new Intl.DateTimeFormat(locale.value === 'th' ? 'th-TH' : 'en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(date))
 }
 
-const runtimeLabels: Record<BotRuntimeDisplayState, string> = {
-  starting: 'กำลังเริ่มทำงาน…',
-  stopping: 'กำลังหยุดทำงาน…',
-  restarting: 'กำลังเริ่มใหม่…',
-  running: 'กำลังทำงาน',
-  stopped: 'หยุดทำงาน',
-  crashed: 'การทำงานขัดข้อง',
-  offline: 'ออฟไลน์',
+const runtimeLabelKeys: Record<BotRuntimeDisplayState, string> = {
+  starting: 'myBots.runtimeStateStarting',
+  stopping: 'myBots.runtimeStateStopping',
+  restarting: 'myBots.runtimeStateRestarting',
+  running: 'myBots.runtimeStateRunning',
+  stopped: 'myBots.runtimeStateStopped',
+  crashed: 'myBots.runtimeStateCrashed',
+  offline: 'myBots.runtimeStateOffline',
 }
 
 function runtimeLabel(bot: UserBot) {
   const pendingAction = busyBotId.value === bot.id ? busyAction.value : null
-  return runtimeLabels[botRuntimeDisplayState(bot, pendingAction)]
+  return t(runtimeLabelKeys[botRuntimeDisplayState(bot, pendingAction)])
+}
+
+const runtimeStatusLabelKeys: Record<RuntimeSubscription['status'], string> = {
+  ACTIVE: 'myBots.runtimeStatusActive',
+  GRACE: 'myBots.runtimeStatusGrace',
+  EXPIRED: 'myBots.runtimeStatusExpired',
+  CANCELLED: 'myBots.runtimeStatusCancelled',
+}
+
+function runtimeStatusLabel(runtime: RuntimeSubscription) {
+  return t(runtimeStatusLabelKeys[runtime.status])
+}
+
+function runtimeSlotLabel(runtime: RuntimeSubscription) {
+  return t('myBots.runtimeSlot', { slot: runtime.slotNumber })
+}
+
+function runtimePlanLabel(runtime: RuntimeSubscription) {
+  if (runtime.durationDays % 30 === 0) {
+    const months = runtime.durationDays / 30
+    return t(months === 1 ? 'myBots.runtimePlanOneMonth' : 'myBots.runtimePlanMonths', {
+      count: months,
+    })
+  }
+
+  return t(runtime.durationDays === 1 ? 'myBots.runtimePlanOneDay' : 'myBots.runtimePlanDays', {
+    count: runtime.durationDays,
+  })
+}
+
+function runtimeDescription(runtime: RuntimeSubscription) {
+  return `${runtimeSlotLabel(runtime)} · ${runtimePlanLabel(runtime)}`
+}
+
+function runtimeRenewalPrice(runtime: RuntimeSubscription) {
+  return new Intl.NumberFormat(locale.value === 'th' ? 'th-TH' : 'en-US', {
+    maximumFractionDigits: 2,
+  }).format(runtime.effectiveRenewalPriceSatang / 100)
 }
 
 async function loadDashboard() {
@@ -152,12 +193,9 @@ async function loadDashboard() {
       fetchRuntimeSubscriptions(session.value),
     ])
 
-    for (const runtime of runtimeSubscriptions.value) {
-      targetBotByRuntime.value[runtime.id] =
-        runtime.botId ?? targetBotByRuntime.value[runtime.id] ?? bots.value[0]?.id ?? ''
-    }
+    targetBotByRuntime.value = runtimeBotSelections(runtimeSubscriptions.value)
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'โหลด My Bot ไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.loadFailed'), 'error')
   } finally {
     loading.value = false
   }
@@ -204,10 +242,10 @@ async function submitBot() {
     }
     showCreate.value = false
     createForm.value = { name: '', discordApplicationId: '', discordGuildId: '', token: '' }
-    showToast('สร้างบอทสำเร็จ', 'success')
+    showToast(t('myBots.createSuccess'), 'success')
     await loadDashboard()
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'สร้างบอทไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.createFailed'), 'error')
   } finally {
     creating.value = false
   }
@@ -224,13 +262,15 @@ async function runControl(bot: UserBot, action: BotControlAction) {
   try {
     const updated = await controlBot(bot.id, action, session.value)
     bots.value = bots.value.map((item) => (item.id === updated.id ? updated : item))
-    showToast(
-      `${bot.name}: ${action === 'start' ? 'ส่งคำสั่งเริ่มทำงานแล้ว' : action === 'stop' ? 'ส่งคำสั่งหยุดทำงานแล้ว' : 'ส่งคำสั่งเริ่มใหม่แล้ว'}`,
-      'success',
-    )
+    const successKey = {
+      start: 'myBots.startCommandSent',
+      stop: 'myBots.stopCommandSent',
+      restart: 'myBots.restartCommandSent',
+    }[action]
+    showToast(t(successKey, { bot: bot.name }), 'success')
     await refreshBots()
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'ควบคุมบอทไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.controlFailed'), 'error')
   } finally {
     busyBotId.value = ''
     busyAction.value = null
@@ -247,7 +287,7 @@ function handlePackageBotSelect(group: PackageInventoryGroup, newBotId: string) 
     license,
     packageKey: group.key,
     botId: newBotId,
-    botName: bot ? bot.name : 'ไม่ระบุ',
+    botName: bot ? bot.name : t('myBots.unnamedBot'),
   }
   showInstallModal.value = true
 }
@@ -267,11 +307,11 @@ async function confirmInstallPackage() {
   installingLicenseId.value = license.id
   try {
     await installFeatureLicense(license.id, botId, session.value)
-    showToast(`ติดตั้ง ${license.featureName} ให้กับ ${botName} สำเร็จ`, 'success')
+    showToast(t('myBots.installSuccess', { package: license.featureName, bot: botName }), 'success')
     targetBotByPackage.value[packageKey] = ''
     await loadDashboard()
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'ติดตั้งรายการไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.installFailed'), 'error')
     targetBotByPackage.value[packageKey] = ''
   } finally {
     installingLicenseId.value = ''
@@ -288,7 +328,7 @@ function handleBotSelectChange(runtime: RuntimeSubscription, newBotId: string) {
   pendingBotBind.value = {
     runtime,
     newBotId,
-    newBotName: selectedBot ? selectedBot.name : 'ไม่ระบุ',
+    newBotName: selectedBot ? selectedBot.name : t('myBots.unnamedBot'),
     oldBotId,
   }
   showBindModal.value = true
@@ -311,9 +351,12 @@ async function confirmBindBot() {
     await assignRuntime(runtime.id, newBotId, session.value)
     targetBotByRuntime.value[runtime.id] = newBotId
     await loadDashboard()
-    showToast(`ผูก Runtime SLOT-${runtime.slotNumber} กับ ${newBotName} สำเร็จ`, 'success')
+    showToast(
+      t('myBots.bindSuccess', { runtime: runtimeDescription(runtime), bot: newBotName }),
+      'success',
+    )
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'ผูก Runtime ไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.bindFailed'), 'error')
     targetBotByRuntime.value[runtime.id] = oldBotId
   } finally {
     updatingBind.value = false
@@ -342,11 +385,14 @@ async function confirmToggleAutoRenew() {
     await updateRuntimeAutoRenew(runtime.id, targetState, session.value)
     await loadDashboard()
     showToast(
-      `เปลี่ยนสถานะ Auto-renew ของ SLOT-${runtime.slotNumber} เป็น ${targetState ? 'เปิด' : 'ปิด'} เรียบร้อย`,
+      t('myBots.autoRenewUpdated', {
+        runtime: runtimeSlotLabel(runtime),
+        state: t(targetState ? 'myBots.enabled' : 'myBots.disabled'),
+      }),
       'success',
     )
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'อัปเดตไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.updateFailed'), 'error')
   } finally {
     updatingAutoRenew.value = false
     showAutoRenewModal.value = false
@@ -359,9 +405,9 @@ async function renew(runtime: RuntimeSubscription) {
   try {
     await renewRuntime(runtime.id, session.value)
     await loadDashboard()
-    showToast(`ต่ออายุ SLOT-${runtime.slotNumber} สำเร็จ`, 'success')
+    showToast(t('myBots.renewSuccess', { runtime: runtimeSlotLabel(runtime) }), 'success')
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : 'ต่ออายุไม่สำเร็จ', 'error')
+    showToast(cause instanceof Error ? cause.message : t('myBots.renewFailed'), 'error')
   }
 }
 
@@ -385,7 +431,7 @@ onBeforeUnmount(() => {
           class="flex flex-col gap-md tablet:flex-row tablet:items-center tablet:justify-between"
         >
           <h1 id="my-bot-title" class="text-4xl font-extrabold tracking-tight desktop:text-5xl">
-            My Bot
+            {{ t('myBots.title') }}
           </h1>
           <AppButton
             v-if="session"
@@ -393,7 +439,7 @@ onBeforeUnmount(() => {
             :left-icon="icons.base.add"
             @click="openCreateDialog"
           >
-            เพิ่มบอท
+            {{ t('myBots.addBot') }}
           </AppButton>
         </div>
 
@@ -410,7 +456,7 @@ onBeforeUnmount(() => {
                 <img
                   v-if="bot.discordAvatarUrl"
                   :src="bot.discordAvatarUrl"
-                  :alt="`${bot.name} avatar`"
+                  :alt="t('myBots.avatarAlt', { name: bot.name })"
                   loading="lazy"
                   decoding="async"
                   class="size-full object-cover"
@@ -428,7 +474,7 @@ onBeforeUnmount(() => {
                     class="size-2 rounded-full"
                     :class="isBotOnline(bot) ? 'bg-success-text' : 'bg-text-muted'"
                   />
-                  {{ isBotOnline(bot) ? 'online' : 'offline' }}
+                  {{ t(isBotOnline(bot) ? 'myBots.online' : 'myBots.offline') }}
                 </span>
                 <p class="mt-sm flex items-center gap-xs text-sm text-text-muted">
                   <Clock3 :size="15" />{{ runtimeLabel(bot) }}
@@ -443,21 +489,21 @@ onBeforeUnmount(() => {
                 :disabled="busyBotId === bot.id"
                 @click="runControl(bot, bot.desiredState === 'RUNNING' ? 'stop' : 'start')"
               >
-                {{ bot.desiredState === 'RUNNING' ? 'Stop' : 'Start' }}
+                {{ t(bot.desiredState === 'RUNNING' ? 'myBots.stop' : 'myBots.start') }}
               </AppButton>
               <AppButton
                 variant="secondary"
                 :left-icon="icons.action.restart"
                 :disabled="busyBotId === bot.id || bot.desiredState !== 'RUNNING'"
                 @click="runControl(bot, 'restart')"
-                >Restart</AppButton
+                >{{ t('myBots.restart') }}</AppButton
               >
               <AppButton
                 variant="secondary"
                 :left-icon="icons.action.setting"
                 :disabled="busyBotId === bot.id"
                 @click="beginEdit(bot)"
-                >ตั้งค่า</AppButton
+                >{{ t('myBots.settings') }}</AppButton
               >
             </div>
           </article>
@@ -471,7 +517,7 @@ onBeforeUnmount(() => {
           v-if="!loading && !bots.length"
           class="rounded-xl border border-dashed border-border-default p-2xl text-center text-text-muted"
         >
-          <Bot :size="36" class="mx-auto mb-sm" />ไม่พบบอท
+          <Bot :size="36" class="mx-auto mb-sm" />{{ t('myBots.noBots') }}
         </div>
       </section>
 
@@ -479,12 +525,14 @@ onBeforeUnmount(() => {
         <div
           class="flex flex-col gap-md tablet:flex-row tablet:items-center tablet:justify-between"
         >
-          <h2 id="purchases-title" class="text-3xl font-extrabold">รายการที่ซื้อ</h2>
+          <h2 id="purchases-title" class="text-3xl font-extrabold">
+            {{ t('myBots.purchases') }}
+          </h2>
           <AppButton
             class="tablet:!w-auto"
             :left-icon="icons.navigation.store"
             @click="router.push({ name: 'store' })"
-            >ร้านค้า</AppButton
+            >{{ t('myBots.store') }}</AppButton
           >
         </div>
 
@@ -492,14 +540,15 @@ onBeforeUnmount(() => {
           <div
             class="flex flex-col gap-sm tablet:flex-row tablet:items-center tablet:justify-between"
           >
-            <h3 class="text-xl font-semibold">Packages</h3>
+            <h3 class="text-xl font-semibold">{{ t('myBots.packages') }}</h3>
             <label class="relative block"
               ><Search
                 :size="17"
                 class="absolute left-sm top-1/2 -translate-y-1/2 text-text-muted" /><input
                 v-model="featureSearch"
                 class="field !mt-0 !pl-xl"
-                placeholder="ค้นหา Package"
+                :placeholder="t('myBots.searchPackages')"
+                :aria-label="t('myBots.searchPackages')"
             /></label>
           </div>
           <div class="overflow-x-auto rounded-xl border border-border-default bg-bg-surface">
@@ -513,11 +562,11 @@ onBeforeUnmount(() => {
               </colgroup>
               <thead class="text-sm text-text-muted">
                 <tr>
-                  <th class="table-cell">ลำดับ</th>
-                  <th class="table-cell">ชื่อ</th>
-                  <th class="table-cell">รายละเอียด</th>
-                  <th class="table-cell">คลัง</th>
-                  <th class="table-cell text-center">การทำงาน</th>
+                  <th class="table-cell">{{ t('myBots.order') }}</th>
+                  <th class="table-cell">{{ t('myBots.name') }}</th>
+                  <th class="table-cell">{{ t('myBots.details') }}</th>
+                  <th class="table-cell">{{ t('myBots.inventory') }}</th>
+                  <th class="table-cell text-center">{{ t('myBots.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -529,7 +578,7 @@ onBeforeUnmount(() => {
                   <td class="table-cell">{{ index + 1 }}</td>
                   <td class="table-cell font-semibold">{{ group.featureName }}</td>
                   <td class="table-cell text-text-secondary">
-                    v{{ group.version }} · พร้อมใช้งาน
+                    {{ t('myBots.versionAvailable', { version: group.version }) }}
                   </td>
                   <td class="table-cell whitespace-nowrap text-center tabular-nums">
                     {{ group.availableSlots }}/{{ group.installationLimit }}
@@ -541,7 +590,7 @@ onBeforeUnmount(() => {
                         variant="dropdown"
                         label=""
                         :options="botOptions"
-                        placeholder="เลือกบอท"
+                        :placeholder="t('myBots.selectBot')"
                         class="w-56 min-w-0"
                         :disabled="Boolean(installingLicenseId)"
                         @update:model-value="(val) => handlePackageBotSelect(group, String(val))"
@@ -550,7 +599,9 @@ onBeforeUnmount(() => {
                   </td>
                 </tr>
                 <tr v-if="!loading && !packageInventory.length">
-                  <td colspan="5" class="h-40 text-center text-text-muted">ไม่พบ Package</td>
+                  <td colspan="5" class="h-40 text-center text-text-muted">
+                    {{ t('myBots.noPackages') }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -561,25 +612,26 @@ onBeforeUnmount(() => {
           <div
             class="flex flex-col gap-sm tablet:flex-row tablet:items-center tablet:justify-between"
           >
-            <h3 class="text-xl font-semibold">Runtime</h3>
+            <h3 class="text-xl font-semibold">{{ t('myBots.runtime') }}</h3>
             <label class="relative block"
               ><Search
                 :size="17"
                 class="absolute left-sm top-1/2 -translate-y-1/2 text-text-muted" /><input
                 v-model="runtimeSearch"
                 class="field !mt-0 !pl-xl"
-                placeholder="ค้นหา Runtime"
+                :placeholder="t('myBots.searchRuntime')"
+                :aria-label="t('myBots.searchRuntime')"
             /></label>
           </div>
           <div class="overflow-x-auto rounded-xl border border-border-default bg-bg-surface">
             <table class="w-full min-w-[860px] border-collapse text-left">
               <thead class="text-sm text-text-muted">
                 <tr>
-                  <th class="table-cell w-16">ลำดับ</th>
-                  <th class="table-cell">ชื่อ</th>
-                  <th class="table-cell">สถานะ</th>
-                  <th class="table-cell">ใช้งานโดย</th>
-                  <th class="table-cell text-center">การทำงาน</th>
+                  <th class="table-cell w-16">{{ t('myBots.order') }}</th>
+                  <th class="table-cell">{{ t('myBots.name') }}</th>
+                  <th class="table-cell">{{ t('myBots.status') }}</th>
+                  <th class="table-cell">{{ t('myBots.inUseBy') }}</th>
+                  <th class="table-cell text-center">{{ t('myBots.actions') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -590,15 +642,19 @@ onBeforeUnmount(() => {
                 >
                   <td class="table-cell">{{ index + 1 }}</td>
                   <td class="table-cell font-semibold">
-                    SLOT-{{ runtime.slotNumber }} · {{ runtime.planName }}
+                    {{ runtimeDescription(runtime) }}
                     <p class="text-xs font-normal text-text-muted">
-                      ต่ออายุ ฿{{ (runtime.effectiveRenewalPriceSatang / 100).toLocaleString() }}
+                      {{
+                        t('myBots.renewalPrice', {
+                          price: runtimeRenewalPrice(runtime),
+                        })
+                      }}
                     </p>
                   </td>
                   <td class="table-cell">
-                    <span>{{ runtime.status }}</span>
+                    <span>{{ runtimeStatusLabel(runtime) }}</span>
                     <p class="text-xs text-text-muted">
-                      {{ runtime.status === 'GRACE' ? 'ผ่อนผันถึง' : 'หมดอายุ' }}
+                      {{ t(runtime.status === 'GRACE' ? 'myBots.graceUntil' : 'myBots.expiresAt') }}
                       {{ runtimeExpiry(runtime) }}
                     </p>
                   </td>
@@ -608,7 +664,7 @@ onBeforeUnmount(() => {
                       variant="dropdown"
                       label=""
                       :options="botOptions"
-                      placeholder="เลือกบอท"
+                      :placeholder="t('myBots.selectBot')"
                       class="min-w-[140px]"
                       @update:model-value="(val) => handleBotSelectChange(runtime, val)"
                     />
@@ -618,20 +674,22 @@ onBeforeUnmount(() => {
                       <AppToggle
                         :model-value="runtime.autoRenew"
                         :disabled="updatingAutoRenew"
-                        label="Auto-renew"
+                        :label="t('myBots.automaticRenewal')"
                         @change="openAutoRenewModal(runtime)"
                       />
                       <AppButton
                         v-if="runtime.status === 'GRACE'"
                         variant="secondary"
                         @click="renew(runtime)"
-                        >ต่ออายุทันที</AppButton
+                        >{{ t('myBots.renewNow') }}</AppButton
                       >
                     </div>
                   </td>
                 </tr>
                 <tr v-if="!loading && !visibleRuntimeSubscriptions.length">
-                  <td colspan="5" class="h-40 text-center text-text-muted">ไม่พบ Runtime</td>
+                  <td colspan="5" class="h-40 text-center text-text-muted">
+                    {{ t('myBots.noRuntime') }}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -641,8 +699,8 @@ onBeforeUnmount(() => {
     </div>
     <AppModal
       v-model:open="showCreate"
-      subtitle="My Bot"
-      title="เพิ่มบอท"
+      :subtitle="t('myBots.title')"
+      :title="t('myBots.addBot')"
       size="lg"
       :disabled="creating"
       @close="closeCreateDialog"
@@ -650,8 +708,8 @@ onBeforeUnmount(() => {
       <form id="create-bot-form" class="grid gap-md tablet:grid-cols-2" @submit.prevent="submitBot">
         <AppTextField
           v-model="createForm.name"
-          label="ชื่อบอท"
-          placeholder="My Discord Bot"
+          :label="t('myBots.botName')"
+          :placeholder="t('myBots.botNamePlaceholder')"
           required
           :maxlength="100"
           :disabled="creating"
@@ -659,62 +717,72 @@ onBeforeUnmount(() => {
         <AppTextField
           v-model="createForm.token"
           variant="secret"
-          label="Bot Token"
-          placeholder="Bot Token"
+          :label="t('myBots.botToken')"
+          :placeholder="t('myBots.botToken')"
           autocomplete="new-password"
           :disabled="creating"
         />
         <AppTextField
           v-model="createForm.discordApplicationId"
-          label="Discord Application ID"
-          placeholder="Application ID"
+          :label="t('myBots.discordApplicationId')"
+          :placeholder="t('myBots.applicationIdPlaceholder')"
           pattern="[0-9]{15,30}"
           :disabled="creating"
         />
         <AppTextField
           v-model="createForm.discordGuildId"
-          label="Discord Guild ID"
-          placeholder="Guild ID"
+          :label="t('myBots.discordGuildId')"
+          :placeholder="t('myBots.guildIdPlaceholder')"
           pattern="[0-9]{15,30}"
           :disabled="creating"
         />
       </form>
       <template #actions>
-        <AppButton type="button" variant="secondary" :disabled="creating" @click="closeCreateDialog"
-          >ยกเลิก</AppButton
+        <AppButton
+          type="button"
+          variant="secondary"
+          :disabled="creating"
+          @click="closeCreateDialog"
+          >{{ t('myBots.cancel') }}</AppButton
         >
         <AppButton
           type="submit"
           form="create-bot-form"
           :disabled="creating || !createForm.name.trim()"
         >
-          {{ creating ? 'กำลังสร้าง…' : 'สร้างบอท' }}
+          {{ t(creating ? 'myBots.creating' : 'myBots.create') }}
         </AppButton>
       </template>
     </AppModal>
 
     <AppModal
       v-model:open="showAutoRenewModal"
-      subtitle="Auto Renew"
+      :subtitle="t('myBots.autoRenewModalSubtitle')"
       :title="
         selectedAutoRenewRuntime?.autoRenew
-          ? 'ยืนยันปิดการต่ออายุอัตโนมัติ'
-          : 'ยืนยันเปิดการต่ออายุอัตโนมัติ'
+          ? t('myBots.confirmDisableAutoRenew')
+          : t('myBots.confirmEnableAutoRenew')
       "
       :disabled="updatingAutoRenew"
       @close="closeAutoRenewModal"
     >
-      <p v-if="selectedAutoRenewRuntime" class="leading-relaxed">
-        คุณต้องการ<span class="font-bold text-text-primary">{{
-          selectedAutoRenewRuntime.autoRenew ? 'ปิด' : 'เปิด'
-        }}</span
-        >การต่ออายุอัตโนมัติ (Auto-renew) สำหรับ
-        <span class="font-semibold text-text-primary"
-          >SLOT-{{ selectedAutoRenewRuntime.slotNumber }} ·
-          {{ selectedAutoRenewRuntime.planName }}</span
-        >
-        ใช่หรือไม่?
-      </p>
+      <i18n-t
+        v-if="selectedAutoRenewRuntime"
+        keypath="myBots.autoRenewPrompt"
+        tag="p"
+        class="leading-relaxed"
+      >
+        <template #action>
+          <span class="font-bold text-text-primary">{{
+            t(selectedAutoRenewRuntime.autoRenew ? 'myBots.disable' : 'myBots.enable')
+          }}</span>
+        </template>
+        <template #runtime>
+          <span class="font-semibold text-text-primary">{{
+            runtimeDescription(selectedAutoRenewRuntime)
+          }}</span>
+        </template>
+      </i18n-t>
       <template #actions>
         <AppButton
           type="button"
@@ -722,15 +790,15 @@ onBeforeUnmount(() => {
           :disabled="updatingAutoRenew"
           @click="closeAutoRenewModal"
         >
-          ยกเลิก
+          {{ t('myBots.cancel') }}
         </AppButton>
         <AppButton type="button" :disabled="updatingAutoRenew" @click="confirmToggleAutoRenew">
           {{
             updatingAutoRenew
-              ? 'กำลังอัปเดต…'
+              ? t('myBots.updating')
               : selectedAutoRenewRuntime?.autoRenew
-                ? 'ยืนยันปิด Auto-renew'
-                : 'ยืนยันเปิด Auto-renew'
+                ? t('myBots.confirmDisable')
+                : t('myBots.confirmEnable')
           }}
         </AppButton>
       </template>
@@ -738,20 +806,26 @@ onBeforeUnmount(() => {
 
     <AppModal
       v-model:open="showBindModal"
-      subtitle="Runtime Assignment"
-      title="ยืนยันการเปลี่ยนบอท"
+      :subtitle="t('myBots.runtimeAssignment')"
+      :title="t('myBots.confirmBotChange')"
       :disabled="updatingBind"
       @close="closeBindModal"
     >
-      <p v-if="pendingBotBind" class="leading-relaxed">
-        คุณต้องการผูก Runtime
-        <span class="font-semibold text-text-primary"
-          >SLOT-{{ pendingBotBind.runtime.slotNumber }} ·
-          {{ pendingBotBind.runtime.planName }}</span
-        >
-        เข้ากับบอท
-        <span class="font-bold text-text-primary">{{ pendingBotBind.newBotName }}</span> ใช่หรือไม่?
-      </p>
+      <i18n-t
+        v-if="pendingBotBind"
+        keypath="myBots.bindRuntimePrompt"
+        tag="p"
+        class="leading-relaxed"
+      >
+        <template #runtime>
+          <span class="font-semibold text-text-primary">{{
+            runtimeDescription(pendingBotBind.runtime)
+          }}</span>
+        </template>
+        <template #bot>
+          <span class="font-bold text-text-primary">{{ pendingBotBind.newBotName }}</span>
+        </template>
+      </i18n-t>
       <template #actions>
         <AppButton
           type="button"
@@ -759,28 +833,34 @@ onBeforeUnmount(() => {
           :disabled="updatingBind"
           @click="closeBindModal"
         >
-          ยกเลิก
+          {{ t('myBots.cancel') }}
         </AppButton>
         <AppButton type="button" :disabled="updatingBind" @click="confirmBindBot">
-          {{ updatingBind ? 'กำลังอัปเดต…' : 'ยืนยันเปลี่ยนบอท' }}
+          {{ t(updatingBind ? 'myBots.updating' : 'myBots.confirmBotChangeAction') }}
         </AppButton>
       </template>
     </AppModal>
 
     <AppModal
       v-model:open="showInstallModal"
-      subtitle="Package Installation"
-      title="ยืนยันการใช้ Package"
+      :subtitle="t('myBots.packageInstallation')"
+      :title="t('myBots.confirmPackageUse')"
       :disabled="Boolean(installingLicenseId)"
       @close="closeInstallModal"
     >
-      <p v-if="pendingInstall" class="leading-relaxed">
-        คุณต้องการใช้ Package
-        <span class="font-bold text-text-primary">{{ pendingInstall.license.featureName }}</span>
-        ให้กับบอท
-        <span class="font-bold text-text-primary">{{ pendingInstall.botName }}</span>
-        ใช่หรือไม่?
-      </p>
+      <i18n-t
+        v-if="pendingInstall"
+        keypath="myBots.installPackagePrompt"
+        tag="p"
+        class="leading-relaxed"
+      >
+        <template #package>
+          <span class="font-bold text-text-primary">{{ pendingInstall.license.featureName }}</span>
+        </template>
+        <template #bot>
+          <span class="font-bold text-text-primary">{{ pendingInstall.botName }}</span>
+        </template>
+      </i18n-t>
       <template #actions>
         <AppButton
           type="button"
@@ -788,14 +868,14 @@ onBeforeUnmount(() => {
           :disabled="Boolean(installingLicenseId)"
           @click="closeInstallModal"
         >
-          ยกเลิก
+          {{ t('myBots.cancel') }}
         </AppButton>
         <AppButton
           type="button"
           :disabled="Boolean(installingLicenseId)"
           @click="confirmInstallPackage"
         >
-          {{ installingLicenseId ? 'กำลังติดตั้ง…' : 'ยืนยันการใช้ Package' }}
+          {{ t(installingLicenseId ? 'myBots.installing' : 'myBots.confirmPackageUseAction') }}
         </AppButton>
       </template>
     </AppModal>

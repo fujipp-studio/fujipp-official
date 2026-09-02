@@ -21,9 +21,9 @@ const tone = computed(() =>
 
 <template>
   <span
-    class="inline-flex items-center text-xs font-semibold"
+    class="inline-flex h-fit w-fit shrink-0 items-center whitespace-nowrap text-xs font-semibold"
     :class="[
-      appearance === 'badge' ? 'rounded-full border px-sm py-xxs' : 'gap-xs whitespace-nowrap',
+      appearance === 'badge' ? 'rounded-full border px-sm py-xxs' : 'gap-xs',
       {
         'border-success-border bg-success-bg text-success-text':
           appearance === 'badge' && tone === 'success',

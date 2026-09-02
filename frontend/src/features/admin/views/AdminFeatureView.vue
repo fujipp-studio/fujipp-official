@@ -34,6 +34,8 @@ const items = ref<AdminFeature[]>([]),
   error = ref(''),
   query = ref('')
 const { t } = useI18n()
+// Keep this list aligned with private.install_core_features_for_bot.
+const coreFeatureCodes = new Set(['bot-permissions', 'bot-presence', 'runtime-expiry-alert'])
 const standardCategories = ['COMMUNITY', 'DISCORD_UTILITY', 'PAYMENTS', 'ROBLOX', 'UTILITY']
 const standardIconKeys = [
   'activity',
@@ -44,9 +46,6 @@ const standardIconKeys = [
   'server',
   'wallet-cards',
 ]
-const sections = computed(() => [
-  { id: 'admin-feature-catalog', label: t('admin.sections.catalog') },
-])
 const selected = ref<AdminFeature | null>(null),
   offer = ref<AdminFeatureOffer | null>(null),
   creatingOffer = ref(false),
@@ -80,6 +79,27 @@ const filtered = computed(() =>
   items.value.filter((x) =>
     `${x.name} ${x.code} ${x.category}`.toLowerCase().includes(query.value.toLowerCase()),
   ),
+)
+const featureGroups = computed(() =>
+  [
+    {
+      id: 'admin-core-features',
+      title: t('admin.page.coreFeatures'),
+      description: t('admin.page.coreFeaturesDescription'),
+      isCore: true,
+      items: filtered.value.filter((item) => coreFeatureCodes.has(item.code)),
+    },
+    {
+      id: 'admin-feature-catalog',
+      title: t('admin.page.storePackages'),
+      description: t('admin.page.storePackagesDescription'),
+      isCore: false,
+      items: filtered.value.filter((item) => !coreFeatureCodes.has(item.code)),
+    },
+  ].filter((group) => group.items.length),
+)
+const sections = computed(() =>
+  featureGroups.value.map((group) => ({ id: group.id, label: group.title })),
 )
 const categoryOptions = computed(() =>
   [...new Set([...standardCategories, ...items.value.map((item) => item.category)])]
@@ -296,122 +316,144 @@ onMounted(load)
       >
         {{ error }}
       </div>
-      <section id="admin-feature-catalog">
-        <AdminPanel>
-          <div v-if="loading" class="py-xl text-center text-text-muted">
-            {{ t('admin.common.loading') }}
-          </div>
-          <div v-else class="grid gap-md desktop:grid-cols-2">
-            <article
-              v-for="x in filtered"
-              :key="x.id"
-              class="rounded-xl border border-border-subtle bg-bg-elevated p-md"
-            >
-              <div class="flex gap-md">
-                <img
-                  v-if="x.imageUrl"
-                  :src="x.imageUrl"
-                  :alt="x.imageAltText ?? x.name"
-                  class="size-20 rounded-lg object-cover"
-                />
-                <div
-                  v-else
-                  class="grid size-20 place-items-center rounded-lg border border-border-subtle bg-bg-surface"
-                >
-                  <ImageIcon class="size-5 text-text-muted" />
-                </div>
-                <div class="min-w-0 flex-1">
-                  <div class="flex justify-between gap-sm">
-                    <div>
-                      <h3 class="font-bold text-text-primary">{{ x.name }}</h3>
-                      <p class="text-xs text-text-muted">{{ x.code }} · {{ x.category }}</p>
-                      <div v-if="x.latestVersion" class="mt-xs flex items-center gap-xs text-xs">
-                        <span class="text-text-muted">v{{ x.latestVersion }}</span>
-                        <AdminStatusBadge
-                          appearance="indicator"
-                          :value="x.versionStatus ?? 'DRAFT'"
-                          :label="
-                            x.versionStatus === 'PUBLISHED'
-                              ? t('admin.page.published')
-                              : t('admin.page.unpublished')
-                          "
-                        />
-                      </div>
-                    </div>
-                    <AdminStatusBadge :value="x.status" />
+      <div v-if="loading" class="py-xl text-center text-text-muted">
+        {{ t('admin.common.loading') }}
+      </div>
+      <p v-else-if="!filtered.length && !error" class="py-xl text-center text-text-muted">
+        {{ t(query.trim() ? 'admin.page.noMatchingFeatures' : 'admin.common.noData') }}
+      </p>
+      <template v-else>
+        <section v-for="group in featureGroups" :id="group.id" :key="group.id">
+          <AdminPanel :title="group.title" :description="group.description">
+            <template #actions>
+              <span class="text-sm text-text-secondary">
+                {{ t('admin.page.featureCount', { count: group.items.length }) }}
+              </span>
+            </template>
+            <div class="grid gap-md desktop:grid-cols-2">
+              <article
+                v-for="x in group.items"
+                :key="x.id"
+                class="rounded-xl border border-border-subtle bg-bg-elevated p-md"
+              >
+                <div class="flex gap-md">
+                  <img
+                    v-if="x.imageUrl"
+                    :src="x.imageUrl"
+                    :alt="x.imageAltText ?? x.name"
+                    class="size-20 rounded-lg object-cover"
+                  />
+                  <div
+                    v-else
+                    class="grid size-20 place-items-center rounded-lg border border-border-subtle bg-bg-surface"
+                  >
+                    <ImageIcon class="size-5 text-text-muted" />
                   </div>
-                  <p class="mt-sm line-clamp-2 text-sm text-text-secondary">{{ x.description }}</p>
-                </div>
-              </div>
-              <div class="mt-md space-y-xs border-t border-border-subtle pt-md">
-                <div
-                  v-if="!x.offers.length"
-                  class="rounded-lg border border-dashed border-border-default bg-bg-surface p-md"
-                >
-                  <p class="text-sm font-semibold text-text-primary">
-                    {{ t('admin.page.noFeatureOffers') }}
-                  </p>
-                  <p class="mt-xxs text-xs text-text-muted">
-                    {{ t('admin.page.noFeatureOffersDescription') }}
-                  </p>
-                  <AppButton class="mt-sm !w-auto" @click="addOffer(x)">
-                    <Plus class="size-4" />{{ t('admin.page.addOffer') }}
-                  </AppButton>
-                </div>
-                <div
-                  v-for="o in x.offers"
-                  :key="o.id"
-                  class="flex items-center justify-between rounded-lg bg-bg-surface p-sm text-sm"
-                >
-                  <div>
-                    <b class="text-text-primary">{{ o.name }}</b>
-                    <p class="text-xs text-text-muted">
-                      {{ o.kind }} · {{ t('admin.page.limit') }} {{ o.installationLimit }}
+                  <div class="min-w-0 flex-1">
+                    <div class="flex justify-between gap-sm">
+                      <div>
+                        <h3 class="font-bold text-text-primary">{{ x.name }}</h3>
+                        <p class="text-xs text-text-muted">{{ x.code }} · {{ x.category }}</p>
+                        <div v-if="x.latestVersion" class="mt-xs flex items-center gap-xs text-xs">
+                          <span class="text-text-muted">v{{ x.latestVersion }}</span>
+                          <AdminStatusBadge
+                            appearance="indicator"
+                            :value="x.versionStatus ?? 'DRAFT'"
+                            :label="
+                              x.versionStatus === 'PUBLISHED'
+                                ? t('admin.page.published')
+                                : t('admin.page.unpublished')
+                            "
+                          />
+                        </div>
+                      </div>
+                      <AdminStatusBadge :value="x.status" />
+                    </div>
+                    <p class="mt-sm line-clamp-2 text-sm text-text-secondary">
+                      {{ x.description }}
                     </p>
                   </div>
-                  <div class="flex items-center gap-sm">
-                    <AdminStatusBadge
-                      appearance="indicator"
-                      :value="o.active ? 'ACTIVE' : 'DISABLED'"
-                      :label="o.active ? t('admin.common.onSale') : t('admin.common.notOnSale')"
-                    />
-                    <b class="text-text-accent">฿{{ (o.priceSatang / 100).toLocaleString() }}</b
-                    ><button
-                      class="rounded-md p-xs text-text-secondary hover:bg-bg-surface-hover"
-                      :aria-label="t('admin.page.editOffer')"
-                      @click="editOffer(x, o)"
-                    >
-                      <Pencil class="size-4" />
-                    </button>
+                </div>
+                <p v-if="group.isCore" class="mt-md text-sm font-semibold text-text-secondary">
+                  {{ t('admin.page.includedWithEveryBot') }}
+                </p>
+                <div v-else class="mt-md space-y-xs border-t border-border-subtle pt-md">
+                  <div
+                    v-if="!x.offers.length"
+                    class="rounded-lg border border-dashed border-border-default bg-bg-surface p-md"
+                  >
+                    <p class="text-sm font-semibold text-text-primary">
+                      {{ t('admin.page.noFeatureOffers') }}
+                    </p>
+                    <p class="mt-xxs text-xs text-text-muted">
+                      {{ t('admin.page.noFeatureOffersDescription') }}
+                    </p>
+                    <AppButton class="mt-sm !w-auto" @click="addOffer(x)">
+                      <Plus class="size-4" />{{ t('admin.page.addOffer') }}
+                    </AppButton>
+                  </div>
+                  <div
+                    v-for="o in x.offers"
+                    :key="o.id"
+                    class="flex flex-col gap-sm rounded-lg bg-bg-surface p-sm text-sm tablet:flex-row tablet:items-center tablet:justify-between"
+                  >
+                    <div>
+                      <b class="text-text-primary">{{ o.name }}</b>
+                      <p class="text-xs text-text-muted">
+                        {{ o.kind }} · {{ t('admin.page.limit') }} {{ o.installationLimit }}
+                      </p>
+                    </div>
+                    <div class="flex items-center gap-sm">
+                      <AdminStatusBadge
+                        appearance="indicator"
+                        :value="o.active ? 'ACTIVE' : 'DISABLED'"
+                        :label="o.active ? t('admin.common.onSale') : t('admin.common.notOnSale')"
+                      />
+                      <b class="text-text-accent">฿{{ (o.priceSatang / 100).toLocaleString() }}</b
+                      ><button
+                        class="rounded-md p-xs text-text-secondary hover:bg-bg-surface-hover"
+                        :aria-label="t('admin.page.editOffer')"
+                        @click="editOffer(x, o)"
+                      >
+                        <Pencil class="size-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div class="mt-md flex flex-wrap gap-xs">
-                <AppButton class="!w-auto" @click="edit(x)"
-                  ><Pencil class="size-4" />{{ t('admin.page.editFeature') }}</AppButton
-                >
-                <AppButton v-if="x.offers.length" class="!w-auto" @click="addOffer(x)"
-                  ><Plus class="size-4" />{{ t('admin.page.addOffer') }}</AppButton
-                >
-                <AppButton
-                  class="!w-auto"
-                  variant="secondary"
-                  :disabled="publishingId === x.id || x.versionStatus === 'PUBLISHED'"
-                  @click="publishFeature(x)"
-                  ><Send class="size-4" />{{
-                    publishingId === x.id
-                      ? t('admin.page.publishing')
-                      : x.versionStatus === 'PUBLISHED'
-                        ? t('admin.page.published')
-                        : t('admin.page.publishVersion')
-                  }}</AppButton
-                >
-              </div>
-            </article>
-          </div></AdminPanel
-        >
-      </section>
-      <AppSectionIndicator :sections="sections" :aria-label="t('admin.sections.navigation')" />
+                <div class="mt-md flex flex-wrap gap-xs">
+                  <AppButton class="!w-auto" @click="edit(x)"
+                    ><Pencil class="size-4" />{{ t('admin.page.editFeature') }}</AppButton
+                  >
+                  <AppButton
+                    v-if="!group.isCore && x.offers.length"
+                    class="!w-auto"
+                    @click="addOffer(x)"
+                    ><Plus class="size-4" />{{ t('admin.page.addOffer') }}</AppButton
+                  >
+                  <AppButton
+                    class="!w-auto"
+                    variant="secondary"
+                    :disabled="publishingId === x.id || x.versionStatus === 'PUBLISHED'"
+                    @click="publishFeature(x)"
+                    ><Send class="size-4" />{{
+                      publishingId === x.id
+                        ? t('admin.page.publishing')
+                        : x.versionStatus === 'PUBLISHED'
+                          ? t('admin.page.published')
+                          : t('admin.page.publishVersion')
+                    }}</AppButton
+                  >
+                </div>
+              </article>
+            </div></AdminPanel
+          >
+        </section>
+      </template>
+      <AppSectionIndicator
+        v-if="!loading && sections.length"
+        :sections="sections"
+        :aria-label="t('admin.sections.navigation')"
+      />
       <AppModal
         :open="Boolean(selected) && !offer && !creatingOffer"
         :title="t('admin.page.editFeature')"

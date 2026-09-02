@@ -101,11 +101,15 @@ describe('package inventory grouping', () => {
   })
 
   it('uses the earliest-expiring license first when installing from a group', () => {
-    const groups = groupPackageInventory([
-      license({ id: 'later', expiresAt: '2026-10-01T00:00:00Z' }),
-      license({ id: 'sooner', expiresAt: '2026-09-01T00:00:00Z' }),
-      license({ id: 'no-expiry' }),
-    ])
+    const groups = groupPackageInventory(
+      [
+        license({ id: 'later', expiresAt: '2026-10-01T00:00:00Z' }),
+        license({ id: 'sooner', expiresAt: '2026-09-01T00:00:00Z' }),
+        license({ id: 'no-expiry' }),
+      ],
+      '',
+      Date.parse('2026-08-28T12:00:00Z'),
+    )
 
     expect(groups[0]?.licenses.map((item) => item.id)).toEqual(['sooner', 'later', 'no-expiry'])
   })

@@ -57,6 +57,9 @@ const assignedLicenses = computed(() =>
 const assignedRuntime = computed(
   () => runtimeSubscriptions.value.find((runtime) => runtime.botId === botId.value) ?? null,
 )
+const runtimeAlertLicense = computed(() =>
+  assignedLicenses.value.find((license) => license.featureCode === 'runtime-expiry-alert'),
+)
 const packageLicenses = computed(() =>
   assignedLicenses.value.filter(
     (license) => !`${license.featureCode} ${license.featureName}`.toLowerCase().includes('runtime'),
@@ -367,6 +370,35 @@ onMounted(async () => {
           <p v-else class="py-2xl text-center text-text-muted">
             {{ t('botSettings.noRuntimeAssignedToThisBot') }}
           </p>
+          <article
+            v-if="runtimeAlertLicense"
+            class="mt-lg rounded-lg border border-border-default bg-bg-surface p-lg"
+          >
+            <div
+              class="flex flex-col gap-md tablet:flex-row tablet:items-start tablet:justify-between"
+            >
+              <div class="min-w-0 space-y-sm">
+                <p class="text-sm font-semibold text-text-secondary">
+                  {{ t('botSettings.coreFeature') }}
+                </p>
+                <h3 class="text-xl font-bold">{{ runtimeAlertLicense.featureName }}</h3>
+                <p class="text-text-secondary">
+                  {{ t('botSettings.runtimeExpiryDescription') }}
+                </p>
+                <p class="text-sm text-text-muted">
+                  {{ t('botSettings.runtimeExpirySetupHint') }}
+                </p>
+              </div>
+              <AppButton
+                class="shrink-0 tablet:!w-auto"
+                variant="secondary"
+                :left-icon="icons.action.setting"
+                @click="openFeature(runtimeAlertLicense.id)"
+              >
+                {{ t('botSettings.configureRuntimeAlerts') }}
+              </AppButton>
+            </div>
+          </article>
         </section>
 
         <section v-else class="items-card">
