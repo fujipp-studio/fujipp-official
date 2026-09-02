@@ -156,7 +156,7 @@ export function useFeatureSettings() {
   const loading = ref(true)
   const saving = ref(false)
   const saveConfirmationOpen = ref(false)
-  const walletPreviewScope = ref<'all' | 'current'>('all')
+  const walletPreviewScope = ref<'all' | 'current'>('current')
   const walletActiveSlotKey = ref('')
   const draggedComponent = ref<{ slotKey: string; index: number } | null>(null)
   const error = ref('')
@@ -200,17 +200,36 @@ export function useFeatureSettings() {
     updateCoFeature,
     availableCoFeatureOptions,
     containerChildren,
+    componentCount,
+    componentColor,
     updateContainerBlock,
+    sectionTextBlocks,
+    updateSectionText,
+    addSectionText,
+    removeSectionText,
+    sectionAccessory,
+    sectionAccessoryType,
+    setSectionAccessory,
+    updateSectionAccessory,
     mediaItems,
     mediaItemUrl,
+    mediaItemDescription,
     updateMediaItem,
     addMediaItem,
+    updateMediaItemField,
+    removeMediaItem,
+    actionRowButtons,
+    componentEmoji,
+    updateActionRowButton,
+    addActionRowButton,
+    removeActionRowButton,
     updateSeparator,
     addComponentBlock,
     addContainerChild,
     removeContainerChild,
     moveContainerChild,
     updateContainerChildContent,
+    updateContainerChild,
     removeComponentBlock,
     updateComponentBlock,
     componentBlockValue,
@@ -392,10 +411,21 @@ export function useFeatureSettings() {
   }
 
   function setPresentationMode(slotKey: string, mode: string) {
+    if (!usesPresentationDesigner.value) return
     const normalized = mode === 'COMPONENTS_V2' ? 'COMPONENTS_V2' : 'EMBED'
     presentations.value[slotKey] = { ...presentations.value[slotKey], mode: normalized }
     presentationJson.value[slotKey] = JSON.stringify(presentations.value[slotKey], null, 2)
   }
+
+  const availablePresentationModes = computed(() =>
+    presentationModeOptions.filter(
+      (option) =>
+        usesPresentationDesigner.value ||
+        (configuration.value?.presentations ?? []).some(
+          (slot) => slotMode(slot.key) === option.value,
+        ),
+    ),
+  )
 
   const visiblePresentationSlots = computed(() =>
     (configuration.value?.presentations ?? []).filter(
@@ -406,9 +436,25 @@ export function useFeatureSettings() {
     ),
   )
 
+  const editablePresentationSlots = computed(() => {
+    if (!usesPresentationDesigner.value) return visiblePresentationSlots.value
+    const selected =
+      walletActiveSlotKey.value &&
+      visiblePresentationSlots.value.some((slot) => slot.key === walletActiveSlotKey.value)
+        ? walletActiveSlotKey.value
+        : visiblePresentationSlots.value[0]?.key
+    return visiblePresentationSlots.value.filter((slot) => slot.key === selected)
+  })
+
   function presentationPreviewDefinition(slotKey: string) {
     const definition = presentations.value[slotKey] ?? {}
-    return presentationMode.value ? { ...definition, mode: presentationMode.value } : definition
+    const mode = presentationMode.value
+    if (!mode) return definition
+    return {
+      ...definition,
+      mode,
+      [mode === 'EMBED' ? 'embed' : 'components_v2']: visualDefinition(slotKey),
+    }
   }
 
   function toggleWalletMessage(slotKey: string) {
@@ -417,6 +463,11 @@ export function useFeatureSettings() {
     if (next.has(slotKey)) next.delete(slotKey)
     else next.add(slotKey)
     walletExpandedSlots.value = next
+  }
+
+  function selectPresentationSlot(slotKey: string) {
+    walletActiveSlotKey.value = slotKey
+    walletExpandedSlots.value = new Set([slotKey])
   }
 
   const walletPreviewSlots = computed(() => {
@@ -566,11 +617,16 @@ export function useFeatureSettings() {
     presentationSlotLabel,
     slotMode,
     presentationModeOptions,
+    availablePresentationModes,
+    canSwitchPresentationMode: usesPresentationDesigner,
     setPresentationMode,
     visiblePresentationSlots,
+    editablePresentationSlots,
     isPriceReaderFeature,
     walletExpandedSlots,
     toggleWalletMessage,
+    walletActiveSlotKey,
+    selectPresentationSlot,
     presentationSlotDescription,
     toggleAdvanced,
     advancedSlots,
@@ -605,14 +661,33 @@ export function useFeatureSettings() {
     componentBlockValue,
     mediaItems,
     mediaItemUrl,
+    mediaItemDescription,
     updateMediaItem,
     addMediaItem,
+    updateMediaItemField,
+    removeMediaItem,
+    actionRowButtons,
+    componentEmoji,
+    updateActionRowButton,
+    addActionRowButton,
+    removeActionRowButton,
     updateSeparator,
     updateContainerBlock,
     containerChildren,
+    componentCount,
+    componentColor,
+    sectionTextBlocks,
+    updateSectionText,
+    addSectionText,
+    removeSectionText,
+    sectionAccessory,
+    sectionAccessoryType,
+    setSectionAccessory,
+    updateSectionAccessory,
     moveContainerChild,
     removeContainerChild,
     updateContainerChildContent,
+    updateContainerChild,
     addContainerChild,
     addComponentBlock,
     systemComponents,

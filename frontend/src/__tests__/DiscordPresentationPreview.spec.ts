@@ -29,6 +29,25 @@ describe('DiscordPresentationPreview', () => {
     expect(wrapper.text()).not.toContain('Components title')
   })
 
+  it('renders a legacy embeds array used by generic Features', () => {
+    const wrapper = mount(DiscordPresentationPreview, {
+      props: {
+        definition: {
+          mode: 'EMBED',
+          content: 'Outside the embed',
+          embeds: [{ title: 'Array title', description: 'Array description', color: 0x123456 }],
+        },
+        variables: [],
+      },
+      global,
+    })
+
+    expect(wrapper.text()).toContain('Outside the embed')
+    expect(wrapper.text()).toContain('Array title')
+    expect(wrapper.text()).toContain('Array description')
+    expect(wrapper.find('.preview-embed').attributes('style')).toContain('rgb(18, 52, 86)')
+  })
+
   it('renders interactive Components V2 actions without exposing action IDs', async () => {
     const wrapper = mount(DiscordPresentationPreview, {
       props: {
@@ -49,6 +68,25 @@ describe('DiscordPresentationPreview', () => {
 
     await wrapper.get('button.preview-button--success').trigger('click')
     expect(wrapper.get('[role="status"]').text()).toContain('Previewed action: Top up')
+  })
+
+  it('uses component blocks instead of legacy quick content when both are present', () => {
+    const wrapper = mount(DiscordPresentationPreview, {
+      props: {
+        definition: {
+          mode: 'COMPONENTS_V2',
+          title: 'Legacy title',
+          description: 'Legacy description',
+          components: [{ type: 10, content: 'Rendered block' }],
+        },
+        variables: [],
+      },
+      global,
+    })
+
+    expect(wrapper.text()).toContain('Rendered block')
+    expect(wrapper.text()).not.toContain('Legacy title')
+    expect(wrapper.text()).not.toContain('Legacy description')
   })
 
   it('renders realistic sample content for result variables', () => {
@@ -79,9 +117,15 @@ describe('DiscordPresentationPreview', () => {
       global,
     })
 
-    const emojiSources = wrapper.findAll('img.discord-custom-emoji').map((item) => item.attributes('src'))
-    expect(emojiSources).toContain('https://cdn.discordapp.com/emojis/123456789012345678.png?size=48&quality=lossless')
-    expect(emojiSources).toContain('https://cdn.discordapp.com/emojis/987654321098765432.gif?size=48&quality=lossless')
+    const emojiSources = wrapper
+      .findAll('img.discord-custom-emoji')
+      .map((item) => item.attributes('src'))
+    expect(emojiSources).toContain(
+      'https://cdn.discordapp.com/emojis/123456789012345678.png?size=48&quality=lossless',
+    )
+    expect(emojiSources).toContain(
+      'https://cdn.discordapp.com/emojis/987654321098765432.gif?size=48&quality=lossless',
+    )
   })
 
   it('renders Discord markdown headings at their visual hierarchy', () => {

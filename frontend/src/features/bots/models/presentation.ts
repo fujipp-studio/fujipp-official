@@ -1,5 +1,5 @@
-export function clone(value: Record<string, unknown>) {
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>
+export function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
 }
 
 export type PresentationMode = 'EMBED' | 'COMPONENTS_V2' | null

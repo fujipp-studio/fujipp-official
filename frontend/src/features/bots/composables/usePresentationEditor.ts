@@ -23,6 +23,120 @@ export function usePresentationEditor({
   draggedComponent,
   advancedSlots,
 }: Options) {
+  function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+  }
+
+  function normalizedMode(value: unknown): Exclude<PresentationMode, null> {
+    return String(value).toUpperCase() === 'COMPONENTS_V2' ? 'COMPONENTS_V2' : 'EMBED'
+  }
+
+  function requestedMode(definition: Record<string, unknown>) {
+    return presentationMode.value ?? normalizedMode(definition.mode)
+  }
+
+  function nestedKeyFor(mode: Exclude<PresentationMode, null>) {
+    return mode === 'EMBED' ? 'embed' : 'components_v2'
+  }
+
+  function firstEmbed(definition: Record<string, unknown>) {
+    const embed = Array.isArray(definition.embeds) ? definition.embeds[0] : null
+    return isRecord(embed) ? embed : null
+  }
+
+  function mediaUrl(value: unknown) {
+    if (typeof value === 'string') return value
+    return isRecord(value) && typeof value.url === 'string' ? value.url : ''
+  }
+
+  function embedArrayDefinition(definition: Record<string, unknown>): Record<string, unknown> {
+    const embed = firstEmbed(definition) ?? {}
+    return {
+      ...definition,
+      ...embed,
+      image_url: mediaUrl(embed.image ?? definition.image_url),
+      thumbnail_url: mediaUrl(embed.thumbnail ?? definition.thumbnail_url),
+    }
+  }
+
+  type PresentationStorage =
+    { kind: 'root' } | { kind: 'nested'; key: 'embed' | 'components_v2' } | { kind: 'embed-array' }
+
+  function presentationStorage(
+    definition: Record<string, unknown>,
+    mode: Exclude<PresentationMode, null>,
+  ): PresentationStorage {
+    const nestedKey = nestedKeyFor(mode)
+    if (isRecord(definition[nestedKey])) return { kind: 'nested', key: nestedKey }
+    if (mode === normalizedMode(definition.mode)) {
+      if (mode === 'EMBED' && firstEmbed(definition)) return { kind: 'embed-array' }
+      return { kind: 'root' }
+    }
+    return { kind: 'nested', key: nestedKey }
+  }
+
+  function nestedSeed(
+    definition: Record<string, unknown>,
+    mode: Exclude<PresentationMode, null>,
+  ): Record<string, unknown> {
+    const source =
+      mode === 'EMBED' && firstEmbed(definition) ? embedArrayDefinition(definition) : definition
+    const keys =
+      mode === 'EMBED'
+        ? [
+            'content',
+            'title',
+            'url',
+            'description',
+            'color',
+            'author',
+            'fields',
+            'image_url',
+            'thumbnail_url',
+            'footer',
+            'timestamp',
+            'links',
+            'actions',
+            'action_overrides',
+          ]
+        : [
+            'title',
+            'description',
+            'image_url',
+            'thumbnail_url',
+            'footer',
+            'components',
+            'links',
+            'actions',
+            'action_overrides',
+          ]
+    return Object.fromEntries(
+      keys.filter((key) => source[key] !== undefined).map((key) => [key, clone(source[key])]),
+    )
+  }
+
+  function updateEmbedArray(
+    slotKey: string,
+    definition: Record<string, unknown>,
+    key: string,
+    value: unknown,
+  ) {
+    if (['content', 'links', 'actions', 'action_overrides', 'co_features'].includes(key)) {
+      presentations.value[slotKey] = { ...definition, [key]: value }
+      return
+    }
+    const embeds = Array.isArray(definition.embeds)
+      ? definition.embeds.map((embed) => clone(embed))
+      : []
+    const embed = isRecord(embeds[0]) ? embeds[0] : {}
+    if (key === 'image_url' || key === 'thumbnail_url') {
+      embed[key === 'image_url' ? 'image' : 'thumbnail'] = value ? { url: value } : undefined
+    } else if (key === 'color') embed.color = discordColor(value)
+    else embed[key] = value
+    embeds[0] = embed
+    presentations.value[slotKey] = { ...definition, embeds }
+  }
+
   function updatePresentation(slotKey: string, key: string, value: unknown) {
     const definition = presentations.value[slotKey] ?? {}
     if (key === 'mode') {
@@ -30,18 +144,19 @@ export function usePresentationEditor({
       presentationJson.value[slotKey] = JSON.stringify(presentations.value[slotKey], null, 2)
       return
     }
-    const mode = presentationMode.value ?? String(definition.mode ?? 'EMBED')
-    const nestedKey = mode === 'EMBED' ? 'embed' : 'components_v2'
-    const nested = definition[nestedKey]
-    if (presentationMode.value || (nested && typeof nested === 'object')) {
-      definition[nestedKey] = {
-        ...(nested && typeof nested === 'object' && !Array.isArray(nested)
-          ? (nested as Record<string, unknown>)
-          : {}),
-        [key]: value,
+    const mode = requestedMode(definition)
+    const storage = presentationStorage(definition, mode)
+    if (storage.kind === 'root') presentations.value[slotKey] = { ...definition, [key]: value }
+    else if (storage.kind === 'embed-array') updateEmbedArray(slotKey, definition, key, value)
+    else {
+      const nested = isRecord(definition[storage.key])
+        ? (definition[storage.key] as Record<string, unknown>)
+        : nestedSeed(definition, mode)
+      presentations.value[slotKey] = {
+        ...definition,
+        [storage.key]: { ...nested, [key]: value },
       }
-      presentations.value[slotKey] = { ...definition }
-    } else presentations.value[slotKey] = { ...definition, [key]: value }
+    }
     presentationJson.value[slotKey] = JSON.stringify(presentations.value[slotKey], null, 2)
   }
 
@@ -249,6 +364,33 @@ export function usePresentationEditor({
       : []
   }
 
+  function componentTreeSize(block: Record<string, unknown>): number {
+    const children = Array.isArray(block.components)
+      ? block.components
+          .filter(isRecord)
+          .reduce((total, child) => total + componentTreeSize(child), 0)
+      : 0
+    return 1 + children + (isRecord(block.accessory) ? 1 : 0)
+  }
+
+  function componentCount(slotKey: string) {
+    return componentBlocks(slotKey).reduce((total, block) => total + componentTreeSize(block), 0)
+  }
+
+  function componentColor(value: unknown) {
+    if (typeof value === 'number' && Number.isInteger(value))
+      return `#${value.toString(16).padStart(6, '0').slice(-6)}`
+    const normalized = String(value ?? '').trim()
+    return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : '#5865f2'
+  }
+
+  function discordColor(value: unknown) {
+    const normalized = String(value ?? '')
+      .trim()
+      .replace(/^#/, '')
+    return /^[0-9a-f]{6}$/i.test(normalized) ? Number.parseInt(normalized, 16) : undefined
+  }
+
   function updateContainerBlock(
     slotKey: string,
     blockIndex: number,
@@ -256,7 +398,9 @@ export function usePresentationEditor({
     value: unknown,
   ) {
     const blocks = componentBlocks(slotKey).map((block) => clone(block))
-    if (blocks[blockIndex]) blocks[blockIndex][key] = value
+    if (blocks[blockIndex]) {
+      blocks[blockIndex][key] = key === 'accent_color' ? discordColor(value) : value
+    }
     setComponentBlocks(slotKey, blocks)
   }
 
@@ -265,7 +409,7 @@ export function usePresentationEditor({
   ) {
     if (type === 'text') return { type: 10, content: t('botSettings.newContent') }
     if (type === 'container')
-      return { type: 17, accent_color: '#5865f2', spoiler: false, components: [] }
+      return { type: 17, accent_color: 0x5865f2, spoiler: false, components: [] }
     if (type === 'section')
       return {
         type: 9,
@@ -295,6 +439,88 @@ export function usePresentationEditor({
     }
   }
 
+  function sectionTextBlocks(block: Record<string, unknown>) {
+    return Array.isArray(block.components)
+      ? block.components.filter((item) => isRecord(item) && item.type === 10)
+      : []
+  }
+
+  function updateSectionText(
+    slotKey: string,
+    blockIndex: number,
+    textIndex: number,
+    value: string,
+  ) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 9) return
+    const texts = sectionTextBlocks(block).map((text) => clone(text))
+    if (!texts[textIndex]) return
+    texts[textIndex].content = value
+    block.components = texts
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function addSectionText(slotKey: string, blockIndex: number) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 9) return
+    const texts = sectionTextBlocks(block)
+    if (texts.length >= 3 || componentCount(slotKey) >= 40) return
+    block.components = [...texts, { type: 10, content: t('botSettings.newContent') }]
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function removeSectionText(slotKey: string, blockIndex: number, textIndex: number) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 9) return
+    const texts = sectionTextBlocks(block)
+    if (texts.length <= 1) return
+    block.components = texts.filter((_, index) => index !== textIndex)
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function sectionAccessory(block: Record<string, unknown>) {
+    return isRecord(block.accessory) ? block.accessory : {}
+  }
+
+  function sectionAccessoryType(block: Record<string, unknown>) {
+    return sectionAccessory(block).type === 2 ? 'link' : 'thumbnail'
+  }
+
+  function setSectionAccessory(slotKey: string, blockIndex: number, type: string) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 9 || sectionAccessoryType(block) === type) return
+    block.accessory =
+      type === 'link'
+        ? { type: 2, style: 5, label: t('botSettings.openLink'), url: 'https://example.com' }
+        : {
+            type: 11,
+            media: { url: 'https://example.com/image.png' },
+            description: t('botSettings.accessoryImage'),
+          }
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function updateSectionAccessory(
+    slotKey: string,
+    blockIndex: number,
+    key: 'url' | 'label' | 'emoji' | 'description',
+    value: string,
+  ) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 9) return
+    const accessory = sectionAccessory(block)
+    if (accessory.type === 2) accessory[key] = key === 'emoji' ? discordEmoji(value) : value
+    else if (key === 'url') accessory.media = { url: value }
+    else accessory[key] = value
+    block.accessory = accessory
+    setComponentBlocks(slotKey, blocks)
+  }
+
   function mediaItems(block: Record<string, unknown>) {
     return Array.isArray(block.items)
       ? (block.items.filter((item) => item && typeof item === 'object') as Array<
@@ -309,10 +535,14 @@ export function usePresentationEditor({
       : ''
   }
 
+  function mediaItemDescription(item: Record<string, unknown>) {
+    return String(item.description ?? '')
+  }
+
   function updateMediaItem(slotKey: string, blockIndex: number, itemIndex: number, value: string) {
     const blocks = componentBlocks(slotKey).map((block) => clone(block))
     const block = blocks[blockIndex]
-    if (!block) return
+    if (!block || block.type !== 12) return
     const items = mediaItems(block).map((item) => clone(item))
     items[itemIndex] = { ...items[itemIndex], media: { url: value } }
     block.items = items
@@ -322,8 +552,93 @@ export function usePresentationEditor({
   function addMediaItem(slotKey: string, blockIndex: number) {
     const blocks = componentBlocks(slotKey).map((block) => clone(block))
     const block = blocks[blockIndex]
-    if (!block) return
+    if (!block || block.type !== 12) return
+    if (mediaItems(block).length >= 10) return
     block.items = [...mediaItems(block), { media: { url: 'https://example.com/image.png' } }]
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function updateMediaItemField(
+    slotKey: string,
+    blockIndex: number,
+    itemIndex: number,
+    key: 'description' | 'spoiler',
+    value: string | boolean,
+  ) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 12) return
+    const items = mediaItems(block).map((item) => clone(item))
+    if (!items[itemIndex]) return
+    items[itemIndex][key] = value
+    block.items = items
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function removeMediaItem(slotKey: string, blockIndex: number, itemIndex: number) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 12) return
+    block.items = mediaItems(block).filter((_, index) => index !== itemIndex)
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function actionRowButtons(block: Record<string, unknown>) {
+    return Array.isArray(block.components) ? block.components.filter(isRecord) : []
+  }
+
+  function componentEmoji(value: unknown) {
+    if (typeof value === 'string') return value
+    if (!isRecord(value)) return ''
+    const name = String(value.name ?? '')
+    const id = String(value.id ?? '')
+    if (!id) return name
+    return `<${value.animated === true ? 'a' : ''}:${name || 'emoji'}:${id}>`
+  }
+
+  function discordEmoji(value: string) {
+    const normalized = value.trim()
+    if (!normalized) return undefined
+    const custom = normalized.match(/^<(a?):([\w~]+):(\d+)>$/)
+    if (custom) return { animated: custom[1] === 'a', name: custom[2], id: custom[3] }
+    return { name: normalized }
+  }
+
+  function updateActionRowButton(
+    slotKey: string,
+    blockIndex: number,
+    buttonIndex: number,
+    key: 'label' | 'emoji' | 'url',
+    value: string,
+  ) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 1) return
+    const buttons = actionRowButtons(block).map((button) => clone(button))
+    if (!buttons[buttonIndex]) return
+    buttons[buttonIndex][key] = key === 'emoji' ? discordEmoji(value) : value
+    block.components = buttons
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function addActionRowButton(slotKey: string, blockIndex: number) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 1) return
+    const buttons = actionRowButtons(block)
+    if (buttons.length >= 5 || componentCount(slotKey) >= 40) return
+    block.components = [
+      ...buttons,
+      { type: 2, style: 5, label: t('botSettings.openLink'), url: 'https://example.com' },
+    ]
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function removeActionRowButton(slotKey: string, blockIndex: number, buttonIndex: number) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    if (!block || block.type !== 1) return
+    block.components = actionRowButtons(block).filter((_, index) => index !== buttonIndex)
     setComponentBlocks(slotKey, blocks)
   }
 
@@ -343,8 +658,9 @@ export function usePresentationEditor({
     type: 'text' | 'container' | 'section' | 'media' | 'separator' | 'link',
   ) {
     const blocks = [...componentBlocks(slotKey)]
-    if (blocks.length >= 40) return
-    blocks.push(createComponentBlock(type))
+    const block = createComponentBlock(type)
+    if (componentCount(slotKey) + componentTreeSize(block) > 40) return
+    blocks.push(block)
     setComponentBlocks(slotKey, blocks)
   }
 
@@ -357,8 +673,9 @@ export function usePresentationEditor({
     const container = blocks[blockIndex]
     if (!container || container.type !== 17) return
     const children = containerChildren(container)
-    if (children.length >= 39) return
-    container.components = [...children, createComponentBlock(type)]
+    const child = createComponentBlock(type)
+    if (componentCount(slotKey) + componentTreeSize(child) > 40) return
+    container.components = [...children, child]
     setComponentBlocks(slotKey, blocks)
   }
 
@@ -400,7 +717,44 @@ export function usePresentationEditor({
     const child = children[childIndex]
     if (!child) return
     if (child.type === 10) child.content = value
-    else if (child.type === 9) child.components = [{ type: 10, content: value }]
+    else if (child.type === 9) {
+      const texts = sectionTextBlocks(child).map((text) => clone(text))
+      if (texts[0]) texts[0].content = value
+      else texts.push({ type: 10, content: value })
+      child.components = texts
+    }
+    container.components = children
+    setComponentBlocks(slotKey, blocks)
+  }
+
+  function updateContainerChild(
+    slotKey: string,
+    blockIndex: number,
+    childIndex: number,
+    key: 'accessoryUrl' | 'mediaUrl' | 'label' | 'emoji' | 'url' | 'divider' | 'spacing',
+    value: string | boolean | number,
+  ) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const container = blocks[blockIndex]
+    if (!container || container.type !== 17) return
+    const children = containerChildren(container)
+    const child = children[childIndex]
+    if (!child) return
+    if (key === 'accessoryUrl') {
+      child.accessory = {
+        type: 11,
+        media: { url: value },
+        description: t('botSettings.accessoryImage'),
+      }
+    } else if (key === 'mediaUrl') {
+      child.items = [{ media: { url: value }, description: t('botSettings.accessoryImage') }]
+    } else if (key === 'divider' || key === 'spacing') child[key] = value
+    else {
+      const row = Array.isArray(child.components) ? child.components : []
+      const button = isRecord(row[0]) ? row[0] : { type: 2, style: 5 }
+      button[key] = key === 'emoji' ? discordEmoji(String(value)) : value
+      child.components = [button]
+    }
     container.components = children
     setComponentBlocks(slotKey, blocks)
   }
@@ -424,7 +778,12 @@ export function usePresentationEditor({
     const block = blocks[index]
     if (!block) return
     if (key === 'content') block.content = value
-    if (key === 'sectionContent') block.components = [{ type: 10, content: value }]
+    if (key === 'sectionContent') {
+      const texts = sectionTextBlocks(block).map((text) => clone(text))
+      if (texts[0]) texts[0].content = value
+      else texts.push({ type: 10, content: value })
+      block.components = texts
+    }
     if (key === 'accessoryUrl')
       block.accessory = {
         type: 11,
@@ -439,7 +798,7 @@ export function usePresentationEditor({
         row[0] && typeof row[0] === 'object'
           ? (row[0] as Record<string, unknown>)
           : { type: 2, style: 5 }
-      button[key] = value
+      button[key] = key === 'emoji' ? discordEmoji(value) : value
       block.components = [button]
     }
     setComponentBlocks(slotKey, blocks)
@@ -477,7 +836,8 @@ export function usePresentationEditor({
       return String(block.accessory.media.url ?? '')
     if ((key === 'label' || key === 'emoji' || key === 'url') && Array.isArray(block.components)) {
       const button = block.components[0]
-      if (button && typeof button === 'object' && key in button) return String(button[key] ?? '')
+      if (button && typeof button === 'object' && key in button)
+        return key === 'emoji' ? componentEmoji(button[key]) : String(button[key] ?? '')
     }
     return ''
   }
@@ -511,14 +871,18 @@ export function usePresentationEditor({
     return `Component type ${String(block.type ?? '?')}`
   }
 
-  function visualDefinition(slotKey: string) {
+  function visualDefinition(slotKey: string): Record<string, unknown> {
     const definition = presentations.value[slotKey] ?? {}
-    const mode = presentationMode.value ?? String(definition.mode ?? 'EMBED')
-    const nestedKey = mode === 'EMBED' ? 'embed' : 'components_v2'
-    const nested = definition[nestedKey]
-    return nested && typeof nested === 'object' && !Array.isArray(nested)
-      ? (nested as Record<string, unknown>)
-      : definition
+    const mode = requestedMode(definition)
+    const storage = presentationStorage(definition, mode)
+    if (storage.kind === 'embed-array') return embedArrayDefinition(definition)
+    if (storage.kind === 'nested') {
+      const nested = isRecord(definition[storage.key])
+        ? (definition[storage.key] as Record<string, unknown>)
+        : nestedSeed(definition, mode)
+      return { ...definition, ...nested }
+    }
+    return definition
   }
 
   function variableToken(variable: string) {
@@ -571,18 +935,37 @@ export function usePresentationEditor({
     availableCoFeatureOptions,
     setComponentBlocks,
     containerChildren,
+    componentCount,
+    componentColor,
     updateContainerBlock,
     createComponentBlock,
+    sectionTextBlocks,
+    updateSectionText,
+    addSectionText,
+    removeSectionText,
+    sectionAccessory,
+    sectionAccessoryType,
+    setSectionAccessory,
+    updateSectionAccessory,
     mediaItems,
     mediaItemUrl,
+    mediaItemDescription,
     updateMediaItem,
     addMediaItem,
+    updateMediaItemField,
+    removeMediaItem,
+    actionRowButtons,
+    componentEmoji,
+    updateActionRowButton,
+    addActionRowButton,
+    removeActionRowButton,
     updateSeparator,
     addComponentBlock,
     addContainerChild,
     removeContainerChild,
     moveContainerChild,
     updateContainerChildContent,
+    updateContainerChild,
     removeComponentBlock,
     updateComponentBlock,
     componentBlockValue,
