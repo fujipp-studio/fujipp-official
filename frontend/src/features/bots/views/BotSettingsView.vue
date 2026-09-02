@@ -60,11 +60,10 @@ const assignedRuntime = computed(
 const runtimeAlertLicense = computed(() =>
   assignedLicenses.value.find((license) => license.featureCode === 'runtime-expiry-alert'),
 )
-const packageLicenses = computed(() =>
-  assignedLicenses.value.filter(
-    (license) => !`${license.featureCode} ${license.featureName}`.toLowerCase().includes('runtime'),
-  ),
-)
+// Keep every installed feature discoverable from Package settings. Runtime Expiry Alert also has
+// a contextual shortcut in Runtime settings, but hiding it here makes its configuration appear to
+// be missing from the bot.
+const packageLicenses = computed(() => assignedLicenses.value)
 
 function showToast(message: string, variant: 'info' | 'success' | 'error' = 'info') {
   toastMessage.value = message
