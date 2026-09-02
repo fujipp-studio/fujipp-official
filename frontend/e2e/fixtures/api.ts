@@ -1,4 +1,11 @@
-import { bot, configuration, feature, license, user } from '../../src/__tests__/fixtures/domain'
+import {
+  bot,
+  configuration,
+  feature,
+  license,
+  runtimeSubscription,
+  user,
+} from '../../src/__tests__/fixtures/domain'
 import type { AdminUserSummary } from '../../src/features/admin/api/users'
 const page = (items: unknown[]) => ({ items, nextCursor: null, hasMore: false })
 const customer: AdminUserSummary = {
@@ -44,6 +51,9 @@ export function fixtureResponse(path: string, method: string, input: Record<stri
         { slotNumber: 2, occupancy: 'AVAILABLE' },
       ],
     }
+  if (path.endsWith('/renew') && path.startsWith('/api/v1/runtime/subscriptions/'))
+    return { ...runtimeSubscription, currentPeriodEnd: '2026-10-03T00:00:00Z' }
+  if (path === '/api/v1/runtime/subscriptions') return [runtimeSubscription]
   if (path === '/api/v1/admin/store/features')
     return [
       {

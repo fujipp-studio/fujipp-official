@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js'
 import type { CurrentUser } from '@/features/auth/api'
 import type { FeatureConfiguration, FeatureLicense, UserBot } from '@/features/bots/api'
+import type { RuntimeSubscription } from '@/features/bots/runtime-api'
 import type { StoreFeature } from '@/features/store/api'
 
 export const session = { access_token: 'fixture-token', user: { id: 'fixture-user' } } as Session
@@ -29,6 +30,23 @@ export const bot: UserBot = {
   restartRevision: 0,
   createdAt: '2026-08-01T00:00:00Z',
   updatedAt: '2026-08-01T00:00:00Z',
+}
+export const runtimeSubscription: RuntimeSubscription = {
+  id: 'fixture-runtime-subscription',
+  slotNumber: 1,
+  planId: 'fixture-runtime-plan',
+  planName: 'Runtime 1 Month',
+  durationDays: 30,
+  priceSatang: 9900,
+  renewalPriceSatang: null,
+  effectiveRenewalPriceSatang: 9900,
+  currency: 'THB',
+  botId: bot.id,
+  botName: bot.name,
+  status: 'ACTIVE',
+  autoRenew: true,
+  currentPeriodEnd: '2026-09-03T00:00:00Z',
+  graceUntil: null,
 }
 export const license: FeatureLicense = {
   id: 'fixture-license',
