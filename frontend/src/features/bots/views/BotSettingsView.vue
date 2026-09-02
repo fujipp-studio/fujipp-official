@@ -183,6 +183,28 @@ function formatRuntimeDate(value: string | null) {
 }
 
 const showAutoRenewModal = ref(false)
+const showRuntimeRenewalModal = ref(false)
+
+const canRenewAssignedRuntime = computed(
+  () =>
+    assignedRuntime.value?.status === 'ACTIVE' || assignedRuntime.value?.status === 'GRACE',
+)
+
+const projectedRuntimeEnd = computed(() => {
+  const runtime = assignedRuntime.value
+  if (!runtime) return '—'
+  const end = new Date(runtime.currentPeriodEnd)
+  end.setUTCDate(end.getUTCDate() + runtime.durationDays)
+  return formatRuntimeDate(end.toISOString())
+})
+
+function formatRuntimePrice(value: number) {
+  return new Intl.NumberFormat(locale.value === 'th' ? 'th-TH' : 'en-US', {
+    style: 'currency',
+    currency: 'THB',
+    minimumFractionDigits: 2,
+  }).format(value / 100)
+}
 
 function openAutoRenewModal() {
   showAutoRenewModal.value = true
@@ -191,6 +213,16 @@ function openAutoRenewModal() {
 function closeAutoRenewModal() {
   if (runtimeBusy.value) return
   showAutoRenewModal.value = false
+}
+
+function openRuntimeRenewalModal() {
+  if (!canRenewAssignedRuntime.value) return
+  showRuntimeRenewalModal.value = true
+}
+
+function closeRuntimeRenewalModal() {
+  if (runtimeBusy.value) return
+  showRuntimeRenewalModal.value = false
 }
 
 async function confirmToggleAutoRenew() {
@@ -227,6 +259,7 @@ async function renewAssignedRuntime() {
     showToast(cause instanceof Error ? cause.message : t('botSettings.renewalFailed'), 'error')
   } finally {
     runtimeBusy.value = false
+    showRuntimeRenewalModal.value = false
   }
 }
 
@@ -357,12 +390,20 @@ onMounted(async () => {
                 <dd>{{ formatRuntimeDate(assignedRuntime.graceUntil) }}</dd>
               </div>
             </dl>
-            <div v-if="assignedRuntime.status === 'GRACE'" class="runtime-actions">
+            <div v-if="canRenewAssignedRuntime" class="runtime-actions">
+              <p class="runtime-renewal-offer">
+                {{
+                  t('botSettings.runtimeRenewalOffer', {
+                    price: formatRuntimePrice(assignedRuntime.effectiveRenewalPriceSatang),
+                    days: assignedRuntime.durationDays,
+                  })
+                }}
+              </p>
               <AppButton
                 class="settings-hug"
                 :disabled="runtimeBusy"
-                @click="renewAssignedRuntime"
-                >{{ t('botSettings.renewNow') }}</AppButton
+                @click="openRuntimeRenewalModal"
+                >{{ t('botSettings.topUpRuntimeNow') }}</AppButton
               >
             </div>
           </article>
@@ -441,6 +482,48 @@ onMounted(async () => {
     </Transition>
 
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
+
+    <AppModal
+      v-model:open="showRuntimeRenewalModal"
+      :subtitle="assignedRuntime?.planName"
+      :title="t('botSettings.confirmRuntimeRenewal')"
+      :disabled="runtimeBusy"
+      @close="closeRuntimeRenewalModal"
+    >
+      <template v-if="assignedRuntime">
+        <p class="leading-relaxed">
+          {{
+            t('botSettings.runtimeRenewalPrompt', {
+              price: formatRuntimePrice(assignedRuntime.effectiveRenewalPriceSatang),
+              days: assignedRuntime.durationDays,
+            })
+          }}
+        </p>
+        <dl class="renewal-preview">
+          <div>
+            <dt>{{ t('botSettings.currentExpiry') }}</dt>
+            <dd>{{ formatRuntimeDate(assignedRuntime.currentPeriodEnd) }}</dd>
+          </div>
+          <div>
+            <dt>{{ t('botSettings.newExpiry') }}</dt>
+            <dd>{{ projectedRuntimeEnd }}</dd>
+          </div>
+        </dl>
+      </template>
+      <template #actions>
+        <AppButton
+          type="button"
+          variant="secondary"
+          :disabled="runtimeBusy"
+          @click="closeRuntimeRenewalModal"
+        >
+          {{ t('botSettings.cancel') }}
+        </AppButton>
+        <AppButton type="button" :disabled="runtimeBusy" @click="renewAssignedRuntime">
+          {{ runtimeBusy ? t('botSettings.renewing') : t('botSettings.confirmRenewal') }}
+        </AppButton>
+      </template>
+    </AppModal>
 
     <AppModal
       v-model:open="showAutoRenewModal"
@@ -649,6 +732,31 @@ onMounted(async () => {
   justify-content: space-between;
   gap: var(--spacing-md);
 }
+.runtime-renewal-offer {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.renewal-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
+}
+.renewal-preview > div {
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
+.renewal-preview dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+.renewal-preview dd {
+  margin-top: var(--spacing-xs);
+  color: var(--color-text-primary);
+  font-weight: 700;
+}
 .runtime-status {
   padding: var(--spacing-xxs) var(--spacing-sm);
   border: 1px solid var(--color-success-border);
@@ -744,6 +852,9 @@ onMounted(async () => {
     flex-direction: column;
   }
   .runtime-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .renewal-preview {
     grid-template-columns: 1fr;
   }
   .settings-hug {

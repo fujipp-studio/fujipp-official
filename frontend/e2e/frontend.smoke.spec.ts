@@ -107,6 +107,28 @@ test('saves edited embed content without changing its active mode', async ({ pag
   expect(licenseLoads).toBe(1) // The shell and both routed children share the same inventory.
 })
 
+test('tops up an active Runtime only after confirmation', async ({ page }) => {
+  let renewalRequests = 0
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.endsWith('/renew')) renewalRequests += 1
+  })
+
+  await page.goto('/my-bot/fixture-bot/settings/runtime')
+  await expect(page.getByRole('heading', { name: 'Runtime settings', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Top up Runtime now', exact: true }).click()
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('heading', { name: 'Confirm Runtime top-up' })).toBeVisible()
+  await expect(dialog).toContainText('THB 99.00')
+  await expect(dialog).toContainText('30 days')
+  expect(renewalRequests).toBe(0)
+
+  await dialog.getByRole('button', { name: 'Confirm top-up', exact: true }).click()
+  await expect(dialog).toBeHidden()
+  expect(renewalRequests).toBe(1)
+  await expect(page.getByText(/Oct 3, 2026/)).toBeVisible()
+})
+
 test('shows a retry action when bot settings cannot load', async ({ page }) => {
   let failed = true
   await page.route('**/api/v2/bots*', async (route) => {
