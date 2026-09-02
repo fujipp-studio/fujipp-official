@@ -7,4 +7,5 @@ import about from './about'
 import admin from './admin'
 import botSettings from './botSettings'
 import common from './common'
-export default { navigation, home, store, topup, footer, about, admin, botSettings, common }
+import myBots from './myBots'
+export default { navigation, home, store, topup, footer, about, admin, botSettings, myBots, common }
