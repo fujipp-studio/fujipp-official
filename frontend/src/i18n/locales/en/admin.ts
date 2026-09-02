@@ -97,11 +97,19 @@ export default {
     startSuccess: 'Bot start requested',
     stopSuccess: 'Bot stop requested',
     botSettings: 'Bot settings',
-    featureTitle: 'Packages',
+    featureTitle: 'Features & packages',
     featureDescription:
-      'Manage product details, media, tutorials, availability, and offer pricing.',
+      'Manage built-in bot features separately from packages and Runtime plans offered in the Store.',
+    coreFeatures: 'Core features',
+    coreFeaturesDescription:
+      'Installed automatically for every bot. Manage feature details and versions here; no sales offer is needed.',
+    includedWithEveryBot: 'Included with every bot · No purchase required',
+    storePackages: 'Store packages',
+    storePackagesDescription:
+      'Additional features and Runtime plans. Manage offers, pricing, and availability in the Store.',
+    noMatchingFeatures: 'No features match your search.',
     features: 'Features',
-    featureCount: '{count} features',
+    featureCount: '{count} feature | {count} features',
     featureSearch: 'Search feature',
     noImage: 'No image',
     editFeature: 'Edit feature',
