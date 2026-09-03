@@ -34,6 +34,8 @@ export function createAppRouter(
       if (savedPosition) return savedPosition
       if (to.path === from.path) return false
 
+      if (to.hash) return { el: to.hash }
+
       return { top: 0, left: 0 }
     },
     routes: [
@@ -87,6 +89,11 @@ export function createAppRouter(
         name: 'about',
         component: () => import('../features/about/views/AboutView.vue'),
         meta: { seo: pageSeo.about },
+      },
+      {
+        path: '/donate',
+        name: 'donate',
+        redirect: { path: '/about', hash: '#about-support' },
       },
       {
         path: '/store',
@@ -238,6 +245,12 @@ export function createAppRouter(
             component: () => import('../features/admin/views/AdminBotsView.vue'),
             meta: { adminSection: 'bots' },
           },
+          {
+            path: 'donations',
+            name: 'admin-donations',
+            component: () => import('../features/admin/views/AdminDonationsView.vue'),
+            meta: { adminSection: 'donations' },
+          },
         ],
       },
       {
@@ -347,7 +360,7 @@ export default createAppRouter()
 
 declare module 'vue-router' {
   interface RouteMeta {
-    adminSection?: 'main' | 'users' | 'packages' | 'runtime' | 'bots'
+    adminSection?: 'main' | 'users' | 'packages' | 'runtime' | 'bots' | 'donations'
     hideGlobalNavbar?: boolean
     requiresAuth?: boolean
     roles?: Array<'USER' | 'TESTER' | 'EDITOR' | 'ADMIN'>

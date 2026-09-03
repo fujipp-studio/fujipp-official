@@ -21,6 +21,7 @@ const sectionLabel = computed(() => {
   if (section.value === 'packages') return t('admin.dashboard.packagesMenu')
   if (section.value === 'runtime') return t('admin.dashboard.runtimeMenu')
   if (section.value === 'bots') return t('admin.dashboard.botsMenu')
+  if (section.value === 'donations') return t('admin.dashboard.donationsMenu')
   return ''
 })
 
