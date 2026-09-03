@@ -53,6 +53,14 @@ async function signOut() {
   if (result.success) closeProfileMenu()
 }
 
+async function manageAccount() {
+  closeProfileMenu()
+  await router.push({
+    path: '/account',
+    query: locale.value === 'th' ? { locale: 'th' } : {},
+  })
+}
+
 function selectTheme(mode: ThemeMode, event: MouseEvent) {
   const rect = (event.currentTarget as HTMLButtonElement).getBoundingClientRect()
   themeStore.setTheme(mode, {
@@ -225,7 +233,7 @@ function finishProfileSheetDrag(event: PointerEvent) {
         </div>
 
         <div v-if="currentUser?.role === 'ADMIN'" class="profile-dialog__row">
-          <span class="profile-dialog__label">Admin tools</span>
+          <span class="profile-dialog__label">{{ t('navigation.adminTools') }}</span>
           <AppToggle
             :model-value="adminToolsVisible"
             aria-label="Show Admin tools button"
@@ -233,7 +241,11 @@ function finishProfileSheetDrag(event: PointerEvent) {
           />
         </div>
 
-        <button class="profile-dialog__row profile-dialog__manage" type="button">
+        <button
+          class="profile-dialog__row profile-dialog__manage"
+          type="button"
+          @click="manageAccount"
+        >
           <span class="profile-dialog__label">{{ t('navigation.manageAccount') }}</span>
           <AppIcon class="profile-dialog__arrow" :source="icons.base.arrowRight" />
         </button>

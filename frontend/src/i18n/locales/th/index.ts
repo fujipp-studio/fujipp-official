@@ -9,4 +9,5 @@ import botSettings from './botSettings'
 import common from './common'
 import myBots from './myBots'
 import donation from './donation'
-export default { navigation, home, store, topup, donation, footer, about, admin, botSettings, myBots, common }
+import account from './account'
+export default { navigation, home, store, topup, donation, account, footer, about, admin, botSettings, myBots, common }

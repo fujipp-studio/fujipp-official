@@ -22,7 +22,8 @@ onMounted(async () => {
 
   const result = await authStore.completeOAuthCallback()
   if (result.success) {
-    await router.replace('/')
+    const recovery = new URL(window.location.href).searchParams.get('recovery') === '1'
+    await router.replace(recovery ? { path: '/account', query: { recovery: '1' } } : '/')
     return
   }
   failed.value = true

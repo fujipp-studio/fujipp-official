@@ -4,7 +4,10 @@ import type { FeatureConfiguration, FeatureLicense, UserBot } from '@/features/b
 import type { RuntimeSubscription } from '@/features/bots/runtime-api'
 import type { StoreFeature } from '@/features/store/api'
 
-export const session = { access_token: 'fixture-token', user: { id: 'fixture-user' } } as Session
+export const session = {
+  access_token: 'fixture-token',
+  user: { id: 'fixture-user', email: 'test@example.invalid' },
+} as Session
 export const user: CurrentUser = {
   id: 'fixture-user',
   email: 'test@example.invalid',

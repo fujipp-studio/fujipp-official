@@ -80,6 +80,23 @@ public class ProfileService {
         return reload(account.id());
     }
 
+    @Transactional
+    public void deactivateAccount(String subject) {
+        CurrentUserRepository.AccountProfile account = currentUserService.getActiveAccount(subject);
+        if (!currentUserRepository.deactivateAccount(account.id())) {
+            throw new ProfileValidationException("Account could not be deactivated");
+        }
+        securityAuditService.record(
+                SecurityEventType.ACCOUNT_DEACTIVATED,
+                AuditOutcome.SUCCESS,
+                account.id(),
+                account.id(),
+                null,
+                null,
+                java.util.Map.of()
+        );
+    }
+
     private ProfileResponse reload(java.util.UUID userId) {
         return currentUserRepository.findById(userId)
                 .map(ProfileResponse::from)

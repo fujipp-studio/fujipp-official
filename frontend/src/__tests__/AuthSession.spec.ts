@@ -10,6 +10,8 @@ const sdk = vi.hoisted(() => ({
   getSession: vi.fn<() => Promise<{ data: { session: Session }; error: null }>>(),
   signInWithPassword: vi.fn<() => Promise<{ data: { session: Session }; error: null }>>(),
   signOut: vi.fn<() => Promise<{ error: null }>>(),
+  updateUser: vi.fn<() => Promise<{ error: null }>>(),
+  resetPasswordForEmail: vi.fn<() => Promise<{ error: null }>>(),
   onAuthStateChange:
     vi.fn<
       (callback: (event: AuthChangeEvent, session: Session | null) => void) => {
@@ -32,6 +34,8 @@ beforeEach(() => {
   sdk.getSession.mockResolvedValue({ data: { session }, error: null })
   sdk.signInWithPassword.mockResolvedValue({ data: { session }, error: null })
   sdk.signOut.mockResolvedValue({ error: null })
+  sdk.updateUser.mockResolvedValue({ error: null })
+  sdk.resetPasswordForEmail.mockResolvedValue({ error: null })
   vi.mocked(fetchCurrentUser).mockResolvedValue(user)
 })
 describe('authentication session lifecycle', () => {
@@ -71,5 +75,18 @@ describe('authentication session lifecycle', () => {
     await flushPromises()
     expect(auth.error).toBe('Account unavailable')
     auth.$dispose()
+  })
+  it('updates and resets the current password through Supabase Auth', async () => {
+    const auth = useAuthStore()
+    await auth.initialize()
+
+    expect((await auth.updatePassword('new-password')).success).toBe(true)
+    expect(sdk.updateUser).toHaveBeenCalledWith({ password: 'new-password' })
+
+    expect((await auth.requestPasswordReset()).success).toBe(true)
+    expect(sdk.resetPasswordForEmail).toHaveBeenCalledWith(
+      'test@example.invalid',
+      expect.objectContaining({ redirectTo: expect.stringContaining('/auth/callback?recovery=1') }),
+    )
   })
 })
