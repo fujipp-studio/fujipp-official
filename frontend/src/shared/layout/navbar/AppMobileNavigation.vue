@@ -23,6 +23,10 @@ defineExpose({
   contains: (target: Node) => mobileNavigationElement.value?.contains(target) ?? false,
 })
 function navigationLabel(item: NavbarLink) {
+  const keyByLabel: Record<string, string> = {
+    Dashboard: 'navigation.dashboard',
+    'Top up': 'navigation.topUp',
+  }
   const keyByPath: Record<string, string> = {
     '/': 'navigation.home',
     '/work': 'navigation.work',
@@ -31,7 +35,7 @@ function navigationLabel(item: NavbarLink) {
     '/my-bot': 'navigation.myBot',
     '/add-credit': 'navigation.addCredit',
   }
-  return t(keyByPath[item.path] ?? item.label)
+  return t(keyByLabel[item.label] ?? keyByPath[item.path] ?? item.label)
 }
 </script>
 <template>
@@ -116,7 +120,7 @@ function navigationLabel(item: NavbarLink) {
                   class="mobile-icon mobile-icon--24"
                   :source="child.icon"
                 />
-                <span>{{ child.label }}</span>
+                <span>{{ navigationLabel(child) }}</span>
               </button>
             </div>
           </template>
@@ -202,7 +206,7 @@ function navigationLabel(item: NavbarLink) {
   display: none;
 }
 
-@media (max-width: 47.99rem) {
+@media (max-width: 63.99rem) {
   .mobile-menu .brand__lockup {
     width: auto;
     height: var(--brand-lockup-height);
