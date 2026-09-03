@@ -55,6 +55,7 @@ export default {
     skills: 'Skills',
     experience: 'Experience',
     contact: 'Contact',
+    support: 'Support',
     goTo: 'Go to {section}',
   },
 } as const

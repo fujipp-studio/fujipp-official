@@ -7,6 +7,7 @@ import { AppFooter } from '../../../shared/layout'
 import { AppButton, AppProgressiveImage } from '../../../shared/ui'
 import { icons } from '../../../config'
 import { useThemeStore } from '../../../stores'
+import { DonationSupportSection } from '../../donation/components'
 import { AboutSectionNavigation, SkillGroupCard } from '../components'
 import { experienceHighlights, skillGroups } from '../config'
 
@@ -321,6 +322,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </section>
+
+      <DonationSupportSection />
     </main>
 
     <AppFooter />

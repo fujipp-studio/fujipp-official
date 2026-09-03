@@ -17,7 +17,10 @@ export default mergeConfig(
             if (path.startsWith('/api/')) {
               let raw = ''
               for await (const chunk of request) raw += String(chunk)
-              const input = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+              const input =
+                raw && request.headers['content-type']?.includes('application/json')
+                  ? (JSON.parse(raw) as Record<string, unknown>)
+                  : {}
               response.setHeader('Content-Type', 'application/json')
               response.end(JSON.stringify(fixtureResponse(path, request.method ?? 'GET', input)))
               return

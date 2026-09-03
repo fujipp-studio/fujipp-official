@@ -103,6 +103,27 @@ class ProfileServiceTests {
                 .isEqualTo(UsernameUnavailableException.Reason.TAKEN);
     }
 
+    @Test
+    void deactivatesTheCurrentAccountAndWritesAnAuditEvent() {
+        UUID userId = UUID.randomUUID();
+        when(currentUserService.getActiveAccount(userId.toString()))
+                .thenReturn(account(userId, "fujipp", "Fujipp"));
+        when(repository.deactivateAccount(userId)).thenReturn(true);
+
+        service.deactivateAccount(userId.toString());
+
+        verify(repository).deactivateAccount(userId);
+        verify(securityAuditService).record(
+                com.fujipp.backend.security.SecurityEventType.ACCOUNT_DEACTIVATED,
+                com.fujipp.backend.security.AuditOutcome.SUCCESS,
+                userId,
+                userId,
+                null,
+                null,
+                java.util.Map.of()
+        );
+    }
+
     private CurrentUserRepository.AccountProfile account(
             UUID userId,
             String username,

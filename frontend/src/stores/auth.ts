@@ -183,6 +183,29 @@ export const useAuthStore = defineStore('auth', () => {
     })
   }
 
+  async function updatePassword(password: string): Promise<AuthActionResult> {
+    return runAuthAction(async () => {
+      const supabase = await authClient()
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) throw updateError
+      return { success: true }
+    })
+  }
+
+  async function requestPasswordReset(): Promise<AuthActionResult> {
+    return runAuthAction(async () => {
+      const email = session.value?.user.email
+      if (!email) throw new Error('No email is associated with this account.')
+      const redirectTo = `${window.location.origin}/auth/callback?recovery=1`
+      const supabase = await authClient()
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo,
+      })
+      if (resetError) throw resetError
+      return { success: true }
+    })
+  }
+
   function loadCurrentUser(activeSession: Session): Promise<void> {
     const token = activeSession.access_token
     if (userRequest?.token === token) return userRequest.promise
@@ -236,6 +259,8 @@ export const useAuthStore = defineStore('auth', () => {
     signInWithOAuth,
     completeOAuthCallback,
     signOut,
+    updatePassword,
+    requestPasswordReset,
     clearError,
   }
 })

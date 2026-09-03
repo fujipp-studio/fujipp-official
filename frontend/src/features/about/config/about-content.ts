@@ -33,6 +33,7 @@ export const aboutSections = [
   { id: 'about-experience', labelKey: 'about.sections.experience' },
   { id: 'about-skills', labelKey: 'about.sections.skills' },
   { id: 'about-contact', labelKey: 'about.sections.contact' },
+  { id: 'about-support', labelKey: 'about.sections.support' },
 ] as const
 
 export const skillGroups = [

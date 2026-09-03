@@ -14,6 +14,11 @@ const pageSeo = {
     description:
       'Learn about Anawat Boripakhirun, the developer behind Fujipp, his experience, skills, and approach to building software.',
   },
+  account: {
+    title: 'Account settings',
+    description: 'Manage your Fujipp profile, password, and account access.',
+    noIndex: true,
+  },
   work: {
     title: 'Work',
     description:
@@ -33,6 +38,8 @@ export function createAppRouter(
     scrollBehavior(to, from, savedPosition) {
       if (savedPosition) return savedPosition
       if (to.path === from.path) return false
+
+      if (to.hash) return { el: to.hash }
 
       return { top: 0, left: 0 }
     },
@@ -87,6 +94,17 @@ export function createAppRouter(
         name: 'about',
         component: () => import('../features/about/views/AboutView.vue'),
         meta: { seo: pageSeo.about },
+      },
+      {
+        path: '/account',
+        name: 'account',
+        component: () => import('../features/account/views/AccountView.vue'),
+        meta: { requiresAuth: true, seo: pageSeo.account },
+      },
+      {
+        path: '/donate',
+        name: 'donate',
+        redirect: { path: '/about', hash: '#about-support' },
       },
       {
         path: '/store',
@@ -238,6 +256,12 @@ export function createAppRouter(
             component: () => import('../features/admin/views/AdminBotsView.vue'),
             meta: { adminSection: 'bots' },
           },
+          {
+            path: 'donations',
+            name: 'admin-donations',
+            component: () => import('../features/admin/views/AdminDonationsView.vue'),
+            meta: { adminSection: 'donations' },
+          },
         ],
       },
       {
@@ -347,7 +371,7 @@ export default createAppRouter()
 
 declare module 'vue-router' {
   interface RouteMeta {
-    adminSection?: 'main' | 'users' | 'packages' | 'runtime' | 'bots'
+    adminSection?: 'main' | 'users' | 'packages' | 'runtime' | 'bots' | 'donations'
     hideGlobalNavbar?: boolean
     requiresAuth?: boolean
     roles?: Array<'USER' | 'TESTER' | 'EDITOR' | 'ADMIN'>

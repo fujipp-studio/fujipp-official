@@ -48,6 +48,9 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/store/features")
                         .permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/api/v1/donations/campaign")
+                        .permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
                                 "/api/v1/runtime/plans", "/api/v1/runtime/availability")
                         .permitAll()
                         .requestMatchers("/internal/v1/**")

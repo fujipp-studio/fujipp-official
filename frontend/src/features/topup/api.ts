@@ -32,11 +32,12 @@ export async function createWalletTopup(
   amountSatang: number,
   session: Session,
   idempotencyKey: string = crypto.randomUUID(),
+  donationId?: string,
 ): Promise<WalletTopupInvoice> {
   const response = await apiFetch(`${backendUrl}/api/v1/wallet/topups`, {
     method: 'POST',
     headers: authenticatedHeaders(session, true),
-    body: JSON.stringify({ amountSatang, idempotencyKey }),
+    body: JSON.stringify({ amountSatang, idempotencyKey, donationId }),
   })
   return readJson<WalletTopupInvoice>(response, 'Unable to create a top-up request.')
 }

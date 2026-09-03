@@ -70,6 +70,65 @@ public class CurrentUserRepository {
         );
     }
 
+    public Optional<AvatarRecord> findAvatarByUserId(UUID userId) {
+        return jdbcTemplate.query(
+                """
+                SELECT avatar_url, avatar_public_id, avatar_source
+                  FROM public.profiles
+                 WHERE id = ?
+                """,
+                (resultSet, rowNumber) -> new AvatarRecord(
+                        resultSet.getString("avatar_url"),
+                        resultSet.getString("avatar_public_id"),
+                        resultSet.getString("avatar_source")
+                ),
+                userId
+        ).stream().findFirst();
+    }
+
+    public boolean replaceAvatar(UUID userId, String avatarUrl, String publicId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE public.profiles
+                   SET avatar_url = ?,
+                       avatar_public_id = ?,
+                       avatar_source = 'CLOUDINARY'
+                 WHERE id = ?
+                """,
+                avatarUrl,
+                publicId,
+                userId
+        ) == 1;
+    }
+
+    public boolean clearAvatar(UUID userId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE public.profiles
+                   SET avatar_url = NULL,
+                       avatar_public_id = NULL,
+                       avatar_source = 'PROVIDER'
+                 WHERE id = ?
+                """,
+                userId
+        ) == 1;
+    }
+
+    public boolean deactivateAccount(UUID userId) {
+        return jdbcTemplate.update(
+                """
+                UPDATE private.user_accounts
+                   SET status = 'DEACTIVATED',
+                       status_reason = 'User requested account deactivation',
+                       status_changed_by = ?
+                 WHERE user_id = ?
+                   AND status = 'ACTIVE'
+                """,
+                userId,
+                userId
+        ) == 1;
+    }
+
     public boolean setUsername(UUID userId, String username) {
         return jdbcTemplate.update(
                 """
@@ -137,6 +196,13 @@ public class CurrentUserRepository {
             String lastName,
             String avatarUrl,
             java.time.OffsetDateTime profileCompletedAt
+    ) {
+    }
+
+    public record AvatarRecord(
+            String avatarUrl,
+            String publicId,
+            String source
     ) {
     }
 }

@@ -53,6 +53,7 @@ export default {
     skills: 'ทักษะ',
     experience: 'ประสบการณ์',
     contact: 'ติดต่อ',
+    support: 'สนับสนุน',
     goTo: 'ไปยังส่วน {section}',
   },
 } as const

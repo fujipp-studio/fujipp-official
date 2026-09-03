@@ -2,7 +2,7 @@
 import { computed, inject } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { Users, Cpu, PackageOpen, Bot } from 'lucide-vue-next'
+import { Users, Cpu, PackageOpen, Bot, HeartHandshake } from 'lucide-vue-next'
 import AdminLayout from '../components/AdminLayout.vue'
 import { AppSectionIndicator } from '../../../shared/ui'
 
@@ -33,6 +33,12 @@ const adminModules = computed(() => [
     title: t('admin.dashboard.botsMenu'),
     icon: Bot,
     path: '/admin/bots',
+  },
+  {
+    id: 'donations',
+    title: t('admin.dashboard.donationsMenu'),
+    icon: HeartHandshake,
+    path: '/admin/donations',
   },
 ])
 const sections = computed(() => [{ id: 'admin-main-menu', label: t('admin.breadcrumb.main') }])
@@ -132,7 +138,7 @@ const sections = computed(() => [{ id: 'admin-main-menu', label: t('admin.breadc
 
 @media (min-width: 64rem) {
   .admin-menu-grid {
-    grid-template-columns: repeat(4, minmax(0, 16rem));
+    grid-template-columns: repeat(5, minmax(0, 16rem));
   }
 }
 

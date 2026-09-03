@@ -28,11 +28,26 @@ class TopupRepository {
     }
 
     @Transactional
-    Invoice create(UUID userId, long amountSatang, String idempotencyKey, String qrPayload, int expiryMinutes) {
+    Invoice create(UUID userId, long amountSatang, String idempotencyKey, UUID donationId,
+            String qrPayload, int expiryMinutes) {
+        jdbc.query(
+                "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                resultSet -> null,
+                idempotencyKey
+        );
+        if (donationId != null) {
+            jdbc.query(
+                    "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                    resultSet -> null,
+                    "donation-topup:" + donationId
+            );
+        }
+
         List<Invoice> existing = jdbc.query(INVOICE_SELECT + " WHERE i.idempotency_key=?", this::mapInvoice, idempotencyKey);
         if (!existing.isEmpty()) {
             Invoice invoice = existing.getFirst();
-            if (!invoice.userId().equals(userId) || invoice.amountSatang() != amountSatang) {
+            if (!invoice.userId().equals(userId) || invoice.amountSatang() != amountSatang
+                    || !java.util.Objects.equals(invoice.donationId(), donationId)) {
                 throw new TopupException("IDEMPOTENCY_CONFLICT", "Idempotency key was used for another top-up", TopupException.Kind.CONFLICT);
             }
             return invoice;
@@ -40,14 +55,55 @@ class TopupRepository {
 
         CustomerWallet wallet = wallet(userId).orElseThrow(() -> new TopupException(
                 "WALLET_NOT_FOUND", "Active THB wallet was not found", TopupException.Kind.NOT_FOUND));
+
+        if (donationId != null) {
+            jdbc.update("""
+                    UPDATE billing.topup_invoices
+                       SET status='EXPIRED'
+                     WHERE donation_id=? AND status IN ('PENDING','FAILED') AND expires_at<=now()
+                    """, donationId);
+            List<Invoice> active = jdbc.query(
+                    INVOICE_SELECT + """
+                         WHERE i.donation_id=? AND c.user_id=?
+                           AND i.status IN ('PENDING','VERIFYING','FAILED')
+                         ORDER BY i.created_at DESC
+                         LIMIT 1
+                        """, this::mapInvoice, donationId, userId);
+            if (!active.isEmpty()) {
+                Invoice invoice = active.getFirst();
+                if (invoice.amountSatang() != amountSatang) {
+                    throw new TopupException("DONATION_TOPUP_CONFLICT",
+                            "An active top-up already exists for another amount", TopupException.Kind.CONFLICT);
+                }
+                return invoice;
+            }
+
+            boolean fundable = !jdbc.query("""
+                    SELECT donation.id
+                      FROM support.donations AS donation
+                     WHERE donation.id=?
+                       AND donation.user_id=?
+                       AND donation.amount_satang=?
+                       AND donation.funding_method='TOPUP'
+                       AND donation.status='PENDING'
+                     FOR UPDATE
+                    """, (rs, row) -> rs.getObject(1, UUID.class), donationId, userId, amountSatang).isEmpty();
+            if (!fundable) {
+                throw new TopupException("DONATION_NOT_FUNDABLE",
+                        "Donation is not available for this top-up", TopupException.Kind.CONFLICT);
+            }
+        }
+
         UUID id = UUID.randomUUID();
         String number = "TPU_" + id.toString().replace("-", "").toUpperCase();
         try {
             jdbc.update("""
                     INSERT INTO billing.topup_invoices
-                      (id,invoice_number,customer_id,wallet_id,amount_satang,qr_payload,idempotency_key,expires_at)
-                    VALUES (?,?,?,?,?,?,?,now()+(? * interval '1 minute'))
-                    """, id,number,wallet.customerId(),wallet.walletId(),amountSatang,qrPayload,idempotencyKey,expiryMinutes);
+                      (id,invoice_number,customer_id,wallet_id,amount_satang,qr_payload,
+                       idempotency_key,donation_id,expires_at)
+                    VALUES (?,?,?,?,?,?,?,?,now()+(? * interval '1 minute'))
+                    """, id,number,wallet.customerId(),wallet.walletId(),amountSatang,qrPayload,
+                    idempotencyKey,donationId,expiryMinutes);
         } catch (DataIntegrityViolationException exception) {
             throw new TopupException("TOPUP_CONFLICT", "Could not create the top-up invoice", TopupException.Kind.CONFLICT);
         }
@@ -109,16 +165,24 @@ class TopupRepository {
 
     @Transactional
     Invoice complete(Verification verification, SlipOkClient.Result result) {
-        jdbc.update("""
-                UPDATE billing.slip_verifications
-                   SET status='VERIFIED',transaction_reference=?,transaction_at=?,sending_bank_code=?,
-                       receiving_bank_code=?,sender_display_name=?,receiver_display_name=?,
-                       verified_amount_satang=?,slipok_response=?::jsonb,verified_at=now()
-                 WHERE id=? AND status='VERIFYING'
-                """, result.reference(),result.transactionAt(),result.sendingBank(),result.receivingBank(),
-                result.senderName(),result.receiverName(),result.amountSatang(),result.rawJson(),verification.id());
-        jdbc.queryForObject("SELECT id FROM billing.complete_slipok_topup(?,?)", UUID.class,
-                verification.invoice().id(), verification.id());
+        try {
+            jdbc.update("""
+                    UPDATE billing.slip_verifications
+                       SET status='VERIFIED',transaction_reference=?,transaction_at=?,sending_bank_code=?,
+                           receiving_bank_code=?,sender_display_name=?,receiver_display_name=?,
+                           verified_amount_satang=?,slipok_response=?::jsonb,verified_at=now()
+                     WHERE id=? AND status='VERIFYING'
+                    """, result.reference(),result.transactionAt(),result.sendingBank(),result.receivingBank(),
+                    result.senderName(),result.receiverName(),result.amountSatang(),result.rawJson(),verification.id());
+            jdbc.queryForObject("SELECT id FROM billing.complete_slipok_topup(?,?)", UUID.class,
+                    verification.invoice().id(), verification.id());
+        } catch (DataIntegrityViolationException exception) {
+            throw new TopupException(
+                    "SLIP_ALREADY_USED",
+                    "This payment slip has already been used",
+                    TopupException.Kind.CONFLICT
+            );
+        }
         return owned(verification.invoice().id(), verification.invoice().userId()).orElseThrow();
     }
 
@@ -146,13 +210,14 @@ class TopupRepository {
     private Invoice mapInvoice(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
         return new Invoice(rs.getObject("id",UUID.class),rs.getString("invoice_number"),
                 rs.getObject("user_id",UUID.class),rs.getLong("amount_satang"),rs.getString("currency"),
-                rs.getString("status"),rs.getString("qr_payload"),rs.getLong("balance_satang"),
+                rs.getString("status"),rs.getString("qr_payload"),rs.getObject("donation_id",UUID.class),
+                rs.getLong("balance_satang"),
                 rs.getObject("expires_at",OffsetDateTime.class),rs.getObject("succeeded_at",OffsetDateTime.class),
                 rs.getObject("created_at",OffsetDateTime.class));
     }
 
     private static final String INVOICE_SELECT = """
-            SELECT i.id,i.invoice_number,c.user_id,i.amount_satang,i.currency,i.status,i.qr_payload,
+            SELECT i.id,i.invoice_number,c.user_id,i.amount_satang,i.currency,i.status,i.qr_payload,i.donation_id,
                    w.balance_satang,i.expires_at,i.succeeded_at,i.created_at
               FROM billing.topup_invoices i
               JOIN billing.customers c ON c.id=i.customer_id
@@ -161,7 +226,7 @@ class TopupRepository {
 
     record CustomerWallet(UUID customerId, UUID walletId, long balanceSatang) {}
     record Invoice(UUID id,String invoiceNumber,UUID userId,long amountSatang,String currency,String status,
-                   String qrPayload,long balanceSatang,OffsetDateTime expiresAt,OffsetDateTime succeededAt,
+                   String qrPayload,UUID donationId,long balanceSatang,OffsetDateTime expiresAt,OffsetDateTime succeededAt,
                    OffsetDateTime createdAt) {}
     record Verification(UUID id, Invoice invoice) {}
 }
