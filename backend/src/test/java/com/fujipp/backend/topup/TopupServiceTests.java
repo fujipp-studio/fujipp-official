@@ -37,20 +37,33 @@ class TopupServiceTests {
     @Test
     void createsOwnedPromptPayInvoiceInSatang() {
         TopupRepository.Invoice invoice=invoice("PENDING",5000,0);
-        when(repository.create(eq(userId),eq(5000L),eq("topup:test-1"),anyString(),eq(15))).thenReturn(invoice);
+        when(repository.create(eq(userId),eq(5000L),eq("topup:test-1"),isNull(),anyString(),eq(15))).thenReturn(invoice);
 
-        TopupResponses.Invoice response=service.create(userId.toString(),new TopupRequests.Create(5000,"topup:test-1"));
+        TopupResponses.Invoice response=service.create(userId.toString(),new TopupRequests.Create(5000,"topup:test-1",null));
 
         assertEquals(5000,response.amountSatang());
         assertEquals("FUJIPP",response.promptPayAccountName());
-        verify(repository).create(eq(userId),eq(5000L),eq("topup:test-1"),
+        verify(repository).create(eq(userId),eq(5000L),eq("topup:test-1"),isNull(),
                 startsWith("00020101021229370016A00000067701011101130066812345678"),eq(15));
+    }
+
+    @Test
+    void linksTheExistingTopupFlowToAPendingDonation() {
+        UUID donationId=UUID.randomUUID();
+        TopupRepository.Invoice invoice=invoice("PENDING",5000,0);
+        when(repository.create(eq(userId),eq(5000L),eq("topup:donation"),eq(donationId),anyString(),eq(15)))
+                .thenReturn(invoice);
+
+        service.create(userId.toString(),new TopupRequests.Create(5000,"topup:donation",donationId));
+
+        verify(repository).create(eq(userId),eq(5000L),eq("topup:donation"),eq(donationId),
+                anyString(),eq(15));
     }
 
     @Test
     void rejectsAmountOutsideConfiguredRange() {
         TopupException exception=assertThrows(TopupException.class,
-                () -> service.create(userId.toString(),new TopupRequests.Create(999,"topup:test-2")));
+                () -> service.create(userId.toString(),new TopupRequests.Create(999,"topup:test-2",null)));
         assertEquals("INVALID_TOPUP_AMOUNT",exception.code());
     }
 
@@ -112,7 +125,7 @@ class TopupServiceTests {
 
     private TopupRepository.Invoice invoice(UUID id,String status,long amount,long balance) {
         return new TopupRepository.Invoice(id,"TPU_TEST",userId,amount,"THB",status,
-                "https://promptpay.io/test.png",balance,OffsetDateTime.now().plusMinutes(15),
+                "https://promptpay.io/test.png",null,balance,OffsetDateTime.now().plusMinutes(15),
                 "SUCCESS".equals(status)?OffsetDateTime.now():null,OffsetDateTime.now());
     }
 }

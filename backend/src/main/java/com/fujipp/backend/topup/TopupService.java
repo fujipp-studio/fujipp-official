@@ -52,7 +52,8 @@ class TopupService {
                     "Top-up amount must be between configured minimum and maximum", TopupException.Kind.VALIDATION);
         }
         PromptPayQrGenerator.PaymentQr qr = promptPayQr.generate(promptPayId, request.amountSatang());
-        return response(repository.create(userId(subject),request.amountSatang(),request.idempotencyKey(),qr.payload(),expiryMinutes));
+        return response(repository.create(userId(subject),request.amountSatang(),request.idempotencyKey(),
+                request.donationId(),qr.payload(),expiryMinutes));
     }
 
     TopupResponses.Invoice get(String subject, UUID invoiceId) {
