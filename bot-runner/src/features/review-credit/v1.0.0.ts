@@ -14,6 +14,7 @@ const DEFAULT_COMMAND_NAME = "review";
 const DEFAULT_CHANNEL_TEMPLATE = "꒰💯꒱┆review 〻{count}";
 const COMMAND_NAME_PATTERN = /^[a-z0-9_-]{1,32}$/;
 const RENAME_INTERVAL_MS = 5 * 60 * 1_000;
+const MAX_REVIEW_COUNT = 2_147_483_647;
 
 interface ReviewState {
   channelId: string;
@@ -27,6 +28,8 @@ export const reviewCreditFeature: FeatureModule = {
   version: "1.0.0",
   intents: ["Guilds", "GuildMessages"],
   async activate(context) {
+    const allowManualCount = context.config.REVIEW_COUNT_WEBHOOKS !== undefined;
+    const includeWebhookMessages = readBoolean(context.config.REVIEW_COUNT_WEBHOOKS, false);
     const channelId = requiredSnowflake(context.config.REVIEW_CHANNEL_ID, "REVIEW_CHANNEL_ID");
     const commandName = readCommandName(context.config.REVIEW_COMMAND_NAME);
     const channelTemplate = readTemplate(context.config.REVIEW_CHANNEL_NAME_TEMPLATE);
@@ -99,7 +102,7 @@ export const reviewCreditFeature: FeatureModule = {
     };
 
     const processReview = async (message: Message) => {
-      if (message.author.bot || message.channelId !== channelId) return;
+      if (!shouldCountReviewMessage(message, includeWebhookMessages) || message.channelId !== channelId) return;
       const channel = await resolveChannel();
       state.count += 1;
       await applyReactions(message);
@@ -120,7 +123,7 @@ export const reviewCreditFeature: FeatureModule = {
       for (;;) {
         const messages = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) });
         if (messages.size === 0) break;
-        count += messages.filter((message) => !message.author.bot).size;
+        count += messages.filter((message) => shouldCountReviewMessage(message, includeWebhookMessages)).size;
         batches += 1;
         if (interaction && batches % 5 === 0) {
           await interaction.editReply(`กำลังนับข้อความรีวิว... ${count} ข้อความ`);
@@ -137,7 +140,7 @@ export const reviewCreditFeature: FeatureModule = {
 
     const refreshLatest = async (channel: GuildTextBasedChannel) => {
       const messages = await channel.messages.fetch({ limit: 100 });
-      const latest = messages.find((message) => !message.author.bot);
+      const latest = messages.find((message) => shouldCountReviewMessage(message, includeWebhookMessages));
       if (!latest) return false;
       await applyReactions(latest);
       await sendReply(latest, channel);
@@ -155,9 +158,16 @@ export const reviewCreditFeature: FeatureModule = {
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const channel = await resolveChannel();
-      if (interaction.options.getSubcommand() === "recount") {
+      const subcommand = interaction.options.getSubcommand();
+      if (subcommand === "recount") {
         const count = await recount(channel, interaction);
         await interaction.editReply(`นับและบันทึกรีวิวใหม่เรียบร้อย: ${count} ข้อความ`);
+      } else if (subcommand === "set-count" && allowManualCount) {
+        const count = interaction.options.getInteger("count", true);
+        state = { ...state, channelId, count, initialized: true };
+        await saveState();
+        await renameNow(channel);
+        await interaction.editReply(`แก้ไขและบันทึกจำนวนรีวิวเรียบร้อย: ${count} ข้อความ`);
       } else {
         const found = await refreshLatest(channel);
         await interaction.editReply(found ? "รีเฟรชรีวิวล่าสุดเรียบร้อย" : "ไม่พบข้อความรีวิวของสมาชิก");
@@ -176,14 +186,7 @@ export const reviewCreditFeature: FeatureModule = {
 
     const onReady = async () => {
       if (stopped) return;
-      const command = await context.client.application?.commands.create(
-        new SlashCommandBuilder()
-          .setName(commandName)
-          .setDescription("จัดการระบบนับเครดิตรีวิว")
-          .addSubcommand((subcommand) => subcommand.setName("recount").setDescription("นับข้อความรีวิวใหม่ทั้งหมด"))
-          .addSubcommand((subcommand) => subcommand.setName("refresh").setDescription("รีเฟรช reaction และคำตอบของรีวิวล่าสุด"))
-          .toJSON(),
-      );
+      const command = await context.client.application?.commands.create(buildReviewCreditCommand(commandName, allowManualCount).toJSON());
       registeredCommandId = command?.id;
       const channel = await resolveChannel();
       if (!state.initialized) await recount(channel);
@@ -207,6 +210,26 @@ export const reviewCreditFeature: FeatureModule = {
     };
   },
 };
+
+export function shouldCountReviewMessage(message: Pick<Message, "author" | "webhookId">, includeWebhookMessages = false): boolean {
+  return !message.author.bot || (includeWebhookMessages && Boolean(message.webhookId));
+}
+
+export function buildReviewCreditCommand(commandName: string, allowManualCount = false) {
+  const command = new SlashCommandBuilder()
+    .setName(commandName)
+    .setDescription("จัดการระบบนับเครดิตรีวิว")
+    .addSubcommand((subcommand) => subcommand.setName("recount").setDescription("นับข้อความรีวิวใหม่ทั้งหมด"));
+  if (allowManualCount) {
+    command.addSubcommand((subcommand) =>
+      subcommand
+        .setName("set-count")
+        .setDescription("แก้ไขจำนวนรีวิว")
+        .addIntegerOption((option) => option.setName("count").setDescription("จำนวนรีวิวใหม่").setMinValue(0).setMaxValue(MAX_REVIEW_COUNT).setRequired(true)),
+    );
+  }
+  return command.addSubcommand((subcommand) => subcommand.setName("refresh").setDescription("รีเฟรช reaction และคำตอบของรีวิวล่าสุด"));
+}
 
 function readState(value: Readonly<Record<string, unknown>>, channelId: string): ReviewState {
   return {

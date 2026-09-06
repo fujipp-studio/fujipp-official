@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-06 | Documented webhook-aware Review Credit counting and manual count replacement. |
 | 2026-09-06 | Documented administrator Feature removal, retained customer licenses, and protected Core Features. |
 | 2026-09-06 | Documented Robux payout DM receipts and the modal-based wallet adjustment flow. |
 | 2026-08-30 | Documented Frontend feature ownership, shared data loading, UI standards, and isolated browser verification. |

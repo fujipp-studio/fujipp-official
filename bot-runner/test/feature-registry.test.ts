@@ -29,6 +29,15 @@ test("resolves review credit version 1.0.0", () => {
   assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages"]);
 });
 
+test("resolves review credit version 1.1.0 without replacing version 1", () => {
+  const feature = getFeature("review-credit", "1.1.0");
+
+  assert.equal(feature?.runtimeKey, "review-credit");
+  assert.equal(feature?.version, "1.1.0");
+  assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages"]);
+  assert.equal(getFeature("review-credit", "1.0.0")?.version, "1.0.0");
+});
+
 test("resolves wallet top-up version 1.0.0", () => {
   assert.equal(getFeature("wallet-topup", "1.0.0")?.runtimeKey, "wallet-topup");
 });

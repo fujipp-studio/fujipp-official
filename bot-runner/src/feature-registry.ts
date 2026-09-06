@@ -1,7 +1,7 @@
 import { welcomeMessageFeature } from "./features/welcome-message.js";
 import { voiceKeeperFeature } from "./features/voice-keeper/index.js";
 import { botPresenceFeature } from "./features/bot-presence/index.js";
-import { reviewCreditFeature } from "./features/review-credit/index.js";
+import { reviewCreditFeature, reviewCreditFeatureV11 } from "./features/review-credit/index.js";
 import { walletTopupFeature, walletTopupFeatureV2, walletTopupFeatureV21 } from "./features/wallet-topup/index.js";
 import { robloxRobuxPayoutFeature, robloxRobuxPayoutFeatureV2, robloxRobuxPayoutFeatureV201, robloxRobuxPayoutFeatureV21 } from "./features/roblox-robux-payout/index.js";
 import { priceReaderFeature, priceReaderFeatureV2 } from "./features/price-reader/index.js";
@@ -16,6 +16,7 @@ const modules = new Map<string, FeatureModule>([
   [moduleKey(voiceKeeperFeature.runtimeKey, voiceKeeperFeature.version), voiceKeeperFeature],
   [moduleKey(botPresenceFeature.runtimeKey, botPresenceFeature.version), botPresenceFeature],
   [moduleKey(reviewCreditFeature.runtimeKey, reviewCreditFeature.version), reviewCreditFeature],
+  [moduleKey(reviewCreditFeatureV11.runtimeKey, reviewCreditFeatureV11.version), reviewCreditFeatureV11],
   [moduleKey(walletTopupFeature.runtimeKey, walletTopupFeature.version), walletTopupFeature],
   [moduleKey(walletTopupFeatureV2.runtimeKey, walletTopupFeatureV2.version), walletTopupFeatureV2],
   [moduleKey(walletTopupFeatureV21.runtimeKey, walletTopupFeatureV21.version), walletTopupFeatureV21],
