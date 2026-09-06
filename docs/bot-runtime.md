@@ -108,6 +108,13 @@ most once every five minutes. The global `/<REVIEW_COMMAND_NAME>` command has
 `recount` and `refresh` subcommands; both are enforced as administrator-only by
 the Runner.
 
+`review-credit@1.1.0` also counts webhook messages in real time and during
+`recount`; ordinary bot messages remain excluded so the Feature cannot count
+its own automated replies. Administrators can replace the persisted count with
+`/<REVIEW_COMMAND_NAME> set-count count:<number>`. The channel name is updated
+immediately after a manual change. `REVIEW_COUNT_WEBHOOKS` defaults to `true`
+and can disable webhook counting when required.
+
 ## Local build
 
 ```bash

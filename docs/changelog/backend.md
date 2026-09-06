@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-06 | Added Review Credit 1.1 with webhook-aware review counting and an administrator command for replacing the saved count. |
 | 2026-09-06 | Added administrator-only Feature removal from customer Bots with soft removal, Core Feature protection, and immediate Runtime bootstrap invalidation. |
 | 2026-09-06 | Added Roblox Robux Payout 2.1 with successful-purchase DM receipts and Wallet Top-up 2.1 with modal-based administrator adjustments and public Components V2 results. |
 | 2026-08-29 | Added Roblox Robux Payout 2.0.1 with a longer purchase username field and clearer purchase form title while preserving earlier versions. |

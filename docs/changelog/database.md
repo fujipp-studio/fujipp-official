@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-06 | Added the Review Credit 1.1 catalog version with configurable webhook counting while preserving existing installations for upgrade. |
 | 2026-09-06 | Added the Roblox Robux Payout 2.1 catalog version and published Wallet Top-up 2.1 with a configurable adjustment receipt. |
 | 2026-08-29 | Added the draft Roblox Robux Payout 2.0.1 catalog version with configuration and presentation definitions inherited from 2.0.0. |
 | 2026-08-22 | Added targeted partial and composite indexes for active Bots, administration lists, Runtime subscriptions, wallet history, and published work pagination. |
