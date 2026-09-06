@@ -39,6 +39,13 @@ test("resolves wallet top-up version 2.0.0 without replacing version 1", () => {
   assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent", "GuildMembers"]);
 });
 
+test("resolves wallet top-up version 2.1.0 without replacing earlier versions", () => {
+  const feature = getFeature("wallet-topup", "2.1.0");
+  assert.equal(feature?.version, "2.1.0");
+  assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent", "GuildMembers"]);
+  assert.equal(getFeature("wallet-topup", "2.0.0")?.version, "2.0.0");
+});
+
 test("resolves Roblox Robux payout version 1.0.0", () => {
   assert.equal(getFeature("roblox-robux-payout", "1.0.0")?.runtimeKey, "roblox-robux-payout");
 });
@@ -54,6 +61,13 @@ test("resolves Roblox Robux payout version 2.0.1 without replacing earlier versi
   assert.equal(feature?.runtimeKey, "roblox-robux-payout");
   assert.equal(feature?.version, "2.0.1");
   assert.equal(getFeature("roblox-robux-payout", "2.0.0")?.version, "2.0.0");
+});
+
+test("resolves Roblox Robux payout version 2.1.0 without replacing earlier versions", () => {
+  const feature = getFeature("roblox-robux-payout", "2.1.0");
+  assert.equal(feature?.runtimeKey, "roblox-robux-payout");
+  assert.equal(feature?.version, "2.1.0");
+  assert.equal(getFeature("roblox-robux-payout", "2.0.1")?.version, "2.0.1");
 });
 
 test("resolves Price Reader version 1.0.0 with message content intent", () => {

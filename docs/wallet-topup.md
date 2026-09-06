@@ -1,14 +1,18 @@
 # Wallet Top-up Feature
 
-`wallet-topup@1.0.0` provides a per-bot member wallet with TrueMoney Voucher
+`wallet-topup` provides a per-bot member wallet with TrueMoney Voucher
 and PromptPay/SlipOK top-ups. Amounts are integer satang and every successful
 credit is recorded in an append-only ledger.
+
+In version `2.1.0`, `/wallet-admin add|remove|set member:<member>` opens a modal
+for the amount and audit reason. A successful change returns a configurable
+Components V2 receipt in the command channel for everyone to see.
 
 ## Presentation slots
 
 The feature exposes editable slots including `panel`, `balance`, `method_selector`,
 `minimum_warning`, `promptpay_qr`, `expired`, `processing`, `failed`, and
-`succeeded`, `admin_notification`, `history`, `monthly_summary`, and
+`succeeded`, `admin_notification`, `adjustment_result`, `history`, `monthly_summary`, and
 `leaderboard`. Each definition stores a `mode` of `EMBED` or `COMPONENTS_V2`;
 different slots may use different modes.
 
@@ -82,8 +86,10 @@ All routes require `X-Runner-Token`:
 - `GET /internal/v1/wallet/leaderboard`
 
 `/wallet-admin balance|add|remove|set` is restricted to Discord Administrators
-or `WALLET_ADMIN_ROLE_ID`. Every change requires a reason and creates an
-append-only `ADJUSTMENT` entry containing the actor, operation, and reason.
+or `WALLET_ADMIN_ROLE_ID`. For `add`, `remove`, and `set`, select the member in
+the command and complete the amount and reason in the modal. Every change
+creates an append-only `ADJUSTMENT` entry containing the actor, operation, and
+reason, then displays the `adjustment_result` receipt.
 
 `/history`, `/topup-monthly`, and `/top` are administrator-only. Lifetime rank
 totals include successful `TOPUP` ledger entries, not manual adjustments. The

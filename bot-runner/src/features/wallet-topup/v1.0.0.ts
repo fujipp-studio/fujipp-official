@@ -24,7 +24,7 @@ export const walletTopupFeature: FeatureModule = {
   activate: (context) => activateWalletTopup(context, false),
 };
 
-export async function activateWalletTopup(context: FeatureContext, reconcileAllRankingHolders: boolean) {
+export async function activateWalletTopup(context: FeatureContext, reconcileAllRankingHolders: boolean, useAdminAdjustmentModal = false) {
     const coordinator = new LatestSyncCoordinator(async () => {
       const guild = context.guildId ? await context.client.guilds.fetch(context.guildId) : null;
       return syncTopSpenderRoles(context, guild, reconcileAllRankingHolders);
@@ -36,33 +36,24 @@ export async function activateWalletTopup(context: FeatureContext, reconcileAllR
     const slipStatusMessages = new Map<string,string>();
     const cleanupTimer=setInterval(()=>void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error),30_000);
 
-    const onInteraction = (interaction: Interaction) => void handle(context, panelCommand, pendingSessions, countdowns, interaction)
+    const onInteraction = (interaction: Interaction) => void handle(context, panelCommand, pendingSessions, countdowns, useAdminAdjustmentModal, interaction)
       .catch((error) => respondError(context, interaction, error));
     const onMessage = (message: Message) => void handleSlipMessage(context, pendingSessions, countdowns, slipStatusMessages, message)
       .catch((error) => respondMessageError(context, message, error));
     context.client.on("interactionCreate", onInteraction);
     context.client.on("messageCreate", onMessage);
-    context.client.once("clientReady", () => {void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error);void registerCommands(context, panelCommand).catch((error)=>{console.error(`Wallet command registration failed for ${context.botId}:`,error);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",error);});});
+    context.client.once("clientReady", () => {void cleanupExpiredSessions(context,pendingSessions,countdowns).catch(console.error);void registerCommands(context, panelCommand, useAdminAdjustmentModal).catch((error)=>{console.error(`Wallet command registration failed for ${context.botId}:`,error);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",error);});});
     return () => { context.client.off("interactionCreate", onInteraction); context.client.off("messageCreate", onMessage); clearInterval(cleanupTimer); for(const timer of countdowns.values())clearInterval(timer);if(topSpenderCoordinators.get(context.installationId)===coordinator)topSpenderCoordinators.delete(context.installationId); };
 }
 
-async function registerCommands(context: FeatureContext, panelCommand: string) {
+async function registerCommands(context: FeatureContext, panelCommand: string, useAdminAdjustmentModal: boolean) {
   await context.client.application?.commands.create(new SlashCommandBuilder()
     .setName(panelCommand).setDescription("ส่ง Panel ระบบเติมเงิน").toJSON());
   await context.client.application?.commands.create(new SlashCommandBuilder()
     .setName("topup-slip").setDescription("แนบสลิปสำหรับรายการพร้อมเพย์")
     .addStringOption((o) => o.setName("session").setDescription("รหัสรายการจากหน้า QR").setRequired(true))
     .addAttachmentOption((o) => o.setName("slip").setDescription("รูปสลิปธนาคาร").setRequired(true)).toJSON());
-  const admin = new SlashCommandBuilder().setName("wallet-admin").setDescription("ดูหรือปรับยอดเงินสมาชิก");
-  admin.addSubcommand((s) => s.setName("balance").setDescription("ดูยอดเงินสมาชิก")
-    .addUserOption((o) => o.setName("member").setDescription("สมาชิก").setRequired(true)));
-  for (const [name, description] of [["add","เพิ่มเงิน"],["remove","ลบเงิน"],["set","ตั้งยอดเงิน"]] as const) {
-    admin.addSubcommand((s) => s.setName(name).setDescription(description)
-      .addUserOption((o) => o.setName("member").setDescription("สมาชิก").setRequired(true))
-      .addNumberOption((o) => o.setName("amount").setDescription("จำนวนเงินบาท").setMinValue(name === "set" ? 0 : 0.01).setRequired(true))
-      .addStringOption((o) => o.setName("reason").setDescription("เหตุผล (บันทึกในประวัติ)").setMaxLength(300).setRequired(true)));
-  }
-  await context.client.application?.commands.create(admin.toJSON());
+  await context.client.application?.commands.create(buildWalletAdminCommand(useAdminAdjustmentModal).toJSON());
   await context.client.application?.commands.create(new SlashCommandBuilder().setName("history").setDescription("ดูประวัติกระเป๋าเงินของสมาชิก")
     .addUserOption((o)=>o.setName("member").setDescription("สมาชิก").setRequired(true))
     .addIntegerOption((o)=>o.setName("limit").setDescription("จำนวนรายการ 1-50").setMinValue(1).setMaxValue(50)).toJSON());
@@ -72,7 +63,24 @@ async function registerCommands(context: FeatureContext, panelCommand: string) {
   console.info(`Wallet Top-up active: bot ${context.botId}`);
 }
 
-async function handle(context: FeatureContext, panelCommand: string, pending: Map<string, PendingSession>, countdowns:Map<string,ReturnType<typeof setInterval>>, interaction: Interaction) {
+export function buildWalletAdminCommand(useAdminAdjustmentModal:boolean){
+  const admin=new SlashCommandBuilder().setName("wallet-admin").setDescription("ดูหรือปรับยอดเงินสมาชิก");
+  admin.addSubcommand((s) => s.setName("balance").setDescription("ดูยอดเงินสมาชิก")
+    .addUserOption((o) => o.setName("member").setDescription("สมาชิก").setRequired(true)));
+  for (const [name, description] of [["add","เพิ่มเงิน"],["remove","ลบเงิน"],["set","ตั้งยอดเงิน"]] as const) {
+    admin.addSubcommand((s) => {
+      s.setName(name).setDescription(description)
+        .addUserOption((o) => o.setName("member").setDescription("สมาชิก").setRequired(true));
+      if(!useAdminAdjustmentModal)s
+        .addNumberOption((o) => o.setName("amount").setDescription("จำนวนเงินบาท").setMinValue(name === "set" ? 0 : 0.01).setRequired(true))
+        .addStringOption((o) => o.setName("reason").setDescription("เหตุผล (บันทึกในประวัติ)").setMaxLength(300).setRequired(true));
+      return s;
+    });
+  }
+  return admin;
+}
+
+async function handle(context: FeatureContext, panelCommand: string, pending: Map<string, PendingSession>, countdowns:Map<string,ReturnType<typeof setInterval>>, useAdminAdjustmentModal:boolean, interaction: Interaction) {
   if (interaction.isChatInputCommand()) {
     const subcommand = interaction.options.getSubcommand(false);
     const permissionKey = subcommand ? `${interaction.commandName}/${subcommand}` : interaction.commandName;
@@ -81,7 +89,7 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
     }
     if (interaction.commandName === panelCommand) return postPanel(context, interaction);
     if (interaction.commandName === "topup-slip") return verifySlip(context, pending, countdowns, interaction);
-    if (interaction.commandName === "wallet-admin") return walletAdmin(context, interaction);
+    if (interaction.commandName === "wallet-admin") return walletAdmin(context, interaction, useAdminAdjustmentModal);
     if (interaction.commandName === "history") return walletHistory(context,interaction);
     if (interaction.commandName === "topup-monthly") return monthlySummary(context,interaction);
     if (interaction.commandName === "top") return topSpenders(context,interaction);
@@ -97,6 +105,7 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
     if (interaction.customId === ACTIONS["wallet.promptpay"].id) return interaction.showModal(promptPayModal(context));
   }
   if (interaction.isModalSubmit()) {
+    if(useAdminAdjustmentModal&&interaction.customId.startsWith(`${WALLET_ADJUSTMENT_MODAL_ID}:`))return submitWalletAdjustmentModal(context,interaction);
     if (interaction.customId === "wallet:voucher") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const result=await context.wallet.voucher({memberDiscordId:interaction.user.id,giftUrl:interaction.fields.getTextInputValue("gift_url").trim(),idempotencyKey:`discord:${interaction.id}`});
@@ -160,7 +169,7 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   await notify(context,successVars(message.author.id,result,"ระบบ","เติมเงินสำเร็จ","-"));
 }
 
-async function walletAdmin(context:FeatureContext,interaction:ChatInputCommandInteraction) {
+async function walletAdmin(context:FeatureContext,interaction:ChatInputCommandInteraction,useAdminAdjustmentModal:boolean) {
   if (!interaction.inGuild() || !(await isWalletAdmin(context,interaction)))
     return interaction.reply({content:"คุณไม่มีสิทธิ์จัดการกระเป๋าเงิน",flags:MessageFlags.Ephemeral});
   const member=interaction.options.getUser("member",true) as User;
@@ -170,16 +179,51 @@ async function walletAdmin(context:FeatureContext,interaction:ChatInputCommandIn
     return interaction.reply(render(context,"balance",{...vars(context,member.id),balance:money(balance.balanceSatang),currency:balance.currency},true));
   }
   const operation=sub.toUpperCase() as WalletAdjustmentOperation;
-  const amount=parseAmount(String(interaction.options.getNumber("amount",true)));
+  if(useAdminAdjustmentModal)return interaction.showModal(buildWalletAdjustmentModal(operation,member.id));
+  const amount=parseAmount(String(interaction.options.getNumber("amount",true)),operation==="SET");
   const reason=interaction.options.getString("reason",true).trim();
-  await interaction.deferReply({flags:MessageFlags.Ephemeral});
-  const result=await context.wallet.adjust({memberDiscordId:member.id,actorDiscordId:interaction.user.id,operation,amountSatang:amount,reason,idempotencyKey:`discord:${interaction.id}`});
-  const values=adjustmentVars(member.id,interaction.user.id,result,reason);
+  return completeWalletAdjustment(context,interaction,member.id,operation,amount,reason,false);
+}
+
+const WALLET_ADJUSTMENT_MODAL_ID="fujipp:wallet:admin-adjust";
+
+export function buildWalletAdjustmentModal(operation:WalletAdjustmentOperation,memberId:string){
+  if(!/^\d{15,30}$/.test(memberId))throw new Error("Discord member ID ไม่ถูกต้อง");
+  const title:Record<WalletAdjustmentOperation,string>={ADD:"เพิ่มยอดเงิน",REMOVE:"ลบยอดเงิน",SET:"ตั้งยอดเงิน"};
+  return new ModalBuilder().setCustomId(`${WALLET_ADJUSTMENT_MODAL_ID}:${operation}:${memberId}`).setTitle(title[operation])
+    .addComponents(
+      new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("amount").setLabel("จำนวนเงิน (บาท)").setPlaceholder("เช่น 100 หรือ 100.50").setStyle(TextInputStyle.Short).setMinLength(1).setMaxLength(12).setRequired(true)),
+      new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("reason").setLabel("เหตุผล").setPlaceholder("เหตุผลที่ปรับยอดเงิน").setStyle(TextInputStyle.Paragraph).setMinLength(1).setMaxLength(300).setRequired(true)),
+    );
+}
+
+export function parseWalletAdjustmentModalId(customId:string):{operation:WalletAdjustmentOperation;memberId:string}|null{
+  const match=customId.match(/^fujipp:wallet:admin-adjust:(ADD|REMOVE|SET):(\d{15,30})$/);
+  return match?{operation:match[1] as WalletAdjustmentOperation,memberId:match[2]!}:null;
+}
+
+async function submitWalletAdjustmentModal(context:FeatureContext,interaction:import("discord.js").ModalSubmitInteraction){
+  const adjustment=parseWalletAdjustmentModalId(interaction.customId);
+  if(!adjustment)throw new Error("ข้อมูลการปรับยอดเงินไม่ถูกต้อง กรุณาเริ่มใหม่");
+  const permissionKey=`wallet-admin/${adjustment.operation.toLowerCase()}`;
+  if(!context.permissions.canUse(interaction,permissionKey)||!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์จัดการกระเป๋าเงิน",flags:MessageFlags.Ephemeral});
+  const amount=parseAmount(interaction.fields.getTextInputValue("amount"),adjustment.operation==="SET");
+  const reason=interaction.fields.getTextInputValue("reason").trim();
+  return completeWalletAdjustment(context,interaction,adjustment.memberId,adjustment.operation,amount,reason,true);
+}
+
+async function completeWalletAdjustment(context:FeatureContext,interaction:ChatInputCommandInteraction|import("discord.js").ModalSubmitInteraction,memberId:string,operation:WalletAdjustmentOperation,amount:number,reason:string,renderPublicReceipt:boolean){
+  if(!reason)throw new Error("กรุณาระบุเหตุผลในการปรับยอดเงิน");
+  if(renderPublicReceipt)await interaction.deferReply();
+  else await interaction.deferReply({flags:MessageFlags.Ephemeral});
+  const result=await context.wallet.adjust({memberDiscordId:memberId,actorDiscordId:interaction.user.id,operation,amountSatang:amount,reason,idempotencyKey:`discord:${interaction.id}`});
+  const values=adjustmentVars(memberId,interaction.user.id,result,reason);
   await notify(context,values);
+  if(renderPublicReceipt)return interaction.editReply(render(context,"adjustment_result",values,false));
   return interaction.editReply({content:`${operationLabel(operation)} ${money(Math.abs(result.adjustmentSatang))} THB สำเร็จ ยอดคงเหลือ ${money(result.balanceSatang)} THB`});
 }
 
-async function isWalletAdmin(context:FeatureContext,interaction:ChatInputCommandInteraction){
+async function isWalletAdmin(context:FeatureContext,interaction:ChatInputCommandInteraction|import("discord.js").ModalSubmitInteraction){
   if(interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))return true;
   const roleId=stringConfig(context.config.WALLET_ADMIN_ROLE_ID,"");
   if(!roleId||!interaction.guild)return false;
@@ -289,7 +333,7 @@ function vars(context:FeatureContext,userId:string) { const percent=numberConfig
 function successVars(userId:string,r:WalletTopupResult,actor="ระบบ",operation="เติมเงิน",reason="-") { return {member_mention:`<@${userId}>`,amount:money(r.creditedSatang),balance:money(r.balanceSatang),currency:r.currency,payment_method:r.method==="SLIPOK"?"QR (SlipOK)":"TrueMoney Voucher",transaction_time:new Date(r.completedAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"}),actor_mention:actor,operation,reason}; }
 function adjustmentVars(userId:string,actorId:string,r:WalletAdjustmentResult,reason:string){return {member_mention:`<@${userId}>`,actor_mention:`<@${actorId}>`,amount:money(Math.abs(r.adjustmentSatang)),balance:money(r.balanceSatang),currency:r.currency,payment_method:"ปรับยอดโดยผู้ดูแล",transaction_time:new Date(r.completedAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"}),operation:operationLabel(r.operation),reason};}
 function operationLabel(v:WalletAdjustmentOperation){return v==="ADD"?"เพิ่มเงิน":v==="REMOVE"?"ลบเงิน":"ตั้งยอดเงิน";}
-function parseAmount(v:string){const normalized=v.trim();if(!/^\d+(?:\.\d{1,2})?$/.test(normalized))throw new Error("กรุณากรอกจำนวนเงินเป็นตัวเลข และมีทศนิยมได้ไม่เกิน 2 ตำแหน่ง");const [baht,decimal=""]=normalized.split(".");const satang=Number(baht)*100+Number(decimal.padEnd(2,"0"));if(!Number.isSafeInteger(satang)||satang<=0)throw new Error("จำนวนเงินไม่ถูกต้อง");return satang;}
+function parseAmount(v:string,allowZero=false){const normalized=v.trim();if(!/^\d+(?:\.\d{1,2})?$/.test(normalized))throw new Error("กรุณากรอกจำนวนเงินเป็นตัวเลข และมีทศนิยมได้ไม่เกิน 2 ตำแหน่ง");const [baht,decimal=""]=normalized.split(".");const satang=Number(baht)*100+Number(decimal.padEnd(2,"0"));if(!Number.isSafeInteger(satang)||satang<0||(!allowZero&&satang===0))throw new Error("จำนวนเงินไม่ถูกต้อง");return satang;}
 function money(v:number){return (v/100).toFixed(2);}
 function replace(v:string,vars:Record<string,string>){return v.replace(/\{\{([a-z0-9_]+)}}/gi,(_,k:string)=>vars[k]??`{{${k}}}`);}
 function deepRender(value:unknown,values:Record<string,string>):unknown {
