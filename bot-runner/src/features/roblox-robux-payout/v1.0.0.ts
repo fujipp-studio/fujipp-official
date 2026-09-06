@@ -12,12 +12,12 @@ const PANEL_REFRESH_MS=60_000;
 
 export const robloxRobuxPayoutFeature=createRobloxRobuxPayoutFeature("1.0.0",false);
 
-export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux"):FeatureModule{return {
+export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux",sendSuccessfulPurchaseReceiptsToMember=false):FeatureModule{return {
   runtimeKey:"roblox-robux-payout",version,intents:["Guilds"],
   async activate(context){
     const pending=new Map<string,PendingPurchase>();
     const groups=readGroups(context); const command=stringConfig(context.config.PANEL_COMMAND_NAME,"robux-panel");
-    const queue=new PayoutQueue(context,groups);
+    const queue=new PayoutQueue(context,groups,sendSuccessfulPurchaseReceiptsToMember);
     const panels=new PanelUpdater(context,groups,membershipEnabled);
     const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,purchaseUsernameMaxLength,purchaseModalTitle,interaction).catch((error)=>respondError(context,interaction,error));
     context.client.on("interactionCreate",listener);
@@ -180,7 +180,7 @@ async function confirm(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQ
 
 class PayoutQueue{
   private items:Array<{job:RobuxPayoutJob;interaction?:ButtonInteraction}>=[];private running=false;private stopped=false;
-  constructor(private context:FeatureContext,private groups:RobloxGroup[]){}
+  constructor(private context:FeatureContext,private groups:RobloxGroup[],private sendSuccessfulPurchaseReceiptsToMember=false){}
   add(job:RobuxPayoutJob,extra?:{interaction?:ButtonInteraction}){this.items.push({job,...extra});void this.run();}
   stop(){this.stopped=true;}
   private async run(){if(this.running)return;this.running=true;while(this.items.length&&!this.stopped){const item=this.items.shift()!;await this.process(item).catch(console.error);if(this.items.length)await new Promise((resolve)=>setTimeout(resolve,numberConfig(this.context.config.ROBUX_PAYOUT_COOLDOWN_SECONDS,30)*1000));}this.running=false;}
@@ -195,7 +195,32 @@ class PayoutQueue{
     if(interaction)await interaction.editReply(render(this.context,"succeeded",{member_mention:`<@${job.memberDiscordId}>`,roblox_id:String(job.robloxUserId),idRoblox:String(job.robloxUserId),roblox_username:job.robloxUsername,usernameRoblox:job.robloxUsername,robux:String(job.robuxAmount),price:money(job.priceSatang),balance:money(balance.balanceSatang),group_name:this.groups.find((group)=>group.key===job.groupKey)?.name??job.groupKey,datetime:dateTime(),avatar:interaction.user.displayAvatarURL(),currency:"THB"},[])).catch(()=>undefined);
     await this.notify(job,"SUCCEEDED","");
   }
-  private async notify(job:RobuxPayoutJob,status:string,detail:string){const legacy=stringConfig(this.context.config.ROBUX_NOTIFICATION_CHANNEL_ID,"");const channelId=status==="SUCCEEDED"?stringConfig(this.context.config.ROBUX_SUCCESS_NOTIFICATION_CHANNEL_ID,legacy):stringConfig(this.context.config.ROBUX_ERROR_NOTIFICATION_CHANNEL_ID,legacy);if(!channelId)return;const channel=await this.context.client.channels.fetch(channelId).catch(()=>null);if(channel?.isTextBased()&&channel.isSendable()){const avatar=await userAvatar(job.robloxUserId);const slot=status==="SUCCEEDED"?"notification_success":"notification_error";const groupName=this.groups.find((group)=>group.key===job.groupKey&&group.groupId===job.groupId)?.name??job.groupKey;await channel.send(render(this.context,slot,{member_mention:`<@${job.memberDiscordId}>`,username:job.memberDiscordId,roblox_id:String(job.robloxUserId),idRoblox:String(job.robloxUserId),roblox_username:job.robloxUsername,usernameRoblox:job.robloxUsername,robux:String(job.robuxAmount),price:money(job.priceSatang),group_name:groupName,status,detail,error:detail,reason:detail,datetime:dateTime(),avatar,currency:"THB"},[]));}}
+  private async notify(job:RobuxPayoutJob,status:string,detail:string){
+    const legacy=stringConfig(this.context.config.ROBUX_NOTIFICATION_CHANNEL_ID,"");
+    const channelId=status==="SUCCEEDED"?stringConfig(this.context.config.ROBUX_SUCCESS_NOTIFICATION_CHANNEL_ID,legacy):stringConfig(this.context.config.ROBUX_ERROR_NOTIFICATION_CHANNEL_ID,legacy);
+    const sendMemberReceipt=shouldSendPayoutReceiptToMember(this.sendSuccessfulPurchaseReceiptsToMember,status);
+    if(!channelId&&!sendMemberReceipt)return;
+    const avatar=await userAvatar(job.robloxUserId);
+    const slot=status==="SUCCEEDED"?"notification_success":"notification_error";
+    const groupName=this.groups.find((group)=>group.key===job.groupKey&&group.groupId===job.groupId)?.name??job.groupKey;
+    const values={member_mention:`<@${job.memberDiscordId}>`,username:job.memberDiscordId,roblox_id:String(job.robloxUserId),idRoblox:String(job.robloxUserId),roblox_username:job.robloxUsername,usernameRoblox:job.robloxUsername,robux:String(job.robuxAmount),price:money(job.priceSatang),group_name:groupName,status,detail,error:detail,reason:detail,datetime:dateTime(),avatar,currency:"THB"};
+    await deliverPayoutNotificationCopies({
+      channelId,
+      sendToChannel:async(id)=>{const channel=await this.context.client.channels.fetch(id);if(channel?.isTextBased()&&channel.isSendable())await channel.send(render(this.context,slot,values,[]));},
+      ...(sendMemberReceipt?{sendToMember:async()=>{const member=await this.context.client.users.fetch(job.memberDiscordId);await member.send(render(this.context,slot,values,[]));}}:{}),
+      onError:(target,error)=>console.warn(`Unable to send Robux payout ${target} notification for job ${job.jobId}:`,error),
+    });
+  }
+}
+
+export function shouldSendPayoutReceiptToMember(enabled:boolean,status:string){return enabled&&status==="SUCCEEDED";}
+
+export async function deliverPayoutNotificationCopies(options:{channelId:string;sendToChannel:(channelId:string)=>Promise<unknown>;sendToMember?:()=>Promise<unknown>;onError?:(target:"channel"|"member",error:unknown)=>void}){
+  const deliveries:Array<Promise<void>>=[];
+  const deliver=async(target:"channel"|"member",send:()=>Promise<unknown>)=>{try{await send();}catch(error){options.onError?.(target,error);}};
+  if(options.channelId)deliveries.push(deliver("channel",()=>options.sendToChannel(options.channelId)));
+  if(options.sendToMember)deliveries.push(deliver("member",options.sendToMember));
+  await Promise.all(deliveries);
 }
 
 class PanelUpdater{
