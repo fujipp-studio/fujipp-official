@@ -85,6 +85,18 @@ export const fetchAdminBotLicenses = (botId: string, session: Session) =>
     'Unable to load bot features.',
   )
 
+export const removeAdminBotFeature = (
+  botId: string,
+  installationId: string,
+  session: Session,
+) =>
+  adminRequest<void>(
+    `/api/v1/admin/bots/${botId}/installations/${installationId}`,
+    session,
+    { method: 'DELETE' },
+    'Unable to remove the feature from this bot.',
+  )
+
 export const fetchAdminFeatureConfiguration = (
   botId: string,
   licenseId: string,

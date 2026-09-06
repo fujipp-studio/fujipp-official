@@ -359,6 +359,23 @@ AES-256-GCM before storage and are not written to normal configuration tables.
 Updating configuration increments `revision` and clears previous bot
 validation so the configuration can be validated again at runtime.
 
+## Admin bot feature management
+
+All endpoints in this section require `ROLE_ADMIN`.
+
+### Remove a feature from a customer bot
+
+```http
+DELETE /api/v1/admin/bots/{botId}/installations/{installationId}
+Authorization: Bearer <admin-supabase-access-token>
+```
+
+Response: `204 No Content`. The installation is soft-removed and the runtime
+bootstrap cache is invalidated so the Feature stops running on that bot. The
+customer keeps the license and can install it again. Core Features
+`bot-permissions`, `bot-presence`, and `runtime-expiry-alert` cannot be removed;
+attempts return `409 Conflict`.
+
 ## Admin feature media
 
 All endpoints in this section require `ROLE_ADMIN`.

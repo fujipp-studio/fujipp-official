@@ -5,6 +5,11 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import BotSettingsView from '@/features/bots/views/BotSettingsView.vue'
+import {
+  fetchAdminBotLicenses,
+  fetchAdminBotSettings,
+  removeAdminBotFeature,
+} from '@/features/admin/api/bots'
 import { fetchBots, fetchFeatureLicenses, type FeatureLicense } from '@/features/bots/api'
 import {
   fetchRuntimeSubscriptions,
@@ -32,6 +37,16 @@ vi.mock('@/features/bots/runtime-api', async (importOriginal) => {
   }
 })
 
+vi.mock('@/features/admin/api/bots', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/features/admin/api/bots')>()
+  return {
+    ...actual,
+    fetchAdminBotLicenses: vi.fn<typeof actual.fetchAdminBotLicenses>(),
+    fetchAdminBotSettings: vi.fn<typeof actual.fetchAdminBotSettings>(),
+    removeAdminBotFeature: vi.fn<typeof actual.removeAdminBotFeature>(),
+  }
+})
+
 const runtimeAlertLicense: FeatureLicense = {
   ...license,
   id: 'runtime-alert-license',
@@ -52,6 +67,9 @@ describe('Bot package settings', () => {
     vi.mocked(fetchBots).mockResolvedValue([bot])
     vi.mocked(fetchFeatureLicenses).mockResolvedValue([runtimeAlertLicense])
     vi.mocked(fetchRuntimeSubscriptions).mockResolvedValue([])
+    vi.mocked(fetchAdminBotSettings).mockResolvedValue(bot)
+    vi.mocked(fetchAdminBotLicenses).mockResolvedValue([license, runtimeAlertLicense])
+    vi.mocked(removeAdminBotFeature).mockResolvedValue()
   })
 
   it('keeps Runtime Expiry Alert visible and configurable in the feature list', async () => {
@@ -142,6 +160,62 @@ describe('Bot package settings', () => {
 
     expect(renewRuntime).toHaveBeenCalledWith(runtimeSubscription.id, auth.session)
     expect(wrapper.text()).toContain('Oct 3, 2026')
+    wrapper.unmount()
+  })
+
+  it('lets an admin confirm removal of a non-core Feature while protecting core Features', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.session = { access_token: 'test-token' } as Session
+    auth.initialized = true
+
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        {
+          path: '/admin/bots/:botId/settings/packages',
+          name: 'admin-bot-package-settings',
+          component: BotSettingsView,
+        },
+        {
+          path: '/admin/bots/:botId/settings/packages/:licenseId',
+          name: 'admin-bot-feature-settings',
+          component: { template: '<div />' },
+        },
+      ],
+    })
+    await router.push(`/admin/bots/${bot.id}/settings/packages`)
+    await router.isReady()
+
+    const wrapper = mount(BotSettingsView, { global: { plugins: [pinia, router, i18n] } })
+    await flushPromises()
+
+    const removeButtons = wrapper
+      .findAll('button')
+      .filter((button) => button.text().includes('Remove Feature'))
+    expect(removeButtons).toHaveLength(1)
+    await removeButtons[0]?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Remove Feature from bot?')
+    expect(wrapper.text()).toContain('The customer keeps the license')
+    expect(removeAdminBotFeature).not.toHaveBeenCalled()
+
+    const confirmButton = wrapper
+      .get('dialog')
+      .findAll('button')
+      .find((button) => button.text() === 'Remove Feature')
+    await confirmButton?.trigger('click')
+    await flushPromises()
+
+    expect(removeAdminBotFeature).toHaveBeenCalledWith(
+      bot.id,
+      license.installations[0]?.id,
+      auth.session,
+    )
+    expect(wrapper.text()).not.toContain(license.featureName)
+    expect(wrapper.text()).toContain(runtimeAlertLicense.featureName)
     wrapper.unmount()
   })
 })

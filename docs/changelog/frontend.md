@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-06 | Added a responsive bilingual administrator confirmation flow for removing non-Core Features from customer Bots. |
 | 2026-08-30 | Restored compact profile-menu avatars and contained account text on Desktop and Mobile, with Light/Dark layout regression checks. |
 | 2026-08-30 | Organized feature APIs and settings editors, shared Bot settings requests, standardized Admin routing and UI copy, and protected critical account and purchase flows with regression tests. |
 | 2026-08-29 | Kept Roblox membership lookup settings available for Roblox Robux Payout 2.x Feature versions. |

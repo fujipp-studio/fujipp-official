@@ -19,8 +19,10 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -32,7 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         BotController.class,
         StoreOrderController.class,
         FeatureLicenseController.class,
-        AdminFeatureController.class
+        AdminFeatureController.class,
+        AdminBotController.class
 })
 @Import({SecurityConfig.class, ApiExceptionHandler.class, StoreExceptionHandler.class})
 class StoreControllerTests {
@@ -45,6 +48,9 @@ class StoreControllerTests {
 
     @MockitoBean
     private AdminFeatureService adminFeatureService;
+
+    @MockitoBean
+    private AdminBotService adminBotService;
 
     @MockitoBean
     private CurrentUserService currentUserService;
@@ -149,6 +155,32 @@ class StoreControllerTests {
                         "/api/v1/admin/store/features/11111111-1111-4111-8111-111111111111/media"
                 ).with(jwt()))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void regularUsersCannotRemoveFeaturesFromCustomerBots() throws Exception {
+        authorizeAs(AppRole.USER);
+
+        mockMvc.perform(delete(
+                        "/api/v1/admin/bots/11111111-1111-4111-8111-111111111111/installations/22222222-2222-4222-8222-222222222222"
+                ).with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanRemoveFeatureFromCustomerBot() throws Exception {
+        authorizeAs(AppRole.ADMIN);
+        UUID botId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+        UUID installationId = UUID.fromString("22222222-2222-4222-8222-222222222222");
+
+        mockMvc.perform(delete(
+                        "/api/v1/admin/bots/{botId}/installations/{installationId}",
+                        botId,
+                        installationId
+                ).with(jwt()))
+                .andExpect(status().isNoContent());
+
+        verify(adminBotService).removeFeature(botId, installationId);
     }
 
     private void authorizeUser() {
