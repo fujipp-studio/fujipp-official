@@ -1,7 +1,13 @@
 # Roblox Robux Payout Feature
 
-`roblox-robux-payout@1.0.0` sells configurable Robux packages using funds from
+`roblox-robux-payout` sells configurable Robux packages using funds from
 the per-bot member wallet created by `wallet-topup@1.0.0`.
+
+Version `2.1.0` keeps the membership checker and expanded username form from
+the 2.0 releases, and also sends successful payout receipts to the purchasing
+member's Discord direct messages. Refunds and manual-review results remain in
+the configured error notification channel only. A closed or unavailable DM
+does not change the payout outcome.
 
 ## Member flow
 
