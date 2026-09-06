@@ -1,6 +1,7 @@
 package com.fujipp.backend.store;
 
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +41,12 @@ public class AdminBotController {
     @PutMapping("/{botId}/settings")
     public BotResponse updateSettings(@PathVariable UUID botId, @Valid @RequestBody UpdateBotRequest request) {
         return service.updateSettings(botId, request);
+    }
+
+    @DeleteMapping("/{botId}/installations/{installationId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeFeature(@PathVariable UUID botId, @PathVariable UUID installationId) {
+        service.removeFeature(botId, installationId);
     }
 
     @PostMapping("/{botId}/transfer")

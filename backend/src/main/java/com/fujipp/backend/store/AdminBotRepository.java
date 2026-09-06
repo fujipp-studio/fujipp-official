@@ -61,6 +61,41 @@ public class AdminBotRepository {
                 """,Boolean.class,licenseId,botId));
     }
 
+    public String installedFeatureCode(UUID botId, UUID installationId) {
+        return jdbc.query(
+                """
+                SELECT product.code
+                  FROM private.bot_feature_installations installation
+                  JOIN shop.feature_products product ON product.id = installation.feature_product_id
+                 WHERE installation.id = ?
+                   AND installation.bot_id = ?
+                   AND installation.removed_at IS NULL
+                """,
+                resultSet -> resultSet.next() ? resultSet.getString(1) : null,
+                installationId,
+                botId
+        );
+    }
+
+    public boolean removeFeatureInstallation(UUID botId, UUID installationId) {
+        return jdbc.update(
+                """
+                UPDATE private.bot_feature_installations
+                   SET status = 'REMOVED', removed_at = now()
+                 WHERE id = ?
+                   AND bot_id = ?
+                   AND removed_at IS NULL
+                   AND feature_product_id NOT IN (
+                       SELECT id
+                         FROM shop.feature_products
+                        WHERE code IN ('bot-presence', 'runtime-expiry-alert', 'bot-permissions')
+                   )
+                """,
+                installationId,
+                botId
+        ) == 1;
+    }
+
     public boolean userExists(UUID userId) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM private.user_accounts WHERE user_id=?)", Boolean.class, userId));
     }

@@ -12,12 +12,15 @@ import {
   upgradeFeatureLicense,
   type FeatureLicense,
 } from '@/features/bots/api'
-import { updateAdminBotSettings } from '@/features/admin/api/bots'
+import { removeAdminBotFeature, updateAdminBotSettings } from '@/features/admin/api/bots'
 import { renewRuntime, updateRuntimeAutoRenew } from '@/features/bots/runtime-api'
 import { AppButton, AppIcon, AppModal, AppTextField, AppToast, AppToggle } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'
 
 type SettingsView = 'main' | 'bot-config' | 'runtime' | 'packages'
+type FeatureRemovalTarget = { license: FeatureLicense; installationId: string }
+
+const coreFeatureCodes = new Set(['bot-permissions', 'bot-presence', 'runtime-expiry-alert'])
 
 const route = useRoute()
 const router = useRouter()
@@ -42,6 +45,9 @@ const transitionName = ref('settings-forward')
 const saving = ref(false)
 const runtimeBusy = ref(false)
 const upgradingLicenseId = ref('')
+const removingInstallationId = ref('')
+const showFeatureRemovalModal = ref(false)
+const featureRemovalTarget = ref<FeatureRemovalTarget | null>(null)
 const toastOpen = ref(false)
 const toastMessage = ref('')
 const toastVariant = ref<'info' | 'success' | 'error'>('info')
@@ -143,6 +149,52 @@ function openFeature(licenseId: string) {
     name: adminMode.value ? 'admin-bot-feature-settings' : 'bot-feature-settings',
     params: { botId: botId.value, licenseId },
   })
+}
+
+function openFeatureRemoval(license: FeatureLicense) {
+  if (!adminMode.value || coreFeatureCodes.has(license.featureCode)) return
+  const installation = license.installations.find((item) => item.botId === botId.value)
+  if (!installation) return
+  featureRemovalTarget.value = { license, installationId: installation.id }
+  showFeatureRemovalModal.value = true
+}
+
+function closeFeatureRemovalModal() {
+  if (removingInstallationId.value) return
+  showFeatureRemovalModal.value = false
+  featureRemovalTarget.value = null
+}
+
+async function confirmFeatureRemoval() {
+  const target = featureRemovalTarget.value
+  if (!session.value || !adminMode.value || !target) return
+  removingInstallationId.value = target.installationId
+  try {
+    await removeAdminBotFeature(botId.value, target.installationId, session.value)
+    licenses.value = licenses.value.map((license) =>
+      license.id === target.license.id
+        ? {
+            ...license,
+            installations: license.installations.filter(
+              (installation) => installation.id !== target.installationId,
+            ),
+          }
+        : license,
+    )
+    showToast(
+      t('botSettings.featureRemovedFromBot', { feature: target.license.featureName }),
+      'success',
+    )
+    showFeatureRemovalModal.value = false
+    featureRemovalTarget.value = null
+  } catch (cause) {
+    showToast(
+      cause instanceof Error ? cause.message : t('botSettings.unableToRemoveFeature'),
+      'error',
+    )
+  } finally {
+    removingInstallationId.value = ''
+  }
 }
 
 async function upgradeLicense(license: FeatureLicense) {
@@ -449,29 +501,40 @@ onMounted(async () => {
                 <h3 class="font-bold">{{ license.featureName }}</h3>
                 <p class="text-sm text-text-muted">v{{ license.version }} · {{ license.status }}</p>
               </div>
-              <AppButton
-                class="settings-hug"
-                variant="secondary"
-                :left-icon="icons.action.setting"
-                @click="openFeature(license.id)"
-              >
-                {{ t('botSettings.settings') }}
-              </AppButton>
-              <AppButton
-                v-if="!adminMode && license.upgradeAvailable"
-                class="settings-hug"
-                :disabled="Boolean(upgradingLicenseId)"
-                @click="upgradeLicense(license)"
-              >
-                {{
-                  upgradingLicenseId === license.id
-                    ? t('botSettings.upgrading')
-                    : text(
-                        `Upgrade to v${license.latestVersion}`,
-                        `อัปเกรดเป็น v${license.latestVersion}`,
-                      )
-                }}
-              </AppButton>
+              <div class="setting-item-actions">
+                <AppButton
+                  class="settings-hug"
+                  variant="secondary"
+                  :left-icon="icons.action.setting"
+                  @click="openFeature(license.id)"
+                >
+                  {{ t('botSettings.settings') }}
+                </AppButton>
+                <AppButton
+                  v-if="adminMode && !coreFeatureCodes.has(license.featureCode)"
+                  class="remove-feature-button settings-hug"
+                  variant="secondary"
+                  :disabled="Boolean(removingInstallationId)"
+                  @click="openFeatureRemoval(license)"
+                >
+                  {{ t('botSettings.removeFeature') }}
+                </AppButton>
+                <AppButton
+                  v-if="!adminMode && license.upgradeAvailable"
+                  class="settings-hug"
+                  :disabled="Boolean(upgradingLicenseId)"
+                  @click="upgradeLicense(license)"
+                >
+                  {{
+                    upgradingLicenseId === license.id
+                      ? t('botSettings.upgrading')
+                      : text(
+                          `Upgrade to v${license.latestVersion}`,
+                          `อัปเกรดเป็น v${license.latestVersion}`,
+                        )
+                  }}
+                </AppButton>
+              </div>
             </article>
           </div>
           <p v-else class="py-2xl text-center text-text-muted">
@@ -482,6 +545,51 @@ onMounted(async () => {
     </Transition>
 
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
+
+    <AppModal
+      v-model:open="showFeatureRemovalModal"
+      :subtitle="featureRemovalTarget?.license.featureName"
+      :title="t('botSettings.confirmFeatureRemoval')"
+      :disabled="Boolean(removingInstallationId)"
+      @close="closeFeatureRemovalModal"
+    >
+      <div v-if="featureRemovalTarget" class="space-y-md">
+        <p class="leading-relaxed">
+          {{
+            t('botSettings.featureRemovalPrompt', {
+              feature: featureRemovalTarget.license.featureName,
+              bot: bot?.name ?? '',
+            })
+          }}
+        </p>
+        <p class="rounded-md border border-error-border bg-error-bg p-md text-error-text">
+          {{ t('botSettings.featureRemovalKeepsLicense') }}
+        </p>
+      </div>
+      <template #actions>
+        <AppButton
+          type="button"
+          variant="secondary"
+          :disabled="Boolean(removingInstallationId)"
+          @click="closeFeatureRemovalModal"
+        >
+          {{ t('botSettings.cancel') }}
+        </AppButton>
+        <AppButton
+          class="remove-feature-button"
+          type="button"
+          variant="secondary"
+          :loading="Boolean(removingInstallationId)"
+          @click="confirmFeatureRemoval"
+        >
+          {{
+            removingInstallationId
+              ? t('botSettings.removingFeature')
+              : t('botSettings.confirmRemoveFeature')
+          }}
+        </AppButton>
+      </template>
+    </AppModal>
 
     <AppModal
       v-model:open="showRuntimeRenewalModal"
@@ -797,6 +905,20 @@ onMounted(async () => {
   border-radius: var(--radius-md);
   background: var(--color-bg-elevated);
 }
+.setting-item-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+.remove-feature-button {
+  border: 1px solid var(--color-error-border);
+  background: var(--color-error-bg);
+  box-shadow: none;
+  color: var(--color-error-text);
+}
+.remove-feature-button:not(:disabled):hover {
+  background: color-mix(in srgb, var(--color-error-bg) 80%, var(--color-error-text));
+}
 .settings-forward-enter-active,
 .settings-forward-leave-active,
 .settings-backward-enter-active,
@@ -848,6 +970,11 @@ onMounted(async () => {
   .setting-item,
   .runtime-detail-header,
   .runtime-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .setting-item-actions {
+    width: 100%;
     align-items: stretch;
     flex-direction: column;
   }

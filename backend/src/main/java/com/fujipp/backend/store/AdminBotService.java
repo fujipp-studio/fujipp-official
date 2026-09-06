@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.time.OffsetDateTime;
 import com.fujipp.backend.pagination.CursorCodec;
@@ -14,6 +15,12 @@ import com.fujipp.backend.pagination.CursorPage;
 
 @Service
 public class AdminBotService {
+    private static final Set<String> CORE_FEATURE_CODES = Set.of(
+            "bot-permissions",
+            "bot-presence",
+            "runtime-expiry-alert"
+    );
+
     private final AdminBotRepository repository;
     private final RuntimeSlotService runtimeSlots;
     private final StoreRepository storeRepository;
@@ -94,6 +101,24 @@ public class AdminBotService {
         if(ownerId==null||!repository.licenseInstalledOnBot(licenseId,botId))
             throw new StoreNotFoundException("Installed feature license was not found");
         return ownerId;
+    }
+
+    @Transactional
+    public void removeFeature(UUID botId, UUID installationId) {
+        if (repository.ownerId(botId) == null) {
+            throw new StoreNotFoundException("Bot was not found");
+        }
+        String featureCode = repository.installedFeatureCode(botId, installationId);
+        if (featureCode == null) {
+            throw new StoreNotFoundException("Installed feature was not found");
+        }
+        if (CORE_FEATURE_CODES.contains(featureCode)) {
+            throw new StoreConflictException("Core features cannot be removed from a bot");
+        }
+        if (!repository.removeFeatureInstallation(botId, installationId)) {
+            throw new StoreNotFoundException("Installed feature was not found");
+        }
+        runtime.invalidateBootstrap();
     }
 
     @Transactional
