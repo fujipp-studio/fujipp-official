@@ -1,0 +1,217 @@
+{
+  "baselineCommit": "ec9ca6e",
+  "baselineDate": "2026-09-07",
+  "completedDate": "2026-09-08",
+  "method": "Chromium production build; fresh contexts; 2400 ms after navigation; external APIs blocked with a donation fixture; gzip of requested build files, excluding images/fonts/API",
+  "initialGzipKiB": {
+    "before": {
+      "js": 126.5,
+      "css": 17.9
+    },
+    "after": {
+      "js": 96.7,
+      "css": 16.9
+    }
+  },
+  "pageGzipKiB": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/",
+      "before": {
+        "js": 129.8,
+        "css": 20.2
+      },
+      "after": {
+        "js": 101.4,
+        "css": 19.1
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 3
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/?locale=th",
+      "before": {
+        "js": 129.8,
+        "css": 20.2
+      },
+      "after": {
+        "js": 103.6,
+        "css": 19.1
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 7
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/about",
+      "before": {
+        "js": 148.6,
+        "css": 21.8
+      },
+      "after": {
+        "js": 122.2,
+        "css": 20.7
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 3
+    },
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "path": "/about?locale=th",
+      "before": {
+        "js": 148.6,
+        "css": 21.8
+      },
+      "after": {
+        "js": 126.7,
+        "css": 20.7
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 6
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/",
+      "before": {
+        "js": 129.8,
+        "css": 20.2
+      },
+      "after": {
+        "js": 101.4,
+        "css": 19.1
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 3
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/?locale=th",
+      "before": {
+        "js": 129.8,
+        "css": 20.2
+      },
+      "after": {
+        "js": 103.6,
+        "css": 19.1
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 7
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/about",
+      "before": {
+        "js": 148.6,
+        "css": 21.8
+      },
+      "after": {
+        "js": 122.2,
+        "css": 20.7
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 3
+    },
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "path": "/about?locale=th",
+      "before": {
+        "js": 148.6,
+        "css": 21.8
+      },
+      "after": {
+        "js": 126.7,
+        "css": 20.7
+      },
+      "supabaseLoaded": false,
+      "fontFiles": 6
+    }
+  ],
+  "visualQA": {
+    "routes": [
+      "Home",
+      "About",
+      "Work",
+      "My Bot",
+      "Feature config",
+      "Embed editor",
+      "Admin Users"
+    ],
+    "viewports": [
+      {
+        "width": 1440,
+        "height": 900
+      },
+      {
+        "width": 390,
+        "height": 844
+      }
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "locales": [
+      "en",
+      "th"
+    ],
+    "pairs": 56,
+    "identicalPairs": 42,
+    "maxChannelDelta": 2,
+    "threshold": 8,
+    "pixelsOverThreshold": 0,
+    "pageErrors": 0,
+    "horizontalOverflows": 0,
+    "data": "Synthetic fixtures; external services blocked"
+  },
+  "checks": {
+    "frontendUnitPassed": 84,
+    "frontendUnitFiles": 26,
+    "browserSmokeUniqueCasesPassed": 28,
+    "backendPassed": 125,
+    "backendSkippedIntegration": 4,
+    "backendFailures": 0
+  },
+  "archivedArtwork": {
+    "files": 18,
+    "bytes": 23187735
+  },
+  "workRepositoryQueries": {
+    "rows": 100,
+    "beforeFormula": "1 + 3N",
+    "after": 4,
+    "method": "JDBC invocation count in repository fixture test; not production execution time",
+    "firstPageWithOverviewMaxQueries": 9
+  },
+  "limitations": [
+    "No production database latency/index plan measurements",
+    "No real-device LCP/INP/FPS benchmark",
+    "Backend endpoints must ship before Frontend",
+    "No database migration",
+    "Not deployed"
+  ]
+}

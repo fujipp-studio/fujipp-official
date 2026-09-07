@@ -35,7 +35,7 @@ src/
       views/                     Routed pages and persistent settings shell
     store/, topup/, work/        Feature-owned API contracts and UI
   shared/
-    api/http.ts                  Headers, typed errors, cancellation, timeout, cursors
+    api/                         Transport, visible-page collections and visibility polling
     layout/navbar/               Navbar, user menu, mobile navigation
     ui/                          Reusable controls and request-error feedback
   router/                        Lazy routes, nested layouts, authentication/role guards
@@ -60,17 +60,24 @@ from the owning feature; there is no all-features Backend barrel.
   Loads share an in-flight promise, polls run sequentially every three seconds after
   completion, hidden documents pause polling, and disposed/stale responses cannot
   replace current data. Children update this shared state after successful mutations.
-- The user API currently exposes a bot list, not a single-bot status endpoint, so a
-  status poll still reads the list. Cursor aggregation remains deliberate for complete
-  inventories and selectors; large datasets will need a dedicated Backend contract
-  before replacing these with visible-page pagination.
+- Settings load and poll `GET /api/v2/bots/{botId}`, which checks ownership on the
+  Backend. The My Bot dashboard uses the same visibility-aware polling scheduler;
+  requests never overlap within a poll flow and stop when the scope is disposed.
+- Work requests the visible 4/6-item page and a separate overview for category totals
+  and featured cards. Its bounded public cache expires after 60 seconds and is cleared
+  on editor exit or retry. Admin users and wallet history load 50 rows at a time through
+  the existing scroll surface. Wallet v2 returns current balance and cursor metadata
+  in one contract. Complete inventories and selectors still aggregate cursor pages.
 - `useFeatureSettings` handles configuration loading/saving and field conversion;
   `usePresentationEditor` handles message edits. Their typed context lives only within
   the feature editor tree. The editor CSS is nested under `.feature-settings` so it
   applies to extracted children without leaking to other pages.
 - Admin pages are children of the persistent Admin layout. Add a lazy child route
   with `adminSection` metadata instead of another manual component switch.
-- Add UI copy to matching EN/TH namespaces. Feature-specific overrides for labels
+- Add UI copy to matching EN/TH namespaces and register new route namespaces in
+  `i18n/index.ts`. The router loads required copy before rendering, and language changes
+  prepare both selected-language messages and English fallbacks before switching.
+  Feature-specific overrides for labels
   supplied by the Backend are kept in `bots/config/feature-editor.ts`.
 - Use Semantic color tokens and shared spacing/radius/layout tokens. Keep mobile as
   the default and use `tablet`, `desktop`, `wide`. Preserve keyboard focus and
@@ -91,6 +98,8 @@ Lint applies fixes; review its diff. Unit/integration tests cover session refres
 logout races, route roles, API cancellation/errors, shared bot requests and stale
 responses, configuration serialization, secrets and failed saves, plus the existing
 wallet, authentication UI, inventory and presentation tests.
+They also check sequential/hidden-tab polling, stale page cancellation, lazy translation
+loading, and internal-link keyboard/modifier/disabled behavior.
 
 For deterministic browser tests without a real account or Backend:
 
@@ -102,6 +111,8 @@ bun run test:smoke
 The smoke suite runs Chromium at Desktop and Mobile sizes. It covers role guards,
 Admin navigation/account edits, checkout retry idempotency, configuration/message
 saving, load-error retry, navigation and Light/Dark themes. CI runs this suite.
+It also checks Home-to-Work navigation without a document reload, Work Load more/filter
+behavior, and scroll-driven Admin users and wallet history pagination.
 
 To inspect the same synthetic UI manually:
 
@@ -127,8 +138,19 @@ The normal `bun run build` uses `index.html`; it does not include the fixture en
 or fixture middleware. Keep SPA history fallback enabled (`public/.htaccess`).
 
 `bun run performance` performs the optional performance build and bundle budget
-check. Initial JS must stay at or below 180 KiB gzip and initial CSS at or below
-50 KiB gzip. This budget does not measure images, fonts, or all lazy routes.
+check. CI also runs the budget check against the normal build. Initial JS must stay at
+or below 180 KiB gzip and CSS at or below 50 KiB gzip. Route JS limits are Home 150,
+Work 160, My Bot 230, Feature config 250 and Presentation editor 260 KiB gzip; each
+includes both languages, required async components and the session SDK where needed.
+The check also keeps the Auth dialog out of the initial bundle. Images, fonts, API
+payloads and browser responsiveness need separate measurement.
+
+Original artwork that is no longer served lives in `artwork/archive/`; it is retained
+for editing without being copied into `dist/`. See the measured baseline and outcome
+in [the frontend performance audit](../docs/frontend-performance-audit.md).
+
+Release the Backend endpoints before this Frontend: `/api/v2/works/overview`,
+`/api/v2/bots/{botId}`, and wallet-history v2 metadata. No database migration is needed.
 
 Production hosting should serve hashed `/assets/*` with
 `Cache-Control: public, max-age=31536000, immutable`, `index.html` with

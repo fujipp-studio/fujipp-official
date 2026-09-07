@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-08 | Enforced initial and route-specific JavaScript/CSS bundle budgets in Frontend CI. |
 | 2026-08-30 | Added Semantic token checks and isolated Desktop/Mobile browser smoke tests to Frontend verification. |
 | 2026-08-27 | Added production runtime configuration and fail-fast deployment validation for PromptPay and SlipOK credentials. |
 | 2026-08-11 | Added configurable in-process runtime snapshot caching without introducing another production service. |
