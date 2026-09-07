@@ -3,7 +3,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from '../../src/App.vue'
 import router from '../../src/router'
-import { i18n } from '../../src/i18n'
+import { i18n, loadRouteMessages } from '../../src/i18n'
 import { useAuthStore } from '../../src/stores'
 import { session, user } from '../../src/__tests__/fixtures/domain'
 import '../../src/style.css'
@@ -17,4 +17,10 @@ if (role !== 'GUEST') {
   auth.session = session
   auth.currentUser = { ...user, role: role === 'USER' ? 'USER' : 'ADMIN' }
 }
-app.use(router).use(i18n).mount('#app')
+async function mount() {
+  await loadRouteMessages(location.pathname)
+  app.use(i18n).use(router)
+  await router.isReady()
+  app.mount('#app')
+}
+void mount()

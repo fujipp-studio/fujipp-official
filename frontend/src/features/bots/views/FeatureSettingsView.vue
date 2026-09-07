@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { provide } from 'vue'
+import { defineAsyncComponent, provide, watch } from 'vue'
 import { useFeatureSettings } from '../composables/useFeatureSettings'
 import { featureEditorKey } from '../composables/featureEditorContext'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
@@ -8,11 +8,13 @@ import AppModal from '@/shared/ui/dialogs/AppModal.vue'
 import AppToast from '@/shared/ui/notifications/AppToast.vue'
 import AppRequestError from '@/shared/ui/feedback/AppRequestError.vue'
 import AppSectionIndicator from '@/shared/ui/navigation/AppSectionIndicator.vue'
-import FeatureConfigFields from '@/features/bots/components/FeatureConfigFields.vue'
 import FeaturePresentationSettings from '@/features/bots/components/FeaturePresentationSettings.vue'
-import FeaturePresentationEditor from '@/features/bots/components/FeaturePresentationEditor.vue'
 import { ArrowLeft, Save } from 'lucide-vue-next'
 
+const loadConfigFields = () => import('@/features/bots/components/FeatureConfigFields.vue')
+const loadPresentationEditor = () => import('@/features/bots/components/FeaturePresentationEditor.vue')
+const FeatureConfigFields = defineAsyncComponent(loadConfigFields)
+const FeaturePresentationEditor = defineAsyncComponent(loadPresentationEditor)
 const { t } = useI18n()
 const editor = useFeatureSettings()
 provide(featureEditorKey, editor)
@@ -33,6 +35,12 @@ const {
   toastMessage,
   toastVariant,
 } = editor
+watch(presentationMode, mode => {
+  // Fetch the selected editor alongside its API data, avoiding a second waterfall.
+  void (mode ? loadPresentationEditor() : loadConfigFields()).catch(() => {
+    // The async component retries and reports a load error when it is rendered.
+  })
+}, { immediate: true })
 </script>
 <template>
   <section
