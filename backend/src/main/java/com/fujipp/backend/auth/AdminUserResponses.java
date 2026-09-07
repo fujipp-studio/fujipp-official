@@ -37,6 +37,11 @@ public class AdminUserResponses {
             List<WalletHistoryEntry> entries
     ) {}
 
+    public record WalletHistoryPage(UUID customerId, UUID walletId, long currentBalanceSatang,
+                                    List<WalletHistoryEntry> items, String nextCursor, boolean hasMore) {}
+
+    public record WalletSnapshot(UUID customerId, UUID walletId, long balanceSatang) {}
+
     public record FeatureLicense(
             UUID id, UUID featureProductId, String featureCode, String featureName,
             String version, String status, int installationLimit,

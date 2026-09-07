@@ -66,6 +66,12 @@ public class StoreService {
     }
 
     @Transactional(readOnly = true)
+    public BotResponse getBot(String subject, UUID botId) {
+        return repository.findOwnedBot(botId, activeUser(subject).id())
+                .orElseThrow(() -> new StoreNotFoundException("Bot was not found"));
+    }
+
+    @Transactional(readOnly = true)
     public CursorPage<BotResponse> listBotsV2(String subject, int limit, String cursor) {
         UUID owner = activeUser(subject).id();
         var values = cursors.decode(cursor, "bots", owner.toString(), 2);

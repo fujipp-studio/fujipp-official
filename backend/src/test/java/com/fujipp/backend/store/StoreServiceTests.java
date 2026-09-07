@@ -41,6 +41,18 @@ class StoreServiceTests {
     );
 
     @Test
+    void singleBotLookupAlwaysUsesTheAuthenticatedOwner() {
+        UUID owner = UUID.randomUUID();
+        UUID botId = UUID.randomUUID();
+        authorize(owner);
+        when(repository.findOwnedBot(botId, owner)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.getBot(owner.toString(), botId))
+                .isInstanceOf(StoreNotFoundException.class);
+        verify(repository).findOwnedBot(botId, owner);
+        verify(repository, never()).findBots(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void checkoutDebitsWalletAndIssuesLicensesOnce() {
         UUID userId = UUID.randomUUID();
         UUID offerId = UUID.randomUUID();

@@ -19,6 +19,13 @@ public class WorkService {
     }
 
     @Transactional(readOnly = true)
+    public WorkOverviewResponse overview(WorkLocale locale) {
+        var categories = workRepository.findPublishedCategoryCounts(locale.name());
+        return new WorkOverviewResponse(categories.stream().mapToLong(WorkOverviewResponse.CategoryCount::total).sum(),
+                categories, workRepository.findPublished(locale.name(), null, true));
+    }
+
+    @Transactional(readOnly = true)
     public CursorPage<WorkSummaryResponse> listPublishedV2(WorkLocale locale,String category,Boolean featured,
             int limit,String cursor) {
         String normalized=category==null||category.isBlank()?null:category.trim().toLowerCase(java.util.Locale.ROOT);

@@ -43,7 +43,7 @@ public class SecurityConfig {
                         .hasRole("ADMIN")
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/works", "/api/v1/works/**")
                         .permitAll()
-                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v2/works")
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v2/works", "/api/v2/works/overview")
                         .permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/store/features")
                         .permitAll()

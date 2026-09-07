@@ -34,16 +34,21 @@ public class AdminUserService {
                 item->cursors.encode("admin-users",filter,List.of(item.createdAt().toString(),item.userId().toString())));
     }
 
-    public CursorPage<AdminUserResponses.WalletHistoryEntry> getWalletHistoryV2(
+    @Transactional(readOnly = true)
+    public AdminUserResponses.WalletHistoryPage getWalletHistoryV2(
             UUID customerId,int limit,String cursor) {
-        UUID walletId=repository.findWalletIdByCustomerId(customerId)
-                .orElseThrow(()->new StoreNotFoundException("Customer wallet was not found"));
         String filter=customerId.toString();
         var values=cursors.decode(cursor,"admin-wallet-history",filter,2);
         OffsetDateTime created=values.isEmpty()?null:cursors.dateTime(values.get(0));
         UUID id=values.isEmpty()?null:cursors.uuid(values.get(1));
-        return CursorPage.of(repository.findWalletHistoryPage(walletId,created,id,limit+1),limit,
+        var wallet = repository.findWalletSnapshot(customerId);
+        if (wallet.isEmpty()) return new AdminUserResponses.WalletHistoryPage(customerId, null, 0,
+                List.of(), null, false);
+        var snapshot = wallet.get();
+        var page = CursorPage.of(repository.findWalletHistoryPage(snapshot.walletId(),created,id,limit+1),limit,
                 item->cursors.encode("admin-wallet-history",filter,List.of(item.createdAt().toString(),item.id().toString())));
+        return new AdminUserResponses.WalletHistoryPage(snapshot.customerId(), snapshot.walletId(),
+                snapshot.balanceSatang(), page.items(), page.nextCursor(), page.hasMore());
     }
 
     @Transactional

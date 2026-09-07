@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 public class WorkV2Controller {
     private final WorkService service;
     public WorkV2Controller(WorkService service){this.service=service;}
+    @GetMapping("/overview") public WorkOverviewResponse overview(
+            @RequestParam(defaultValue="th") WorkLocale locale) { return service.overview(locale); }
     @GetMapping public CursorPage<WorkSummaryResponse> list(
             @RequestParam(defaultValue="th") WorkLocale locale,@RequestParam(required=false) String category,
             @RequestParam(required=false) Boolean featured,
