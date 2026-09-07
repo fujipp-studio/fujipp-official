@@ -24,6 +24,7 @@ import {
   type RuntimeSubscription,
 } from '@/features/bots/runtime-api'
 import { useAuthStore } from '../../../stores'
+import { useVisibilityPolling } from '@/shared/api/useVisibilityPolling'
 import { AppButton, AppModal, AppTextField, AppToast, AppToggle } from '../../../shared/ui'
 import { icons } from '../../../config'
 import {
@@ -81,7 +82,11 @@ const pendingBotBind = ref<{
 } | null>(null)
 const updatingBind = ref(false)
 
-let botRefreshTimer: ReturnType<typeof setInterval> | undefined
+let disposed = false
+let loadVersion = 0
+let botMutationVersion = 0
+let dashboardController: AbortController | undefined
+const botPolling = useVisibilityPolling(refreshBots)
 
 function openCreateDialog() {
   showCreate.value = true
@@ -181,48 +186,73 @@ function runtimeRenewalPrice(runtime: RuntimeSubscription) {
 }
 
 async function loadDashboard() {
+  if (disposed) return
+  dashboardController?.abort()
+  const request = new AbortController()
+  dashboardController = request
+  const version = ++loadVersion
+  const mutation = ++botMutationVersion
+  botPolling.stop()
   loading.value = true
-  if (!session.value) {
+  const activeSession = session.value
+  if (!activeSession) {
     loading.value = false
     return
   }
   try {
-    ;[bots.value, licenses.value, runtimeSubscriptions.value] = await Promise.all([
-      fetchBots(session.value),
-      fetchFeatureLicenses(session.value),
-      fetchRuntimeSubscriptions(session.value),
+    const [nextBots, nextLicenses, nextRuntime] = await Promise.all([
+      fetchBots(activeSession, request.signal),
+      fetchFeatureLicenses(activeSession, request.signal),
+      fetchRuntimeSubscriptions(activeSession, request.signal),
     ])
-
+    if (disposed || version !== loadVersion || request.signal.aborted) return
+    if (mutation === botMutationVersion) bots.value = nextBots
+    licenses.value = nextLicenses
+    runtimeSubscriptions.value = nextRuntime
     targetBotByRuntime.value = runtimeBotSelections(runtimeSubscriptions.value)
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : t('myBots.loadFailed'), 'error')
+    if (!disposed && version === loadVersion && !request.signal.aborted)
+      showToast(cause instanceof Error ? cause.message : t('myBots.loadFailed'), 'error')
   } finally {
-    loading.value = false
+    if (!disposed && version === loadVersion) {
+      loading.value = false
+      botPolling.start()
+    }
   }
 }
 
-async function refreshBots() {
-  if (!session.value) return
+async function refreshBots(signal: AbortSignal) {
+  if (!session.value || disposed || loading.value || busyBotId.value) return
+  const mutation = botMutationVersion
+  const activeSession = session.value
   try {
-    bots.value = await fetchBots(session.value)
+    const next = await fetchBots(activeSession, signal)
+    if (!disposed && !signal.aborted && mutation === botMutationVersion && !busyBotId.value)
+      bots.value = next
   } catch {
     // Keep the current cards visible when a background refresh temporarily fails.
   }
 }
 
 async function syncMissingBotProfiles() {
-  if (!session.value) return
+  if (!session.value || disposed) return
+  const activeSession = session.value
+  const version = loadVersion
+  const mutation = botMutationVersion
   const missing = bots.value.filter((bot) => !bot.discordAvatarUrl)
   if (!missing.length) return
-  const synced = await Promise.allSettled(
-    missing.map((bot) => syncBotDiscordProfile(bot.id, session.value!)),
-  )
-  const updates = new Map(
-    synced
-      .filter((result): result is PromiseFulfilledResult<UserBot> => result.status === 'fulfilled')
-      .map((result) => [result.value.id, result.value]),
-  )
-  bots.value = bots.value.map((bot) => updates.get(bot.id) ?? bot)
+  for (let offset = 0; offset < missing.length && !disposed; offset += 3) {
+    const synced = await Promise.allSettled(
+      missing.slice(offset, offset + 3).map((bot) => syncBotDiscordProfile(bot.id, activeSession)),
+    )
+    if (disposed || version !== loadVersion || mutation !== botMutationVersion) return
+    const updates = new Map(
+      synced
+        .filter((result): result is PromiseFulfilledResult<UserBot> => result.status === 'fulfilled')
+        .map((result) => [result.value.id, result.value]),
+    )
+    bots.value = bots.value.map((bot) => updates.get(bot.id) ?? bot)
+  }
 }
 
 async function submitBot() {
@@ -256,11 +286,14 @@ function beginEdit(bot: UserBot) {
 }
 
 async function runControl(bot: UserBot, action: BotControlAction) {
-  if (!session.value) return
+  if (!session.value || disposed || busyBotId.value) return
+  botMutationVersion += 1
+  botPolling.stop()
   busyBotId.value = bot.id
   busyAction.value = action
   try {
     const updated = await controlBot(bot.id, action, session.value)
+    if (disposed) return
     bots.value = bots.value.map((item) => (item.id === updated.id ? updated : item))
     const successKey = {
       start: 'myBots.startCommandSent',
@@ -268,12 +301,12 @@ async function runControl(bot: UserBot, action: BotControlAction) {
       restart: 'myBots.restartCommandSent',
     }[action]
     showToast(t(successKey, { bot: bot.name }), 'success')
-    await refreshBots()
   } catch (cause) {
     showToast(cause instanceof Error ? cause.message : t('myBots.controlFailed'), 'error')
   } finally {
     busyBotId.value = ''
     busyAction.value = null
+    botPolling.start()
   }
 }
 
@@ -415,11 +448,14 @@ onMounted(async () => {
   if (!initialized.value) await authStore.initialize()
   await loadDashboard()
   await syncMissingBotProfiles()
-  botRefreshTimer = setInterval(() => void refreshBots(), 3000)
+  botPolling.start()
 })
 
 onBeforeUnmount(() => {
-  if (botRefreshTimer) clearInterval(botRefreshTimer)
+  disposed = true
+  loadVersion += 1
+  dashboardController?.abort()
+  botPolling.stop()
 })
 </script>
 

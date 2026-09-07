@@ -10,7 +10,7 @@ import {
   fetchAdminBotSettings,
   removeAdminBotFeature,
 } from '@/features/admin/api/bots'
-import { fetchBots, fetchFeatureLicenses, type FeatureLicense } from '@/features/bots/api'
+import { fetchBots, fetchBot, fetchFeatureLicenses, type FeatureLicense } from '@/features/bots/api'
 import {
   fetchRuntimeSubscriptions,
   renewRuntime,
@@ -24,6 +24,7 @@ vi.mock('@/features/bots/api', async (importOriginal) => {
   return {
     ...actual,
     fetchBots: vi.fn<typeof actual.fetchBots>(),
+    fetchBot: vi.fn<typeof actual.fetchBot>(),
     fetchFeatureLicenses: vi.fn<typeof actual.fetchFeatureLicenses>(),
   }
 })
@@ -65,6 +66,7 @@ describe('Bot package settings', () => {
       this.removeAttribute('open')
     })
     vi.mocked(fetchBots).mockResolvedValue([bot])
+  vi.mocked(fetchBot).mockResolvedValue(bot)
     vi.mocked(fetchFeatureLicenses).mockResolvedValue([runtimeAlertLicense])
     vi.mocked(fetchRuntimeSubscriptions).mockResolvedValue([])
     vi.mocked(fetchAdminBotSettings).mockResolvedValue(bot)

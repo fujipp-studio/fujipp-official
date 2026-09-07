@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
+import { useCursorCollection } from '@/shared/api/useCursorCollection'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Users, RefreshCw, Search, WalletCards, Settings, Blocks } from 'lucide-vue-next'
@@ -15,7 +16,7 @@ import { useAuthStore } from '../../../stores'
 import {
   adjustUserWallet,
   fetchAdminUserFeatures,
-  fetchAdminUsers,
+  fetchAdminUsersPage,
   fetchUserWalletHistory,
   grantAdminUserFeature,
   updateAdminUser,
@@ -30,8 +31,7 @@ import { fetchAdminFeatures, type AdminFeature } from '@/features/admin/api/feat
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
 const auth = useAuthStore()
 const { session } = storeToRefs(auth)
-const users = ref<AdminUserSummary[]>([]),
-  catalog = ref<AdminFeature[]>([]),
+const catalog = ref<AdminFeature[]>([]),
   loading = ref(false),
   saving = ref(false),
   error = ref(''),
@@ -41,8 +41,19 @@ const { t } = useI18n()
 const sections = computed(() => [{ id: 'admin-users-list', label: t('admin.sections.list') }])
 const selected = ref<AdminUserSummary | null>(null),
   mode = ref<'account' | 'wallet' | 'features' | 'history' | null>(null),
-  licenses = ref<AdminFeatureLicense[]>([]),
-  history = ref<AdminWalletHistoryEntry[]>([])
+  licenses = ref<AdminFeatureLicense[]>([])
+let loadedQuery = ''
+const userPages = useCursorCollection<AdminUserSummary>(
+  (cursor, signal) => fetchAdminUsersPage(session.value!, loadedQuery, cursor, signal),
+  item => item.userId ?? item.customerId,
+)
+const historyPages = useCursorCollection<AdminWalletHistoryEntry>(
+  (cursor, signal) => fetchUserWalletHistory(selected.value!.customerId || selected.value!.userId!, session.value!, cursor, signal),
+  item => item.id,
+)
+const { items: users, sentinel: usersSentinel } = userPages
+const { items: history, sentinel: historySentinel, error: historyError } = historyPages
+watch(userPages.error, value => { if (value) error.value = value })
 const account = ref({
     displayName: '',
     firstName: '',
@@ -55,11 +66,12 @@ const account = ref({
 async function load() {
   if (!session.value) return
   loading.value = true
+  loadedQuery = query.value.trim()
   error.value = ''
   try {
-    ;[users.value, catalog.value] = await Promise.all([
-      fetchAdminUsers(session.value, query.value.trim()),
-      fetchAdminFeatures(session.value),
+    await Promise.all([
+      userPages.reset(),
+      catalog.value.length ? Promise.resolve() : fetchAdminFeatures(session.value).then(value => { catalog.value = value }),
     ])
   } catch (e) {
     error.value = e instanceof Error ? e.message : t('admin.page.loadError')
@@ -94,13 +106,14 @@ async function openHistory(x: AdminUserSummary) {
   if (!session.value) return
   selected.value = x
   mode.value = 'history'
-  history.value = (await fetchUserWalletHistory(x.customerId || x.userId!, session.value)).entries
+  await historyPages.reset()
 }
 function close() {
   if (saving.value) return
   resetSelection()
 }
 function resetSelection() {
+  historyPages.cancel()
   selected.value = null
   mode.value = null
 }
@@ -217,7 +230,7 @@ onMounted(load)
       </div>
       <section id="admin-users-list">
         <AdminPanel>
-          <div class="admin-table-scroll overflow-x-auto">
+          <div class="admin-table-scroll overflow-x-auto" :aria-busy="userPages.loading.value">
             <table class="w-full min-w-[880px] text-left text-sm">
               <thead class="text-xs text-text-muted">
                 <tr>
@@ -277,6 +290,7 @@ onMounted(load)
                 </tr>
               </tbody>
             </table>
+            <div ref="usersSentinel" aria-hidden="true"></div>
           </div></AdminPanel
         >
       </section>
@@ -440,7 +454,7 @@ onMounted(load)
             if (!v) close()
           }
         "
-        ><div class="divide-y divide-border-subtle">
+        ><div class="divide-y divide-border-subtle" :aria-busy="historyPages.loading.value">
           <div v-for="x in history" :key="x.id" class="flex justify-between gap-md py-sm">
             <div>
               <b class="text-text-primary">{{ x.entryType }}</b>
@@ -457,6 +471,8 @@ onMounted(load)
           <p v-if="!history.length" class="py-xl text-center text-text-muted">
             {{ t('admin.common.noData') }}
           </p>
+          <p v-if="historyError" role="alert" class="py-sm text-error-text">{{ historyError }}</p>
+          <div ref="historySentinel" aria-hidden="true"></div>
         </div>
         <template #actions
           ><AppButton variant="primary" @click="close">{{

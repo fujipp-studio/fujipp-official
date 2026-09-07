@@ -7,7 +7,8 @@ import {
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { fetchWorks, type WorkLocale, type WorkSummary } from '@/features/work/api'
+import { type WorkLocale, type WorkSummary, invalidateWorkListingCache } from '@/features/work/api'
+import { useWorkListing } from '../composables/useWorkListing'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton, AppToast } from '../../../shared/ui'
 import GithubActivitySection from '../components/GithubActivitySection.vue'
@@ -19,12 +20,10 @@ const selectedCategory = ref('all')
 const selectedFeaturedCategory = ref('all')
 const workPageSize = ref(6)
 const visibleWorkCount = ref(6)
-const works = ref<WorkSummary[]>([])
-const loading = ref(true)
 const retrying = ref(false)
-const error = ref('')
 const toastOpen = ref(false)
-const worksCache = new Map<WorkLocale, WorkSummary[]>()
+const listing = useWorkListing(locale, selectedCategory, workPageSize)
+const { works, overview, total, loading, loadingMore, error } = listing
 const featuredViewport = ref<HTMLElement>()
 const featuredPaused = ref(false)
 const featuredCanScroll = ref(false)
@@ -68,21 +67,12 @@ const copy = computed(() =>
       },
 )
 
-const categories = computed(() => {
-  const unique = new Map<string, string>()
-  for (const work of works.value) unique.set(work.category.code, work.category.name)
-  return [...unique].map(([code, name]) => ({ code, name }))
-})
-
-const filteredWorks = computed(() =>
-  selectedCategory.value === 'all'
-    ? works.value
-    : works.value.filter((work) => work.category.code === selectedCategory.value),
-)
+const categories = computed(() => overview.value.categories)
+const filteredWorks = computed(() => works.value)
 
 const visibleFilteredWorks = computed(() => filteredWorks.value.slice(0, visibleWorkCount.value))
 
-const featuredWorks = computed(() => works.value.filter((work) => work.featured))
+const featuredWorks = computed(() => overview.value.featured)
 const showFeaturedSection = computed(
   () => !error.value && (loading.value || featuredWorks.value.length > 0),
 )
@@ -106,66 +96,31 @@ const filteredFeaturedWorks = computed(() =>
       ),
 )
 
-function applyWorks(nextWorks: WorkSummary[]) {
-  works.value = nextWorks
-  if (
-    selectedCategory.value !== 'all' &&
-    !nextWorks.some((work) => work.category.code === selectedCategory.value)
-  ) {
+async function loadWorks() {
+  if (!await listing.load()) return
+  if (!error.value && selectedCategory.value !== 'all' &&
+      !categories.value.some(item => item.code === selectedCategory.value)) {
     selectedCategory.value = 'all'
+    if (!await listing.load()) return
   }
-  if (
-    selectedFeaturedCategory.value !== 'all' &&
-    !nextWorks.some(
-      (work) => work.featured && work.category.code === selectedFeaturedCategory.value,
-    )
-  ) {
+  if (!featuredCategories.value.some(item => item.code === selectedFeaturedCategory.value))
     selectedFeaturedCategory.value = 'all'
-  }
-  requestAnimationFrame(() => {
-    updateFeaturedCanScroll()
-  })
-}
-
-async function getWorks(value: WorkLocale) {
-  const cachedWorks = worksCache.get(value)
-  if (cachedWorks) return cachedWorks
-
-  const nextWorks = await fetchWorks(value)
-  worksCache.set(value, nextWorks)
-  return nextWorks
-}
-
-async function loadWorks(showSkeleton = true) {
-  if (showSkeleton) {
-    loading.value = true
-    error.value = ''
-  }
-
-  try {
-    applyWorks(await getWorks(locale.value))
-    error.value = ''
-    void getWorks(locale.value === 'en' ? 'th' : 'en').catch(() => undefined)
-  } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Unable to load portfolio projects.'
-    toastOpen.value = false
-    requestAnimationFrame(() => {
-      toastOpen.value = true
-    })
-  } finally {
-    if (showSkeleton) loading.value = false
-  }
+  if (error.value) toastOpen.value = true
+  await listing.ensureVisible(visibleWorkCount.value)
+  await nextTick()
+  updateFeaturedCanScroll()
 }
 
 async function retryLoadWorks() {
   if (retrying.value) return
 
   retrying.value = true
+  invalidateWorkListingCache()
   try {
     await nextTick()
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
     await Promise.all([
-      loadWorks(false),
+      loadWorks(),
       new Promise<void>((resolve) => window.setTimeout(resolve, 600)),
     ])
   } finally {
@@ -181,6 +136,7 @@ function selectCategory(category: string) {
   if (selectedCategory.value === category) return
   selectedCategory.value = category
   visibleWorkCount.value = workPageSize.value
+  void loadWorks()
 }
 
 function updateWorkPageSize() {
@@ -191,11 +147,11 @@ function updateWorkPageSize() {
   if (visibleWorkCount.value <= previousPageSize) visibleWorkCount.value = nextPageSize
 }
 
-function loadMoreWorks() {
-  visibleWorkCount.value = Math.min(
-    filteredWorks.value.length,
-    visibleWorkCount.value + workPageSize.value,
-  )
+async function loadMoreWorks() {
+  const target = Math.min(total.value, visibleWorkCount.value + workPageSize.value)
+  if (!await listing.ensureVisible(target)) return
+  visibleWorkCount.value = Math.min(target, works.value.length)
+  if (listing.moreError.value) toastOpen.value = true
 }
 
 function showFewerWorks() {
@@ -293,24 +249,18 @@ function startFeaturedAutoplay() {
 
 watch(filteredFeaturedWorks, startFeaturedAutoplay)
 watch(workSectionIds, () => requestSectionUpdate())
-watch(
-  appLocale,
-  async (value) => {
-    const nextLocale: WorkLocale = value === 'th' ? 'th' : 'en'
-    if (nextLocale === locale.value) return
-    locale.value = nextLocale
-    error.value = ''
-    try {
-      applyWorks(await getWorks(nextLocale))
-    } catch (reason) {
-      error.value = reason instanceof Error ? reason.message : 'Unable to load portfolio projects.'
-      toastOpen.value = true
-    }
-  },
-)
+watch(appLocale, async (value) => {
+  const nextLocale: WorkLocale = value === 'th' ? 'th' : 'en'
+  if (nextLocale === locale.value) return
+  locale.value = nextLocale
+  await loadWorks()
+})
+watch(workPageSize, async () => {
+  await listing.ensureVisible(visibleWorkCount.value)
+})
 onMounted(() => {
-  void loadWorks()
   updateWorkPageSize()
+  void loadWorks()
   document.documentElement.classList.add('work-section-scroll')
   window.addEventListener('scroll', requestSectionUpdate, { passive: true })
   window.addEventListener('resize', requestSectionUpdate)
@@ -508,12 +458,13 @@ onBeforeUnmount(() => {
 
       <div v-if="!loading && !error && filteredWorks.length" class="work-pagination">
         <p>
-          {{ copy.showing }} {{ Math.min(visibleWorkCount, filteredWorks.length) }}
-          {{ copy.of }} {{ filteredWorks.length }} {{ copy.projects }}
+          {{ copy.showing }} {{ Math.min(visibleWorkCount, total) }}
+          {{ copy.of }} {{ total }} {{ copy.projects }}
         </p>
         <div class="work-pagination__actions">
           <AppButton
-            v-if="visibleWorkCount < filteredWorks.length"
+            v-if="visibleWorkCount < total"
+            :disabled="loadingMore"
             class="work-pagination__button"
             @click="loadMoreWorks"
           >

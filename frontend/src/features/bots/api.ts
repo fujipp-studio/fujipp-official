@@ -78,6 +78,13 @@ export async function fetchBots(session: Session, signal?: AbortSignal): Promise
   )
 }
 
+export async function fetchBot(botId: string, session: Session, signal?: AbortSignal): Promise<UserBot> {
+  const response = await apiFetch(`${backendUrl}/api/v2/bots/${encodeURIComponent(botId)}`, {
+    headers: authenticatedHeaders(session), signal,
+  })
+  return readJson<UserBot>(response, 'Unable to load your bot.')
+}
+
 export async function createBot(
   input: { name: string; discordApplicationId: string | null; discordGuildId: string | null },
   session: Session,
