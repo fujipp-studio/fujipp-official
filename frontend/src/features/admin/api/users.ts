@@ -5,6 +5,8 @@ import {
   fetchAllCursorPages,
   authenticatedHeaders,
   adminRequest,
+  readJson,
+  type CursorPage,
 } from '@/shared/api/http'
 
 export interface AdminUserSummary {
@@ -32,13 +34,6 @@ export interface AdminWalletHistoryEntry {
   createdAt: string
 }
 
-export interface AdminWalletHistoryResponse {
-  customerId: string
-  walletId: string
-  currentBalanceSatang: number
-  entries: AdminWalletHistoryEntry[]
-}
-
 export async function fetchAdminUsers(
   session: Session,
   query?: string,
@@ -50,6 +45,16 @@ export async function fetchAdminUsers(
     authenticatedHeaders(session, false),
     'โหลดรายการผู้ใช้ไม่สำเร็จ',
   )
+}
+
+export async function fetchAdminUsersPage(session: Session, query: string, cursor: string | null, signal: AbortSignal) {
+  const url = new URL(`${backendUrl}/api/v2/admin/users`)
+  url.searchParams.set('limit', '50')
+  if (query) url.searchParams.set('query', query)
+  if (cursor) url.searchParams.set('cursor', cursor)
+  return readJson<CursorPage<AdminUserSummary>>(await apiFetch(url, {
+    headers: authenticatedHeaders(session), signal,
+  }), 'โหลดรายการผู้ใช้ไม่สำเร็จ')
 }
 
 export async function adjustUserWallet(
@@ -152,30 +157,16 @@ export const updateAdminUserFeature = (
 export async function fetchUserWalletHistory(
   customerId: string,
   session: Session,
-): Promise<AdminWalletHistoryResponse> {
-  const response = await apiFetch(
-    `${backendUrl}/api/v1/admin/users/${encodeURIComponent(customerId)}/wallet/history`,
-    {
-      headers: authenticatedHeaders(session, false),
-    },
-  )
-  if (!response.ok) {
-    let bodyText = ''
-    try {
-      bodyText = await response.text()
-    } catch {}
-    throw new Error(
-      `โหลดประวัติกระเป๋าไม่สำเร็จ (HTTP ${response.status}${bodyText ? `: ${bodyText}` : ''})`,
-    )
-  }
-  const metadata = (await response.json()) as AdminWalletHistoryResponse
+  cursor: string | null = null,
+  signal?: AbortSignal,
+): Promise<CursorPage<AdminWalletHistoryEntry> & {
+  customerId: string; walletId: string | null; currentBalanceSatang: number
+}> {
   const url = new URL(
     `${backendUrl}/api/v2/admin/users/${encodeURIComponent(customerId)}/wallet/history`,
   )
-  metadata.entries = await fetchAllCursorPages<AdminWalletHistoryEntry>(
-    url,
-    authenticatedHeaders(session, false),
-    'โหลดประวัติกระเป๋าไม่สำเร็จ',
-  )
-  return metadata
+  url.searchParams.set('limit', '50')
+  if (cursor) url.searchParams.set('cursor', cursor)
+  return readJson(await apiFetch(url, { headers: authenticatedHeaders(session), signal }),
+    'โหลดประวัติกระเป๋าไม่สำเร็จ')
 }

@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
             <p class="home-hero__summary">{{ t('home.hero.summary') }}</p>
 
             <div class="home-hero__actions">
-              <AppButton href="/work" :right-icon="icons.base.arrowRight">
+              <AppButton to="/work" :right-icon="icons.base.arrowRight">
                 {{ t('home.hero.workAction') }}
               </AppButton>
             </div>

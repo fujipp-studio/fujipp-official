@@ -44,9 +44,10 @@ export async function fetchRuntimeAvailability(signal?: AbortSignal) {
   return readJson<RuntimeAvailability>(response, 'Unable to load Runtime availability.')
 }
 
-export async function fetchRuntimeSubscriptions(session: Session) {
+export async function fetchRuntimeSubscriptions(session: Session, signal?: AbortSignal) {
   const response = await apiFetch(`${backendUrl}/api/v1/runtime/subscriptions`, {
     headers: authenticatedHeaders(session),
+    signal,
   })
   return readJson<RuntimeSubscription[]>(response, 'Unable to load Runtime slots.')
 }

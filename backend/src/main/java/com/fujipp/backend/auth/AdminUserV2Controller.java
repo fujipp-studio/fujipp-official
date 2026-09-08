@@ -20,7 +20,7 @@ public class AdminUserV2Controller {
             @RequestParam(defaultValue="50") @Min(1) @Max(100) int limit,
             @RequestParam(required=false) String cursor){return service.listUsersV2(query,limit,cursor);}
     @GetMapping("/{customerId}/wallet/history")
-    public CursorPage<AdminUserResponses.WalletHistoryEntry> history(@PathVariable UUID customerId,
+    public AdminUserResponses.WalletHistoryPage history(@PathVariable UUID customerId,
             @RequestParam(defaultValue="50") @Min(1) @Max(100) int limit,
             @RequestParam(required=false) String cursor){return service.getWalletHistoryV2(customerId,limit,cursor);}
 }

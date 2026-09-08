@@ -6,6 +6,10 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.UUID;
 import java.math.BigDecimal;
@@ -62,21 +66,8 @@ public class WorkRepository {
                 featured
         );
 
-        return projects.stream()
-                .map(project -> new WorkSummaryResponse(
-                        project.slug(),
-                        project.name(),
-                        project.shortDescription(),
-                        project.status(),
-                        project.startedOn(),
-                        project.completedOn(),
-                        project.featured(),
-                        project.category(),
-                        findPositions(project.id()),
-                        findTechnologies(project.id()),
-                        findMedia(project.id(), "GALLERY").stream().findFirst().orElse(null)
-                ))
-                .toList();
+        SummaryRelations relations = findSummaryRelations(projects);
+        return projects.stream().map(project -> summary(project, relations)).toList();
     }
 
     public List<WorkPageRow> findPublishedPage(String locale,String category,Boolean featured,
@@ -104,18 +95,97 @@ public class WorkRepository {
         Object[] base=after.isEmpty()
                 ?new Object[]{locale,category,category,featured,featured,limit}
                 :new Object[]{locale,category,category,featured,featured,after.get(0),after.get(1),after.get(2),after.get(3),after.get(4),limit};
-        return jdbcTemplate.query(sql,(rs,n)->{
+        List<ProjectPageRow> rows = jdbcTemplate.query(sql,(rs,n)->{
             ProjectRow project=PROJECT_ROW_MAPPER.mapRow(rs,n);
-            WorkSummaryResponse item=new WorkSummaryResponse(project.slug(),project.name(),project.shortDescription(),
-                    project.status(),project.startedOn(),project.completedOn(),project.featured(),project.category(),
-                    findPositions(project.id()),findTechnologies(project.id()),findMedia(project.id(),"GALLERY").stream().findFirst().orElse(null));
             int order=rs.getObject("featured_order",Integer.class)==null?2147483647:rs.getInt("featured_order");
             var instant=project.publishedAt().toInstant();
             String epochSort=BigDecimal.valueOf(instant.getEpochSecond())
                     .add(BigDecimal.valueOf(instant.getNano(),9)).negate().stripTrailingZeros().toPlainString();
-            return new WorkPageRow(item,project.id(),project.featured()?0:1,order,epochSort,project.slug());
+            return new ProjectPageRow(project,order,epochSort);
         },base);
+        SummaryRelations relations = findSummaryRelations(rows.stream().map(ProjectPageRow::project).toList());
+        return rows.stream().map(row -> new WorkPageRow(summary(row.project(), relations),
+                row.project().id(), row.project().featured() ? 0 : 1, row.featuredOrder(),
+                row.epochSort(), row.project().slug())).toList();
     }
+
+    public List<WorkOverviewResponse.CategoryCount> findPublishedCategoryCounts(String locale) {
+        // Match the list's locale and ordering so filters retain their existing order.
+        return jdbcTemplate.query("""
+                WITH ranked AS (
+                    SELECT category.code, category.name,
+                           row_number() OVER (ORDER BY project.is_featured DESC,
+                               project.featured_order ASC NULLS LAST, project.published_at DESC,
+                               project.slug, project.id) AS position
+                      FROM portfolio.projects project
+                      JOIN portfolio.project_translations translation
+                        ON translation.project_id = project.id AND translation.locale = ?
+                      JOIN portfolio.project_categories category ON category.id = project.category_id
+                     WHERE project.publication_status = 'PUBLISHED'
+                )
+                SELECT code, name, count(*) AS total FROM ranked
+                 GROUP BY code, name ORDER BY min(position)
+                """, (rs, n) -> new WorkOverviewResponse.CategoryCount(
+                rs.getString("code"), rs.getString("name"), rs.getLong("total")), locale);
+    }
+
+    private SummaryRelations findSummaryRelations(List<ProjectRow> projects) {
+        Map<UUID, List<Position>> positions = new HashMap<>();
+        Map<UUID, List<Technology>> technologies = new HashMap<>();
+        Map<UUID, Media> covers = new HashMap<>();
+        if (projects.isEmpty()) return new SummaryRelations(positions, technologies, covers);
+        Object[] ids = projects.stream().map(ProjectRow::id).toArray();
+        String placeholders = String.join(",", Collections.nCopies(ids.length, "?"));
+
+        jdbcTemplate.query("""
+                SELECT link.project_id, position.code, position.name
+                  FROM portfolio.project_positions link
+                  JOIN portfolio.positions position ON position.id = link.position_id
+                 WHERE link.project_id IN (
+                """ + placeholders + ") ORDER BY link.project_id, link.sort_order, position.code",
+                (rs, n) -> {
+                    positions.computeIfAbsent(rs.getObject("project_id", UUID.class), key -> new ArrayList<>())
+                            .add(new Position(rs.getString("code"), rs.getString("name")));
+                    return rs.getObject("project_id", UUID.class);
+                }, ids);
+        jdbcTemplate.query("""
+                SELECT link.project_id, technology.slug, technology.name, technology.icon_url,
+                       technology.official_url, technology_group.code AS group_code,
+                       technology_group.name AS group_name
+                  FROM portfolio.project_technologies link
+                  JOIN portfolio.technologies technology ON technology.id = link.technology_id
+                  JOIN portfolio.technology_groups technology_group ON technology_group.id = technology.group_id
+                 WHERE link.project_id IN (
+                """ + placeholders + ") ORDER BY link.project_id, link.sort_order, technology.slug",
+                (rs, n) -> {
+                    technologies.computeIfAbsent(rs.getObject("project_id", UUID.class), key -> new ArrayList<>())
+                            .add(new Technology(rs.getString("slug"), rs.getString("name"),
+                                    rs.getString("icon_url"), rs.getString("official_url"),
+                                    new TechnologyGroup(rs.getString("group_code"), rs.getString("group_name"))));
+                    return rs.getObject("project_id", UUID.class);
+                }, ids);
+        jdbcTemplate.query("""
+                SELECT DISTINCT ON (project_id) project_id, secure_url, width, height, format, bytes, alt_text
+                  FROM portfolio.project_media
+                 WHERE media_type = 'GALLERY' AND project_id IN (
+                """ + placeholders + ") ORDER BY project_id, sort_order, id",
+                (rs, n) -> covers.put(rs.getObject("project_id", UUID.class), new Media(
+                        rs.getString("secure_url"), rs.getObject("width", Integer.class),
+                        rs.getObject("height", Integer.class), rs.getString("format"),
+                        rs.getObject("bytes", Long.class), rs.getString("alt_text"))), ids);
+        return new SummaryRelations(positions, technologies, covers);
+    }
+
+    private WorkSummaryResponse summary(ProjectRow project, SummaryRelations relations) {
+        return new WorkSummaryResponse(project.slug(), project.name(), project.shortDescription(),
+                project.status(), project.startedOn(), project.completedOn(), project.featured(), project.category(),
+                relations.positions().getOrDefault(project.id(), List.of()),
+                relations.technologies().getOrDefault(project.id(), List.of()), relations.covers().get(project.id()));
+    }
+
+    private record SummaryRelations(Map<UUID, List<Position>> positions,
+                                    Map<UUID, List<Technology>> technologies, Map<UUID, Media> covers) {}
+    private record ProjectPageRow(ProjectRow project, int featuredOrder, String epochSort) {}
 
     public Optional<WorkDetailResponse> findPublishedBySlug(String slug, String locale) {
         List<ProjectRow> projects = jdbcTemplate.query(

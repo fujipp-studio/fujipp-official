@@ -385,6 +385,15 @@ public class StoreRepository {
                 : jdbcTemplate.query(sql, this::mapBot, ownerUserId, afterCreatedAt, afterId, limit);
     }
 
+    public Optional<BotResponse> findOwnedBot(UUID botId, UUID ownerUserId) {
+        return jdbcTemplate.query("""
+                SELECT id,name,discord_application_id,discord_guild_id,discord_username,
+                       discord_avatar_url,status::text,desired_state::text,restart_revision,created_at,updated_at
+                  FROM bots.bot_instances
+                 WHERE id = ? AND owner_user_id = ? AND status <> 'DECOMMISSIONED'
+                """, this::mapBot, botId, ownerUserId).stream().findFirst();
+    }
+
     public BotResponse createBot(
             UUID ownerUserId,
             String name,

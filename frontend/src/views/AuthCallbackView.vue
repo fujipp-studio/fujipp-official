@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { defineAsyncComponent, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import AuthMark from '../shared/ui/dialogs/AuthMark.vue'
-import AppAuthLoadingOverlay from '../shared/ui/dialogs/AppAuthLoadingOverlay.vue'
+const AppAuthLoadingOverlay = defineAsyncComponent(() => import('../shared/ui/dialogs/AppAuthLoadingOverlay.vue'))
 import { useAuthStore } from '../stores'
 import DesignSystemView from './DesignSystemView.vue'
 

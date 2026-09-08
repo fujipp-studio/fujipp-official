@@ -186,6 +186,18 @@ public class AdminUserRepository {
         return results.stream().findFirst();
     }
 
+    public Optional<AdminUserResponses.WalletSnapshot> findWalletSnapshot(UUID customerIdOrUserId) {
+        return jdbcTemplate.query("""
+                SELECT customer.id AS customer_id, wallet.id AS wallet_id, wallet.balance_satang
+                  FROM billing.customers customer
+                  JOIN billing.wallets wallet ON wallet.customer_id = customer.id AND wallet.currency = 'THB'
+                 WHERE customer.id = ? OR customer.user_id = ?
+                 ORDER BY (customer.id = ?) DESC LIMIT 1
+                """, (rs, n) -> new AdminUserResponses.WalletSnapshot(rs.getObject("customer_id", UUID.class),
+                rs.getObject("wallet_id", UUID.class), rs.getLong("balance_satang")),
+                customerIdOrUserId, customerIdOrUserId, customerIdOrUserId).stream().findFirst();
+    }
+
     public UUID adjustWallet(UUID walletId, String direction, String entryType, long amountSatang, String description, String idempotencyKey, UUID adminUserId) {
         return jdbcTemplate.queryForObject(
                 """
