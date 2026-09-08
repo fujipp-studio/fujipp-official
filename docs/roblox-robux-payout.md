@@ -3,11 +3,14 @@
 `roblox-robux-payout` sells configurable Robux packages using funds from
 the per-bot member wallet created by `wallet-topup@1.0.0`.
 
-Version `2.1.0` keeps the membership checker and expanded username form from
-the 2.0 releases, and also sends successful payout receipts to the purchasing
-member's Discord direct messages. Refunds and manual-review results remain in
-the configured error notification channel only. A closed or unavailable DM
-does not change the payout outcome.
+Version `2.2.0` keeps the membership checker and expanded username form from
+the 2.0 releases, and sends a separately configurable successful-purchase
+receipt to the purchasing member's Discord direct messages. The receipt exposes
+only the purchased package, price, selected group, and transaction time, and it
+can be designed as either an Embed or Components V2 message. The same receipt is
+also sent to the configured receipt channel. Refunds and manual-review results
+remain in the configured error notification channel only. An unavailable
+receipt channel or closed DM does not change the payout outcome.
 
 ## Member flow
 
@@ -31,6 +34,7 @@ payouts do not provide an application idempotency key.
 - `ROBUX_PACKAGES` (`[{"robux":200}]`; price is rounded up from `robux / rate`)
 - `ROBUX_PAYOUT_COOLDOWN_SECONDS`
 - `ROBUX_NOTIFICATION_CHANNEL_ID`
+- `ROBUX_RECEIPT_CHANNEL_ID`
 - `ROBLOX_GROUPS` (`[{"key":"main","name":"Main","groupId":123}]`)
 - `ROBLOX_CREDENTIALS` (encrypted JSON object keyed by group key)
 
@@ -60,8 +64,10 @@ login from the same stable runtime environment.
 
 ## Presentation slots
 
-The editable slots are `panel`, `eligibility`, `package_selector`,
-`confirmation`, `processing`, `succeeded`, `failed`, and `notification`.
+The editable slots include `panel`, `eligibility`, `membership_result`,
+`package_selector`, `confirmation`, `processing`, `queued`, `succeeded`,
+`failed`, `notification_success`, `notification_error`, and the `receipt` slot
+introduced in version 2.2.0.
 
 ## Internal API
 
