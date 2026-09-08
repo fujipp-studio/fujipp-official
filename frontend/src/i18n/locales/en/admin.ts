@@ -70,8 +70,7 @@ export default {
     featureGranted: 'Feature granted',
     noNote: 'No note',
     botsTitle: 'Bots',
-    botsDescription:
-      'Search, inspect, start, stop, and transfer ownership of every registered bot.',
+    botsDescription: 'Search, inspect, start, stop, transfer, and delete registered bots.',
     botsList: 'All bots',
     botsCount: '{count} bots',
     botsSearch: 'Search bot, owner, or ID',
@@ -97,6 +96,13 @@ export default {
     startSuccess: 'Bot start requested',
     stopSuccess: 'Bot stop requested',
     botSettings: 'Bot settings',
+    deleteBot: 'Delete bot',
+    deleteBotTitle: 'Delete bot?',
+    deleteBotWarning:
+      'The bot will stop immediately and its connection secrets will be deleted. Purchased Runtime and Features will be released back to the owner for use with another bot. This action cannot be undone.',
+    deleteBotConfirm: 'Delete bot',
+    deleteBotSuccess: 'Bot deleted',
+    deleteBotError: 'Unable to delete bot',
     featureTitle: 'Features & packages',
     featureDescription:
       'Manage built-in bot features separately from packages and Runtime plans offered in the Store.',

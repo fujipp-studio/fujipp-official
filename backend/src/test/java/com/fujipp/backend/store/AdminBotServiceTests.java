@@ -27,6 +27,33 @@ class AdminBotServiceTests {
     );
 
     @Test
+    void decommissionsBotAndReleasesItsRuntimeResources() {
+        UUID botId = UUID.randomUUID();
+        when(repository.decommission(botId)).thenReturn(true);
+
+        service.delete(botId);
+
+        verify(repository).detachRuntimeSubscriptions(botId);
+        verify(repository).removeFeatureInstallations(botId);
+        verify(repository).deleteCredentials(botId);
+        verify(runtime).invalidateBootstrap();
+    }
+
+    @Test
+    void rejectsDeletingMissingOrAlreadyDecommissionedBot() {
+        UUID botId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.delete(botId))
+                .isInstanceOf(StoreNotFoundException.class)
+                .hasMessage("Bot was not found");
+
+        verify(repository, never()).detachRuntimeSubscriptions(botId);
+        verify(repository, never()).removeFeatureInstallations(botId);
+        verify(repository, never()).deleteCredentials(botId);
+        verify(runtime, never()).invalidateBootstrap();
+    }
+
+    @Test
     void removesInstalledFeatureAndInvalidatesRuntimeBootstrap() {
         UUID botId = UUID.randomUUID();
         UUID installationId = UUID.randomUUID();

@@ -40,6 +40,17 @@ public class AdminBotService {
 
     public List<AdminStoreResponses.Bot> list(String query) { return repository.findBots(query); }
 
+    @Transactional
+    public void delete(UUID botId) {
+        if (!repository.decommission(botId)) {
+            throw new StoreNotFoundException("Bot was not found");
+        }
+        repository.detachRuntimeSubscriptions(botId);
+        repository.removeFeatureInstallations(botId);
+        repository.deleteCredentials(botId);
+        runtime.invalidateBootstrap();
+    }
+
     public CursorPage<AdminStoreResponses.Bot> listV2(String query,int limit,String cursor) {
         String filter=query==null?"":query.trim().toLowerCase();
         var values=cursors.decode(cursor,"admin-bots",filter,2);

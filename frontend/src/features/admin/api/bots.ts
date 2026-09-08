@@ -57,6 +57,14 @@ export const controlAdminBot = (
     `Unable to ${action} bot.`,
   )
 
+export const deleteAdminBot = (botId: string, session: Session) =>
+  adminRequest<void>(
+    `/api/v1/admin/bots/${botId}`,
+    session,
+    { method: 'DELETE' },
+    'Unable to delete bot.',
+  )
+
 export const fetchAdminBotSettings = (botId: string, session: Session, signal?: AbortSignal) =>
   adminRequest<UserBot>(
     `/api/v1/admin/bots/${botId}/settings`,

@@ -183,6 +183,27 @@ class StoreControllerTests {
         verify(adminBotService).removeFeature(botId, installationId);
     }
 
+    @Test
+    void regularUsersCannotDeleteCustomerBots() throws Exception {
+        authorizeAs(AppRole.USER);
+
+        mockMvc.perform(delete(
+                        "/api/v1/admin/bots/11111111-1111-4111-8111-111111111111"
+                ).with(jwt()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCanDeleteCustomerBot() throws Exception {
+        authorizeAs(AppRole.ADMIN);
+        UUID botId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+
+        mockMvc.perform(delete("/api/v1/admin/bots/{botId}", botId).with(jwt()))
+                .andExpect(status().isNoContent());
+
+        verify(adminBotService).delete(botId);
+    }
+
     private void authorizeUser() {
         authorizeAs(AppRole.USER);
     }

@@ -19,8 +19,9 @@ public class AdminBotRepository {
                 SELECT bot.id, bot.owner_user_id, COALESCE(profile.display_name,profile.username,'User') owner_name,
                        bot.name,bot.status::text,bot.desired_state::text,bot.created_at
                   FROM bots.bot_instances bot LEFT JOIN public.profiles profile ON profile.id=bot.owner_user_id
-                 WHERE lower(bot.name) LIKE ? OR lower(COALESCE(profile.display_name,'')) LIKE ?
-                    OR lower(COALESCE(profile.username,'')) LIKE ? OR lower(bot.id::text) LIKE ?
+                 WHERE bot.status <> 'DECOMMISSIONED'
+                   AND (lower(bot.name) LIKE ? OR lower(COALESCE(profile.display_name,'')) LIKE ?
+                    OR lower(COALESCE(profile.username,'')) LIKE ? OR lower(bot.id::text) LIKE ?)
                  ORDER BY bot.created_at DESC LIMIT 200
                 """, (rs,n)->map(rs), filter,filter,filter,filter);
     }
@@ -32,7 +33,8 @@ public class AdminBotRepository {
                 SELECT bot.id, bot.owner_user_id, COALESCE(profile.display_name,profile.username,'User') owner_name,
                        bot.name,bot.status::text,bot.desired_state::text,bot.created_at
                   FROM bots.bot_instances bot LEFT JOIN public.profiles profile ON profile.id=bot.owner_user_id
-                 WHERE (lower(bot.name) LIKE ? OR lower(COALESCE(profile.display_name,'')) LIKE ?
+                 WHERE bot.status <> 'DECOMMISSIONED'
+                   AND (lower(bot.name) LIKE ? OR lower(COALESCE(profile.display_name,'')) LIKE ?
                     OR lower(COALESCE(profile.username,'')) LIKE ? OR lower(bot.id::text) LIKE ?)
                 """ + cursor + " ORDER BY bot.created_at DESC, bot.id DESC LIMIT ?";
         return beforeCreatedAt == null
@@ -45,13 +47,44 @@ public class AdminBotRepository {
                 SELECT bot.id,bot.owner_user_id,COALESCE(profile.display_name,profile.username,'User') owner_name,
                        bot.name,bot.status::text,bot.desired_state::text,bot.created_at
                   FROM bots.bot_instances bot LEFT JOIN public.profiles profile ON profile.id=bot.owner_user_id
-                 WHERE bot.id=?
+                 WHERE bot.id=? AND bot.status <> 'DECOMMISSIONED'
                 """, (rs,n)->map(rs), botId).stream().findFirst();
     }
 
     public UUID ownerId(UUID botId) {
-        return jdbc.query("SELECT owner_user_id FROM bots.bot_instances WHERE id=?",
+        return jdbc.query("SELECT owner_user_id FROM bots.bot_instances WHERE id=? AND status <> 'DECOMMISSIONED'",
                 rs->rs.next()?rs.getObject(1,UUID.class):null,botId);
+    }
+
+    public boolean decommission(UUID botId) {
+        return jdbc.update("""
+                UPDATE bots.bot_instances
+                   SET status = 'DECOMMISSIONED',
+                       desired_state = 'STOPPED',
+                       decommissioned_at = now(),
+                       discord_application_id = NULL,
+                       discord_guild_id = NULL,
+                       discord_username = NULL,
+                       discord_avatar_url = NULL,
+                       updated_at = now()
+                 WHERE id = ? AND status <> 'DECOMMISSIONED'
+                """, botId) == 1;
+    }
+
+    public void detachRuntimeSubscriptions(UUID botId) {
+        jdbc.update("UPDATE private.runtime_subscriptions SET bot_id=NULL,updated_at=now() WHERE bot_id=?", botId);
+    }
+
+    public void removeFeatureInstallations(UUID botId) {
+        jdbc.update("""
+                UPDATE private.bot_feature_installations
+                   SET status='REMOVED',removed_at=now(),updated_at=now()
+                 WHERE bot_id=? AND removed_at IS NULL
+                """, botId);
+    }
+
+    public void deleteCredentials(UUID botId) {
+        jdbc.update("DELETE FROM private.bot_credentials WHERE bot_id=?", botId);
     }
 
     public boolean licenseInstalledOnBot(UUID licenseId,UUID botId) {
@@ -119,7 +152,8 @@ public class AdminBotRepository {
         return jdbc.query("""
                 SELECT id,name,discord_application_id,discord_guild_id,discord_username,
                        discord_avatar_url,status::text,desired_state::text,restart_revision,
-                       created_at,updated_at FROM bots.bot_instances WHERE id=?
+                       created_at,updated_at FROM bots.bot_instances
+                 WHERE id=? AND status <> 'DECOMMISSIONED'
                 """, (rs,n) -> new BotResponse(rs.getObject("id",UUID.class),rs.getString("name"),
                 rs.getString("discord_application_id"),rs.getString("discord_guild_id"),
                 rs.getString("discord_username"),rs.getString("discord_avatar_url"),
