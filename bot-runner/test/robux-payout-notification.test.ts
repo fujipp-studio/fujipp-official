@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildManualReceiptCommand,deliverPayoutNotificationCopies,manualPayoutReceiptValues,manualReceiptPackageSuggestions,payoutMemberReceiptSlot,payoutReceiptValues,renderPayoutTemplate,shouldSendPayoutReceiptToMember } from "../src/features/roblox-robux-payout/v1.0.0.js";
+import { buildManualReceiptCommand,deliverManualReceiptCopies,deliverPayoutNotificationCopies,manualPayoutReceiptValues,manualReceiptPackageSuggestions,payoutMemberReceiptSlot,payoutReceiptValues,shouldSendPayoutReceiptToMember } from "../src/features/roblox-robux-payout/v1.0.0.js";
 
 test("sends member receipts only for successful Robux payouts", () => {
   assert.equal(shouldSendPayoutReceiptToMember(true,"SUCCEEDED"),true);
@@ -31,17 +31,38 @@ test("limits the member receipt values to the four purchase details", () => {
 test("builds a manual receipt command with free-text package suggestions", () => {
   const command=buildManualReceiptCommand().toJSON();
   assert.equal(command.name,"robux-receipt");
-  assert.deepEqual(command.options?.map((option)=>option.name),["package","price","group"]);
+  assert.deepEqual(command.options?.map((option)=>option.name),["package","price","user"]);
   assert.equal(command.options?.[0]?.autocomplete,true);
-  assert.deepEqual(manualReceiptPackageSuggestions(""),["ซื้อเกมพาส","เติม Robux ไอดี-พาส"]);
+  assert.deepEqual(manualReceiptPackageSuggestions(""),["ซื้อเกมพาส","เติม Robux ไอดี-พาส","เติม โรพลัส"]);
   assert.deepEqual(manualReceiptPackageSuggestions("ไอดี"),["เติม Robux ไอดี-พาส"]);
+  assert.deepEqual(manualReceiptPackageSuggestions("โรพลัส"),["เติม โรพลัส"]);
 });
 
-test("formats manual receipt input and omits the optional group block", () => {
-  const values=manualPayoutReceiptValues(" ซื้อเกมพาส ",199.5,"","8 ก.ย. 2569 18:00:00");
-  assert.deepEqual(values,{package:"ซื้อเกมพาส",price:"199.50",group_name:"",transaction_time:"8 ก.ย. 2569 18:00:00"});
-  assert.equal(renderPayoutTemplate("ราคา {{price}}{{#group_name}} · กลุ่ม {{group_name}}{{/group_name}}",values),"ราคา 199.50");
-  assert.equal(renderPayoutTemplate("{{#group_name}}กลุ่ม {{group_name}}{{/group_name}}",{...values,group_name:"Main"}),"กลุ่ม Main");
+test("optionally delivers a manual receipt to the selected user's DM", async () => {
+  const deliveries:string[]=[];
+  assert.deepEqual(await deliverManualReceiptCopies({
+    sendToChannel:async()=>{deliveries.push("channel");},
+    sendToMember:async()=>{deliveries.push("member");},
+  }),{memberDelivered:true});
+  assert.deepEqual(deliveries,["channel","member"]);
+});
+
+test("keeps the manual channel receipt when the selected user's DM is closed", async () => {
+  const deliveries:string[]=[];
+  const failures:string[]=[];
+  assert.deepEqual(await deliverManualReceiptCopies({
+    sendToChannel:async()=>{deliveries.push("channel");},
+    sendToMember:async()=>{throw new Error("DM closed");},
+    onMemberError:(error)=>{failures.push((error as Error).message);},
+  }),{memberDelivered:false});
+  assert.deepEqual(deliveries,["channel"]);
+  assert.deepEqual(failures,["DM closed"]);
+});
+
+test("formats manual receipt input without group details", () => {
+  const values=manualPayoutReceiptValues(" เติม โรพลัส ",199.5,"8 ก.ย. 2569 18:00:00");
+  assert.deepEqual(values,{package:"เติม โรพลัส",price:"199.50",transaction_time:"8 ก.ย. 2569 18:00:00"});
+  assert.equal("group_name" in values,false);
 });
 
 test("delivers a Robux payout notification to the audit channel, receipt channel, and member DM", async () => {
