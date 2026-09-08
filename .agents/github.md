@@ -27,6 +27,9 @@ AI agents must not open or merge pull requests unless explicitly asked.
 
 ## Branch Naming
 
+AI agents must use the repository branch naming convention below. Do not use an
+agent-specific prefix such as `codex/`.
+
 Use:
 
 ```text
