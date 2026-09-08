@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-08 | Added an administrator-only manual receipt command with free-text Package suggestions, manual pricing, optional group details, and automatic timestamps. |
 | 2026-09-08 | Added Roblox Robux Payout 2.2 with separate successful-purchase receipts delivered to members and a configured receipt channel. |
 | 2026-09-08 | Batched portfolio summary queries, added owned-Bot reads and portfolio overview metadata, and returned wallet balance with paginated history without duplicate reads. |
 | 2026-09-06 | Added Review Credit 1.1 with webhook-aware review counting and an administrator command for replacing the saved count. |

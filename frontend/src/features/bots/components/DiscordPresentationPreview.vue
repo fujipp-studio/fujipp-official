@@ -150,6 +150,7 @@ const sampleByVariable: Record<string, string> = {
   minimum_amount: '10.00',
   robux: '400',
   refund: '120.00',
+  package: '400 Robux',
   price: '120.00',
   rate: '3.5',
   status: 'สำเร็จ',
@@ -209,7 +210,11 @@ function isPreviewImageUrl(value: string) {
 }
 function render(value: unknown) {
   if (typeof value !== 'string') return ''
-  return value.replace(/\{\{([^}]+)}}/g, (_, key: string) => sampleValue(key))
+  return value
+    .replace(/\{\{#(\w+)}}([\s\S]*?)\{\{\/\1}}/g, (_, key: string, content: string) =>
+      sampleValue(key) ? content : '',
+    )
+    .replace(/\{\{([^}]+)}}/g, (_, key: string) => sampleValue(key))
 }
 function escapeHtml(value: string) {
   return value

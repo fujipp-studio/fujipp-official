@@ -8,4 +8,5 @@ export const robloxRobuxPayoutFeatureV22=createRobloxRobuxPayoutFeature(
   ROBUX_PAYOUT_V201_PURCHASE_FORM.title,
   true,
   "receipt",
+  true,
 );

@@ -1,7 +1,7 @@
 import {
   ActionRowBuilder,ButtonBuilder,ButtonStyle,EmbedBuilder,Interaction,MessageFlags,ModalBuilder,
   PermissionFlagsBits,SlashCommandBuilder,StringSelectMenuBuilder,StringSelectMenuOptionBuilder,
-  TextInputBuilder,TextInputStyle,type ButtonInteraction,type ChatInputCommandInteraction,type Message,type ModalSubmitInteraction,
+  TextInputBuilder,TextInputStyle,type AutocompleteInteraction,type ButtonInteraction,type ChatInputCommandInteraction,type Message,type ModalSubmitInteraction,
 } from "discord.js";
 import type { FeatureContext,FeatureModule,RobuxPayoutJob } from "../../types.js";
 import { eligibility,groupFunds,groupMembership,payout,userAvatar,type RobloxGroup,type RobloxFailure } from "./roblox-client.js";
@@ -9,25 +9,27 @@ import { eligibility,groupFunds,groupMembership,payout,userAvatar,type RobloxGro
 const ID={buy:"fujipp:robux:buy",group:"fujipp:robux:group",user:"fujipp:robux:user",pkg:"fujipp:robux:pkg",confirm:"fujipp:robux:confirm",cancel:"fujipp:robux:cancel",membership:"fujipp:robux:membership",membershipGroup:"fujipp:robux:membership-group",membershipUser:"fujipp:robux:membership-user"};
 const RELOAD_GROUPS="__reload__";
 const PANEL_REFRESH_MS=60_000;
+export const ROBUX_RECEIPT_COMMAND_NAME="robux-receipt";
 
 export const robloxRobuxPayoutFeature=createRobloxRobuxPayoutFeature("1.0.0",false);
 
-export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux",sendSuccessfulPurchaseReceiptsToMember=false,successfulPurchaseReceiptSlot="notification_success"):FeatureModule{return {
+export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux",sendSuccessfulPurchaseReceiptsToMember=false,successfulPurchaseReceiptSlot="notification_success",manualReceiptEnabled=false):FeatureModule{return {
   runtimeKey:"roblox-robux-payout",version,intents:["Guilds"],
   async activate(context){
     const pending=new Map<string,PendingPurchase>();
     const groups=readGroups(context); const command=stringConfig(context.config.PANEL_COMMAND_NAME,"robux-panel");
     const queue=new PayoutQueue(context,groups,sendSuccessfulPurchaseReceiptsToMember,successfulPurchaseReceiptSlot);
     const panels=new PanelUpdater(context,groups,membershipEnabled);
-    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,purchaseUsernameMaxLength,purchaseModalTitle,interaction).catch((error)=>respondError(context,interaction,error));
+    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,purchaseUsernameMaxLength,purchaseModalTitle,manualReceiptEnabled,interaction).catch((error)=>respondError(context,interaction,error));
     context.client.on("interactionCreate",listener);
-    context.client.once("clientReady",()=>void onReady(context,groups,queue,panels,command).catch((error)=>{console.error(`Robux Payout startup failed for ${context.botId}:`,error);void context.reportFeatureError("FEATURE_STARTUP_FAILED",error);}));
+    context.client.once("clientReady",()=>void onReady(context,groups,queue,panels,command,manualReceiptEnabled).catch((error)=>{console.error(`Robux Payout startup failed for ${context.botId}:`,error);void context.reportFeatureError("FEATURE_STARTUP_FAILED",error);}));
     return()=>{context.client.off("interactionCreate",listener);queue.stop();panels.stop();pending.clear();};
   },
 };}
 
-async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,command:string){
+async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,command:string,manualReceiptEnabled:boolean){
   await context.client.application?.commands.create(new SlashCommandBuilder().setName(command).setDescription("ส่ง Panel ร้าน Robux").toJSON());
+  if(manualReceiptEnabled)await context.client.application?.commands.create(buildManualReceiptCommand().toJSON());
   await panels.restore();
   const recovery=await context.robux.recoverable();
   for(const job of recovery.jobs){
@@ -37,8 +39,10 @@ async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQ
   console.info(`Roblox Robux Payout active: bot ${context.botId}`);
 }
 
-async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,purchaseUsernameMaxLength:number,purchaseModalTitle:string,interaction:Interaction){
+async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,purchaseUsernameMaxLength:number,purchaseModalTitle:string,manualReceiptEnabled:boolean,interaction:Interaction){
   if(interaction.isChatInputCommand()&&interaction.commandName===command)return postPanel(context,groups,panels,membershipEnabled,interaction);
+  if(manualReceiptEnabled&&interaction.isAutocomplete()&&interaction.commandName===ROBUX_RECEIPT_COMMAND_NAME)return suggestManualReceiptPackage(interaction);
+  if(manualReceiptEnabled&&interaction.isChatInputCommand()&&interaction.commandName===ROBUX_RECEIPT_COMMAND_NAME)return sendManualReceipt(context,interaction);
   if(membershipEnabled&&interaction.isButton()&&interaction.customId===ID.membership)return startMembershipCheck(groups,interaction);
   if(membershipEnabled&&interaction.isStringSelectMenu()&&interaction.customId===ID.membershipGroup)return showMembershipModal(groups,interaction.values[0]!,interaction);
   if(membershipEnabled&&interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.membershipUser}:`))return checkMembership(context,groups,interaction.customId.slice(ID.membershipUser.length+1),interaction);
@@ -48,6 +52,32 @@ async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQu
   if(interaction.isStringSelectMenu()&&interaction.customId.startsWith(`${ID.pkg}:`))return selectPackage(context,pending,interaction.customId.slice(ID.pkg.length+1),interaction.values[0]!,interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.confirm}:`))return confirm(context,groups,queue,pending,interaction.customId.slice(ID.confirm.length+1),interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.cancel}:`)){const purchase=pending.get(interaction.customId.slice(ID.cancel.length+1));pending.delete(interaction.customId.slice(ID.cancel.length+1));return interaction.update(render(context,"failed",{reason:"ยกเลิกการซื้อ Robux แล้ว",username:purchase?.robloxUsername??"-",datetime:dateTime(),avatar:interaction.user.displayAvatarURL()},[]));}
+}
+
+export function buildManualReceiptCommand(){
+  return new SlashCommandBuilder().setName(ROBUX_RECEIPT_COMMAND_NAME).setDescription("สร้างใบเสร็จ Robux แบบกรอกเอง").setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption((option)=>option.setName("package").setDescription("ชื่อ Package (พิมพ์เองหรือเลือกคำแนะนำ)").setRequired(true).setMinLength(1).setMaxLength(100).setAutocomplete(true))
+    .addNumberOption((option)=>option.setName("price").setDescription("ราคา (บาท)").setRequired(true).setMinValue(0.01))
+    .addStringOption((option)=>option.setName("group").setDescription("กลุ่มที่เลือก (ไม่บังคับ)").setMaxLength(100));
+}
+
+export function manualReceiptPackageSuggestions(query:string){const normalized=query.trim().toLocaleLowerCase("th-TH");return ["ซื้อเกมพาส","เติม Robux ไอดี-พาส"].filter((item)=>!normalized||item.toLocaleLowerCase("th-TH").includes(normalized));}
+
+function suggestManualReceiptPackage(interaction:AutocompleteInteraction){return interaction.respond(manualReceiptPackageSuggestions(String(interaction.options.getFocused())).map((name)=>({name,value:name})));}
+
+async function sendManualReceipt(context:FeatureContext,interaction:ChatInputCommandInteraction){
+  if(!interaction.inGuild())return;
+  const administrator=interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)===true;
+  if(!context.permissions.canUse(interaction,ROBUX_RECEIPT_COMMAND_NAME,administrator))return interaction.reply({content:"คุณไม่มีสิทธิ์สร้างใบเสร็จ",flags:MessageFlags.Ephemeral});
+  const channelId=stringConfig(context.config.ROBUX_RECEIPT_CHANNEL_ID,"");
+  if(!channelId)return interaction.reply({content:"กรุณาตั้งค่าห้องใบเสร็จก่อนใช้งานคำสั่งนี้",flags:MessageFlags.Ephemeral});
+  const packageName=interaction.options.getString("package",true).trim();
+  const priceBaht=interaction.options.getNumber("price",true);
+  const groupName=interaction.options.getString("group")?.trim()??"";
+  const channel=await context.client.channels.fetch(channelId);
+  if(!channel?.isTextBased()||!channel.isSendable())throw new Error("ไม่สามารถส่งข้อความไปยังห้องใบเสร็จที่ตั้งค่าไว้ได้");
+  await channel.send(render(context,"receipt",manualPayoutReceiptValues(packageName,priceBaht,groupName,dateTime()),[]));
+  return interaction.reply({content:`ส่งใบเสร็จไปที่ <#${channelId}> เรียบร้อย`,flags:MessageFlags.Ephemeral});
 }
 
 async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:PanelUpdater,membershipEnabled:boolean,interaction:ChatInputCommandInteraction){
@@ -225,6 +255,8 @@ export function payoutMemberReceiptSlot(enabled:boolean,status:string,slot="noti
 
 export function payoutReceiptValues(job:Pick<RobuxPayoutJob,"robuxAmount"|"priceSatang">,groupName:string,transactionTime:string){return {package:`${job.robuxAmount.toLocaleString("th-TH")} Robux`,price:money(job.priceSatang),group_name:groupName,transaction_time:transactionTime};}
 
+export function manualPayoutReceiptValues(packageName:string,priceBaht:number,groupName:string,transactionTime:string){return {package:packageName.trim(),price:money(Math.round(priceBaht*100)),group_name:groupName.trim(),transaction_time:transactionTime};}
+
 export async function deliverPayoutNotificationCopies(options:{channelId:string;sendToChannel:(channelId:string)=>Promise<unknown>;receiptChannelId?:string;sendToReceiptChannel?:(channelId:string)=>Promise<unknown>;sendToMember?:()=>Promise<unknown>;onError?:(target:"channel"|"receipt_channel"|"member",error:unknown)=>void}){
   const deliveries:Array<Promise<void>>=[];
   const deliver=async(target:"channel"|"receipt_channel"|"member",send:()=>Promise<unknown>)=>{try{await send();}catch(error){options.onError?.(target,error);}};
@@ -284,7 +316,7 @@ class PanelUpdater{
 }
 
 function render(context:FeatureContext,slot:string,values:Record<string,string>,components:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>):any{
-  const raw=(context.presentations[slot]??{}) as Record<string,unknown>;const fill=(value:unknown,fallback:string)=>String(value??fallback).replace(/\{\{?(\w+)\}?\}/g,(_,key:string)=>values[key]??"");
+  const raw=(context.presentations[slot]??{}) as Record<string,unknown>;const fill=(value:unknown,fallback:string)=>renderPayoutTemplate(String(value??fallback),values);
   const mode=String(raw.mode??"EMBED").toUpperCase();
   const nested=mode==="EMBED"&&isRecord(raw.embed)?raw.embed:mode==="COMPONENTS_V2"&&isRecord(raw.components_v2)?raw.components_v2:{};
   const definition={...raw,...nested};
@@ -316,7 +348,8 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
   return {content:fill(definition.content,"")||undefined,embeds:[embed],components};
 }
 
-function deepRender(value:unknown,values:Record<string,string>):any{if(typeof value==="string")return value.replace(/\{\{?(\w+)\}?\}/g,(_,key:string)=>values[key]??"");if(Array.isArray(value))return value.map((item)=>deepRender(item,values));if(isRecord(value))return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,deepRender(item,values)]));return value;}
+export function renderPayoutTemplate(template:string,values:Record<string,string>){return template.replace(/\{\{#(\w+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,(_,key:string,content:string)=>values[key]?content:"").replace(/\{\{?(\w+)\}?\}/g,(_,key:string)=>values[key]??"");}
+function deepRender(value:unknown,values:Record<string,string>):any{if(typeof value==="string")return renderPayoutTemplate(value,values);if(Array.isArray(value))return value.map((item)=>deepRender(item,values));if(isRecord(value))return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,deepRender(item,values)]));return value;}
 function presentationMediaUrl(definition:Record<string,unknown>,key:"image"|"thumbnail"){
   const direct=String(definition[`${key}_url`]??"").trim();if(direct)return direct;
   const nested=definition[key];return isRecord(nested)?String(nested.url??"").trim():"";

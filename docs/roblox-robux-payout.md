@@ -12,6 +12,14 @@ also sent to the configured receipt channel. Refunds and manual-review results
 remain in the configured error notification channel only. An unavailable
 receipt channel or closed DM does not change the payout outcome.
 
+Administrators can also create a receipt for another kind of transaction with
+`/robux-receipt`. Its package field accepts any text and suggests the common
+values `ซื้อเกมพาส` and `เติม Robux ไอดี-พาส` through autocomplete. The command
+requires a manually entered THB price, accepts an optional group name, and adds
+the transaction time automatically. Manual receipts are sent only to the
+configured receipt channel. When the group is omitted, the receipt does not
+display a group section.
+
 ## Member flow
 
 An administrator posts the shop with the configured panel command (default
