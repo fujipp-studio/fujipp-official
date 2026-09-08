@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Settings,
   Square,
+  Trash2,
   UserRoundCog,
 } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
@@ -24,6 +25,7 @@ import { useAuthStore } from '../../../stores'
 import {
   fetchAdminBots,
   controlAdminBot,
+  deleteAdminBot,
   transferAdminBot,
   type AdminBot,
 } from '@/features/admin/api/bots'
@@ -46,6 +48,8 @@ const selected = ref<AdminBot | null>(null),
   toast = ref('')
 const toastVariant = ref<'success' | 'error'>('success')
 const controllingId = ref<string | null>(null)
+const deleteTarget = ref<AdminBot | null>(null)
+const deleting = ref(false)
 const filtered = computed(() =>
   bots.value.filter((x) =>
     `${x.name} ${x.id} ${x.ownerDisplayName} ${x.ownerUserId}`
@@ -119,6 +123,23 @@ async function control(bot: AdminBot, action: 'start' | 'stop') {
     toast.value = e instanceof Error ? e.message : t('admin.page.saveError')
   } finally {
     controllingId.value = null
+  }
+}
+async function deleteBot() {
+  if (!session.value || !deleteTarget.value || deleting.value) return
+  deleting.value = true
+  const target = deleteTarget.value
+  try {
+    await deleteAdminBot(target.id, session.value)
+    bots.value = bots.value.filter((bot) => bot.id !== target.id)
+    deleteTarget.value = null
+    toastVariant.value = 'success'
+    toast.value = t('admin.page.deleteBotSuccess')
+  } catch (e) {
+    toastVariant.value = 'error'
+    toast.value = e instanceof Error ? e.message : t('admin.page.deleteBotError')
+  } finally {
+    deleting.value = false
   }
 }
 onMounted(load)
@@ -207,6 +228,13 @@ onMounted(load)
                 <AppButton class="!w-auto" variant="primary" @click="openTransfer(item)"
                   ><UserRoundCog class="size-4" />{{ t('admin.page.transfer') }}</AppButton
                 >
+                <AppButton
+                  class="!w-auto !border-error-border !bg-error-bg !text-error-text"
+                  variant="primary"
+                  :disabled="deleting"
+                  @click="deleteTarget = item"
+                  ><Trash2 class="size-4" />{{ t('admin.page.deleteBot') }}</AppButton
+                >
               </div>
             </article>
           </div>
@@ -265,6 +293,35 @@ onMounted(load)
           ><AppButton variant="secondary" :disabled="saving || !ownerId.trim()" @click="transfer">{{
             t('admin.page.transferConfirm')
           }}</AppButton></template
+        ></AppModal
+      >
+      <AppModal
+        :open="Boolean(deleteTarget)"
+        :title="t('admin.page.deleteBotTitle')"
+        :subtitle="deleteTarget ? `${deleteTarget.name} · ${deleteTarget.id}` : ''"
+        :disabled="deleting"
+        @update:open="
+          (v) => {
+            if (!v) deleteTarget = null
+          }
+        "
+        ><div
+          class="flex items-start gap-sm rounded-xl border border-error-border bg-error-bg p-md text-error-text"
+        >
+          <AlertTriangle class="mt-xxs size-5 shrink-0" aria-hidden="true" />
+          <p class="text-sm leading-relaxed">{{ t('admin.page.deleteBotWarning') }}</p>
+        </div>
+        <template #actions
+          ><AppButton variant="primary" :disabled="deleting" @click="deleteTarget = null">{{
+            t('admin.common.cancel')
+          }}</AppButton
+          ><AppButton
+            class="!border-error-border !bg-error-bg !text-error-text"
+            variant="primary"
+            :loading="deleting"
+            @click="deleteBot"
+            >{{ t('admin.page.deleteBotConfirm') }}</AppButton
+          ></template
         ></AppModal
       >
       <AppToast

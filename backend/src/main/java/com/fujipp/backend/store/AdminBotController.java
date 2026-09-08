@@ -49,6 +49,12 @@ public class AdminBotController {
         service.removeFeature(botId, installationId);
     }
 
+    @DeleteMapping("/{botId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable UUID botId) {
+        service.delete(botId);
+    }
+
     @PostMapping("/{botId}/transfer")
     public AdminStoreResponses.Bot transfer(
             @PathVariable UUID botId,
