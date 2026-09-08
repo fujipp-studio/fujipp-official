@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, type RouterHistory } from 'vue-router'
 
 import { useAuthStore } from '../stores'
+import { loadRouteMessages } from '../i18n'
 import { applySeoMetadata, type SeoMetadata } from '../services/seo'
 
 const pageSeo = {
@@ -344,6 +345,7 @@ export function createAppRouter(
   })
 
   router.beforeEach(async (to) => {
+    await loadRouteMessages(to.path)
     const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
     const roles = to.matched.flatMap((record) => record.meta.roles ?? [])
     const isPerformanceStoreRoute =

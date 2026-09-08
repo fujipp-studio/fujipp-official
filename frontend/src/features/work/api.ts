@@ -2,10 +2,10 @@ import { apiFetch } from '@/shared/api/http'
 import type { Session } from '@supabase/supabase-js'
 import {
   backendUrl,
-  fetchAllCursorPages,
   readJson,
   authenticatedHeaders,
   adminRequest,
+  type CursorPage,
 } from '@/shared/api/http'
 
 export type WorkLocale = 'th' | 'en'
@@ -60,6 +60,46 @@ export interface WorkSummary {
   positions: WorkPosition[]
   technologies: WorkTechnology[]
   cover: WorkMedia | null
+}
+
+export interface WorkOverview {
+  total: number
+  categories: Array<WorkCategory & { total: number }>
+  featured: WorkSummary[]
+}
+
+// Public read-only lists only. Keep a bounded, short-lived cache across route visits.
+const listingCache = new Map<string, { expires: number; value: unknown }>()
+export function invalidateWorkListingCache() { listingCache.clear() }
+
+async function cachedListing<T>(url: URL, signal?: AbortSignal): Promise<T> {
+  const key = url.href
+  const cached = listingCache.get(key)
+  if (cached && cached.expires > Date.now()) return cached.value as T
+  const response = await apiFetch(url, { headers: { Accept: 'application/json' }, signal })
+  const value = await readJson<T>(response, 'Unable to load portfolio projects.')
+  if (!signal?.aborted) {
+    if (listingCache.size >= 32) listingCache.delete(listingCache.keys().next().value!)
+    listingCache.set(key, { expires: Date.now() + 60_000, value })
+  }
+  return value
+}
+
+export function fetchWorkOverview(locale: WorkLocale, signal?: AbortSignal) {
+  const url = new URL(`${backendUrl}/api/v2/works/overview`)
+  url.searchParams.set('locale', locale)
+  return cachedListing<WorkOverview>(url, signal)
+}
+
+export function fetchWorksPage(locale: WorkLocale, options: {
+  category?: string; cursor?: string | null; limit: number; signal?: AbortSignal
+}) {
+  const url = new URL(`${backendUrl}/api/v2/works`)
+  url.searchParams.set('locale', locale)
+  url.searchParams.set('limit', String(options.limit))
+  if (options.category && options.category !== 'all') url.searchParams.set('category', options.category)
+  if (options.cursor) url.searchParams.set('cursor', options.cursor)
+  return cachedListing<CursorPage<WorkSummary>>(url, options.signal)
 }
 
 export interface WorkDetail extends Omit<WorkSummary, 'cover'> {
@@ -178,16 +218,6 @@ export interface CreateAdminTechnologyInput {
   groupCode: string
   iconUrl: string | null
   officialUrl: string | null
-}
-
-export async function fetchWorks(locale: WorkLocale): Promise<WorkSummary[]> {
-  const url = new URL(`${backendUrl}/api/v2/works`)
-  url.searchParams.set('locale', locale)
-  return fetchAllCursorPages<WorkSummary>(
-    url,
-    { Accept: 'application/json' },
-    'Unable to load portfolio projects.',
-  )
 }
 
 export async function fetchWork(slug: string, locale: WorkLocale): Promise<WorkDetail> {

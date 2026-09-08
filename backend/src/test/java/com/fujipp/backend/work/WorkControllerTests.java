@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(WorkController.class)
+@WebMvcTest({WorkController.class, WorkV2Controller.class})
 @Import({SecurityConfig.class, WorkExceptionHandler.class})
 class WorkControllerTests {
 
@@ -44,6 +44,15 @@ class WorkControllerTests {
         mockMvc.perform(get("/api/v1/works"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void overviewIsPublicAndIncludesTotalsWithoutFetchingEveryPage() throws Exception {
+        when(workService.overview(WorkLocale.en)).thenReturn(new WorkOverviewResponse(8,
+                List.of(new WorkOverviewResponse.CategoryCount("web", "Web", 8)), List.of()));
+        mockMvc.perform(get("/api/v2/works/overview").queryParam("locale", "en"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(8))
+                .andExpect(jsonPath("$.categories[0].code").value("web"));
     }
 
     @Test

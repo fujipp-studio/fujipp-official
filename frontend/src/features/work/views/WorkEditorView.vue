@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { ArrowLeft } from 'lucide-vue-next'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
   createAdminWork,
+  invalidateWorkListingCache,
   createAdminTechnology,
   deleteAdminWorkMedia,
   fetchAdminWork,
@@ -37,6 +38,7 @@ type EditorContent = Omit<AdminWorkContent, 'id' | 'translations'> & {
 type EditorLink = Omit<AdminWorkLink, 'id'> & { id?: string }
 
 const route = useRoute()
+onBeforeUnmount(invalidateWorkListingCache)
 const router = useRouter()
 const authStore = useAuthStore()
 const isEdit = computed(() => route.name === 'work-edit')

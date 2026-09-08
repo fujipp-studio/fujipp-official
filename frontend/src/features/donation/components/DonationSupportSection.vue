@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ChevronLeft, ChevronRight, Heart, LockKeyhole, WalletCards } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
@@ -11,7 +11,8 @@ import {
   type Donation,
   type DonationCampaign,
 } from '@/features/donation/api'
-import { AppAuthDialog, AppButton, AppModal, AppTextField, AppToast } from '@/shared/ui'
+import { AppButton, AppModal, AppTextField, AppToast } from '@/shared/ui'
+const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/AppAuthDialog.vue'))
 import { useAuthStore } from '@/stores'
 
 const pageSize = 5
@@ -27,6 +28,8 @@ const loading = ref(true)
 const error = ref('')
 const leaderboardPage = ref(1)
 const authDialogOpen = ref(false)
+const authDialogLoaded = ref(false)
+watch(authDialogOpen, open => { if (open) authDialogLoaded.value = true })
 const donationModalOpen = ref(false)
 const openAfterLogin = ref(false)
 const selectedAmount = ref(100)
@@ -370,7 +373,7 @@ onMounted(() => void loadCampaign())
       </div>
     </AppModal>
 
-    <AppAuthDialog v-model:open="authDialogOpen" mode="login" />
+    <AppAuthDialog v-if="authDialogLoaded" v-model:open="authDialogOpen" mode="login" />
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
   </section>
 </template>

@@ -68,7 +68,7 @@ const resolvedLinks = computed(() =>
 <template>
   <footer class="footer">
     <div class="footer__layout">
-      <a class="footer__brand" href="/">
+      <RouterLink class="footer__brand" to="/">
         <span class="footer__brand-lockup">
           <svg class="footer__mascot" viewBox="0 0 1080 1080" aria-hidden="true">
             <use class="footer__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
@@ -83,7 +83,7 @@ const resolvedLinks = computed(() =>
           <span class="footer__wordmark">FUJIPP</span>
         </span>
         <span class="footer__tagline">{{ resolvedTagline }}</span>
-      </a>
+      </RouterLink>
 
       <div class="footer__link-columns">
         <nav v-if="socialLinks.length" class="footer__link-list" :aria-label="t('footer.socialLabel')">

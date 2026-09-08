@@ -7,6 +7,7 @@ import {
   user,
 } from '../../src/__tests__/fixtures/domain'
 import type { AdminUserSummary } from '../../src/features/admin/api/users'
+import type { WorkSummary } from '../../src/features/work/api'
 const page = (items: unknown[]) => ({ items, nextCursor: null, hasMore: false })
 const customer: AdminUserSummary = {
   customerId: 'fixture-customer',
@@ -19,6 +20,14 @@ const customer: AdminUserSummary = {
   balanceSatang: 100000,
   createdAt: bot.createdAt,
 }
+const works: WorkSummary[] = Array.from({ length: 8 }, (_, index) => ({
+  slug: `project-${index}`, name: `Project ${index + 1}`, shortDescription: 'A practical software project.',
+  status: 'ACTIVE', startedOn: '2026-01-01', completedOn: null, featured: index < 3,
+  category: { code: index % 2 ? 'web' : 'bot', name: index % 2 ? 'Web' : 'Bot' },
+  positions: [{ code: 'developer', name: 'Developer' }], technologies: [],
+  cover: { url: '/images/home/fujipp-portrait-blue-480.webp', width: 480, height: 480,
+    format: 'webp', bytes: 5000, altText: 'Project preview' },
+}))
 const donationCampaign = {
   title: 'Support Fujipp',
   description: '',
@@ -85,7 +94,21 @@ const donationCampaign = {
   ],
   updatedAt: bot.createdAt,
 }
-export function fixtureResponse(path: string, method: string, input: Record<string, unknown>) {
+export function fixtureResponse(path: string, method: string, input: Record<string, unknown>, query = new URLSearchParams()) {
+  if (path === '/api/v2/works/overview') return {
+    total: works.length,
+    categories: [{code: 'bot', name: 'Bot', total: 4}, {code: 'web', name: 'Web', total: 4}],
+    featured: works.filter(work => work.featured),
+  }
+  if (path === '/api/v2/works') {
+    const items = works.filter(work => !query.has('category') || work.category.code === query.get('category'))
+    const start = Number(query.get('cursor') ?? 0), limit = Number(query.get('limit') ?? 100)
+    const hasMore = start + limit < items.length
+    return {items: items.slice(start, start + limit), nextCursor: hasMore ? String(start + limit) : null, hasMore}
+  }
+  if (path.startsWith('/api/v2/admin/users/') && path.endsWith('/wallet/history')) return {
+    ...page([]), customerId: customer.customerId, walletId: 'fixture-wallet', currentBalanceSatang: customer.balanceSatang,
+  }
   if (path === '/api/v1/auth/me') return user
   if (path === '/api/v1/auth/me/profile')
     return {
@@ -185,6 +208,7 @@ export function fixtureResponse(path: string, method: string, input: Record<stri
   if (path.endsWith('/start') || path.endsWith('/stop') || path.endsWith('/restart'))
     return { ...bot, desiredState: path.endsWith('/stop') ? 'STOPPED' : 'RUNNING' }
   if (path === '/api/v2/bots') return page([bot])
+  if (path === `/api/v2/bots/${bot.id}`) return bot
   if (path === '/api/v2/admin/bots')
     return page([{ ...bot, ownerUserId: user.id, ownerDisplayName: user.displayName }])
   if (path.endsWith('/licenses') || path === '/api/v1/feature-licenses') return [license]

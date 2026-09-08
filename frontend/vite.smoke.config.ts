@@ -13,7 +13,8 @@ export default mergeConfig(
         apply: 'serve',
         configureServer(server) {
           server.middlewares.use(async (request, response, next) => {
-            const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+            const url = new URL(request.url ?? '/', 'http://127.0.0.1')
+            const path = url.pathname
             if (path.startsWith('/api/')) {
               let raw = ''
               for await (const chunk of request) raw += String(chunk)
@@ -22,7 +23,7 @@ export default mergeConfig(
                   ? (JSON.parse(raw) as Record<string, unknown>)
                   : {}
               response.setHeader('Content-Type', 'application/json')
-              response.end(JSON.stringify(fixtureResponse(path, request.method ?? 'GET', input)))
+              response.end(JSON.stringify(fixtureResponse(path, request.method ?? 'GET', input, url.searchParams)))
               return
             }
             if (request.method === 'GET' && request.headers.accept?.includes('text/html')) {

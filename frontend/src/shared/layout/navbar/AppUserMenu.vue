@@ -31,6 +31,8 @@ const isProfileSheetDragging = ref(false)
 const isProfileSheetExpanded = ref(false)
 let profileSheetPointerId: number | undefined
 let profileSheetStartY = 0
+let languageVersion = 0
+let languagePending = false
 watch(
   () => props.open,
   () => {
@@ -70,13 +72,20 @@ function selectTheme(mode: ThemeMode, event: MouseEvent) {
 }
 
 async function selectLanguage(language: 'TH' | 'EN') {
-  if (selectedLanguage.value === language) return
-  setAppLocale(language === 'TH' ? 'th' : 'en')
-  const query = { ...route.query }
-  if (language === 'TH') query.locale = 'th'
-  else delete query.locale
-  await router.replace({ query })
-  closeProfileMenu()
+  if (selectedLanguage.value === language && !languagePending) return
+  const version = ++languageVersion
+  languagePending = true
+  try {
+    await setAppLocale(language === 'TH' ? 'th' : 'en')
+    if (version !== languageVersion) return
+    const query = { ...route.query }
+    if (language === 'TH') query.locale = 'th'
+    else delete query.locale
+    await router.replace({ query })
+    closeProfileMenu()
+  } finally {
+    if (version === languageVersion) languagePending = false
+  }
 }
 
 function startProfileSheetDrag(event: PointerEvent) {

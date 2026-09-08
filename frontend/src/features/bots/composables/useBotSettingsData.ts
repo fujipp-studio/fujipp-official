@@ -1,8 +1,10 @@
 import { computed, inject, onScopeDispose, ref, watch, type InjectionKey, type Ref } from 'vue'
 import { useAuthStore } from '@/stores'
+import { useVisibilityPolling } from '@/shared/api/useVisibilityPolling'
 import {
   controlBot,
   fetchBots,
+  fetchBot,
   fetchFeatureLicenses,
   type FeatureLicense,
   type UserBot,
@@ -43,7 +45,7 @@ export function createBotSettingsData(options: Options) {
   let loaded = false
   let disposed = false
   let controller: AbortController | undefined
-  let pollTimer: ReturnType<typeof setTimeout> | undefined
+  const polling = useVisibilityPolling(refreshBot)
 
   function setBot(next: UserBot) {
     mutationVersion += 1
@@ -68,14 +70,14 @@ export function createBotSettingsData(options: Options) {
       if (!session) throw new Error('Please sign in to load bot settings.')
       const result = adminMode
         ? await Promise.all([
-            fetchAdminBotSettings(targetId, session).then((item) => [item]),
-            fetchAdminBotLicenses(targetId, session),
+            fetchAdminBotSettings(targetId, session, signal).then((item) => [item]),
+            fetchAdminBotLicenses(targetId, session, signal),
             Promise.resolve([] as RuntimeSubscription[]),
           ])
         : await Promise.all([
-            fetchBots(session, signal),
+            targetId ? fetchBot(targetId, session, signal).then((item) => [item]) : fetchBots(session, signal),
             fetchFeatureLicenses(session, signal),
-            fetchRuntimeSubscriptions(session),
+            fetchRuntimeSubscriptions(session, signal),
           ])
       if (disposed || version !== generation) return
       ;[bots.value, licenses.value, runtimeSubscriptions.value] = result
@@ -96,7 +98,7 @@ export function createBotSettingsData(options: Options) {
     return request
   }
 
-  async function refreshBot() {
+  async function refreshBot(signal: AbortSignal) {
     const session = auth.session
     if (!session || !loaded || controlling.value || pending || disposed || document.hidden) return
     const version = generation
@@ -105,10 +107,11 @@ export function createBotSettingsData(options: Options) {
     if (!targetId) return
     try {
       const next = options.adminMode.value
-        ? await fetchAdminBotSettings(targetId, session)
-        : (await fetchBots(session, controller?.signal)).find((item) => item.id === targetId)
+        ? await fetchAdminBotSettings(targetId, session, signal)
+        : await fetchBot(targetId, session, signal)
       if (
         next &&
+        !signal.aborted &&
         !disposed &&
         version === generation &&
         mutation === mutationVersion &&
@@ -118,11 +121,6 @@ export function createBotSettingsData(options: Options) {
     } catch {
       // Keep the last known status; the next scheduled poll retries.
     }
-  }
-
-  async function poll() {
-    await refreshBot()
-    if (!disposed) pollTimer = setTimeout(() => void poll(), 3000)
   }
 
   async function runControl(action: BotControlAction) {
@@ -159,12 +157,12 @@ export function createBotSettingsData(options: Options) {
     controlAction.value = null
     void load()
   })
-  pollTimer = setTimeout(() => void poll(), 3000)
+  polling.start()
   onScopeDispose(() => {
     disposed = true
     generation += 1
     controller?.abort()
-    clearTimeout(pollTimer)
+    polling.stop()
   })
 
   return {

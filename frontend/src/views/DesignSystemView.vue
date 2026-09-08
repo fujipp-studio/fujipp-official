@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 
 import { icons, type IconSource } from '../config'
 import { AppFooter, AppNavbar } from '../shared/layout'
 import {
-  AppAuthDialog,
-  AppAuthLoadingOverlay,
   AppButton,
   AppFileField,
   AppIcon,
@@ -22,6 +20,8 @@ import {
 import AuthMark from '../shared/ui/dialogs/AuthMark.vue'
 import AppTurnstile from '../shared/ui/security/AppTurnstile.vue'
 import ComponentCard from './components/ComponentCatalogCard.vue'
+const AppAuthDialog = defineAsyncComponent(() => import('../shared/ui/dialogs/AppAuthDialog.vue'))
+const AppAuthLoadingOverlay = defineAsyncComponent(() => import('../shared/ui/dialogs/AppAuthLoadingOverlay.vue'))
 
 const textValue = ref('Example value')
 const emptyValue = ref('')
@@ -35,6 +35,10 @@ const modalOpen = ref(false)
 const lightboxOpen = ref(false)
 const authOpen = ref(false)
 const loadingOpen = ref(false)
+const authLoaded = ref(false)
+const loadingLoaded = ref(false)
+watch(authOpen, open => { if (open) authLoaded.value = true })
+watch(loadingOpen, open => { if (open) loadingLoaded.value = true })
 const toast = ref<{ open: boolean; variant: 'info' | 'success' | 'error'; message: string }>({ open: false, variant: 'info', message: '' })
 const fieldOptions = [
   { label: 'Thai Baht', value: 'thb' }, { label: 'US Dollar', value: 'usd' }, { label: 'Japanese Yen', value: 'jpy' },
@@ -168,8 +172,8 @@ function showLoading() {
       <template #actions><AppButton variant="secondary" @click="modalOpen = false">Close</AppButton></template>
     </AppModal>
     <AppImageLightbox v-model:open="lightboxOpen" src="/images/home/developer-portal-display-1024.webp" alt="Developer portal interface" caption="AppImageLightbox preview" />
-    <AppAuthDialog v-model:open="authOpen" />
-    <AppAuthLoadingOverlay :open="loadingOpen" message="Loading component preview…" />
+    <AppAuthDialog v-if="authLoaded" v-model:open="authOpen" />
+    <AppAuthLoadingOverlay v-if="loadingLoaded" :open="loadingOpen" message="Loading component preview…" />
     <AppToast v-model:open="toast.open" :variant="toast.variant" :message="toast.message" :duration="4000" />
   </main>
 </template>

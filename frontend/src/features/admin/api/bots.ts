@@ -57,11 +57,11 @@ export const controlAdminBot = (
     `Unable to ${action} bot.`,
   )
 
-export const fetchAdminBotSettings = (botId: string, session: Session) =>
+export const fetchAdminBotSettings = (botId: string, session: Session, signal?: AbortSignal) =>
   adminRequest<UserBot>(
     `/api/v1/admin/bots/${botId}/settings`,
     session,
-    { method: 'GET' },
+    { method: 'GET', signal },
     'Unable to load bot settings.',
   )
 
@@ -77,11 +77,11 @@ export const updateAdminBotSettings = (
     'Unable to update bot settings.',
   )
 
-export const fetchAdminBotLicenses = (botId: string, session: Session) =>
+export const fetchAdminBotLicenses = (botId: string, session: Session, signal?: AbortSignal) =>
   adminRequest<FeatureLicense[]>(
     `/api/v1/admin/bots/${botId}/licenses`,
     session,
-    { method: 'GET' },
+    { method: 'GET', signal },
     'Unable to load bot features.',
   )
 

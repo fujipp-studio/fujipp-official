@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { RouterLink, type RouteLocationRaw } from 'vue-router'
 
 import type { IconSource } from '../../../config'
 import AppIcon from '../icons/AppIcon.vue'
@@ -16,6 +17,7 @@ const props = withDefaults(
     disabled?: boolean
     loading?: boolean
     href?: string
+    to?: RouteLocationRaw
     target?: '_blank' | '_self'
     rel?: string
   }>(),
@@ -27,42 +29,64 @@ const props = withDefaults(
     disabled: false,
     loading: false,
     href: undefined,
+    to: undefined,
     target: undefined,
     rel: undefined,
   },
 )
 
-const buttonElement = ref<HTMLButtonElement | HTMLAnchorElement>()
+const buttonElement = ref<HTMLElement | { $el: HTMLElement }>()
+const isLink = computed(() => Boolean(props.to || props.href))
+const elementAttributes = computed(() => props.to ? {
+  to: props.to,
+  ...(props.disabled || props.loading ? { href: undefined } : {}),
+} : {
+  type: props.href ? undefined : props.type,
+  href: props.disabled || props.loading ? undefined : props.href,
+  disabled: props.href ? undefined : props.disabled || props.loading,
+})
+
+function element() {
+  const value = buttonElement.value
+  return value instanceof HTMLElement ? value : value?.$el
+}
+
+function guardDisabledLink(event: MouseEvent) {
+  if (isLink.value && (props.disabled || props.loading)) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+}
 
 function updatePointerTilt(event: PointerEvent) {
-  if (props.disabled || props.loading || !buttonElement.value) return
+  const target = element()
+  if (props.disabled || props.loading || !target) return
 
-  const bounds = buttonElement.value.getBoundingClientRect()
+  const bounds = target.getBoundingClientRect()
   const pointerRatio = Math.min(Math.max((event.clientX - bounds.left) / bounds.width, 0), 1)
   const tilt = (pointerRatio - 0.5) * 8
 
-  buttonElement.value.style.setProperty('--button-tilt', `${tilt}deg`)
+  target.style.setProperty('--button-tilt', `${tilt}deg`)
 }
 
 function resetPointerTilt() {
-  buttonElement.value?.style.removeProperty('--button-tilt')
+  element()?.style.removeProperty('--button-tilt')
 }
 </script>
 
 <template>
   <component
-    :is="href ? 'a' : 'button'"
+    :is="to ? RouterLink : href ? 'a' : 'button'"
     ref="buttonElement"
     class="app-button"
     :class="`app-button--${variant}`"
-    :type="href ? undefined : type"
-    :disabled="href ? undefined : disabled || loading"
-    :href="disabled || loading ? undefined : href"
-    :target="href ? target : undefined"
-    :rel="href ? rel : undefined"
-    :aria-disabled="href && (disabled || loading) ? 'true' : undefined"
+    v-bind="elementAttributes"
+    :target="isLink ? target : undefined"
+    :rel="isLink ? rel : undefined"
+    :aria-disabled="isLink && (disabled || loading) ? 'true' : undefined"
     :aria-busy="loading || undefined"
-    :tabindex="href && (disabled || loading) ? -1 : undefined"
+    :tabindex="isLink && (disabled || loading) ? -1 : undefined"
+    @click.capture="guardDisabledLink"
     @pointermove="updatePointerTilt"
     @pointerleave="resetPointerTilt"
   >

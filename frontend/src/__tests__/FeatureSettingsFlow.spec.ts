@@ -7,7 +7,7 @@ import { useFeatureSettings } from '@/features/bots/composables/useFeatureSettin
 import {
   fetchFeatureConfiguration,
   fetchFeatureLicenses,
-  fetchBots,
+  fetchBots, fetchBot,
   updateFeatureConfiguration,
 } from '@/features/bots/api'
 import { fetchRuntimeSubscriptions } from '@/features/bots/runtime-api'
@@ -17,6 +17,7 @@ import { bot, license, configuration, session, user } from './fixtures/domain'
 vi.mock('@/features/bots/api', () => ({
   controlBot: vi.fn<typeof import('@/features/bots/api').controlBot>(),
   fetchBots: vi.fn<typeof import('@/features/bots/api').fetchBots>(),
+  fetchBot: vi.fn<typeof import('@/features/bots/api').fetchBot>(),
   fetchFeatureLicenses: vi.fn<typeof import('@/features/bots/api').fetchFeatureLicenses>(),
   fetchFeatureConfiguration:
     vi.fn<typeof import('@/features/bots/api').fetchFeatureConfiguration>(),
@@ -34,6 +35,7 @@ beforeEach(() => {
   auth.currentUser = user
   auth.initialized = true
   vi.mocked(fetchBots).mockResolvedValue([bot])
+  vi.mocked(fetchBot).mockResolvedValue(bot)
   vi.mocked(fetchFeatureLicenses).mockResolvedValue([license])
   vi.mocked(fetchRuntimeSubscriptions).mockResolvedValue([])
   vi.mocked(fetchFeatureConfiguration).mockResolvedValue(structuredClone(configuration))

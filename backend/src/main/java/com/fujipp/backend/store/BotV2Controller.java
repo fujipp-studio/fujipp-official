@@ -7,6 +7,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import java.util.UUID;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,6 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class BotV2Controller {
     private final StoreService service;
     public BotV2Controller(StoreService service) { this.service = service; }
+
+    @GetMapping("/{botId}")
+    public BotResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID botId) {
+        return service.getBot(jwt.getSubject(), botId);
+    }
 
     @GetMapping
     public CursorPage<BotResponse> list(@AuthenticationPrincipal Jwt jwt,

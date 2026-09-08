@@ -37,6 +37,7 @@ jobs:
         working-directory: .
       - run: bun run test:unit --run
       - run: bun run build
+      - run: bun run performance:bundle
       - run: bun run check:tokens
       - name: Install browser for isolated UI smoke tests
         run: bunx playwright install --with-deps chromium
