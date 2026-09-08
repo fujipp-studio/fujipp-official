@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deliverPayoutNotificationCopies,payoutMemberReceiptSlot,payoutReceiptValues,shouldSendPayoutReceiptToMember } from "../src/features/roblox-robux-payout/v1.0.0.js";
+import { buildManualReceiptCommand,deliverPayoutNotificationCopies,manualPayoutReceiptValues,manualReceiptPackageSuggestions,payoutMemberReceiptSlot,payoutReceiptValues,renderPayoutTemplate,shouldSendPayoutReceiptToMember } from "../src/features/roblox-robux-payout/v1.0.0.js";
 
 test("sends member receipts only for successful Robux payouts", () => {
   assert.equal(shouldSendPayoutReceiptToMember(true,"SUCCEEDED"),true);
@@ -26,6 +26,22 @@ test("limits the member receipt values to the four purchase details", () => {
     group_name:"Main Group",
     transaction_time:"8 ก.ย. 2569 12:34:56",
   });
+});
+
+test("builds a manual receipt command with free-text package suggestions", () => {
+  const command=buildManualReceiptCommand().toJSON();
+  assert.equal(command.name,"robux-receipt");
+  assert.deepEqual(command.options?.map((option)=>option.name),["package","price","group"]);
+  assert.equal(command.options?.[0]?.autocomplete,true);
+  assert.deepEqual(manualReceiptPackageSuggestions(""),["ซื้อเกมพาส","เติม Robux ไอดี-พาส"]);
+  assert.deepEqual(manualReceiptPackageSuggestions("ไอดี"),["เติม Robux ไอดี-พาส"]);
+});
+
+test("formats manual receipt input and omits the optional group block", () => {
+  const values=manualPayoutReceiptValues(" ซื้อเกมพาส ",199.5,"","8 ก.ย. 2569 18:00:00");
+  assert.deepEqual(values,{package:"ซื้อเกมพาส",price:"199.50",group_name:"",transaction_time:"8 ก.ย. 2569 18:00:00"});
+  assert.equal(renderPayoutTemplate("ราคา {{price}}{{#group_name}} · กลุ่ม {{group_name}}{{/group_name}}",values),"ราคา 199.50");
+  assert.equal(renderPayoutTemplate("{{#group_name}}กลุ่ม {{group_name}}{{/group_name}}",{...values,group_name:"Main"}),"กลุ่ม Main");
 });
 
 test("delivers a Robux payout notification to the audit channel, receipt channel, and member DM", async () => {

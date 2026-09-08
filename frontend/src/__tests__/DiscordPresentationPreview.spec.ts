@@ -103,6 +103,24 @@ describe('DiscordPresentationPreview', () => {
     expect(wrapper.text()).not.toContain('results_text')
   })
 
+  it('omits optional presentation sections when their sample value is empty', () => {
+    const wrapper = mount(DiscordPresentationPreview, {
+      props: {
+        definition: {
+          mode: 'COMPONENTS_V2',
+          description: 'Package {{package}}{{#group_name}} · กลุ่ม {{group_name}}{{/group_name}}',
+        },
+        variables: ['package', 'group_name'],
+        sampleValues: { group_name: '' },
+      },
+      global,
+    })
+
+    expect(wrapper.text()).toContain('Package 400 Robux')
+    expect(wrapper.text()).not.toContain('กลุ่ม')
+    expect(wrapper.text()).not.toContain('{{#group_name}}')
+  })
+
   it('renders static and animated Discord custom emoji in embeds and buttons', () => {
     const wrapper = mount(DiscordPresentationPreview, {
       props: {
