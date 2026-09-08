@@ -286,6 +286,13 @@ export const robloxPresentationCopy: Record<
       'ใบเสร็จที่ส่งให้ผู้ซื้อหลังโอน Robux สำเร็จ',
     ],
   },
+  manual_receipt: {
+    label: ['Manual purchase receipt', 'ใบเสร็จรายการอื่น'],
+    description: [
+      'Receipt created manually with the administrator command.',
+      'ใบเสร็จที่สร้างด้วยคำสั่งสำหรับผู้ดูแล',
+    ],
+  },
   failed: {
     label: ['Payout failed', 'โอน Robux ไม่สำเร็จ'],
     description: ['Failure and refund receipt.', 'ข้อความข้อผิดพลาดและการคืนเงิน'],

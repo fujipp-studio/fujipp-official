@@ -58,10 +58,10 @@ export function buildManualReceiptCommand(){
   return new SlashCommandBuilder().setName(ROBUX_RECEIPT_COMMAND_NAME).setDescription("สร้างใบเสร็จ Robux แบบกรอกเอง").setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option)=>option.setName("package").setDescription("ชื่อ Package (พิมพ์เองหรือเลือกคำแนะนำ)").setRequired(true).setMinLength(1).setMaxLength(100).setAutocomplete(true))
     .addNumberOption((option)=>option.setName("price").setDescription("ราคา (บาท)").setRequired(true).setMinValue(0.01))
-    .addStringOption((option)=>option.setName("group").setDescription("กลุ่มที่เลือก (ไม่บังคับ)").setMaxLength(100));
+    .addUserOption((option)=>option.setName("user").setDescription("ผู้รับใบเสร็จทาง DM (ไม่บังคับ)"));
 }
 
-export function manualReceiptPackageSuggestions(query:string){const normalized=query.trim().toLocaleLowerCase("th-TH");return ["ซื้อเกมพาส","เติม Robux ไอดี-พาส"].filter((item)=>!normalized||item.toLocaleLowerCase("th-TH").includes(normalized));}
+export function manualReceiptPackageSuggestions(query:string){const normalized=query.trim().toLocaleLowerCase("th-TH");return ["ซื้อเกมพาส","เติม Robux ไอดี-พาส","เติม โรพลัส"].filter((item)=>!normalized||item.toLocaleLowerCase("th-TH").includes(normalized));}
 
 function suggestManualReceiptPackage(interaction:AutocompleteInteraction){return interaction.respond(manualReceiptPackageSuggestions(String(interaction.options.getFocused())).map((name)=>({name,value:name})));}
 
@@ -73,11 +73,21 @@ async function sendManualReceipt(context:FeatureContext,interaction:ChatInputCom
   if(!channelId)return interaction.reply({content:"กรุณาตั้งค่าห้องใบเสร็จก่อนใช้งานคำสั่งนี้",flags:MessageFlags.Ephemeral});
   const packageName=interaction.options.getString("package",true).trim();
   const priceBaht=interaction.options.getNumber("price",true);
-  const groupName=interaction.options.getString("group")?.trim()??"";
+  const recipient=interaction.options.getUser("user");
   const channel=await context.client.channels.fetch(channelId);
   if(!channel?.isTextBased()||!channel.isSendable())throw new Error("ไม่สามารถส่งข้อความไปยังห้องใบเสร็จที่ตั้งค่าไว้ได้");
-  await channel.send(render(context,"receipt",manualPayoutReceiptValues(packageName,priceBaht,groupName,dateTime()),[]));
-  return interaction.reply({content:`ส่งใบเสร็จไปที่ <#${channelId}> เรียบร้อย`,flags:MessageFlags.Ephemeral});
+  const values=manualPayoutReceiptValues(packageName,priceBaht,dateTime());
+  const delivery=await deliverManualReceiptCopies({
+    sendToChannel:()=>channel.send(render(context,"manual_receipt",values,[])),
+    ...(recipient?{sendToMember:()=>recipient.send(render(context,"manual_receipt",values,[]))}:{}),
+    onMemberError:(error)=>console.warn(`Unable to send manual Robux receipt DM to ${recipient?.id}:`,error),
+  });
+  const content=!recipient
+    ?`ส่งใบเสร็จไปที่ <#${channelId}> เรียบร้อย`
+    :delivery.memberDelivered
+      ?`ส่งใบเสร็จไปที่ <#${channelId}> และ DM ของ <@${recipient.id}> เรียบร้อย`
+      :`ส่งใบเสร็จไปที่ <#${channelId}> แล้ว แต่ไม่สามารถส่ง DM ให้ <@${recipient.id}> ได้`;
+  return interaction.reply({content,flags:MessageFlags.Ephemeral});
 }
 
 async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:PanelUpdater,membershipEnabled:boolean,interaction:ChatInputCommandInteraction){
@@ -255,7 +265,14 @@ export function payoutMemberReceiptSlot(enabled:boolean,status:string,slot="noti
 
 export function payoutReceiptValues(job:Pick<RobuxPayoutJob,"robuxAmount"|"priceSatang">,groupName:string,transactionTime:string){return {package:`${job.robuxAmount.toLocaleString("th-TH")} Robux`,price:money(job.priceSatang),group_name:groupName,transaction_time:transactionTime};}
 
-export function manualPayoutReceiptValues(packageName:string,priceBaht:number,groupName:string,transactionTime:string){return {package:packageName.trim(),price:money(Math.round(priceBaht*100)),group_name:groupName.trim(),transaction_time:transactionTime};}
+export function manualPayoutReceiptValues(packageName:string,priceBaht:number,transactionTime:string){return {package:packageName.trim(),price:money(Math.round(priceBaht*100)),transaction_time:transactionTime};}
+
+export async function deliverManualReceiptCopies(options:{sendToChannel:()=>Promise<unknown>;sendToMember?:()=>Promise<unknown>;onMemberError?:(error:unknown)=>void}){
+  await options.sendToChannel();
+  if(!options.sendToMember)return {memberDelivered:null};
+  try{await options.sendToMember();return {memberDelivered:true};}
+  catch(error){options.onMemberError?.(error);return {memberDelivered:false};}
+}
 
 export async function deliverPayoutNotificationCopies(options:{channelId:string;sendToChannel:(channelId:string)=>Promise<unknown>;receiptChannelId?:string;sendToReceiptChannel?:(channelId:string)=>Promise<unknown>;sendToMember?:()=>Promise<unknown>;onError?:(target:"channel"|"receipt_channel"|"member",error:unknown)=>void}){
   const deliveries:Array<Promise<void>>=[];

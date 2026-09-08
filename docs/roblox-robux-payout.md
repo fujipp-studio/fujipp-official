@@ -14,11 +14,12 @@ receipt channel or closed DM does not change the payout outcome.
 
 Administrators can also create a receipt for another kind of transaction with
 `/robux-receipt`. Its package field accepts any text and suggests the common
-values `ซื้อเกมพาส` and `เติม Robux ไอดี-พาส` through autocomplete. The command
-requires a manually entered THB price, accepts an optional group name, and adds
-the transaction time automatically. Manual receipts are sent only to the
-configured receipt channel. When the group is omitted, the receipt does not
-display a group section.
+values `ซื้อเกมพาส`, `เติม Robux ไอดี-พาส`, and `เติม โรพลัส` through
+autocomplete. The command requires a manually entered THB price and adds the
+transaction time automatically. Manual receipts use the separately editable
+`manual_receipt` presentation and never include group details. They are sent
+to the configured receipt channel. The optional `user` argument also sends a
+copy to that user's DM; a closed DM does not prevent the channel receipt.
 
 ## Member flow
 
@@ -75,7 +76,8 @@ login from the same stable runtime environment.
 The editable slots include `panel`, `eligibility`, `membership_result`,
 `package_selector`, `confirmation`, `processing`, `queued`, `succeeded`,
 `failed`, `notification_success`, `notification_error`, and the `receipt` slot
-introduced in version 2.2.0.
+introduced in version 2.2.0. Version 2.2.0 also provides `manual_receipt` for
+administrator-created receipts without group details.
 
 ## Internal API
 
