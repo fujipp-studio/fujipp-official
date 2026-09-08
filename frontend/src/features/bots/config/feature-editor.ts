@@ -178,6 +178,13 @@ export const robloxConfigCopy: Record<
     label: ['Notification channel', 'ช่องแจ้งเตือน'],
     description: ['Channel receiving payout results.', 'ช่องที่รับผลการทำรายการโอน Robux'],
   },
+  ROBUX_RECEIPT_CHANNEL_ID: {
+    label: ['Receipt channel', 'ห้องใบเสร็จ'],
+    description: [
+      'Channel receiving successful purchase receipts.',
+      'ห้องที่รับใบเสร็จเมื่อโอน Robux สำเร็จ',
+    ],
+  },
 }
 
 export const priceReaderConfigCopy: Record<
@@ -271,6 +278,13 @@ export const robloxPresentationCopy: Record<
   succeeded: {
     label: ['Payout succeeded', 'โอน Robux สำเร็จ'],
     description: ['Successful payout receipt.', 'ใบยืนยันการโอน Robux สำเร็จ'],
+  },
+  receipt: {
+    label: ['Purchase receipt', 'ใบเสร็จการซื้อ Robux'],
+    description: [
+      'Receipt sent to the purchasing member after a successful payout.',
+      'ใบเสร็จที่ส่งให้ผู้ซื้อหลังโอน Robux สำเร็จ',
+    ],
   },
   failed: {
     label: ['Payout failed', 'โอน Robux ไม่สำเร็จ'],
@@ -420,6 +434,7 @@ export const variableDescriptions: Record<string, [english: string, thai: string
   roblox_id: ['Roblox user ID', 'รหัสผู้ใช้ Roblox'],
   idRoblox: ['Roblox user ID', 'รหัสผู้ใช้ Roblox'],
   robux: ['Robux amount', 'จำนวน Robux'],
+  package: ['Purchased Robux package', 'แพ็กเกจ Robux ที่ซื้อ'],
   price: ['Purchase price', 'ราคาที่ต้องชำระ'],
   rate: ['Robux exchange rate', 'อัตราแลกเปลี่ยน Robux'],
   group_name: ['Roblox group name', 'ชื่อกลุ่ม Roblox'],

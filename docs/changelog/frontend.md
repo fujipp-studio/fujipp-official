@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-08 | Added bilingual settings for the dedicated Roblox Robux purchase receipt and its delivery channel. |
 | 2026-09-08 | Reduced initial JavaScript and unnecessary list loading while preserving the existing UI, with visibility-aware Bot polling, client navigation, and deferred translations/editors. |
 | 2026-09-06 | Added a responsive bilingual administrator confirmation flow for removing non-Core Features from customer Bots. |
 | 2026-08-30 | Restored compact profile-menu avatars and contained account text on Desktop and Mobile, with Light/Dark layout regression checks. |
