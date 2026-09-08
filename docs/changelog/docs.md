@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-09-08 | Documented the manual Roblox receipt command, Package suggestions, optional group details, and automatic timestamps. |
+| 2026-09-09 | Documented group-free manual Roblox receipts, the `เติม โรพลัส` Package suggestion, and optional recipient DMs. |
 | 2026-09-08 | Documented the separate Roblox purchase receipt, receipt channel, and Embed or Components V2 customization. |
 | 2026-09-08 | Recorded the frontend performance baseline, measured improvements, visual parity checks, and Backend-before-Frontend release requirements. |
 | 2026-09-06 | Documented webhook-aware Review Credit counting and manual count replacement. |
