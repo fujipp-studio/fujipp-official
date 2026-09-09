@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildManualReceiptCommand,deliverManualReceiptCopies,deliverPayoutNotificationCopies,manualPayoutReceiptValues,manualReceiptPackageSuggestions,payoutMemberReceiptSlot,payoutReceiptValues,shouldSendPayoutReceiptToMember } from "../src/features/roblox-robux-payout/v1.0.0.js";
+import { appendComponentsV2Image,buildManualReceiptCommand,deliverManualReceiptCopies,deliverPayoutNotificationCopies,isReceiptImage,manualPayoutReceiptValues,manualReceiptPackageSuggestions,payoutMemberReceiptSlot,payoutReceiptValues,shouldSendPayoutReceiptToMember } from "../src/features/roblox-robux-payout/v1.0.0.js";
 
 test("sends member receipts only for successful Robux payouts", () => {
   assert.equal(shouldSendPayoutReceiptToMember(true,"SUCCEEDED"),true);
@@ -31,7 +31,7 @@ test("limits the member receipt values to the four purchase details", () => {
 test("builds a manual receipt command with free-text package suggestions", () => {
   const command=buildManualReceiptCommand().toJSON();
   assert.equal(command.name,"robux-receipt");
-  assert.deepEqual(command.options?.map((option)=>option.name),["package","price","user"]);
+  assert.deepEqual(command.options?.map((option)=>option.name),["package","price","user","image"]);
   assert.equal(command.options?.[0]?.autocomplete,true);
   assert.deepEqual(manualReceiptPackageSuggestions(""),["ซื้อเกมพาส","เติม Robux ไอดี-พาส","เติม โรพลัส"]);
   assert.deepEqual(manualReceiptPackageSuggestions("ไอดี"),["เติม Robux ไอดี-พาส"]);
@@ -60,9 +60,22 @@ test("keeps the manual channel receipt when the selected user's DM is closed", a
 });
 
 test("formats manual receipt input without group details", () => {
-  const values=manualPayoutReceiptValues(" เติม โรพลัส ",199.5,"8 ก.ย. 2569 18:00:00");
-  assert.deepEqual(values,{package:"เติม โรพลัส",price:"199.50",transaction_time:"8 ก.ย. 2569 18:00:00"});
+  const values=manualPayoutReceiptValues(" เติม โรพลัส ",199.5,"8 ก.ย. 2569 18:00:00"," https://cdn.discordapp.com/receipt.png ");
+  assert.deepEqual(values,{package:"เติม โรพลัส",price:"199.50",transaction_time:"8 ก.ย. 2569 18:00:00",image_url:"https://cdn.discordapp.com/receipt.png"});
   assert.equal("group_name" in values,false);
+});
+
+test("accepts image attachments and builds a Components V2 image at the bottom", () => {
+  assert.equal(isReceiptImage({contentType:"image/png",name:"receipt.png"}),true);
+  assert.equal(isReceiptImage({contentType:"application/pdf",name:"receipt.pdf"}),false);
+  const blocks:unknown[]=[{type:10,content:"Receipt"}];
+  appendComponentsV2Image(blocks,"https://cdn.discordapp.com/receipt.png");
+  assert.deepEqual(blocks.at(-1),{
+    type:12,
+    items:[{media:{url:"https://cdn.discordapp.com/receipt.png"}}],
+  });
+  assert.equal(appendComponentsV2Image(blocks,""),blocks);
+  assert.equal(blocks.length,2);
 });
 
 test("delivers a Robux payout notification to the audit channel, receipt channel, and member DM", async () => {

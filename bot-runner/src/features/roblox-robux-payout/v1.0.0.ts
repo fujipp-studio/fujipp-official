@@ -1,7 +1,7 @@
 import {
   ActionRowBuilder,ButtonBuilder,ButtonStyle,EmbedBuilder,Interaction,MessageFlags,ModalBuilder,
   PermissionFlagsBits,SlashCommandBuilder,StringSelectMenuBuilder,StringSelectMenuOptionBuilder,
-  TextInputBuilder,TextInputStyle,type AutocompleteInteraction,type ButtonInteraction,type ChatInputCommandInteraction,type Message,type ModalSubmitInteraction,
+  TextInputBuilder,TextInputStyle,type Attachment,type AutocompleteInteraction,type ButtonInteraction,type ChatInputCommandInteraction,type Message,type ModalSubmitInteraction,
 } from "discord.js";
 import type { FeatureContext,FeatureModule,RobuxPayoutJob } from "../../types.js";
 import { eligibility,groupFunds,groupMembership,payout,userAvatar,type RobloxGroup,type RobloxFailure } from "./roblox-client.js";
@@ -58,7 +58,8 @@ export function buildManualReceiptCommand(){
   return new SlashCommandBuilder().setName(ROBUX_RECEIPT_COMMAND_NAME).setDescription("สร้างใบเสร็จ Robux แบบกรอกเอง").setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addStringOption((option)=>option.setName("package").setDescription("ชื่อ Package (พิมพ์เองหรือเลือกคำแนะนำ)").setRequired(true).setMinLength(1).setMaxLength(100).setAutocomplete(true))
     .addNumberOption((option)=>option.setName("price").setDescription("ราคา (บาท)").setRequired(true).setMinValue(0.01))
-    .addUserOption((option)=>option.setName("user").setDescription("ผู้รับใบเสร็จทาง DM (ไม่บังคับ)"));
+    .addUserOption((option)=>option.setName("user").setDescription("ผู้รับใบเสร็จทาง DM (ไม่บังคับ)"))
+    .addAttachmentOption((option)=>option.setName("image").setDescription("รูปที่แสดงด้านล่างสุดของใบเสร็จ (ไม่บังคับ)"));
 }
 
 export function manualReceiptPackageSuggestions(query:string){const normalized=query.trim().toLocaleLowerCase("th-TH");return ["ซื้อเกมพาส","เติม Robux ไอดี-พาส","เติม โรพลัส"].filter((item)=>!normalized||item.toLocaleLowerCase("th-TH").includes(normalized));}
@@ -74,9 +75,11 @@ async function sendManualReceipt(context:FeatureContext,interaction:ChatInputCom
   const packageName=interaction.options.getString("package",true).trim();
   const priceBaht=interaction.options.getNumber("price",true);
   const recipient=interaction.options.getUser("user");
+  const image=interaction.options.getAttachment("image");
+  if(image&&!isReceiptImage(image))return interaction.reply({content:"ไฟล์ที่แนบต้องเป็นรูปภาพ",flags:MessageFlags.Ephemeral});
   const channel=await context.client.channels.fetch(channelId);
   if(!channel?.isTextBased()||!channel.isSendable())throw new Error("ไม่สามารถส่งข้อความไปยังห้องใบเสร็จที่ตั้งค่าไว้ได้");
-  const values=manualPayoutReceiptValues(packageName,priceBaht,dateTime());
+  const values=manualPayoutReceiptValues(packageName,priceBaht,dateTime(),image?.url??"");
   const delivery=await deliverManualReceiptCopies({
     sendToChannel:()=>channel.send(render(context,"manual_receipt",values,[])),
     ...(recipient?{sendToMember:()=>recipient.send(render(context,"manual_receipt",values,[]))}:{}),
@@ -265,7 +268,11 @@ export function payoutMemberReceiptSlot(enabled:boolean,status:string,slot="noti
 
 export function payoutReceiptValues(job:Pick<RobuxPayoutJob,"robuxAmount"|"priceSatang">,groupName:string,transactionTime:string){return {package:`${job.robuxAmount.toLocaleString("th-TH")} Robux`,price:money(job.priceSatang),group_name:groupName,transaction_time:transactionTime};}
 
-export function manualPayoutReceiptValues(packageName:string,priceBaht:number,transactionTime:string){return {package:packageName.trim(),price:money(Math.round(priceBaht*100)),transaction_time:transactionTime};}
+export function manualPayoutReceiptValues(packageName:string,priceBaht:number,transactionTime:string,imageUrl=""){return {package:packageName.trim(),price:money(Math.round(priceBaht*100)),transaction_time:transactionTime,image_url:imageUrl.trim()};}
+
+export function isReceiptImage(attachment:Pick<Attachment,"contentType"|"name">){return attachment.contentType?.startsWith("image/")??/\.(?:gif|jpe?g|png|webp)$/i.test(attachment.name);}
+
+export function appendComponentsV2Image(blocks:unknown[],imageUrl:string){const url=imageUrl.trim();if(/^https:\/\//i.test(url))blocks.push({type:12,items:[{media:{url}}]});return blocks;}
 
 export async function deliverManualReceiptCopies(options:{sendToChannel:()=>Promise<unknown>;sendToMember?:()=>Promise<unknown>;onMemberError?:(error:unknown)=>void}){
   await options.sendToChannel();
@@ -341,6 +348,7 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
     if(Array.isArray(definition.components)){
       const blocks=normalizeComponentColors(deepRender(definition.components,values));
       blocks.push(...components.map((row)=>row.toJSON()));
+      appendComponentsV2Image(blocks,values.image_url??"");
       return {flags:MessageFlags.IsComponentsV2,components:blocks};
     }
     const title=fill(definition.title,slot).slice(0,256);
@@ -350,6 +358,7 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
     if(title&&description)blocks.push({type:14,spacing:1});
     if(description)blocks.push({type:10,content:description});
     if(components.length){blocks.push({type:14});blocks.push(...components.map((row)=>row.toJSON() as unknown as Record<string,unknown>));}
+    appendComponentsV2Image(blocks,fill(definition.image_url,values.image_url??""));
     return {flags:MessageFlags.IsComponentsV2,components:[{type:17,components:blocks}]};
   }
   const embed=new EmbedBuilder();
