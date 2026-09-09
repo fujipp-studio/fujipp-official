@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-09 | Documented optional images at the bottom of manual Robux receipts and the Components V2 default. |
 | 2026-09-09 | Documented group-free manual Roblox receipts, the `เติม โรพลัส` Package suggestion, and optional recipient DMs. |
 | 2026-09-08 | Documented the separate Roblox purchase receipt, receipt channel, and Embed or Components V2 customization. |
 | 2026-09-08 | Recorded the frontend performance baseline, measured improvements, visual parity checks, and Backend-before-Frontend release requirements. |
