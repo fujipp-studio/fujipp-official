@@ -17,9 +17,11 @@ Administrators can also create a receipt for another kind of transaction with
 values `ซื้อเกมพาส`, `เติม Robux ไอดี-พาส`, and `เติม โรพลัส` through
 autocomplete. The command requires a manually entered THB price and adds the
 transaction time automatically. Manual receipts use the separately editable
-`manual_receipt` presentation and never include group details. They are sent
-to the configured receipt channel. The optional `user` argument also sends a
-copy to that user's DM; a closed DM does not prevent the channel receipt.
+`manual_receipt` Components V2 presentation and never include group details.
+They are sent to the configured receipt channel. The optional `user` argument
+also sends a copy to that user's DM; a closed DM does not prevent the channel
+receipt. The optional `image` attachment is added as the final component of
+both receipt copies and must be an image file.
 
 ## Member flow
 

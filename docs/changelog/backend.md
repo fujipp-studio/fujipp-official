@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-09 | Added optional image attachments to administrator-created Robux receipts and placed them last in the Components V2 message. |
 | 2026-09-09 | Removed group details from administrator-created receipts, added a `เติม โรพลัส` Package suggestion, and supported optional recipient DMs. |
 | 2026-09-08 | Added Roblox Robux Payout 2.2 with separate successful-purchase receipts delivered to members and a configured receipt channel. |
 | 2026-09-08 | Batched portfolio summary queries, added owned-Bot reads and portfolio overview metadata, and returned wallet balance with paginated history without duplicate reads. |

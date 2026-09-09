@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-09 | Changed the default manual Robux receipt presentation to Components V2 and exposed its optional image variable. |
 | 2026-09-09 | Added a separate group-free manual Robux receipt presentation for Embed and Components V2. |
 | 2026-09-08 | Added the draft Roblox Robux Payout 2.2 catalog version with a dedicated receipt presentation and receipt channel setting. |
 | 2026-09-06 | Added the Review Credit 1.1 catalog version with configurable webhook counting while preserving existing installations for upgrade. |
