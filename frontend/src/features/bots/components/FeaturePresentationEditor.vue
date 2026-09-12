@@ -15,6 +15,7 @@ const {
   usesPresentationDesigner,
   isRobloxPayoutFeature,
   isPriceReaderFeature,
+  isMessageTriggersFeature,
   walletActiveSlotKey,
   selectPresentationSlot,
   presentationSlotLabel,
@@ -58,9 +59,15 @@ const {
                 ? t('botSettings.robloxPayoutMessageBuilder')
                 : isPriceReaderFeature
                   ? t('botSettings.priceReaderMessageBuilder')
+                  : isMessageTriggersFeature
+                    ? 'Trigger Message Builder'
                   : t('botSettings.walletMessageBuilder')
             }}</strong>
-            <p>{{ t('botSettings.openAFixedMessageToCustomizeIts') }}</p>
+            <p>{{
+              isMessageTriggersFeature
+                ? 'ปรับแต่ง Template ที่กฎ Category และ Admin Trigger เลือกใช้งาน'
+                : t('botSettings.openAFixedMessageToCustomizeIts')
+            }}</p>
           </div>
           <span>{{ visiblePresentationSlots.length }} {{ t('botSettings.messages') }}</span>
         </div>

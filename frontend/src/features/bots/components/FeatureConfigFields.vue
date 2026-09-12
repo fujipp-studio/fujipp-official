@@ -8,6 +8,7 @@ import RobuxPackagesEditor from '@/features/bots/components/RobuxPackagesEditor.
 import StringListEditor from '@/features/bots/components/StringListEditor.vue'
 import ThresholdRoleEditor from '@/features/bots/components/ThresholdRoleEditor.vue'
 import CommandPermissionsEditor from '@/features/bots/components/CommandPermissionsEditor.vue'
+import MessageTriggerRulesEditor from '@/features/bots/components/MessageTriggerRulesEditor.vue'
 import { Settings2 } from 'lucide-vue-next'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
@@ -44,7 +45,10 @@ const {
       <template v-for="field in configuration.fields" :key="field.key">
         <div
           v-if="!isRobloxGroupField(field.key)"
-          class="rounded-lg border border-border-subtle bg-bg-surface p-lg"
+          :class="[
+            'rounded-lg border border-border-subtle bg-bg-surface p-lg',
+            field.ui?.control === 'message-trigger-rules' ? 'desktop:col-span-2' : '',
+          ]"
         >
           <div
             v-if="field.type === 'BOOLEAN'"
@@ -102,6 +106,13 @@ const {
               <CommandPermissionsEditor
                 v-else-if="field.key === 'COMMAND_PERMISSION_RULES'"
                 :model-value="String(values[field.key] ?? '[]')"
+                @update:model-value="(value) => (values[field.key] = value)"
+              />
+              <MessageTriggerRulesEditor
+                v-else-if="field.ui?.control === 'message-trigger-rules'"
+                :model-value="String(values[field.key] ?? '[]')"
+                :kind="field.ui?.kind === 'channel-create' ? 'channel-create' : 'admin-message'"
+                :templates="configuration.presentations.map((slot) => ({ value: slot.key, label: slot.label }))"
                 @update:model-value="(value) => (values[field.key] = value)"
               />
               <StringListEditor
