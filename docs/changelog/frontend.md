@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-12 | Added responsive Category and administrator Trigger rule management with reusable Embed and Components V2 message templates. |
 | 2026-09-08 | Added accurate previews for receipt Package values and optional group sections. |
 | 2026-09-08 | Added bilingual settings for the dedicated Roblox Robux purchase receipt and its delivery channel. |
 | 2026-09-08 | Reduced initial JavaScript and unnecessary list loading while preserving the existing UI, with visibility-aware Bot polling, client navigation, and deferred translations/editors. |

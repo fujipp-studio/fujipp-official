@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-12 | Added category channel-created messages and administrator-only exact-text Triggers that remove the source message before sending a configured template. |
 | 2026-09-09 | Added optional image attachments to administrator-created Robux receipts and placed them last in the Components V2 message. |
 | 2026-09-09 | Removed group details from administrator-created receipts, added a `เติม โรพลัส` Package suggestion, and supported optional recipient DMs. |
 | 2026-09-08 | Added Roblox Robux Payout 2.2 with separate successful-purchase receipts delivered to members and a configured receipt channel. |

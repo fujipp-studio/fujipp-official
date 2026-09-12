@@ -144,6 +144,77 @@ for (const locale of ['en', 'th']) {
   })
 }
 
+test('configures channel and administrator message triggers responsively', async ({
+  page,
+  isMobile,
+}, testInfo) => {
+  await page.addInitScript((theme) => {
+    window.localStorage.setItem('fujipp-theme-mode', theme)
+  }, isMobile ? 'DARK' : 'LIGHT')
+  await page.route('**/api/v1/feature-licenses', async (route) => {
+    await route.fulfill({
+      json: [{
+        id: 'fixture-license', featureProductId: 'trigger-product',
+        featureCode: 'channel-message-triggers', featureName: 'Channel Message Triggers',
+        version: '1.0.0', latestVersionId: null, latestVersion: null,
+        upgradeAvailable: false, status: 'ACTIVE', installationLimit: 1,
+        acquiredAt: '2026-09-12T00:00:00Z', expiresAt: null,
+        installations: [{
+          id: 'trigger-installation', botId: 'fixture-bot', botName: 'Test bot',
+          status: 'ACTIVE', installedAt: '2026-09-12T00:00:00Z',
+        }],
+      }],
+    })
+  })
+  await page.route('**/configuration', async (route) => {
+    await route.fulfill({
+      json: {
+        licenseId: 'fixture-license', revision: 1, validatedForBotId: 'fixture-bot',
+        fields: [
+          {
+            key: 'CHANNEL_CREATE_RULES', label: 'ข้อความเมื่อสร้างห้องในหมวดหมู่',
+            description: 'เลือก Category และ Template', type: 'JSON', required: true,
+            secret: false, defaultValue: [],
+            value: [{ categoryId: '123456789012345678', template: 'template_1' }],
+            configured: true, validation: null,
+            ui: { control: 'message-trigger-rules', kind: 'channel-create' },
+          },
+          {
+            key: 'ADMIN_MESSAGE_TRIGGERS', label: 'ข้อความ Trigger สำหรับแอดมิน',
+            description: 'ลบ Trigger แล้วส่ง Template', type: 'JSON', required: true,
+            secret: false, defaultValue: [],
+            value: [{ trigger: 'pay', template: 'template_2' }],
+            configured: true, validation: null,
+            ui: { control: 'message-trigger-rules', kind: 'admin-message' },
+          },
+        ],
+        presentations: Array.from({ length: 3 }, (_, index) => ({
+          slotId: `template-slot-${index + 1}`, key: `template_${index + 1}`,
+          label: `Message Template ${index + 1}`, description: 'Reusable message template',
+          type: 'EMBED', availableVariables: ['channel_name', 'admin_name', 'trigger'],
+          defaultDefinition: {
+            mode: index === 1 ? 'COMPONENTS_V2' : 'EMBED',
+            embed: { title: `Template ${index + 1}`, description: 'Automatic message' },
+            components_v2: { components: [{ type: 10, content: `Template ${index + 1}` }] },
+          },
+          overrideDefinition: null,
+        })),
+      },
+    })
+  })
+
+  await page.goto('/my-bot/fixture-bot/settings/packages/fixture-license?locale=th')
+  await expect(page.getByRole('heading', { name: 'Channel Message Triggers' })).toBeVisible()
+  await expect(page.locator('.trigger-editor input').first()).toHaveValue('123456789012345678')
+  await expect(page.locator('.trigger-editor input').nth(1)).toHaveValue('pay')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', isMobile ? 'dark' : 'light')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({
+    path: testInfo.outputPath(`message-triggers-${isMobile ? 'mobile-dark' : 'desktop-light'}.png`),
+    fullPage: true,
+  })
+})
+
 test('guards private routes for guests and normal users', async ({ page }) => {
   await page.goto('/admin/users?role=GUEST')
   await expect(page).toHaveURL(/\/$/)

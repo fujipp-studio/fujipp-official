@@ -56,8 +56,15 @@ export function useFeatureSettings() {
   )
   const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
   const isPriceReaderFeature = computed(() => license.value?.featureCode === 'price-reader')
+  const isMessageTriggersFeature = computed(
+    () => license.value?.featureCode === 'channel-message-triggers',
+  )
   const usesPresentationDesigner = computed(
-    () => isWalletTopupFeature.value || isRobloxPayoutFeature.value || isPriceReaderFeature.value,
+    () =>
+      isWalletTopupFeature.value ||
+      isRobloxPayoutFeature.value ||
+      isPriceReaderFeature.value ||
+      isMessageTriggersFeature.value,
   )
   const isWalletPanelCommand = (key: string) =>
     isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
@@ -623,6 +630,7 @@ export function useFeatureSettings() {
     visiblePresentationSlots,
     editablePresentationSlots,
     isPriceReaderFeature,
+    isMessageTriggersFeature,
     walletExpandedSlots,
     toggleWalletMessage,
     walletActiveSlotKey,

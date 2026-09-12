@@ -128,3 +128,10 @@ test("resolves Bot Permissions as a bundled core feature", () => {
   assert.ok(feature);
   assert.equal(feature.runtimeKey, "bot-permissions");
 });
+
+test("resolves Channel Message Triggers version 1.0.0 with message content intent", () => {
+  const feature = getFeature("channel-message-triggers", "1.0.0");
+  assert.equal(feature?.runtimeKey, "channel-message-triggers");
+  assert.equal(feature?.version, "1.0.0");
+  assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent"]);
+});
