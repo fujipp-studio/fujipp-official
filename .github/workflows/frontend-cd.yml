@@ -101,7 +101,12 @@ jobs:
           set ftp:ssl-protect-data true
           set ssl:verify-certificate yes
           cd "$FRONTEND_FTP_PATH"
-          mirror --reverse --delete --verbose --parallel=4 dist/ .
+          # Keep the currently referenced hashed assets available while the new
+          # release uploads. Publishing index.html last prevents it from
+          # pointing browsers at an entry module that does not exist yet.
+          mirror --reverse --verbose --parallel=4 --exclude-glob index.html dist/ .
+          put dist/index.html -o .index.html.next
+          mv .index.html.next index.html
           bye
           LFTP
       - name: Remove temporary FTP credentials
@@ -113,8 +118,28 @@ jobs:
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
         run: |
           response=$(mktemp)
+          headers=$(mktemp)
+          entry=$(mktemp)
+          trap 'rm -f "$response" "$headers" "$entry"' EXIT
+
           curl --fail --location --retry 3 --retry-delay 5 \
-            --max-time 20 --output "$response" "$FRONTEND_URL"
+            --max-time 20 --header 'Cache-Control: no-cache' \
+            --output "$response" "${FRONTEND_URL%/}/?deploy=$GITHUB_SHA"
           grep -q '<div id="app"></div>' "$response"
-          rm -f "$response"
+
+          entry_path=$(sed -n 's/.*<script[^>]*src="\([^"]*\.js\)".*/\1/p' "$response" | head -n 1)
+          case "$entry_path" in
+            /assets/*.js) ;;
+            *) echo "Unable to find the production JavaScript entry in index.html" >&2; exit 1 ;;
+          esac
+
+          curl --fail --location --retry 3 --retry-delay 5 \
+            --max-time 20 --header 'Cache-Control: no-cache' \
+            --dump-header "$headers" --output "$entry" \
+            "${FRONTEND_URL%/}${entry_path}?deploy=$GITHUB_SHA"
+          grep -Eiq '^content-type: *(application|text)/(javascript|ecmascript)' "$headers"
+          if grep -Eiq '<!doctype +html|<html' "$entry"; then
+            echo "Production JavaScript entry returned HTML" >&2
+            exit 1
+          fi
         working-directory: .
