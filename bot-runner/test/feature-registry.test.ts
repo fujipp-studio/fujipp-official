@@ -135,3 +135,10 @@ test("resolves Channel Message Triggers version 1.0.0 with message content inten
   assert.equal(feature?.version, "1.0.0");
   assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent"]);
 });
+
+test("resolves Payment Trigger version 1.0.0 with message content intent", () => {
+  const feature = getFeature("payment-trigger", "1.0.0");
+  assert.equal(feature?.runtimeKey, "payment-trigger");
+  assert.equal(feature?.version, "1.0.0");
+  assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent"]);
+});

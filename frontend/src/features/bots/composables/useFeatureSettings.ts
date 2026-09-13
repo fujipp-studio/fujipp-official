@@ -59,12 +59,14 @@ export function useFeatureSettings() {
   const isMessageTriggersFeature = computed(
     () => license.value?.featureCode === 'channel-message-triggers',
   )
+  const isPaymentTriggerFeature = computed(() => license.value?.featureCode === 'payment-trigger')
   const usesPresentationDesigner = computed(
     () =>
       isWalletTopupFeature.value ||
       isRobloxPayoutFeature.value ||
       isPriceReaderFeature.value ||
-      isMessageTriggersFeature.value,
+      isMessageTriggersFeature.value ||
+      isPaymentTriggerFeature.value,
   )
   const isWalletPanelCommand = (key: string) =>
     isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
@@ -318,6 +320,20 @@ export function useFeatureSettings() {
   }
 
   function presentationSampleValues(slotKey: string): Record<string, string> {
+    if (isPaymentTriggerFeature.value) {
+      return {
+        amount: '10',
+        base_amount: '10',
+        fee_amount: '5',
+        total_amount: '15',
+        qr_image_url: String(
+          values.value.BANK_QR_IMAGE_URL || 'https://example.com/payment-qr.png',
+        ),
+        wallet_number: String(values.value.WALLET_NUMBER || '0812345678'),
+        trigger: String(values.value.PAYMENT_TRIGGER_PREFIX || 'p'),
+        datetime: '13/9/2569 19:55:40',
+      }
+    }
     if (license.value?.featureCode !== 'price-reader' || slotKey !== 'result') return {}
     const template = String(values.value.PRICE_READER_RESULTS_ITEM_TEMPLATE ?? '')
     if (!template.trim()) return {}
