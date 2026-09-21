@@ -9,36 +9,52 @@ import java.math.BigDecimal;
 
 @Component
 class SlipOkAdapter {
-    private final RestClient http = RestClient.builder().baseUrl("https://api.slipok.com").build();
+    private final RestClient http;
     private final tools.jackson.databind.ObjectMapper mapper;
 
+    @org.springframework.beans.factory.annotation.Autowired
     SlipOkAdapter(tools.jackson.databind.ObjectMapper mapper) {
+        this(mapper, RestClient.builder().baseUrl("https://api.slipok.com").build());
+    }
+
+    SlipOkAdapter(tools.jackson.databind.ObjectMapper mapper, RestClient http) {
         this.mapper = mapper;
+        this.http = http;
     }
 
     Result verify(String branchId, String apiKey, String imageUrl, long amountSatang) {
-        JsonNode response = http.post().uri("/api/line/apikey/{branchId}", branchId)
-                .header("x-authorization", apiKey).contentType(MediaType.APPLICATION_JSON)
-                .body(java.util.Map.of(
-                        "url", imageUrl,
-                        "log", true,
-                        "amount", BigDecimal.valueOf(amountSatang, 2)
-                )).exchange((request, upstream) -> {
-                    byte[] body = upstream.getBody().readAllBytes();
-                    JsonNode json = body.length == 0 ? mapper.createObjectNode() : mapper.readTree(body);
-                    if (!upstream.getStatusCode().is2xxSuccessful()) {
-                        int code = json.path("code").asInt(0);
-                        String safe = switch (code) {
-                            case 1010 -> "ธนาคารกำลังประมวลผลสลิป กรุณาลองใหม่ภายหลัง";
-                            case 1012 -> "สลิปนี้ถูกใช้เติมเงินแล้ว";
-                            case 1013 -> "ยอดเงินในสลิปไม่ตรงกับรายการ";
-                            case 1014 -> "บัญชีผู้รับในสลิปไม่ถูกต้อง";
-                            default -> "SlipOK ไม่สามารถยืนยันสลิปได้";
-                        };
-                        throw new WalletException(code == 0 ? "SLIPOK_REJECTED" : "SLIPOK_" + code, safe);
-                    }
-                    return json;
-                });
+        JsonNode response;
+        try {
+            response = http.post().uri("/api/line/apikey/{branchId}", branchId)
+                    .header("x-authorization", apiKey).contentType(MediaType.APPLICATION_JSON)
+                    .body(java.util.Map.of(
+                            "url", imageUrl,
+                            "log", true,
+                            "amount", BigDecimal.valueOf(amountSatang, 2)
+                    )).exchange((request, upstream) -> {
+                        byte[] body = upstream.getBody().readAllBytes();
+                        JsonNode json = body.length == 0 ? mapper.createObjectNode() : mapper.readTree(body);
+                        if (!upstream.getStatusCode().is2xxSuccessful()) {
+                            int code = json.path("code").asInt(0);
+                            String safe = switch (code) {
+                                case 1010 -> "ธนาคารกำลังประมวลผลสลิป กรุณาลองใหม่ภายหลัง";
+                                case 1012 -> "สลิปนี้ถูกใช้เติมเงินแล้ว";
+                                case 1013 -> "ยอดเงินในสลิปไม่ตรงกับรายการ";
+                                case 1014 -> "บัญชีผู้รับในสลิปไม่ถูกต้อง";
+                                default -> "SlipOK ไม่สามารถยืนยันสลิปได้";
+                            };
+                            throw new WalletException(code == 0 ? "SLIPOK_REJECTED" : "SLIPOK_" + code, safe);
+                        }
+                        return json;
+                    });
+        } catch (WalletException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new WalletException(
+                    "SLIPOK_UNAVAILABLE",
+                    "ระบบตรวจสลิปขัดข้องชั่วคราว กรุณาลองใหม่ภายหลัง"
+            );
+        }
         if (response == null || !response.path("success").asBoolean(false)) {
             throw new WalletException("SLIPOK_REJECTED", "SlipOK rejected the slip");
         }

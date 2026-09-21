@@ -12,6 +12,7 @@ class WalletExceptionHandler {
         HttpStatus status=switch(error.code()) {
             case "FEATURE_NOT_ACTIVE" -> HttpStatus.FORBIDDEN;
             case "SESSION_EXPIRED" -> HttpStatus.GONE;
+            case "SLIPOK_UNAVAILABLE" -> HttpStatus.BAD_GATEWAY;
             default -> HttpStatus.UNPROCESSABLE_ENTITY;
         };
         ProblemDetail problem=ProblemDetail.forStatusAndDetail(status,error.getMessage());
