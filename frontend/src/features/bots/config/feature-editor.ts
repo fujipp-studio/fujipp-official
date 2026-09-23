@@ -167,6 +167,13 @@ export const robloxConfigCopy: Record<
       'กำหนดจำนวน Robux ที่สมาชิกสามารถเลือกซื้อได้',
     ],
   },
+  ROBUX_PANELS: {
+    label: ['Robux panels', 'Panel ขาย Robux'],
+    description: [
+      'Choose which Roblox groups are available from each sales panel.',
+      'เลือกกลุ่ม Roblox ที่เปิดขายในแต่ละ Panel',
+    ],
+  },
   ROBUX_PAYOUT_COOLDOWN_SECONDS: {
     label: ['Payout cooldown', 'ระยะพักระหว่างการโอน'],
     description: [

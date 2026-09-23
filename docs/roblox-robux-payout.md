@@ -3,7 +3,13 @@
 `roblox-robux-payout` sells configurable Robux packages using funds from
 the per-bot member wallet created by `wallet-topup@1.0.0`.
 
-Version `2.2.0` keeps the membership checker and expanded username form from
+Version `3.0.0` adds multiple independently posted shop panels. Each panel
+selects the Roblox groups it offers, while each group has its own Robux-per-THB
+rate. Administrators post a configured panel with
+`/robux-panel panel:<panel>`. When only one panel exists, the `panel` option is
+omitted. Each posted panel is tracked and refreshed independently.
+
+Version `3.0.0` also keeps the membership checker and expanded username form from
 the 2.0 releases, and sends a separately configurable successful-purchase
 receipt to the purchasing member's Discord direct messages. The receipt exposes
 only the purchased package, price, selected group, and transaction time, and it
@@ -26,7 +32,8 @@ both receipt copies and must be an image file.
 ## Member flow
 
 An administrator posts the shop with the configured panel command (default
-`/robux-panel`). A member selects a Roblox group, enters a username, and the
+`/robux-panel`) and selects a panel when more than one is configured. A member
+can select only a Roblox group assigned to that panel, enters a username, and the
 runner verifies group-payout eligibility. Available packages are filtered by
 both wallet balance and the live Robux balance of the selected group.
 
@@ -41,12 +48,13 @@ payouts do not provide an application idempotency key.
 
 - `PANEL_COMMAND_NAME`
 - `ROBUX_ENABLED`
-- `ROBUX_RATE` (Robux per THB used to calculate every package price)
-- `ROBUX_PACKAGES` (`[{"robux":200}]`; price is rounded up from `robux / rate`)
+- `ROBUX_RATE` (fallback rate for groups upgraded without a group-specific rate)
+- `ROBUX_PACKAGES` (`[{"robux":200}]`; the price uses the selected group's rate)
 - `ROBUX_PAYOUT_COOLDOWN_SECONDS`
 - `ROBUX_NOTIFICATION_CHANNEL_ID`
 - `ROBUX_RECEIPT_CHANNEL_ID`
-- `ROBLOX_GROUPS` (`[{"key":"main","name":"Main","groupId":123}]`)
+- `ROBLOX_GROUPS` (`[{"key":"main","name":"Main","groupId":123,"rate":3.5}]`)
+- `ROBUX_PANELS` (`[{"key":"panel-1","name":"Panel 1","groupKeys":["main"]}]`)
 - `ROBLOX_CREDENTIALS` (encrypted JSON object keyed by group key)
 
 Example secret value:
@@ -72,6 +80,15 @@ immediately instead of retrying or attempting to bypass Roblox's security
 controls. Repeated session blocks usually require the
 operator to stop the queue, honor `Retry-After`, and establish a fresh Roblox
 login from the same stable runtime environment.
+
+Example Version 3 panel assignment:
+
+```json
+[
+  { "key": "panel-1", "name": "Panel 1", "groupKeys": ["group-1", "group-2"] },
+  { "key": "panel-2", "name": "Panel 2", "groupKeys": ["group-3"] }
+]
+```
 
 ## Presentation slots
 

@@ -5,6 +5,7 @@ import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
 import PriceMapEditor from '@/features/bots/components/PriceMapEditor.vue'
 import RobloxGroupEditor from '@/features/bots/components/RobloxGroupEditor.vue'
 import RobuxPackagesEditor from '@/features/bots/components/RobuxPackagesEditor.vue'
+import RobuxPanelsEditor from '@/features/bots/components/RobuxPanelsEditor.vue'
 import StringListEditor from '@/features/bots/components/StringListEditor.vue'
 import ThresholdRoleEditor from '@/features/bots/components/ThresholdRoleEditor.vue'
 import CommandPermissionsEditor from '@/features/bots/components/CommandPermissionsEditor.vue'
@@ -28,7 +29,22 @@ const {
   isRobloxPayoutFeature,
   robloxCredentialsConfigured,
   isRobloxPayoutV2,
+  isRobloxPayoutV3,
 } = useFeatureEditor()
+
+function robuxGroupRates() {
+  if (!isRobloxPayoutV3.value) return []
+  try {
+    const groups = JSON.parse(String(values.value['ROBLOX_GROUPS'] ?? '[]'))
+    if (!Array.isArray(groups)) return []
+    return groups.flatMap((group) => {
+      const rate = group && typeof group === 'object' ? Number(Reflect.get(group, 'rate')) : 0
+      return Number.isFinite(rate) && rate > 0 ? [rate] : []
+    })
+  } catch {
+    return []
+  }
+}
 </script>
 <template>
   <section v-if="configuration" id="feature-config" class="mt-xl">
@@ -91,6 +107,7 @@ const {
                 v-else-if="field.key === 'ROBUX_PACKAGES'"
                 :model-value="String(values[field.key] ?? '[]')"
                 :rate="Number(values['ROBUX_RATE'] ?? 3.5)"
+                :rates="robuxGroupRates()"
                 @update:model-value="(value) => (values[field.key] = value)"
               />
               <template v-else-if="isThresholdRoleField(field.key)">
@@ -112,7 +129,12 @@ const {
                 v-else-if="field.ui?.control === 'message-trigger-rules'"
                 :model-value="String(values[field.key] ?? '[]')"
                 :kind="field.ui?.kind === 'channel-create' ? 'channel-create' : 'admin-message'"
-                :templates="configuration.presentations.map((slot) => ({ value: slot.key, label: slot.label }))"
+                :templates="
+                  configuration.presentations.map((slot) => ({
+                    value: slot.key,
+                    label: slot.label,
+                  }))
+                "
                 @update:model-value="(value) => (values[field.key] = value)"
               />
               <StringListEditor
@@ -180,7 +202,14 @@ const {
       v-model:credentials-json="secrets['ROBLOX_CREDENTIALS'] as string"
       :credentials-configured="robloxCredentialsConfigured"
       :show-membership-lookup="isRobloxPayoutV2"
+      :show-rate="isRobloxPayoutV3"
+      :default-rate="Number(values['ROBUX_RATE'] ?? 3.5)"
       class="mt-lg"
+    />
+    <RobuxPanelsEditor
+      v-if="isRobloxPayoutV3"
+      v-model:panels-json="values['ROBUX_PANELS'] as string"
+      :groups-json="values['ROBLOX_GROUPS'] as string"
     />
     <div
       v-else-if="!configuration.fields.length"

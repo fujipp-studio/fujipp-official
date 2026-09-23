@@ -52,7 +52,12 @@ export function useFeatureSettings() {
     return code === 'roblox-robux-payout' || 'ROBLOX_GROUPS' in values.value
   })
   const isRobloxPayoutV2 = computed(
-    () => isRobloxPayoutFeature.value && license.value?.version.startsWith('2.'),
+    () =>
+      isRobloxPayoutFeature.value &&
+      (license.value?.version.startsWith('2.') || license.value?.version.startsWith('3.')),
+  )
+  const isRobloxPayoutV3 = computed(
+    () => isRobloxPayoutFeature.value && license.value?.version.startsWith('3.'),
   )
   const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
   const isPriceReaderFeature = computed(() => license.value?.featureCode === 'price-reader')
@@ -88,6 +93,9 @@ export function useFeatureSettings() {
     return copy ? text(...copy.description) : slot.description
   }
   function configFieldLabel(field: FeatureConfiguration['fields'][number]) {
+    if (isRobloxPayoutV3.value && field.key === 'ROBUX_RATE') {
+      return text('Default Robux rate', 'อัตรา Robux เริ่มต้น')
+    }
     const copy = isWalletTopupFeature.value
       ? walletConfigCopy[field.key]
       : isRobloxPayoutFeature.value
@@ -98,6 +106,12 @@ export function useFeatureSettings() {
     return copy ? text(...copy.label) : field.label
   }
   function configFieldDescription(field: FeatureConfiguration['fields'][number]) {
+    if (isRobloxPayoutV3.value && field.key === 'ROBUX_RATE') {
+      return text(
+        'Fallback used only when an upgraded group has no group-specific rate.',
+        'ใช้เป็นค่าเริ่มต้นเฉพาะกลุ่มที่อัปเกรดมาและยังไม่มี Rate ของตัวเอง',
+      )
+    }
     const copy = isWalletTopupFeature.value
       ? walletConfigCopy[field.key]
       : isRobloxPayoutFeature.value
@@ -109,7 +123,10 @@ export function useFeatureSettings() {
   }
 
   const isRobloxGroupField = (key: string) => {
-    return isRobloxPayoutFeature.value && (key === 'ROBLOX_GROUPS' || key === 'ROBLOX_CREDENTIALS')
+    return (
+      isRobloxPayoutFeature.value &&
+      (key === 'ROBLOX_GROUPS' || key === 'ROBLOX_CREDENTIALS' || key === 'ROBUX_PANELS')
+    )
   }
 
   const robloxCredentialsConfigured = computed(() => {
@@ -636,6 +653,7 @@ export function useFeatureSettings() {
     isRobloxPayoutFeature,
     robloxCredentialsConfigured,
     isRobloxPayoutV2,
+    isRobloxPayoutV3,
     openPresentation,
     presentationSlotLabel,
     slotMode,
