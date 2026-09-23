@@ -9,6 +9,7 @@ interface PanelRow {
   key: string
   name: string
   groupKeys: string[]
+  presentationSlot: string
 }
 
 const props = defineProps<{ panelsJson: string; groupsJson: string }>()
@@ -38,6 +39,7 @@ function newPanel(index: number): PanelRow {
     key: `panel-${index}`,
     name: `Panel ${index}`,
     groupKeys: [],
+    presentationSlot: `panel_${index}`,
   }
 }
 
@@ -58,6 +60,11 @@ watch(
               groupKeys: Array.isArray(Reflect.get(item, 'groupKeys'))
                 ? (Reflect.get(item, 'groupKeys') as unknown[]).map(String)
                 : [],
+              presentationSlot: /^panel_(?:[1-9]|1\d|2[0-5])$/.test(
+                String(Reflect.get(item, 'presentationSlot') ?? ''),
+              )
+                ? String(Reflect.get(item, 'presentationSlot'))
+                : `panel_${index + 1}`,
             },
           ]
         })
@@ -89,6 +96,7 @@ watch(
           key: (panel.key || `panel-${index + 1}`).trim(),
           name: (panel.name || `Panel ${index + 1}`).trim(),
           groupKeys: [...new Set(panel.groupKeys.filter((key) => known.has(key)))],
+          presentationSlot: panel.presentationSlot,
         })),
         null,
         2,
@@ -107,7 +115,13 @@ watch(groups, (value) => {
 })
 
 function addPanel() {
-  panels.value.push(newPanel(panels.value.length + 1))
+  const nextSlot = Array.from({ length: 25 }, (_, index) => `panel_${index + 1}`).find(
+    (slot) => !panels.value.some((panel) => panel.presentationSlot === slot),
+  )
+  if (!nextSlot) return
+  const panel = newPanel(panels.value.length + 1)
+  panel.presentationSlot = nextSlot
+  panels.value.push(panel)
 }
 
 function removePanel(index: number) {

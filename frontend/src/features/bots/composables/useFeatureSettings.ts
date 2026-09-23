@@ -76,7 +76,42 @@ export function useFeatureSettings() {
   const isWalletPanelCommand = (key: string) =>
     isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
 
+  function robuxPanelRows() {
+    if (!isRobloxPayoutV3.value) return []
+    try {
+      const rows = JSON.parse(String(values.value.ROBUX_PANELS ?? '[]'))
+      if (!Array.isArray(rows) || !rows.length)
+        return [{ name: 'Main Panel', presentationSlot: 'panel_1' }]
+      return rows.slice(0, 25).map((row, index) => ({
+        name:
+          row && typeof row === 'object'
+            ? String(Reflect.get(row, 'name') ?? `Panel ${index + 1}`)
+            : `Panel ${index + 1}`,
+        presentationSlot:
+          row &&
+          typeof row === 'object' &&
+          /^panel_(?:[1-9]|1\d|2[0-5])$/.test(String(Reflect.get(row, 'presentationSlot') ?? ''))
+            ? String(Reflect.get(row, 'presentationSlot'))
+            : `panel_${index + 1}`,
+      }))
+    } catch {
+      return [{ name: 'Main Panel', presentationSlot: 'panel_1' }]
+    }
+  }
+
+  function robuxPanelSlotIndex(slotKey: string) {
+    const match = slotKey.match(/^panel_(\d+)$/)
+    return match ? Number(match[1]) - 1 : -1
+  }
+
   function presentationSlotLabel(slot: FeatureConfiguration['presentations'][number]) {
+    const panelIndex = robuxPanelSlotIndex(slot.key)
+    if (isRobloxPayoutV3.value && panelIndex >= 0) {
+      return (
+        robuxPanelRows().find((panel) => panel.presentationSlot === slot.key)?.name ??
+        `Panel ${panelIndex + 1}`
+      )
+    }
     const copy = isRobloxPayoutFeature.value
       ? robloxPresentationCopy[slot.key]
       : isPriceReaderFeature.value
@@ -85,6 +120,16 @@ export function useFeatureSettings() {
     return copy ? text(...copy.label) : slot.label
   }
   function presentationSlotDescription(slot: FeatureConfiguration['presentations'][number]) {
+    const panelIndex = robuxPanelSlotIndex(slot.key)
+    if (isRobloxPayoutV3.value && panelIndex >= 0) {
+      const panelName =
+        robuxPanelRows().find((panel) => panel.presentationSlot === slot.key)?.name ??
+        `Panel ${panelIndex + 1}`
+      return text(
+        `Message design used only by ${panelName}.`,
+        `รูปแบบข้อความที่ใช้เฉพาะกับ ${panelName}`,
+      )
+    }
     const copy = isRobloxPayoutFeature.value
       ? robloxPresentationCopy[slot.key]
       : isPriceReaderFeature.value
@@ -441,7 +486,8 @@ export function useFeatureSettings() {
       presentationJson.value[slot.key] = JSON.stringify(definition, null, 2)
     }
     walletExpandedSlots.value = new Set(config.presentations.slice(0, 1).map((slot) => slot.key))
-    walletActiveSlotKey.value = config.presentations[0]?.key ?? ''
+    walletActiveSlotKey.value =
+      visiblePresentationSlots.value[0]?.key ?? config.presentations[0]?.key ?? ''
   }
 
   function slotMode(slotKey: string): 'EMBED' | 'COMPONENTS_V2' {
@@ -467,14 +513,21 @@ export function useFeatureSettings() {
     ),
   )
 
-  const visiblePresentationSlots = computed(() =>
-    (configuration.value?.presentations ?? []).filter(
-      (slot) =>
+  const visiblePresentationSlots = computed(() => {
+    const panelSlots = new Set(robuxPanelRows().map((panel) => panel.presentationSlot))
+    return (configuration.value?.presentations ?? []).filter((slot) => {
+      if (isRobloxPayoutV3.value) {
+        if (slot.key === 'panel') return false
+        const panelIndex = robuxPanelSlotIndex(slot.key)
+        if (panelIndex >= 0 && !panelSlots.has(slot.key)) return false
+      }
+      return (
         !presentationMode.value ||
         usesPresentationDesigner.value ||
-        slotMode(slot.key) === presentationMode.value,
-    ),
-  )
+        slotMode(slot.key) === presentationMode.value
+      )
+    })
+  })
 
   const editablePresentationSlots = computed(() => {
     if (!usesPresentationDesigner.value) return visiblePresentationSlots.value

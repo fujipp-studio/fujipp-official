@@ -7,9 +7,11 @@ import { useFeatureSettings } from '@/features/bots/composables/useFeatureSettin
 import {
   fetchFeatureConfiguration,
   fetchFeatureLicenses,
-  fetchBots, fetchBot,
+  fetchBots,
+  fetchBot,
   updateFeatureConfiguration,
 } from '@/features/bots/api'
+import type { FeatureConfiguration } from '@/features/bots/api'
 import { fetchRuntimeSubscriptions } from '@/features/bots/runtime-api'
 import { useAuthStore } from '@/stores'
 import { i18n } from '@/i18n'
@@ -96,6 +98,69 @@ describe('feature settings save flow', () => {
     editor.presentationJson.value.panel = '{invalid'
     expect(await editor.save()).toBe(false)
     expect(updateFeatureConfiguration).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+  it('shows an independent presentation slot for each configured Robux panel', async () => {
+    vi.mocked(fetchFeatureLicenses).mockResolvedValue([
+      {
+        ...license,
+        featureCode: 'roblox-robux-payout',
+        featureName: 'Robux Payout',
+        version: '3.0.0',
+      },
+    ])
+    const panels = [
+      {
+        key: 'panel-1',
+        name: 'Panel One',
+        groupKeys: ['group-1'],
+        presentationSlot: 'panel_1',
+      },
+      {
+        key: 'panel-2',
+        name: 'Panel Two',
+        groupKeys: ['group-2'],
+        presentationSlot: 'panel_2',
+      },
+    ]
+    const slot = (key: string) => ({
+      ...configuration.presentations[0]!,
+      slotId: `slot-${key}`,
+      key,
+      label: key,
+    })
+    vi.mocked(fetchFeatureConfiguration).mockResolvedValue({
+      ...structuredClone(configuration),
+      fields: [
+        {
+          ...configuration.fields[0]!,
+          key: 'ROBUX_PANELS',
+          type: 'JSON',
+          defaultValue: panels,
+          value: panels,
+        },
+      ],
+      presentations: [
+        slot('panel'),
+        slot('panel_1'),
+        slot('panel_2'),
+        slot('panel_3'),
+        slot('confirmation'),
+      ],
+    } as unknown as FeatureConfiguration)
+
+    const { editor, wrapper } = await setup()
+    expect(editor.visiblePresentationSlots.value.map((item) => item.key)).toEqual([
+      'panel_1',
+      'panel_2',
+      'confirmation',
+    ])
+    expect(editor.presentationSlotLabel(editor.visiblePresentationSlots.value[0]!)).toBe(
+      'Panel One',
+    )
+    expect(editor.presentationSlotLabel(editor.visiblePresentationSlots.value[1]!)).toBe(
+      'Panel Two',
+    )
     wrapper.unmount()
   })
 })

@@ -7,6 +7,7 @@ import { useFeatureEditor } from '../composables/featureEditorContext'
 const { t } = useI18n()
 const {
   configuration,
+  visiblePresentationSlots,
   openPresentation,
   presentationSlotLabel,
   slotMode,
@@ -24,7 +25,7 @@ const {
         {{ t('botSettings.openADesignerWithoutChangingTheFormat') }}
       </p>
     </div>
-    <div v-if="configuration.presentations.length" class="space-y-md">
+    <div v-if="visiblePresentationSlots.length" class="space-y-md">
       <div class="presentation-menu">
         <button
           v-for="mode in availablePresentationModes"
@@ -47,7 +48,7 @@ const {
       </div>
       <div class="presentation-slot-list">
         <article
-          v-for="slot in configuration.presentations"
+          v-for="slot in visiblePresentationSlots"
           :key="slot.slotId"
           class="presentation-slot-row"
         >
