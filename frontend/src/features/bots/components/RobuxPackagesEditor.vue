@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 
 import { AppButton, AppTextField } from '../../../shared/ui'
 
-const props = defineProps<{ modelValue: string; rate: number }>()
+const props = defineProps<{ modelValue: string; rate: number; rates?: number[] }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const { locale, t } = useI18n()
@@ -37,7 +37,24 @@ watch(
 )
 
 const validRate = computed(() => (Number.isFinite(props.rate) && props.rate > 0 ? props.rate : 3.5))
-const price = (amount: string) => Math.ceil(Number(amount || 0) / validRate.value)
+const usesGroupRates = computed(
+  () => props.rates?.some((rate) => Number.isFinite(rate) && rate > 0) ?? false,
+)
+const validRates = computed(() => {
+  const configured = (props.rates ?? []).filter((rate) => Number.isFinite(rate) && rate > 0)
+  return [...new Set(configured.length ? configured : [validRate.value])]
+})
+const prices = (amount: string) =>
+  validRates.value
+    .map((rate) => Math.ceil(Number(amount || 0) / rate))
+    .sort((left, right) => left - right)
+const priceLabel = (amount: string) => {
+  const values = prices(amount)
+  const format = (value: number) => value.toLocaleString(locale.value === 'th' ? 'th-TH' : 'en-US')
+  return values.length > 1
+    ? `฿${format(values[0] ?? 0)}–฿${format(values.at(-1) ?? 0)}`
+    : `฿${format(values[0] ?? 0)}`
+}
 function commit() {
   const packages = amounts.value.flatMap((amount) => {
     const robux = Number(amount)
@@ -74,7 +91,7 @@ function remove(index: number) {
         placeholder="200"
         @update:model-value="(value) => update(index, value)"
       />
-      <output>฿{{ price(amount).toLocaleString(locale === 'th' ? 'th-TH' : 'en-US') }}</output>
+      <output>{{ priceLabel(amount) }}</output>
       <button
         type="button"
         class="packages-editor__delete"
@@ -93,8 +110,12 @@ function remove(index: number) {
     <p class="packages-editor__hint">
       {{
         text(
-          `Price = Robux ÷ ${validRate} (rounded up to THB)`,
-          `ราคา = จำนวน Robux ÷ ${validRate} และปัดขึ้นเป็นบาท`,
+          usesGroupRates
+            ? `Price = Robux ÷ group rate (${validRates.join(', ')}) and rounded up to THB`
+            : `Price = Robux ÷ ${validRate} (rounded up to THB)`,
+          usesGroupRates
+            ? `ราคา = จำนวน Robux ÷ Rate ของกลุ่ม (${validRates.join(', ')}) และปัดขึ้นเป็นบาท`
+            : `ราคา = จำนวน Robux ÷ ${validRate} และปัดขึ้นเป็นบาท`,
         )
       }}
     </p>
