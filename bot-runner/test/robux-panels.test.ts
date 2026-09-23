@@ -6,22 +6,30 @@ const groups=[{key:"group-1"},{key:"group-2"},{key:"group-3"}];
 
 test("reads independent Robux panels and ignores unknown groups",()=>{
   assert.deepEqual(readPayoutPanels([
-    {key:"panel-1",name:"Panel 1",groupKeys:["group-1","group-2","missing"]},
-    {key:"panel-2",name:"Panel 2",groupKeys:["group-3"]},
+    {key:"panel-1",name:"Panel 1",groupKeys:["group-1","group-2","missing"],presentationSlot:"panel_2"},
+    {key:"panel-2",name:"Panel 2",groupKeys:["group-3"],presentationSlot:"panel_1"},
   ],groups),[
-    {key:"panel-1",name:"Panel 1",groupKeys:["group-1","group-2"]},
-    {key:"panel-2",name:"Panel 2",groupKeys:["group-3"]},
+    {key:"panel-1",name:"Panel 1",groupKeys:["group-1","group-2"],slotKey:"panel_2"},
+    {key:"panel-2",name:"Panel 2",groupKeys:["group-3"],slotKey:"panel_1"},
   ]);
 });
 
 test("falls back to one panel containing all configured groups",()=>{
   assert.deepEqual(readPayoutPanels([],groups),[
-    {key:"main",name:"Main Panel",groupKeys:["group-1","group-2","group-3"]},
+    {key:"main",name:"Main Panel",groupKeys:["group-1","group-2","group-3"],slotKey:"panel_1"},
   ]);
 });
 
 test("does not expose every group when a non-empty panel configuration is invalid",()=>{
   assert.deepEqual(readPayoutPanels([{key:"empty",name:"Empty",groupKeys:[]}],groups),[]);
+});
+
+test("keeps each panel presentation slot stable",()=>{
+  assert.deepEqual(readPayoutPanels([
+    {key:"remaining",name:"Remaining",groupKeys:["group-3"],presentationSlot:"panel_2"},
+  ],groups),[
+    {key:"remaining",name:"Remaining",groupKeys:["group-3"],slotKey:"panel_2"},
+  ]);
 });
 
 test("calculates a different package price for each group rate",()=>{
