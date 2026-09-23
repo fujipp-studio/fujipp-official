@@ -86,6 +86,13 @@ test("resolves Roblox Robux payout version 2.2.0 without replacing earlier versi
   assert.equal(getFeature("roblox-robux-payout", "2.1.0")?.version, "2.1.0");
 });
 
+test("resolves Roblox Robux payout version 3.0.0 without replacing earlier versions", () => {
+  const feature = getFeature("roblox-robux-payout", "3.0.0");
+  assert.equal(feature?.runtimeKey, "roblox-robux-payout");
+  assert.equal(feature?.version, "3.0.0");
+  assert.equal(getFeature("roblox-robux-payout", "2.2.0")?.version, "2.2.0");
+});
+
 test("resolves Price Reader version 1.0.0 with message content intent", () => {
   const feature = getFeature("price-reader", "1.0.0");
 
