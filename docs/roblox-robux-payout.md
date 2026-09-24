@@ -85,14 +85,31 @@ Example Version 3 panel assignment:
 
 ```json
 [
-  { "key": "panel-1", "name": "Panel 1", "groupKeys": ["group-1", "group-2"] },
-  { "key": "panel-2", "name": "Panel 2", "groupKeys": ["group-3"] }
+  {
+    "key": "panel-1",
+    "name": "Panel 1",
+    "groupKeys": ["group-1", "group-2"],
+    "presentationSlot": "panel_1"
+  },
+  {
+    "key": "panel-2",
+    "name": "Panel 2",
+    "groupKeys": ["group-3"],
+    "presentationSlot": "panel_2"
+  }
 ]
 ```
 
+Each configured panel has its own presentation slot (`panel_1`, `panel_2`, and
+so on). The settings screen shows only the slots matching the current panel
+count and labels them with the configured panel names. Editing one panel slot
+does not change the appearance or component settings of another panel.
+
 ## Presentation slots
 
-The editable slots include `panel`, `eligibility`, `membership_result`,
+Version 3 replaces the shared editable `panel` slot with the numbered slots
+`panel_1` through `panel_25`; only the configured panel count is shown in the
+editor. The other editable slots include `eligibility`, `membership_result`,
 `package_selector`, `confirmation`, `processing`, `queued`, `succeeded`,
 `failed`, `notification_success`, `notification_error`, and the `receipt` slot
 introduced in version 2.2.0. Version 2.2.0 also provides `manual_receipt` for

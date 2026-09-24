@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-09-23 | Added bilingual Roblox Payout 3.0 editors for assigning groups to multiple panels, setting group rates, and previewing rate-based package price ranges. |
+| 2026-09-23 | Added bilingual Roblox Payout 3.0 editors for assigning groups, styling each panel independently, setting group rates, and previewing rate-based package price ranges. |
 | 2026-09-12 | Added responsive Category and administrator Trigger rule management with reusable Embed and Components V2 message templates. |
 | 2026-09-08 | Added accurate previews for receipt Package values and optional group sections. |
 | 2026-09-08 | Added bilingual settings for the dedicated Roblox Robux purchase receipt and its delivery channel. |
