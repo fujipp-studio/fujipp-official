@@ -15,7 +15,7 @@ final class WalletRequests {
     record VoucherTopup(
             @NotNull UUID botId,
             @NotBlank @Pattern(regexp = "^[0-9]{15,30}$") String memberDiscordId,
-            @NotBlank @Pattern(regexp = "^https://gift\\.truemoney\\.com/campaign/\\?v=[A-Za-z0-9_-]+$") String giftUrl,
+            @NotBlank @Pattern(regexp = "^https://gift\\.truemoney\\.com/campaign/?\\?v=[A-Za-z0-9_-]+$") String giftUrl,
             @NotBlank @Pattern(regexp = "^[A-Za-z0-9._:-]{8,100}$") String idempotencyKey
     ) {}
 
