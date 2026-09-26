@@ -13,22 +13,24 @@ export const ROBUX_RECEIPT_COMMAND_NAME="robux-receipt";
 
 export const robloxRobuxPayoutFeature=createRobloxRobuxPayoutFeature("1.0.0",false);
 
-export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux",sendSuccessfulPurchaseReceiptsToMember=false,successfulPurchaseReceiptSlot="notification_success",manualReceiptEnabled=false):FeatureModule{return {
+export function createRobloxRobuxPayoutFeature(version:string,membershipEnabled:boolean,purchaseUsernameMaxLength=20,purchaseModalTitle="เช็คสิทธิ์รับ Robux",sendSuccessfulPurchaseReceiptsToMember=false,successfulPurchaseReceiptSlot="notification_success",manualReceiptEnabled=false,multiPanelEnabled=false):FeatureModule{return {
   runtimeKey:"roblox-robux-payout",version,intents:["Guilds"],
   async activate(context){
     const pending=new Map<string,PendingPurchase>();
-    const groups=readGroups(context); const command=stringConfig(context.config.PANEL_COMMAND_NAME,"robux-panel");
+    const groups=readGroups(context); const panels=readPayoutPanels(context.config.ROBUX_PANELS,readConfiguredGroupKeys(context.config.ROBLOX_GROUPS)); const command=stringConfig(context.config.PANEL_COMMAND_NAME,"robux-panel");
     const queue=new PayoutQueue(context,groups,sendSuccessfulPurchaseReceiptsToMember,successfulPurchaseReceiptSlot);
-    const panels=new PanelUpdater(context,groups,membershipEnabled);
-    const listener=(interaction:Interaction)=>void handle(context,groups,queue,panels,pending,command,membershipEnabled,purchaseUsernameMaxLength,purchaseModalTitle,manualReceiptEnabled,interaction).catch((error)=>respondError(context,interaction,error));
+    const panelUpdater=new PanelUpdater(context,groups,panels,membershipEnabled,multiPanelEnabled);
+    const listener=(interaction:Interaction)=>void handle(context,groups,panels,queue,panelUpdater,pending,command,membershipEnabled,purchaseUsernameMaxLength,purchaseModalTitle,manualReceiptEnabled,multiPanelEnabled,interaction).catch((error)=>respondError(context,interaction,error));
     context.client.on("interactionCreate",listener);
-    context.client.once("clientReady",()=>void onReady(context,groups,queue,panels,command,manualReceiptEnabled).catch((error)=>{console.error(`Robux Payout startup failed for ${context.botId}:`,error);void context.reportFeatureError("FEATURE_STARTUP_FAILED",error);}));
-    return()=>{context.client.off("interactionCreate",listener);queue.stop();panels.stop();pending.clear();};
+    context.client.once("clientReady",()=>void onReady(context,groups,panels,queue,panelUpdater,command,manualReceiptEnabled,multiPanelEnabled).catch((error)=>{console.error(`Robux Payout startup failed for ${context.botId}:`,error);void context.reportFeatureError("FEATURE_STARTUP_FAILED",error);}));
+    return()=>{context.client.off("interactionCreate",listener);queue.stop();panelUpdater.stop();pending.clear();};
   },
 };}
 
-async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,command:string,manualReceiptEnabled:boolean){
-  await context.client.application?.commands.create(new SlashCommandBuilder().setName(command).setDescription("ส่ง Panel ร้าน Robux").toJSON());
+async function onReady(context:FeatureContext,groups:RuntimeGroup[],panelDefinitions:PayoutPanel[],queue:PayoutQueue,panels:PanelUpdater,command:string,manualReceiptEnabled:boolean,multiPanelEnabled:boolean){
+  const panelCommand=new SlashCommandBuilder().setName(command).setDescription("ส่ง Panel ร้าน Robux");
+  if(multiPanelEnabled&&panelDefinitions.length>1)panelCommand.addStringOption((option)=>option.setName("panel").setDescription("Panel ที่ต้องการส่ง").setRequired(true).addChoices(...panelDefinitions.slice(0,25).map((panel)=>({name:panel.name.slice(0,100),value:panel.key}))));
+  await context.client.application?.commands.create(panelCommand.toJSON());
   if(manualReceiptEnabled)await context.client.application?.commands.create(buildManualReceiptCommand().toJSON());
   await panels.restore();
   const recovery=await context.robux.recoverable();
@@ -39,15 +41,15 @@ async function onReady(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQ
   console.info(`Roblox Robux Payout active: bot ${context.botId}`);
 }
 
-async function handle(context:FeatureContext,groups:RobloxGroup[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,purchaseUsernameMaxLength:number,purchaseModalTitle:string,manualReceiptEnabled:boolean,interaction:Interaction){
-  if(interaction.isChatInputCommand()&&interaction.commandName===command)return postPanel(context,groups,panels,membershipEnabled,interaction);
+async function handle(context:FeatureContext,groups:RuntimeGroup[],panelDefinitions:PayoutPanel[],queue:PayoutQueue,panels:PanelUpdater,pending:Map<string,PendingPurchase>,command:string,membershipEnabled:boolean,purchaseUsernameMaxLength:number,purchaseModalTitle:string,manualReceiptEnabled:boolean,multiPanelEnabled:boolean,interaction:Interaction){
+  if(interaction.isChatInputCommand()&&interaction.commandName===command)return postPanel(context,groups,panelDefinitions,panels,membershipEnabled,multiPanelEnabled,interaction);
   if(manualReceiptEnabled&&interaction.isAutocomplete()&&interaction.commandName===ROBUX_RECEIPT_COMMAND_NAME)return suggestManualReceiptPackage(interaction);
   if(manualReceiptEnabled&&interaction.isChatInputCommand()&&interaction.commandName===ROBUX_RECEIPT_COMMAND_NAME)return sendManualReceipt(context,interaction);
-  if(membershipEnabled&&interaction.isButton()&&interaction.customId===ID.membership)return startMembershipCheck(groups,interaction);
-  if(membershipEnabled&&interaction.isStringSelectMenu()&&interaction.customId===ID.membershipGroup)return showMembershipModal(groups,interaction.values[0]!,interaction);
+  if(membershipEnabled&&interaction.isButton()&&(interaction.customId===ID.membership||interaction.customId.startsWith(`${ID.membership}:`)))return startMembershipCheck(groupsForPanel(groups,panelDefinitions,customIdSuffix(interaction.customId,ID.membership)),interaction);
+  if(membershipEnabled&&interaction.isStringSelectMenu()&&(interaction.customId===ID.membershipGroup||interaction.customId.startsWith(`${ID.membershipGroup}:`)))return showMembershipModal(groupsForPanel(groups,panelDefinitions,customIdSuffix(interaction.customId,ID.membershipGroup)),interaction.values[0]!,interaction);
   if(membershipEnabled&&interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.membershipUser}:`))return checkMembership(context,groups,interaction.customId.slice(ID.membershipUser.length+1),interaction);
   if(interaction.isButton()&&interaction.customId===ID.buy)return startBuy(context,groups,purchaseUsernameMaxLength,purchaseModalTitle,interaction);
-  if(interaction.isStringSelectMenu()&&interaction.customId===ID.group){const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message);return interaction.update(await buildPanelPayload(context,groups,membershipEnabled) as never);}return showUsernameModal(groups,selected,purchaseUsernameMaxLength,purchaseModalTitle,interaction);}
+  if(interaction.isStringSelectMenu()&&(interaction.customId===ID.group||interaction.customId.startsWith(`${ID.group}:`))){const panelKey=customIdSuffix(interaction.customId,ID.group);const panel=panelDefinitions.find((item)=>item.key===panelKey);const panelGroups=groupsForPanel(groups,panelDefinitions,panelKey);const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message,panelKey);return interaction.update(await buildPanelPayload(context,panelGroups,membershipEnabled,panelKey,panel?.slotKey??"panel",panel?.mode??"storefront") as never);}return showUsernameModal(panelGroups,selected,purchaseUsernameMaxLength,purchaseModalTitle,interaction);}
   if(interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.user}:`))return checkUser(context,groups,pending,interaction.customId.slice(ID.user.length+1),interaction);
   if(interaction.isStringSelectMenu()&&interaction.customId.startsWith(`${ID.pkg}:`))return selectPackage(context,pending,interaction.customId.slice(ID.pkg.length+1),interaction.values[0]!,interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.confirm}:`))return confirm(context,groups,queue,pending,interaction.customId.slice(ID.confirm.length+1),interaction);
@@ -93,38 +95,50 @@ async function sendManualReceipt(context:FeatureContext,interaction:ChatInputCom
   return interaction.reply({content,flags:MessageFlags.Ephemeral});
 }
 
-async function postPanel(context:FeatureContext,groups:RobloxGroup[],panels:PanelUpdater,membershipEnabled:boolean,interaction:ChatInputCommandInteraction){
+async function postPanel(context:FeatureContext,groups:RuntimeGroup[],panelDefinitions:PayoutPanel[],panels:PanelUpdater,membershipEnabled:boolean,multiPanelEnabled:boolean,interaction:ChatInputCommandInteraction){
   if(!interaction.inGuild())return;
   if(!context.permissions.canUse(interaction,interaction.commandName,false))return interaction.reply({content:"คุณไม่มีสิทธิ์ใช้คำสั่งนี้",flags:MessageFlags.Ephemeral});
   await interaction.deferReply({flags:MessageFlags.Ephemeral});
   if(!interaction.channel?.isSendable())throw new Error("Channel cannot send messages");
-  const payload=await buildPanelPayload(context,groups,membershipEnabled);
-  const existing=panels.current();
+  const requested=multiPanelEnabled?interaction.options.getString("panel")??panelDefinitions[0]?.key:null;
+  const panel=multiPanelEnabled?panelDefinitions.find((item)=>item.key===requested):panelDefinitions[0];
+  if(!panel)throw new Error("ยังไม่ได้ตั้งค่า Robux Panel");
+  const panelGroups=groupsForPanel(groups,panelDefinitions,panel.key);
+  if(!panelGroups.length)throw new Error(`Panel ${panel.name} ยังไม่มีกลุ่ม Roblox ที่พร้อมใช้งาน`);
+  const payload=await buildPanelPayload(context,panelGroups,membershipEnabled,multiPanelEnabled?panel.key:"",multiPanelEnabled?panel.slotKey:"panel",multiPanelEnabled?panel.mode:"storefront");
+  const existing=panels.current(multiPanelEnabled?panel.key:"");
   if(existing)await existing.delete().catch(()=>undefined);
   const message=await interaction.channel.send(payload as never);
-  await panels.set(message);
-  return interaction.editReply("ส่ง Panel ร้าน Robux เรียบร้อย");
+  await panels.set(message,multiPanelEnabled?panel.key:"");
+  return interaction.editReply(multiPanelEnabled?`ส่ง Panel ${panel.name} เรียบร้อย`:"ส่ง Panel ร้าน Robux เรียบร้อย");
 }
 
-async function buildPanelPayload(context:FeatureContext,groups:RobloxGroup[],membershipEnabled=false){
-  const stock=await Promise.all(groups.map(async(group)=>{const result=await groupFunds(group);return {group,value:result.ok?result.robux:null};}));
-  const rows=panelActionRows(context,stock,membershipEnabled);
-  const stockLines=stock.map(({group,value})=>`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
-  const payload=render(context,"panel",{stock_lines:stockLines},rows);
+async function buildPanelPayload(context:FeatureContext,groups:RuntimeGroup[],membershipEnabled=false,panelKey="",panelSlot="panel",panelMode:RobuxPanelMode="storefront"){
+  const stock=panelMode==="storefront"
+    ?await Promise.all(groups.map(async(group)=>{const result=await groupFunds(group);return {group,value:result.ok?result.robux:null};}))
+    :groups.map((group)=>({group,value:null}));
+  const rows=panelActionRows(context,stock,membershipEnabled,panelKey,panelSlot,panelMode);
+  const stockLines=stock.map(({group,value})=>panelMode==="storefront"
+    ?`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`
+    :`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
+  const payload=render(context,panelSlot,{stock_lines:stockLines},rows);
   if(!Array.isArray(payload.embeds))return payload;
-  payload.embeds[0]?.setFields(stock.slice(0,24).map(({group,value})=>({name:group.name.slice(0,256),value:`\`\`\`${value?.toLocaleString()??"—"}\`\`\`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`,inline:true})));
+  payload.embeds[0]?.setFields(stock.slice(0,24).map(({group,value})=>({name:group.name.slice(0,256),value:panelMode==="storefront"?`\`\`\`${value?.toLocaleString()??"—"}\`\`\`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`:`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`,inline:true})));
   return payload;
 }
 
-function panelActionRows(context:FeatureContext,stock:Array<{group:RobloxGroup;value:number|null}>,membershipEnabled:boolean){
-  const rows:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>=[];const role=componentConfig(context,"panel","group_select");
-  const options=stock.slice(0,24).map(({group,value},index)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key).setDescription(`ยอดคงเหลือ ${value?.toLocaleString()??"—"}`.slice(0,100)).setEmoji(numberEmoji(index)));
-  options.push(new StringSelectMenuOptionBuilder().setLabel("รีโหลดตัวเลือก").setValue(RELOAD_GROUPS).setEmoji("🔄"));
-  const select=new StringSelectMenuBuilder().setCustomId(ID.group).setPlaceholder(String(role.placeholder??"เลือกกลุ่มที่ต้องการซื้อ").slice(0,150)).addOptions(options);
-  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
-  if(membershipEnabled)rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(styledButton(context,"panel","btn_membership",ID.membership,"เช็กวันที่เข้ากลุ่ม",ButtonStyle.Primary)));
-  if(context.installedFeatureCodes.has("wallet-topup")){
-    const raw=(context.presentations.panel??{}) as Record<string,unknown>;
+function panelActionRows(context:FeatureContext,stock:Array<{group:RuntimeGroup;value:number|null}>,membershipEnabled:boolean,panelKey="",panelSlot="panel",panelMode:RobuxPanelMode="storefront"){
+  const rows:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>=[];
+  if(panelMode==="storefront"){
+    const role=componentConfig(context,panelSlot,"group_select");
+    const options=stock.slice(0,24).map(({group,value},index)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key).setDescription(`ยอดคงเหลือ ${value?.toLocaleString()??"—"}`.slice(0,100)).setEmoji(numberEmoji(index)));
+    options.push(new StringSelectMenuOptionBuilder().setLabel("รีโหลดตัวเลือก").setValue(RELOAD_GROUPS).setEmoji("🔄"));
+    const select=new StringSelectMenuBuilder().setCustomId(customId(ID.group,panelKey)).setPlaceholder(String(role.placeholder??"เลือกกลุ่มที่ต้องการซื้อ").slice(0,150)).addOptions(options);
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
+  if(membershipEnabled)rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(styledButton(context,panelSlot,"btn_membership",customId(ID.membership,panelKey),"เช็กวันที่เข้ากลุ่ม",ButtonStyle.Primary)));
+  if(panelMode==="storefront"&&context.installedFeatureCodes.has("wallet-topup")){
+    const raw=(context.presentations[panelSlot]??{}) as Record<string,unknown>;
     const configured=Array.isArray(raw.co_features)?raw.co_features.filter(isRecord):[];
     const items=configured.length?configured:[
       {action:"wallet.topup",label:"เติมเงิน",emoji:"💰",style:"success"},
@@ -137,10 +151,10 @@ function panelActionRows(context:FeatureContext,stock:Array<{group:RobloxGroup;v
   return rows;
 }
 
-async function startMembershipCheck(groups:RobloxGroup[],interaction:ButtonInteraction){
+async function startMembershipCheck(groups:RuntimeGroup[],interaction:ButtonInteraction){
   if(!groups.length)return interaction.reply({content:"ยังไม่ได้ตั้งค่า Roblox Group",flags:MessageFlags.Ephemeral});
   if(groups.length===1)return showMembershipModal(groups,groups[0]!.key,interaction);
-  const menu=new StringSelectMenuBuilder().setCustomId(ID.membershipGroup).setPlaceholder("เลือกกลุ่มที่ต้องการตรวจสอบ").addOptions(groups.slice(0,25).map((group)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key)));
+  const panelKey=customIdSuffix(interaction.customId,ID.membership);const menu=new StringSelectMenuBuilder().setCustomId(customId(ID.membershipGroup,panelKey)).setPlaceholder("เลือกกลุ่มที่ต้องการตรวจสอบ").addOptions(groups.slice(0,25).map((group)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key)));
   return interaction.reply({content:"เลือกกลุ่ม Roblox",components:[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],flags:MessageFlags.Ephemeral});
 }
 
@@ -166,7 +180,7 @@ async function checkMembership(context:FeatureContext,groups:RobloxGroup[],key:s
 
 function numberEmoji(index:number){return ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"][index]??"🎮";}
 
-async function startBuy(context:FeatureContext,groups:RobloxGroup[],purchaseUsernameMaxLength:number,purchaseModalTitle:string,interaction:ButtonInteraction){
+async function startBuy(context:FeatureContext,groups:RuntimeGroup[],purchaseUsernameMaxLength:number,purchaseModalTitle:string,interaction:ButtonInteraction){
   if(!groups.length)return interaction.reply({content:"ยังไม่ได้ตั้งค่า Roblox Group และ Credentials สำหรับ Feature นี้",flags:MessageFlags.Ephemeral});
   if(!boolConfig(context.config.ROBUX_ENABLED,true))return interaction.reply({content:"ระบบขาย Robux ปิดให้บริการชั่วคราว",flags:MessageFlags.Ephemeral});
   if(groups.length===1)return showUsernameModal(groups,groups[0]!.key,purchaseUsernameMaxLength,purchaseModalTitle,interaction);
@@ -174,7 +188,7 @@ async function startBuy(context:FeatureContext,groups:RobloxGroup[],purchaseUser
   return interaction.reply({content:"เลือกกลุ่มที่ต้องการรับ Robux",components:[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],flags:MessageFlags.Ephemeral});
 }
 
-async function showUsernameModal(groups:RobloxGroup[],key:string,maxLength:number,title:string,interaction:ButtonInteraction|import("discord.js").StringSelectMenuInteraction){
+async function showUsernameModal(groups:RuntimeGroup[],key:string,maxLength:number,title:string,interaction:ButtonInteraction|import("discord.js").StringSelectMenuInteraction){
   const group=groups.find((item)=>item.key===key);if(!group)throw new Error("ไม่พบกลุ่ม Roblox");
   return interaction.showModal(buildPurchaseUsernameModal(group,maxLength,title));
 }
@@ -185,7 +199,7 @@ export function buildPurchaseUsernameModal(group:Pick<RobloxGroup,"key"|"name">,
   return modal;
 }
 
-async function checkUser(context:FeatureContext,groups:RobloxGroup[],pending:Map<string,PendingPurchase>,key:string,interaction:ModalSubmitInteraction){
+async function checkUser(context:FeatureContext,groups:RuntimeGroup[],pending:Map<string,PendingPurchase>,key:string,interaction:ModalSubmitInteraction){
   const group=groups.find((item)=>item.key===key);if(!group)throw new Error("ไม่พบกลุ่ม Roblox");
   const username=interaction.fields.getTextInputValue("username").trim();
   const processing=render(context,"processing",{detail:"กรุณารอสักครู่",avatar:interaction.user.displayAvatarURL(),roblox_username:username,robux:"-"},[]);
@@ -194,11 +208,11 @@ async function checkUser(context:FeatureContext,groups:RobloxGroup[],pending:Map
   if(!check.ok)throw new Error(humanRobloxError(check.error));
   if(!check.eligible)throw new Error("บัญชีนี้ยังไม่มีสิทธิ์รับ Group Payout กรุณาเข้ากลุ่มและรอให้ Roblox อนุมัติสิทธิ์ก่อน");
   if(!stock.ok)throw new Error(humanRobloxError(stock.error));
-  const packages=readPackages(context).filter((item)=>item.robux<=stock.robux);
+  const packages=readPackages(context,group.rate).filter((item)=>item.robux<=stock.robux);
   if(!packages.length)throw new Error("Robux ในกลุ่มไม่เพียงพอสำหรับ Package พื้นฐาน");
   const id=interaction.id;pending.set(id,{memberId:interaction.user.id,groupKey:key,groupName:group.name,robloxUserId:check.userId,robloxUsername:check.username,packages,expiresAt:Date.now()+300_000});
   const role=componentConfig(context,"package_selector","pkg_select");const menu=new StringSelectMenuBuilder().setCustomId(`${ID.pkg}:${id}`).setPlaceholder(String(role.placeholder??"🎮 เลือก Robux Package").slice(0,150)).addOptions(packages.slice(0,25).map((item)=>new StringSelectMenuOptionBuilder().setLabel(`${item.robux.toLocaleString()} Robux (${money(item.priceSatang)} บาท)`.slice(0,100)).setDescription(balance.balanceSatang>=item.priceSatang?"✅":"❌ ยอดเงินไม่พอ").setValue(String(item.robux))));
-  return interaction.editReply(render(context,"package_selector",{message:"ผู้ใช้มีสิทธิ์รับ Robux แล้ว",username:check.username,roblox_username:check.username,balance:money(balance.balanceSatang),rate:String(numberConfig(context.config.ROBUX_RATE,3.5)),group_robux:stock.robux.toLocaleString(),group_stock:String(stock.robux),group_name:group.name,avatar:interaction.user.displayAvatarURL(),currency:"THB"},[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)]));
+  return interaction.editReply(render(context,"package_selector",{message:"ผู้ใช้มีสิทธิ์รับ Robux แล้ว",username:check.username,roblox_username:check.username,balance:money(balance.balanceSatang),rate:String(group.rate),group_robux:stock.robux.toLocaleString(),group_stock:String(stock.robux),group_name:group.name,avatar:interaction.user.displayAvatarURL(),currency:"THB"},[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)]));
 }
 
 async function selectPackage(context:FeatureContext,pending:Map<string,PendingPurchase>,id:string,value:string,interaction:import("discord.js").StringSelectMenuInteraction){
@@ -291,51 +305,53 @@ export async function deliverPayoutNotificationCopies(options:{channelId:string;
 }
 
 class PanelUpdater{
-  private message:Message|null=null;
+  private messages=new Map<string,Message>();
   private timer:ReturnType<typeof setInterval>;
   private refreshing=false;
   private stopped=false;
-  constructor(private context:FeatureContext,private groups:RobloxGroup[],private membershipEnabled:boolean){
-    this.timer=setInterval(()=>void this.refresh().catch((error)=>console.error(`Robux panel refresh failed for ${this.context.botId}:`,error)),PANEL_REFRESH_MS);
+  constructor(private context:FeatureContext,private groups:RuntimeGroup[],private panels:PayoutPanel[],private membershipEnabled:boolean,private multiPanelEnabled:boolean){
+    this.timer=setInterval(()=>void this.refreshAll().catch((error)=>console.error(`Robux panel refresh failed for ${this.context.botId}:`,error)),PANEL_REFRESH_MS);
   }
-  current(){return this.message;}
-  async set(message:Message){
+  current(panelKey=""){return this.messages.get(panelKey)??null;}
+  async set(message:Message,panelKey=""){
     if(this.stopped)return;
-    this.message=message;
-    await this.save({channelId:message.channelId,messageId:message.id});
+    this.messages.set(panelKey,message);
+    await this.save();
   }
   async restore(){
-    const value=this.context.runtimeState.robuxPanel;
-    if(!value||typeof value!=="object")return;
-    const ref=value as Record<string,unknown>;
-    const channelId=String(ref.channelId??""),messageId=String(ref.messageId??"");
-    if(!/^\d{15,30}$/.test(channelId)||!/^\d{15,30}$/.test(messageId))return;
-    const channel=await this.context.client.channels.fetch(channelId).catch(()=>null);
-    if(!channel?.isTextBased()){await this.remove();return;}
-    const message=await channel.messages.fetch(messageId).catch(()=>null);
-    if(!message){await this.remove();return;}
-    this.message=message;
-    await this.refresh();
+    const saved=this.multiPanelEnabled?this.context.runtimeState.robuxPanels:{"":this.context.runtimeState.robuxPanel};
+    if(!saved||typeof saved!=="object")return;
+    for(const [panelKey,value] of Object.entries(saved as Record<string,unknown>)){
+      if(!value||typeof value!=="object")continue;
+      const ref=value as Record<string,unknown>;const channelId=String(ref.channelId??""),messageId=String(ref.messageId??"");
+      if(!/^\d{15,30}$/.test(channelId)||!/^\d{15,30}$/.test(messageId))continue;
+      const channel=await this.context.client.channels.fetch(channelId).catch(()=>null);
+      if(!channel?.isTextBased())continue;
+      const message=await channel.messages.fetch(messageId).catch(()=>null);
+      if(message)this.messages.set(panelKey,message);
+    }
+    await this.refreshAll();
+    await this.save();
   }
-  stop(){this.stopped=true;clearInterval(this.timer);this.message=null;}
-  private async refresh(){
-    if(this.refreshing||this.stopped||!this.message)return;
+  stop(){this.stopped=true;clearInterval(this.timer);this.messages.clear();}
+  private async refreshAll(){
+    if(this.refreshing||this.stopped||!this.messages.size)return;
     this.refreshing=true;
     try{
-      const payload=await buildPanelPayload(this.context,this.groups,this.membershipEnabled);
-      const id=this.message.id;
-      const updated=await this.message.edit(payload as never).catch((error:unknown)=>{
-        console.warn(`Unable to refresh Robux panel ${id}:`,error);
-        return null;
-      });
-      if(!updated){
-        await this.remove();
+      for(const [panelKey,message] of [...this.messages]){
+        if(this.multiPanelEnabled&&!this.panels.some((panel)=>panel.key===panelKey)){this.messages.delete(panelKey);continue;}
+        const panelGroups=this.multiPanelEnabled?groupsForPanel(this.groups,this.panels,panelKey):this.groups;
+        const panel=this.panels.find((item)=>item.key===panelKey);const payload=await buildPanelPayload(this.context,panelGroups,this.membershipEnabled,this.multiPanelEnabled?panelKey:"",this.multiPanelEnabled?panel?.slotKey??"panel":"panel",this.multiPanelEnabled?panel?.mode??"storefront":"storefront");
+        const updated=await message.edit(payload as never).catch((error:unknown)=>{console.warn(`Unable to refresh Robux panel ${message.id}:`,error);return null;});
+        if(!updated)this.messages.delete(panelKey);
       }
+      await this.save();
     }finally{this.refreshing=false;}
   }
-  private async remove(){this.message=null;await this.save(null);}
-  private async save(robuxPanel:{channelId:string;messageId:string}|null){
-    await this.context.saveRuntimeState({...this.context.runtimeState,robuxPanel});
+  private async save(){
+    if(!this.multiPanelEnabled){const message=this.messages.get("");await this.context.saveRuntimeState({...this.context.runtimeState,robuxPanel:message?{channelId:message.channelId,messageId:message.id}:null});return;}
+    const robuxPanels=Object.fromEntries([...this.messages].map(([key,message])=>[key,{channelId:message.channelId,messageId:message.id}]));
+    await this.context.saveRuntimeState({...this.context.runtimeState,robuxPanels});
   }
 }
 
@@ -387,23 +403,37 @@ function componentConfig(context:FeatureContext,slot:string,role:string){const p
 function styledButton(context:FeatureContext,slot:string,role:string,id:string,fallbackLabel:string,fallbackStyle:ButtonStyle){const cfg=componentConfig(context,slot,role);const styles:Record<string,ButtonStyle>={primary:ButtonStyle.Primary,secondary:ButtonStyle.Secondary,success:ButtonStyle.Success,danger:ButtonStyle.Danger};const button=new ButtonBuilder().setCustomId(id).setLabel(String(cfg.label??fallbackLabel).slice(0,80)).setStyle(styles[String(cfg.style??"").toLowerCase()]??fallbackStyle);const emoji=parseEmoji(String(cfg.emoji??""));if(emoji)try{button.setEmoji(emoji);}catch{/* invalid configured emoji */}return button;}
 function configuredButton(cfg:Record<string,unknown>,id:string){const styles:Record<string,ButtonStyle>={primary:ButtonStyle.Primary,secondary:ButtonStyle.Secondary,success:ButtonStyle.Success,danger:ButtonStyle.Danger};const button=new ButtonBuilder().setCustomId(id).setLabel(String(cfg.label??"Action").slice(0,80)).setStyle(styles[String(cfg.style??"secondary").toLowerCase()]??ButtonStyle.Secondary);const emoji=parseEmoji(String(cfg.emoji??""));if(emoji)try{button.setEmoji(emoji);}catch{/* invalid configured emoji */}return button;}
 function parseEmoji(value:string):string|{name:string;id:string;animated:boolean}|null{const raw=value.trim();if(!raw)return null;const match=raw.match(/^<(a)?:(\w+):(\d+)>$/);return match?{name:match[2]!,id:match[3]!,animated:Boolean(match[1])}:raw;}
-function readGroups(context:FeatureContext):RobloxGroup[]{const definitions=arrayConfig(context.config.ROBLOX_GROUPS);let credentials:Record<string,{cookie?:string;totpSecret?:string;openCloudApiKey?:string}>={};try{credentials=JSON.parse(context.secrets.ROBLOX_CREDENTIALS??"{}") as typeof credentials;}catch{return [];}return definitions.map((item)=>{const row=item as Record<string,unknown>;const key=String(row.key??"");const credential=credentials[key]??{};return {key,name:String(row.name??key),groupId:Number(row.groupId),cookie:String(credential.cookie??""),...(credential.totpSecret?{totpSecret:String(credential.totpSecret)}:{}),...(credential.openCloudApiKey?{openCloudApiKey:String(credential.openCloudApiKey)}:{})};}).filter((g)=>/^[A-Za-z0-9_-]{1,40}$/.test(g.key)&&g.groupId>0&&g.cookie.length>20);}
-function readPackages(context:FeatureContext):Package[]{
-  const rate=numberConfig(context.config.ROBUX_RATE,3.5);
-  const custom=arrayConfig(context.config.ROBUX_PACKAGES).map((item)=>{const row=item as Record<string,unknown>;const robux=Number(row.robux);return {robux,priceSatang:Math.ceil(robux/rate)*100};}).filter((item)=>Number.isInteger(item.robux)&&item.robux>0&&Number.isInteger(item.priceSatang)&&item.priceSatang>0).sort((a,b)=>a.robux-b.robux);
+function readGroups(context:FeatureContext):RuntimeGroup[]{const definitions=arrayConfig(context.config.ROBLOX_GROUPS);let credentials:Record<string,{cookie?:string;totpSecret?:string;openCloudApiKey?:string}>={};try{credentials=JSON.parse(context.secrets.ROBLOX_CREDENTIALS??"{}") as typeof credentials;}catch{return [];}const fallbackRate=validRate(context.config.ROBUX_RATE,3.5);return definitions.map((item)=>{const row=item as Record<string,unknown>;const key=String(row.key??"");const credential=credentials[key]??{};return {key,name:String(row.name??key),groupId:Number(row.groupId),rate:validRate(row.rate,fallbackRate),cookie:String(credential.cookie??""),...(credential.totpSecret?{totpSecret:String(credential.totpSecret)}:{}),...(credential.openCloudApiKey?{openCloudApiKey:String(credential.openCloudApiKey)}:{})};}).filter((g)=>/^[A-Za-z0-9_-]{1,40}$/.test(g.key)&&g.groupId>0&&g.cookie.length>20);}
+function readPackages(context:FeatureContext,configuredRate?:number):Package[]{
+  const rate=validRate(configuredRate,validRate(context.config.ROBUX_RATE,3.5));
+  const custom=arrayConfig(context.config.ROBUX_PACKAGES).map((item)=>{const row=item as Record<string,unknown>;const robux=Number(row.robux);return {robux,priceSatang:robuxPriceSatang(robux,rate)};}).filter((item)=>Number.isInteger(item.robux)&&item.robux>0&&Number.isInteger(item.priceSatang)&&item.priceSatang>0).sort((a,b)=>a.robux-b.robux);
   if(custom.length)return custom;
   const legacy=rate===3.5?[[200,58],[300,86],[350,100],[400,115],[500,143],[600,172],[800,229],[1000,286],[1200,343],[1400,400],[1600,455],[2000,570],[3000,855],[4000,1140],[5000,1425],[7000,2000],[10000,2850],[20000,5700]]:rate===4?[[200,50],[300,75],[400,100],[500,125],[600,150],[800,200],[1200,300],[1400,350],[1600,400],[2000,500],[3000,750],[4000,1000],[5000,1250],[7000,1750],[10000,2500],[20000,4900]]:null;
   if(legacy)return legacy.map(([robux,baht])=>({robux:robux!,priceSatang:baht!*100}));
-  return [200,300,400,500,600,800,1000,1200,1400,1600,2000,3000,4000,5000,7000,10000,20000].map((robux)=>({robux,priceSatang:Math.ceil(robux/rate)*100}));
+  return [200,300,400,500,600,800,1000,1200,1400,1600,2000,3000,4000,5000,7000,10000,20000].map((robux)=>({robux,priceSatang:robuxPriceSatang(robux,rate)}));
 }
+export function robuxPriceSatang(robux:number,rate:number){return Math.ceil(robux/rate)*100;}
 function humanRobloxError(error:RobloxFailure){const labels:Record<string,string>={ROBLOX_INSUFFICIENT_FUNDS:"Robux ในกลุ่มไม่พอหรือ Roblox แจ้งยอดไม่เพียงพอ",ROBLOX_INSUFFICIENT_PERMISSIONS:"บัญชี Roblox ไม่มีสิทธิ์ payout ในกลุ่มนี้",ROBLOX_PAYOUT_RATE_LIMIT:"Roblox จำกัดความถี่การโอนชั่วคราว",ROBLOX_2FA_REQUIRED:"ยืนยัน 2FA ของ Roblox ไม่สำเร็จ",ROBLOX_SESSION_BLOCKED:"Roblox บล็อก Session นี้ชั่วคราว กรุณารอสักครู่หรือเข้าสู่ระบบใหม่",ROBLOX_CHALLENGE_CHEF:"Roblox ต้องการยืนยันตัวตน (Captcha) กรุณาเข้าสู่ระบบบัญชี Roblox บนเบราว์เซอร์เพื่อแก้ Captcha"};return labels[error.code]??error.message;}
 async function respondError(context:FeatureContext,interaction:Interaction,error:unknown){const message=error instanceof Error?error.message:"เกิดข้อผิดพลาด";console.error(`Robux Payout failed for ${context.botId}:`,error);if(!interaction.isRepliable())return;const user="user" in interaction?interaction.user:null;const payload=render(context,"failed",{reason:message,content:message,username:"-",datetime:dateTime(),avatar:user?.displayAvatarURL()??""},[]);if(interaction.deferred||interaction.replied)await interaction.editReply(payload).catch(()=>undefined);else await interaction.reply({...payload,flags:MessageFlags.Ephemeral|("flags" in payload?payload.flags:0)}).catch(()=>undefined);}
 function arrayConfig(value:unknown):unknown[]{if(Array.isArray(value))return value;if(typeof value==="string")try{const parsed=JSON.parse(value);return Array.isArray(parsed)?parsed:[];}catch{return [];}return [];}
 function stringConfig(value:unknown,fallback:string){return typeof value==="string"&&value.trim()?value.trim():fallback;}
 function numberConfig(value:unknown,fallback:number){const number=Number(value);return Number.isFinite(number)?number:fallback;}
+function validRate(value:unknown,fallback:number){const number=Number(value);return Number.isFinite(number)&&number>0?number:fallback;}
 function boolConfig(value:unknown,fallback:boolean){return typeof value==="boolean"?value:fallback;}
 function money(satang:number){return (satang/100).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});}
 function dateTime(){return new Intl.DateTimeFormat("th-TH",{dateStyle:"medium",timeStyle:"medium"}).format(new Date());}
 interface Package{robux:number;priceSatang:number}
+interface RuntimeGroup extends RobloxGroup{rate:number}
+export type RobuxPanelMode="storefront"|"membership_only";
+export interface PayoutPanel{key:string;name:string;groupKeys:string[];slotKey:string;mode:RobuxPanelMode}
+export function readPayoutPanels(value:unknown,groups:Array<Pick<RuntimeGroup,"key">>):PayoutPanel[]{
+  const known=new Set(groups.map((group)=>group.key));const seen=new Set<string>();const usedSlots=new Set<string>();const raw=arrayConfig(value);
+  const configured=raw.flatMap((item,index)=>{if(!isRecord(item))return[];const key=String(item.key??"").trim();const name=String(item.name??key).trim();const groupKeys=Array.isArray(item.groupKeys)?item.groupKeys.map(String).filter((groupKey)=>known.has(groupKey)):[];if(!/^[a-z0-9_-]{1,40}$/.test(key)||!name||!groupKeys.length||seen.has(key))return[];const preferred=String(item.presentationSlot??"");const slotKey=/^panel_(?:[1-9]|1\d|2[0-5])$/.test(preferred)&&!usedSlots.has(preferred)?preferred:Array.from({length:25},(_,slotIndex)=>`panel_${slotIndex+1}`).find((candidate)=>!usedSlots.has(candidate))??`panel_${index+1}`;const mode:RobuxPanelMode=item.mode==="membership_only"?"membership_only":"storefront";seen.add(key);usedSlots.add(slotKey);return[{key,name,groupKeys:[...new Set(groupKeys)],slotKey,mode}];});
+  return configured.length?configured:raw.length?[]:[{key:"main",name:"Main Panel",groupKeys:groups.map((group)=>group.key),slotKey:"panel_1",mode:"storefront"}];
+}
+function readConfiguredGroupKeys(value:unknown){return arrayConfig(value).flatMap((item)=>{if(!isRecord(item))return[];const key=String(item.key??"").trim();return /^[A-Za-z0-9_-]{1,40}$/.test(key)?[{key}]:[];});}
+function groupsForPanel(groups:RuntimeGroup[],panels:PayoutPanel[],panelKey:string){const panel=panelKey?panels.find((item)=>item.key===panelKey):panels[0];const allowed=new Set(panel?.groupKeys??[]);return groups.filter((group)=>allowed.has(group.key));}
+function customId(base:string,suffix:string){return suffix?`${base}:${suffix}`:base;}
+function customIdSuffix(value:string,base:string){return value.startsWith(`${base}:`)?value.slice(base.length+1):"";}
 function isRecord(value:unknown):value is Record<string,unknown>{return Boolean(value)&&typeof value==="object"&&!Array.isArray(value);}
 interface PendingPurchase{memberId:string;groupKey:string;groupName:string;robloxUserId:number;robloxUsername:string;packages:Package[];selected?:Package;expiresAt:number}

@@ -19,6 +19,7 @@ export interface GroupBlock {
   key: string
   name: string
   groupId: number | ''
+  rate: number | ''
   cookie: string
   totpSecret: string
   openCloudApiKey: string
@@ -31,6 +32,8 @@ const props = defineProps<{
   credentialsConfigured?: boolean
   credentialsJson: string
   showMembershipLookup?: boolean
+  showRate?: boolean
+  defaultRate?: number
 }>()
 
 const emit = defineEmits<{
@@ -48,6 +51,7 @@ function createEmptyGroup(index: number): GroupBlock {
     key,
     name: `Group ${index}`,
     groupId: '',
+    rate: props.defaultRate && props.defaultRate > 0 ? props.defaultRate : 3.5,
     cookie: '',
     totpSecret: '',
     openCloudApiKey: '',
@@ -93,6 +97,11 @@ function parseInitialData() {
         key,
         name: String(g.name ?? `Group ${idx + 1}`),
         groupId: typeof g.groupId === 'number' ? g.groupId : Number(g.groupId) || '',
+        rate:
+          typeof g.rate === 'number'
+            ? g.rate
+            : Number(g.rate) ||
+              (props.defaultRate && props.defaultRate > 0 ? props.defaultRate : 3.5),
         cookie: cred.cookie ?? '',
         totpSecret: cred.totpSecret ?? '',
         openCloudApiKey: cred.openCloudApiKey ?? '',
@@ -114,6 +123,7 @@ function emitChanges() {
     key: (g.key || `group-${idx + 1}`).trim(),
     name: (g.name || `Group ${idx + 1}`).trim(),
     groupId: typeof g.groupId === 'number' ? g.groupId : Number(g.groupId) || 0,
+    ...(props.showRate ? { rate: typeof g.rate === 'number' ? g.rate : Number(g.rate) || 0 } : {}),
   }))
 
   const credentialsPayload: Record<
@@ -162,8 +172,17 @@ function updateGroupId(group: GroupBlock, value: string) {
   group.groupId = value ? Number(value) || '' : ''
 }
 
+function updateRate(group: GroupBlock, value: string) {
+  group.rate = value ? Number(value) || '' : ''
+}
+
 function groupReady(group: GroupBlock) {
-  return Boolean(group.name.trim() && group.key.trim() && Number(group.groupId) > 0)
+  return Boolean(
+    group.name.trim() &&
+    group.key.trim() &&
+    Number(group.groupId) > 0 &&
+    (!props.showRate || Number(group.rate) > 0),
+  )
 }
 </script>
 
@@ -244,6 +263,16 @@ function groupReady(group: GroupBlock) {
                 :support-text="t('botSettings.findItInTheRobloxCommunityUrl')"
                 required
                 @update:model-value="(value) => updateGroupId(group, value)"
+              />
+              <AppTextField
+                v-if="showRate"
+                :model-value="String(group.rate)"
+                :label="t('botSettings.robuxRate')"
+                placeholder="3.5"
+                input-type="number"
+                :support-text="t('botSettings.robuxRatePerBahtForThisGroup')"
+                required
+                @update:model-value="(value) => updateRate(group, value)"
               />
             </div>
           </div>

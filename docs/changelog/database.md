@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-26 | Added the draft Roblox Robux Payout 3.0 catalog version with independent presentations, panel action modes, group assignments, and per-group rates. |
 | 2026-09-20 | Added Capstone Project and Integrated Project categories to the portfolio work catalog. |
 | 2026-09-12 | Added the draft Channel Message Triggers Feature with configurable rules and ten reusable Embed or Components V2 templates. |
 | 2026-09-09 | Changed the default manual Robux receipt presentation to Components V2 and exposed its optional image variable. |

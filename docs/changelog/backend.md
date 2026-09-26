@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-26 | Added Roblox Robux Payout 3.0 with independently styled and refreshed panels, panel-scoped groups, group-specific package rates, and membership-only panel mode. |
 | 2026-09-12 | Added category channel-created messages and administrator-only exact-text Triggers that remove the source message before sending a configured template. |
 | 2026-09-09 | Added optional image attachments to administrator-created Robux receipts and placed them last in the Components V2 message. |
 | 2026-09-09 | Removed group details from administrator-created receipts, added a `เติม โรพลัส` Package suggestion, and supported optional recipient DMs. |
