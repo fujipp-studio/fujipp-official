@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-26 | Documented storefront and membership-only modes for Roblox Robux Payout 3.0 panels. |
 | 2026-09-23 | Documented Roblox Robux Payout 3.0 multi-panel assignment, independent panel styling, per-group rates, and panel-specific posting. |
 | 2026-09-09 | Documented optional images at the bottom of manual Robux receipts and the Components V2 default. |
 | 2026-09-09 | Documented group-free manual Roblox receipts, the `เติม โรพลัส` Package suggestion, and optional recipient DMs. |

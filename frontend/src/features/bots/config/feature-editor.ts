@@ -170,8 +170,8 @@ export const robloxConfigCopy: Record<
   ROBUX_PANELS: {
     label: ['Robux panels', 'Panel ขาย Robux'],
     description: [
-      'Choose which Roblox groups are available from each sales panel.',
-      'เลือกกลุ่ม Roblox ที่เปิดขายในแต่ละ Panel',
+      'Choose the Roblox groups and available actions for each panel.',
+      'เลือกกลุ่ม Roblox และรูปแบบการใช้งานของแต่ละ Panel',
     ],
   },
   ROBUX_PAYOUT_COOLDOWN_SECONDS: {

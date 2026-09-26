@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-26 | Added validated storefront and membership-only action modes to Roblox Robux Payout 3.0 panels. |
 | 2026-09-23 | Added the draft Roblox Robux Payout 3.0 catalog version with independent panel presentations, panel assignments, and per-group rates. |
 | 2026-09-20 | Added Capstone Project and Integrated Project categories to the portfolio work catalog. |
 | 2026-09-12 | Added the draft Channel Message Triggers Feature with configurable rules and ten reusable Embed or Components V2 templates. |

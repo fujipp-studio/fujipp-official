@@ -49,7 +49,7 @@ async function handle(context:FeatureContext,groups:RuntimeGroup[],panelDefiniti
   if(membershipEnabled&&interaction.isStringSelectMenu()&&(interaction.customId===ID.membershipGroup||interaction.customId.startsWith(`${ID.membershipGroup}:`)))return showMembershipModal(groupsForPanel(groups,panelDefinitions,customIdSuffix(interaction.customId,ID.membershipGroup)),interaction.values[0]!,interaction);
   if(membershipEnabled&&interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.membershipUser}:`))return checkMembership(context,groups,interaction.customId.slice(ID.membershipUser.length+1),interaction);
   if(interaction.isButton()&&interaction.customId===ID.buy)return startBuy(context,groups,purchaseUsernameMaxLength,purchaseModalTitle,interaction);
-  if(interaction.isStringSelectMenu()&&(interaction.customId===ID.group||interaction.customId.startsWith(`${ID.group}:`))){const panelKey=customIdSuffix(interaction.customId,ID.group);const panel=panelDefinitions.find((item)=>item.key===panelKey);const panelGroups=groupsForPanel(groups,panelDefinitions,panelKey);const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message,panelKey);return interaction.update(await buildPanelPayload(context,panelGroups,membershipEnabled,panelKey,panel?.slotKey??"panel") as never);}return showUsernameModal(panelGroups,selected,purchaseUsernameMaxLength,purchaseModalTitle,interaction);}
+  if(interaction.isStringSelectMenu()&&(interaction.customId===ID.group||interaction.customId.startsWith(`${ID.group}:`))){const panelKey=customIdSuffix(interaction.customId,ID.group);const panel=panelDefinitions.find((item)=>item.key===panelKey);const panelGroups=groupsForPanel(groups,panelDefinitions,panelKey);const selected=interaction.values[0]!;if(selected===RELOAD_GROUPS){await panels.set(interaction.message,panelKey);return interaction.update(await buildPanelPayload(context,panelGroups,membershipEnabled,panelKey,panel?.slotKey??"panel",panel?.mode??"storefront") as never);}return showUsernameModal(panelGroups,selected,purchaseUsernameMaxLength,purchaseModalTitle,interaction);}
   if(interaction.isModalSubmit()&&interaction.customId.startsWith(`${ID.user}:`))return checkUser(context,groups,pending,interaction.customId.slice(ID.user.length+1),interaction);
   if(interaction.isStringSelectMenu()&&interaction.customId.startsWith(`${ID.pkg}:`))return selectPackage(context,pending,interaction.customId.slice(ID.pkg.length+1),interaction.values[0]!,interaction);
   if(interaction.isButton()&&interaction.customId.startsWith(`${ID.confirm}:`))return confirm(context,groups,queue,pending,interaction.customId.slice(ID.confirm.length+1),interaction);
@@ -105,7 +105,7 @@ async function postPanel(context:FeatureContext,groups:RuntimeGroup[],panelDefin
   if(!panel)throw new Error("ยังไม่ได้ตั้งค่า Robux Panel");
   const panelGroups=groupsForPanel(groups,panelDefinitions,panel.key);
   if(!panelGroups.length)throw new Error(`Panel ${panel.name} ยังไม่มีกลุ่ม Roblox ที่พร้อมใช้งาน`);
-  const payload=await buildPanelPayload(context,panelGroups,membershipEnabled,multiPanelEnabled?panel.key:"",multiPanelEnabled?panel.slotKey:"panel");
+  const payload=await buildPanelPayload(context,panelGroups,membershipEnabled,multiPanelEnabled?panel.key:"",multiPanelEnabled?panel.slotKey:"panel",multiPanelEnabled?panel.mode:"storefront");
   const existing=panels.current(multiPanelEnabled?panel.key:"");
   if(existing)await existing.delete().catch(()=>undefined);
   const message=await interaction.channel.send(payload as never);
@@ -113,25 +113,32 @@ async function postPanel(context:FeatureContext,groups:RuntimeGroup[],panelDefin
   return interaction.editReply(multiPanelEnabled?`ส่ง Panel ${panel.name} เรียบร้อย`:"ส่ง Panel ร้าน Robux เรียบร้อย");
 }
 
-async function buildPanelPayload(context:FeatureContext,groups:RuntimeGroup[],membershipEnabled=false,panelKey="",panelSlot="panel"){
-  const stock=await Promise.all(groups.map(async(group)=>{const result=await groupFunds(group);return {group,value:result.ok?result.robux:null};}));
-  const rows=panelActionRows(context,stock,membershipEnabled,panelKey,panelSlot);
-  const stockLines=stock.map(({group,value})=>`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
+async function buildPanelPayload(context:FeatureContext,groups:RuntimeGroup[],membershipEnabled=false,panelKey="",panelSlot="panel",panelMode:RobuxPanelMode="storefront"){
+  const stock=panelMode==="storefront"
+    ?await Promise.all(groups.map(async(group)=>{const result=await groupFunds(group);return {group,value:result.ok?result.robux:null};}))
+    :groups.map((group)=>({group,value:null}));
+  const rows=panelActionRows(context,stock,membershipEnabled,panelKey,panelSlot,panelMode);
+  const stockLines=stock.map(({group,value})=>panelMode==="storefront"
+    ?`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})\nยอดคงเหลือ ${value?.toLocaleString()??"—"}`
+    :`**${group.name}** [เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`).join("\n\n")||"ยังไม่ได้ตั้งค่า Roblox Group";
   const payload=render(context,panelSlot,{stock_lines:stockLines},rows);
   if(!Array.isArray(payload.embeds))return payload;
-  payload.embeds[0]?.setFields(stock.slice(0,24).map(({group,value})=>({name:group.name.slice(0,256),value:`\`\`\`${value?.toLocaleString()??"—"}\`\`\`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`,inline:true})));
+  payload.embeds[0]?.setFields(stock.slice(0,24).map(({group,value})=>({name:group.name.slice(0,256),value:panelMode==="storefront"?`\`\`\`${value?.toLocaleString()??"—"}\`\`\`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`:`[เข้ากลุ่ม](https://www.roblox.com/communities/${group.groupId})`,inline:true})));
   return payload;
 }
 
-function panelActionRows(context:FeatureContext,stock:Array<{group:RuntimeGroup;value:number|null}>,membershipEnabled:boolean,panelKey="",panelSlot="panel"){
-  const rows:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>=[];const role=componentConfig(context,panelSlot,"group_select");
-  const options=stock.slice(0,24).map(({group,value},index)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key).setDescription(`ยอดคงเหลือ ${value?.toLocaleString()??"—"}`.slice(0,100)).setEmoji(numberEmoji(index)));
-  options.push(new StringSelectMenuOptionBuilder().setLabel("รีโหลดตัวเลือก").setValue(RELOAD_GROUPS).setEmoji("🔄"));
-  const select=new StringSelectMenuBuilder().setCustomId(customId(ID.group,panelKey)).setPlaceholder(String(role.placeholder??"เลือกกลุ่มที่ต้องการซื้อ").slice(0,150)).addOptions(options);
-  rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+function panelActionRows(context:FeatureContext,stock:Array<{group:RuntimeGroup;value:number|null}>,membershipEnabled:boolean,panelKey="",panelSlot="panel",panelMode:RobuxPanelMode="storefront"){
+  const rows:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>=[];
+  if(panelMode==="storefront"){
+    const role=componentConfig(context,panelSlot,"group_select");
+    const options=stock.slice(0,24).map(({group,value},index)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key).setDescription(`ยอดคงเหลือ ${value?.toLocaleString()??"—"}`.slice(0,100)).setEmoji(numberEmoji(index)));
+    options.push(new StringSelectMenuOptionBuilder().setLabel("รีโหลดตัวเลือก").setValue(RELOAD_GROUPS).setEmoji("🔄"));
+    const select=new StringSelectMenuBuilder().setCustomId(customId(ID.group,panelKey)).setPlaceholder(String(role.placeholder??"เลือกกลุ่มที่ต้องการซื้อ").slice(0,150)).addOptions(options);
+    rows.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select));
+  }
   if(membershipEnabled)rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(styledButton(context,panelSlot,"btn_membership",customId(ID.membership,panelKey),"เช็กวันที่เข้ากลุ่ม",ButtonStyle.Primary)));
-  if(context.installedFeatureCodes.has("wallet-topup")){
-    const raw=(context.presentations.panel??{}) as Record<string,unknown>;
+  if(panelMode==="storefront"&&context.installedFeatureCodes.has("wallet-topup")){
+    const raw=(context.presentations[panelSlot]??{}) as Record<string,unknown>;
     const configured=Array.isArray(raw.co_features)?raw.co_features.filter(isRecord):[];
     const items=configured.length?configured:[
       {action:"wallet.topup",label:"เติมเงิน",emoji:"💰",style:"success"},
@@ -334,7 +341,7 @@ class PanelUpdater{
       for(const [panelKey,message] of [...this.messages]){
         if(this.multiPanelEnabled&&!this.panels.some((panel)=>panel.key===panelKey)){this.messages.delete(panelKey);continue;}
         const panelGroups=this.multiPanelEnabled?groupsForPanel(this.groups,this.panels,panelKey):this.groups;
-        const panel=this.panels.find((item)=>item.key===panelKey);const payload=await buildPanelPayload(this.context,panelGroups,this.membershipEnabled,this.multiPanelEnabled?panelKey:"",this.multiPanelEnabled?panel?.slotKey??"panel":"panel");
+        const panel=this.panels.find((item)=>item.key===panelKey);const payload=await buildPanelPayload(this.context,panelGroups,this.membershipEnabled,this.multiPanelEnabled?panelKey:"",this.multiPanelEnabled?panel?.slotKey??"panel":"panel",this.multiPanelEnabled?panel?.mode??"storefront":"storefront");
         const updated=await message.edit(payload as never).catch((error:unknown)=>{console.warn(`Unable to refresh Robux panel ${message.id}:`,error);return null;});
         if(!updated)this.messages.delete(panelKey);
       }
@@ -417,11 +424,12 @@ function money(satang:number){return (satang/100).toLocaleString("th-TH",{minimu
 function dateTime(){return new Intl.DateTimeFormat("th-TH",{dateStyle:"medium",timeStyle:"medium"}).format(new Date());}
 interface Package{robux:number;priceSatang:number}
 interface RuntimeGroup extends RobloxGroup{rate:number}
-export interface PayoutPanel{key:string;name:string;groupKeys:string[];slotKey:string}
+export type RobuxPanelMode="storefront"|"membership_only";
+export interface PayoutPanel{key:string;name:string;groupKeys:string[];slotKey:string;mode:RobuxPanelMode}
 export function readPayoutPanels(value:unknown,groups:Array<Pick<RuntimeGroup,"key">>):PayoutPanel[]{
   const known=new Set(groups.map((group)=>group.key));const seen=new Set<string>();const usedSlots=new Set<string>();const raw=arrayConfig(value);
-  const configured=raw.flatMap((item,index)=>{if(!isRecord(item))return[];const key=String(item.key??"").trim();const name=String(item.name??key).trim();const groupKeys=Array.isArray(item.groupKeys)?item.groupKeys.map(String).filter((groupKey)=>known.has(groupKey)):[];if(!/^[a-z0-9_-]{1,40}$/.test(key)||!name||!groupKeys.length||seen.has(key))return[];const preferred=String(item.presentationSlot??"");const slotKey=/^panel_(?:[1-9]|1\d|2[0-5])$/.test(preferred)&&!usedSlots.has(preferred)?preferred:Array.from({length:25},(_,slotIndex)=>`panel_${slotIndex+1}`).find((candidate)=>!usedSlots.has(candidate))??`panel_${index+1}`;seen.add(key);usedSlots.add(slotKey);return[{key,name,groupKeys:[...new Set(groupKeys)],slotKey}];});
-  return configured.length?configured:raw.length?[]:[{key:"main",name:"Main Panel",groupKeys:groups.map((group)=>group.key),slotKey:"panel_1"}];
+  const configured=raw.flatMap((item,index)=>{if(!isRecord(item))return[];const key=String(item.key??"").trim();const name=String(item.name??key).trim();const groupKeys=Array.isArray(item.groupKeys)?item.groupKeys.map(String).filter((groupKey)=>known.has(groupKey)):[];if(!/^[a-z0-9_-]{1,40}$/.test(key)||!name||!groupKeys.length||seen.has(key))return[];const preferred=String(item.presentationSlot??"");const slotKey=/^panel_(?:[1-9]|1\d|2[0-5])$/.test(preferred)&&!usedSlots.has(preferred)?preferred:Array.from({length:25},(_,slotIndex)=>`panel_${slotIndex+1}`).find((candidate)=>!usedSlots.has(candidate))??`panel_${index+1}`;const mode:RobuxPanelMode=item.mode==="membership_only"?"membership_only":"storefront";seen.add(key);usedSlots.add(slotKey);return[{key,name,groupKeys:[...new Set(groupKeys)],slotKey,mode}];});
+  return configured.length?configured:raw.length?[]:[{key:"main",name:"Main Panel",groupKeys:groups.map((group)=>group.key),slotKey:"panel_1",mode:"storefront"}];
 }
 function readConfiguredGroupKeys(value:unknown){return arrayConfig(value).flatMap((item)=>{if(!isRecord(item))return[];const key=String(item.key??"").trim();return /^[A-Za-z0-9_-]{1,40}$/.test(key)?[{key}]:[];});}
 function groupsForPanel(groups:RuntimeGroup[],panels:PayoutPanel[],panelKey:string){const panel=panelKey?panels.find((item)=>item.key===panelKey):panels[0];const allowed=new Set(panel?.groupKeys??[]);return groups.filter((group)=>allowed.has(group.key));}

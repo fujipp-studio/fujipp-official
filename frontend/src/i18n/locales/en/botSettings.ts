@@ -148,11 +148,18 @@ export default {
   robuxRatePerBahtForThisGroup: 'Robux received per one baht for this group.',
   robuxPanels: 'Robux panels',
   assignGroupsToEachPanel:
-    'Create separate sales panels and choose which groups each panel offers.',
+    'Create separate panels, choose their groups, and control the actions they offer.',
   addPanel: 'Add panel',
   panelName: 'Panel name',
   panelKey: 'Panel key',
-  groupsSoldOnThisPanel: 'Groups sold on this panel',
+  robuxPanelMode: 'Panel mode',
+  robuxPanelModeStorefront: 'Storefront and membership check',
+  robuxPanelModeStorefrontDescription:
+    'Members can buy Robux, top up or check their wallet, and check their group join date.',
+  robuxPanelModeMembershipOnly: 'Membership check only',
+  robuxPanelModeMembershipOnlyDescription:
+    'Only the group join-date check is shown. Purchase and wallet actions are hidden.',
+  groupsSoldOnThisPanel: 'Groups available on this panel',
   addRobloxGroupsBeforeAssigningPanels: 'Add Roblox groups before assigning them to a panel.',
   deletePanel: 'Delete panel',
   robuxAmount: 'Robux Amount',

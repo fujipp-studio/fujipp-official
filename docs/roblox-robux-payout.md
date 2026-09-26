@@ -5,7 +5,9 @@ the per-bot member wallet created by `wallet-topup@1.0.0`.
 
 Version `3.0.0` adds multiple independently posted shop panels. Each panel
 selects the Roblox groups it offers, while each group has its own Robux-per-THB
-rate. Administrators post a configured panel with
+rate. A panel can be a full storefront with purchase, wallet top-up, balance,
+and membership-check actions, or a membership-only panel that shows only the
+group join-date check. Administrators post a configured panel with
 `/robux-panel panel:<panel>`. When only one panel exists, the `panel` option is
 omitted. Each posted panel is tracked and refreshed independently.
 
@@ -54,7 +56,7 @@ payouts do not provide an application idempotency key.
 - `ROBUX_NOTIFICATION_CHANNEL_ID`
 - `ROBUX_RECEIPT_CHANNEL_ID`
 - `ROBLOX_GROUPS` (`[{"key":"main","name":"Main","groupId":123,"rate":3.5}]`)
-- `ROBUX_PANELS` (`[{"key":"panel-1","name":"Panel 1","groupKeys":["main"]}]`)
+- `ROBUX_PANELS` (`[{"key":"panel-1","name":"Panel 1","groupKeys":["main"],"mode":"storefront"}]`; mode is `storefront` or `membership_only`)
 - `ROBLOX_CREDENTIALS` (encrypted JSON object keyed by group key)
 
 Example secret value:
@@ -89,13 +91,15 @@ Example Version 3 panel assignment:
     "key": "panel-1",
     "name": "Panel 1",
     "groupKeys": ["group-1", "group-2"],
-    "presentationSlot": "panel_1"
+    "presentationSlot": "panel_1",
+    "mode": "storefront"
   },
   {
     "key": "panel-2",
     "name": "Panel 2",
     "groupKeys": ["group-3"],
-    "presentationSlot": "panel_2"
+    "presentationSlot": "panel_2",
+    "mode": "membership_only"
   }
 ]
 ```

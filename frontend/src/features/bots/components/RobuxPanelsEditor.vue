@@ -10,6 +10,7 @@ interface PanelRow {
   name: string
   groupKeys: string[]
   presentationSlot: string
+  mode: 'storefront' | 'membership_only'
 }
 
 const props = defineProps<{ panelsJson: string; groupsJson: string }>()
@@ -17,6 +18,11 @@ const emit = defineEmits<{ (e: 'update:panelsJson', value: string): void }>()
 const { t } = useI18n()
 const panels = ref<PanelRow[]>([])
 let initialized = false
+
+const panelModeOptions = computed(() => [
+  { value: 'storefront', label: t('botSettings.robuxPanelModeStorefront') },
+  { value: 'membership_only', label: t('botSettings.robuxPanelModeMembershipOnly') },
+])
 
 const groups = computed(() => {
   try {
@@ -40,6 +46,7 @@ function newPanel(index: number): PanelRow {
     name: `Panel ${index}`,
     groupKeys: [],
     presentationSlot: `panel_${index}`,
+    mode: 'storefront',
   }
 }
 
@@ -65,6 +72,10 @@ watch(
               )
                 ? String(Reflect.get(item, 'presentationSlot'))
                 : `panel_${index + 1}`,
+              mode:
+                Reflect.get(item, 'mode') === 'membership_only'
+                  ? 'membership_only'
+                  : 'storefront',
             },
           ]
         })
@@ -97,6 +108,7 @@ watch(
           name: (panel.name || `Panel ${index + 1}`).trim(),
           groupKeys: [...new Set(panel.groupKeys.filter((key) => known.has(key)))],
           presentationSlot: panel.presentationSlot,
+          mode: panel.mode,
         })),
         null,
         2,
@@ -160,7 +172,7 @@ function toggleGroup(panel: PanelRow, key: string, enabled: boolean) {
         :key="panel.id"
         class="rounded-lg border border-border-default p-md"
       >
-        <div class="grid gap-md desktop:grid-cols-2">
+        <div class="grid gap-md desktop:grid-cols-3">
           <AppTextField v-model="panel.name" :label="t('botSettings.panelName')" required />
           <AppTextField
             :model-value="panel.key"
@@ -173,7 +185,20 @@ function toggleGroup(panel: PanelRow, key: string, enabled: boolean) {
               }
             "
           />
+          <AppTextField
+            v-model="panel.mode"
+            variant="dropdown"
+            :label="t('botSettings.robuxPanelMode')"
+            :options="panelModeOptions"
+          />
         </div>
+        <p class="mt-sm text-xs text-text-secondary">
+          {{
+            panel.mode === 'membership_only'
+              ? t('botSettings.robuxPanelModeMembershipOnlyDescription')
+              : t('botSettings.robuxPanelModeStorefrontDescription')
+          }}
+        </p>
         <fieldset class="mt-md">
           <legend class="text-sm font-medium">{{ t('botSettings.groupsSoldOnThisPanel') }}</legend>
           <div class="mt-sm grid gap-sm tablet:grid-cols-2 desktop:grid-cols-3">
