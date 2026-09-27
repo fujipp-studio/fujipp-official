@@ -1,9 +1,9 @@
 /**
  * Self-hosted font assets.
  *
- * Inter, Roboto Mono, and Caveat use variable font files. Kanit is loaded at
+ * DM Sans, Roboto Mono, and Caveat use variable font files. Kanit is loaded at
  * the UI weights used most often; its Thai glyphs are selected automatically
- * when Inter does not contain a character.
+ * when DM Sans does not contain a character.
  */
 @font-face {
   font-family: 'Bruno Ace';
@@ -59,11 +59,11 @@
 }
 
 @font-face {
-  font-family: 'Inter Variable';
+  font-family: 'DM Sans Variable';
   font-style: normal;
   font-display: optional;
   font-weight: 100 900;
-  src: url('@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+  src: url('@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2')
     format('woff2-variations');
   unicode-range:
     U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
@@ -99,7 +99,7 @@
 
 :root {
   --font-family-sans:
-    'Inter Variable', 'Kanit', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'DM Sans Variable', 'Kanit', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     'Segoe UI', sans-serif;
   --font-family-mono: 'Roboto Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-family-handwriting: 'Caveat Variable', cursive;

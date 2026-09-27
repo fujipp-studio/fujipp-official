@@ -13,7 +13,7 @@ const pageSeo = {
   about: {
     title: 'About',
     description:
-      'Learn about Anawat Boripakhirun, the developer behind Fujipp, his experience, skills, and approach to building software.',
+      'Learn about Anawat Boripakhirun, his experience, technical skills, and approach to building practical software.',
   },
   account: {
     title: 'Account settings',
@@ -21,7 +21,7 @@ const pageSeo = {
     noIndex: true,
   },
   work: {
-    title: 'Work',
+    title: 'Portfolio',
     description:
       'Explore selected software projects, case studies, technical decisions, and outcomes by Fujipp.',
   },
@@ -38,9 +38,8 @@ export function createAppRouter(
     history,
     scrollBehavior(to, from, savedPosition) {
       if (savedPosition) return savedPosition
-      if (to.path === from.path) return false
-
       if (to.hash) return { el: to.hash }
+      if (to.path === from.path) return false
 
       return { top: 0, left: 0 }
     },

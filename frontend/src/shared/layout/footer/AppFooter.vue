@@ -1,25 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { icons } from '../../../config'
-import type { FooterLink, FooterSocialLink } from './types'
+import AppIcon from '../../ui/icons/AppIcon.vue'
+import type { FooterSocialLink } from './types'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
-    tagline?: string
     copyright?: string
-    links?: readonly FooterLink[]
     socialLinks?: readonly FooterSocialLink[]
   }>(),
   {
-    tagline: 'Building ideas, one commit at a time.',
     copyright: '© 2026 Fujipp',
-    links: () => [
-      { label: 'Terms', href: '/terms' },
-      { label: 'Privacy', href: '/privacy' },
-      { label: 'Changelog', href: '/changelog' },
-    ],
     socialLinks: () => [
       {
         label: 'LinkedIn',
@@ -47,22 +39,6 @@ const props = withDefaults(
 )
 
 const { t } = useI18n()
-const resolvedTagline = computed(() =>
-  props.tagline === 'Building ideas, one commit at a time.' ? t('footer.tagline') : props.tagline,
-)
-const resolvedLinks = computed(() =>
-  props.links.map((link) => ({
-    ...link,
-    label:
-      link.href === '/terms'
-        ? t('footer.terms')
-        : link.href === '/privacy'
-          ? t('footer.privacy')
-          : link.href === '/changelog'
-            ? t('footer.changelog')
-            : link.label,
-  })),
-)
 </script>
 
 <template>
@@ -70,23 +46,17 @@ const resolvedLinks = computed(() =>
     <div class="footer__layout">
       <RouterLink class="footer__brand" to="/">
         <span class="footer__brand-lockup">
-          <svg class="footer__mascot" viewBox="0 0 1080 1080" aria-hidden="true">
-            <use class="footer__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
-            <use
-              v-for="faceIndex in 12"
-              :key="faceIndex"
-              class="footer__mascot-face"
-              :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
-              :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
-            />
-          </svg>
+          <AppIcon class="footer__mark" :source="icons.brand.mark" />
           <span class="footer__wordmark">FUJIPP</span>
         </span>
-        <span class="footer__tagline">{{ resolvedTagline }}</span>
       </RouterLink>
 
-      <div class="footer__link-columns">
-        <nav v-if="socialLinks.length" class="footer__link-list" :aria-label="t('footer.socialLabel')">
+      <div class="footer__bottom">
+        <nav
+          v-if="socialLinks.length"
+          class="footer__link-list"
+          :aria-label="t('footer.socialLabel')"
+        >
           <template v-for="link in socialLinks" :key="link.label">
             <a
               v-if="link.href"
@@ -100,14 +70,8 @@ const resolvedLinks = computed(() =>
           </template>
         </nav>
 
-        <nav class="footer__link-list" :aria-label="t('footer.legalLabel')">
-          <a v-for="link in resolvedLinks" :key="link.href" :href="link.href">
-            {{ link.label }}
-          </a>
-        </nav>
+        <p class="footer__copyright">{{ copyright }}</p>
       </div>
-
-      <p class="footer__copyright">{{ copyright }}</p>
     </div>
   </footer>
 </template>
@@ -124,78 +88,58 @@ const resolvedLinks = computed(() =>
 }
 
 .footer__layout {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: var(--space-lg) var(--space-md);
-  border-top: 1px solid var(--semantic-color-border-border-strong);
+  display: flex;
+  min-height: clamp(18rem, 30vw, 24rem);
+  flex-direction: column;
+  gap: var(--space-xl);
   padding-top: var(--space-lg);
 }
 
 .footer__brand {
   display: flex;
   min-width: 0;
-  grid-column: span 5;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-sm);
+  flex: 1;
+  align-items: center;
   color: inherit;
   text-decoration: none;
 }
 
 .footer__brand-lockup {
   display: flex;
+  width: 100%;
   max-width: 100%;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
 }
 
-.footer__mascot {
-  width: clamp(4.5rem, 8vw, 7.5rem);
-  height: clamp(4.5rem, 8vw, 7.5rem);
+.footer__mark {
+  width: clamp(7rem, 15vw, 12rem);
+  height: clamp(7rem, 15vw, 12rem);
   flex-shrink: 0;
-}
-
-.footer__mascot-body {
-  fill: var(--semantic-color-text-text-primary);
-}
-
-.footer__mascot-face {
-  fill: var(--semantic-color-text-text-inverse);
-  opacity: 0;
-  transform: scale(1.45);
-  transform-box: view-box;
-  transform-origin: 50% 64%;
-  animation: footer-face 24s steps(1, end) infinite;
+  color: var(--semantic-color-text-text-primary);
 }
 
 .footer__wordmark {
   overflow: hidden;
   font-family: var(--font-family-brand);
-  font-size: clamp(2rem, 5vw, 4.5rem);
+  font-size: clamp(4rem, 15vw, 12rem);
   font-weight: 400;
   line-height: 1;
   letter-spacing: 0.025em;
 }
 
-.footer__tagline {
-  max-width: 24rem;
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-body-medium);
-  line-height: var(--line-height-body);
-}
-
-.footer__link-columns {
-  display: grid;
-  grid-column: span 5;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.footer__bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: var(--space-lg);
 }
 
 .footer__link-list {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-xs);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs) var(--space-lg);
 }
 
 .footer__link-list a,
@@ -234,38 +178,9 @@ const resolvedLinks = computed(() =>
 
 .footer__copyright {
   margin: 0;
-  grid-column: span 2;
-  justify-self: end;
   color: var(--semantic-color-text-text-secondary);
   line-height: var(--line-height-body);
   white-space: nowrap;
-}
-
-@keyframes footer-face {
-  0%,
-  8.32% {
-    opacity: 1;
-  }
-
-  8.33%,
-  100% {
-    opacity: 0;
-  }
-}
-
-@media (max-width: 63.99rem) {
-  .footer__brand {
-    grid-column: span 7;
-  }
-
-  .footer__link-columns {
-    grid-column: span 5;
-  }
-
-  .footer__copyright {
-    grid-column: 1 / -1;
-    justify-self: start;
-  }
 }
 
 @media (max-width: 47.99rem) {
@@ -274,37 +189,29 @@ const resolvedLinks = computed(() =>
   }
 
   .footer__layout {
-    display: flex;
-    flex-direction: column;
+    min-height: 20rem;
   }
 
   .footer__brand-lockup {
     gap: var(--space-xs);
   }
 
-  .footer__mascot {
-    width: 4rem;
-    height: 4rem;
+  .footer__mark {
+    width: 5rem;
+    height: 5rem;
   }
 
   .footer__wordmark {
-    font-size: clamp(2rem, 12vw, 3.25rem);
+    font-size: clamp(3rem, 14vw, 4rem);
   }
 
-  .footer__link-columns {
-    width: 100%;
+  .footer__bottom {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .footer__mascot-face {
-    animation: none;
-  }
-
-  .footer__mascot-face:first-of-type {
-    opacity: 1;
-  }
-
   .footer__link-list a::after,
   .footer__link-list button::after {
     transition: none;

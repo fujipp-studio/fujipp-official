@@ -70,12 +70,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.section-indicator { position: fixed; z-index: var(--z-sticky); top: 50%; right: var(--space-xs); display: flex; width: var(--space-sm); flex-direction: column; align-items: flex-end; gap: var(--space-xs); transform: translateY(-50%); }
-.section-indicator button { display: flex; width: 1.5rem; height: 1.5rem; align-items: center; justify-content: flex-end; border: 0; padding: 0; background: transparent; cursor: pointer; }
+.section-indicator { position: fixed; z-index: var(--z-sticky); top: 4rem; right: var(--space-xs); bottom: 0; display: flex; width: 2.5rem; flex-direction: column; align-items: flex-start; justify-content: space-evenly; }
+.section-indicator button { position: relative; z-index: 1; display: flex; width: 1.5rem; height: 1.5rem; align-items: center; justify-content: flex-end; border: 0; padding: 0; background: transparent; cursor: pointer; }
 .section-indicator span { width: 0.875rem; height: 2px; background: var(--semantic-color-text-text-muted); opacity: 0.55; transform: scaleX(0.5714); transform-origin: right center; transition: transform 180ms ease, opacity 180ms ease; }
 .section-indicator button.active span { background: var(--semantic-color-text-text-primary); opacity: 1; transform: scaleX(1); }
 .section-indicator button:not(.active):hover span, .section-indicator button:not(.active):focus-visible span { opacity: 0.85; transform: scaleX(0.7143); }
 .section-indicator button:focus-visible { border-radius: var(--corner-radius-sm); outline: 2px solid var(--semantic-color-action-borders-border-focus); outline-offset: 1px; }
-@media (max-width: 47.99rem) { .section-indicator { right: var(--space-xxs); } }
+@media (max-width: 47.99rem) { .section-indicator { top: 3rem; right: var(--space-xxs); } }
 @media (prefers-reduced-motion: reduce) { .section-indicator span { transition: none; } }
 </style>

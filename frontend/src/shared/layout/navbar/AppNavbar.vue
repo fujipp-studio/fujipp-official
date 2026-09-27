@@ -444,16 +444,7 @@ function closeProfileMenu() {
         @click="navigateHome"
       >
         <span class="brand__lockup" aria-hidden="true">
-          <svg class="brand__mascot" viewBox="0 0 1080 1080">
-            <use class="brand__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
-            <use
-              v-for="faceIndex in 12"
-              :key="faceIndex"
-              class="brand__mascot-face"
-              :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
-              :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
-            />
-          </svg>
+          <AppIcon class="brand__mark" :source="icons.brand.mark" />
           <span class="brand__wordmark">FUJIPP</span>
         </span>
       </button>
@@ -582,16 +573,7 @@ function closeProfileMenu() {
 
         <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
           <span class="brand__lockup" aria-hidden="true">
-            <svg class="brand__mascot" viewBox="0 0 1080 1080">
-              <use class="brand__mascot-body" :href="`${icons.brand.mascot}#mascot-body`" />
-              <use
-                v-for="faceIndex in 12"
-                :key="faceIndex"
-                class="brand__mascot-face"
-                :href="`${icons.brand.mascot}#mascot-face-${faceIndex}`"
-                :style="{ animationDelay: `${-(24 - (faceIndex - 1) * 2)}s` }"
-              />
-            </svg>
+            <AppIcon class="brand__mark" :source="icons.brand.mark" />
             <span class="brand__wordmark">FUJIPP</span>
           </span>
         </button>
@@ -718,6 +700,11 @@ function closeProfileMenu() {
   padding-inline: var(--space-md);
 }
 
+.desktop-navbar > .brand {
+  align-self: flex-start;
+  margin-top: var(--space-md);
+}
+
 .brand {
   display: flex;
   flex-shrink: 0;
@@ -734,38 +721,18 @@ function closeProfileMenu() {
   height: var(--brand-lockup-height);
   align-items: center;
   gap: var(--space-xs);
-  transform-origin: left top;
-  transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    height 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    gap 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.brand__mascot {
+.brand__mark {
   width: var(--brand-logo-size);
   height: var(--brand-logo-size);
-}
-
-.brand__mascot-body {
-  fill: var(--semantic-color-text-text-primary);
-}
-
-.brand__mascot-face {
-  fill: var(--semantic-color-text-text-inverse);
-  opacity: 0;
-  transform: scale(1.45);
-  transform-box: view-box;
-  transform-origin: 50% 64%;
-  animation: brand-face 24s steps(1, end) infinite;
-}
-
-@keyframes brand-face {
-  0%,
-  8.32% {
-    opacity: 1;
-  }
-
-  8.33%,
-  100% {
-    opacity: 0;
-  }
+  color: var(--semantic-color-text-text-primary);
+  transition:
+    width 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    height 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .brand__wordmark {
@@ -774,21 +741,27 @@ function closeProfileMenu() {
   font-weight: 400;
   line-height: 1;
   letter-spacing: 0.04em;
+  transition:
+    font-size 520ms cubic-bezier(0.16, 1, 0.3, 1),
+    letter-spacing 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .navbar--at-top .desktop-navbar > .brand .brand__lockup {
-  transform: scale(2.75);
+  height: 5.5rem;
+  gap: var(--space-md);
+}
+
+.navbar--at-top .desktop-navbar > .brand .brand__mark {
+  width: 5.5rem;
+  height: 5.5rem;
+}
+
+.navbar--at-top .desktop-navbar > .brand .brand__wordmark {
+  font-size: 3.4375rem;
+  letter-spacing: 0.04em;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand__mascot-face {
-    animation: none;
-  }
-
-  .brand__mascot-face:nth-of-type(2) {
-    opacity: 1;
-  }
-
   .navbar::before {
     transition: none;
   }
@@ -830,7 +803,6 @@ function closeProfileMenu() {
   pointer-events: none;
   transform: translateX(var(--navigation-pill-left)) scale(1);
   transform-origin: center;
-  backdrop-filter: blur(0) saturate(1.5);
   transition:
     width 420ms cubic-bezier(0.22, 1.35, 0.36, 1),
     transform 420ms cubic-bezier(0.22, 1.35, 0.36, 1);
@@ -868,8 +840,7 @@ function closeProfileMenu() {
     border-color 180ms ease,
     background-color 180ms ease,
     box-shadow 180ms ease,
-    color 160ms ease,
-    transform 160ms ease;
+    color 160ms ease;
 }
 
 .navigation__item {
@@ -938,10 +909,6 @@ function closeProfileMenu() {
 .navigation__dropdown button :deep(.app-icon) {
   width: var(--icon-size-20);
   height: var(--icon-size-20);
-}
-
-.navigation__link:hover {
-  transform: translateY(-1px);
 }
 
 .navigation__link--active {
@@ -1105,6 +1072,7 @@ function closeProfileMenu() {
   padding-inline: var(--space-md);
   background: transparent;
   color: var(--semantic-color-text-text-primary);
+  white-space: nowrap;
   transition: color 220ms ease;
 }
 
@@ -1142,26 +1110,26 @@ function closeProfileMenu() {
   border: 1px solid var(--semantic-color-border-border-strong);
   border-radius: var(--corner-radius-full);
   background: transparent;
-  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--semantic-color-text-text-primary);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease;
 }
 
 .theme-toggle__icon {
   display: block;
   width: var(--icon-size-16);
   height: var(--icon-size-16);
-  transition: transform 260ms cubic-bezier(0.22, 1.35, 0.36, 1);
 }
 
-.theme-toggle:hover .theme-toggle__icon {
-  transform: rotate(20deg) scale(1.08);
+.theme-toggle:hover,
+.theme-toggle:focus-visible {
+  border-color: var(--semantic-color-text-text-primary);
+  background: var(--semantic-color-background-bg-surface-hover);
 }
 
 .theme-toggle:active {
-  transform: scale(0.96);
-}
-
-.theme-toggle:active .theme-toggle__icon {
-  transform: rotate(-10deg) scale(0.92);
+  background: var(--semantic-color-background-bg-surface-active);
 }
 
 .profile-dialog {
@@ -1303,6 +1271,9 @@ function closeProfileMenu() {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .brand__lockup,
+  .brand__mark,
+  .brand__wordmark,
   .navigation__link,
   .navigation__liquid-pill,
   .profile-navbar,
