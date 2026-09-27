@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 const sections = [
   { id: 'home-hero', labelKey: 'home.sections.introduction' },
   { id: 'discord-bot-services', labelKey: 'home.sections.botServices' },
-  { id: 'trusted-by', labelKey: 'home.sections.communities' },
   { id: 'about-us', labelKey: 'home.sections.developer' },
 ] as const
 
@@ -61,10 +60,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <nav
-    class="scroll-progress"
-    :aria-label="t('home.sections.navigationLabel')"
-  >
+  <nav class="scroll-progress" :aria-label="t('home.sections.navigationLabel')">
     <button
       v-for="(section, index) in sections"
       :key="section.id"
@@ -84,17 +80,19 @@ onBeforeUnmount(() => {
 .scroll-progress {
   position: fixed;
   z-index: var(--z-sticky);
-  top: 50%;
+  top: 4rem;
   right: var(--space-xs);
+  bottom: 0;
   display: flex;
-  width: var(--space-sm);
+  width: 2.5rem;
   flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-xs);
-  transform: translateY(-50%);
+  align-items: flex-start;
+  justify-content: space-evenly;
 }
 
 .scroll-progress__button {
+  position: relative;
+  z-index: 1;
   display: flex;
   width: 1.5rem;
   height: 1.5rem;
@@ -125,7 +123,8 @@ onBeforeUnmount(() => {
 }
 
 .scroll-progress__button:not(.scroll-progress__button--active):hover .scroll-progress__tick,
-.scroll-progress__button:not(.scroll-progress__button--active):focus-visible .scroll-progress__tick {
+.scroll-progress__button:not(.scroll-progress__button--active):focus-visible
+  .scroll-progress__tick {
   opacity: 0.85;
   transform: scaleX(0.7143);
 }
@@ -138,6 +137,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 47.99rem) {
   .scroll-progress {
+    top: 3rem;
     right: var(--space-xxs);
   }
 }

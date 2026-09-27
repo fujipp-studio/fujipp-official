@@ -2,15 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-import { icons } from '../../../config'
 import { AppFooter } from '../../../shared/layout'
-import { AppButton } from '../../../shared/ui'
-import {
-  AboutUsSection,
-  ProblemSolutionSection,
-  ScrollProgressIndicator,
-  TrustedBySection,
-} from '../components'
+import { AppTextLink } from '../../../shared/ui'
+import { AboutUsSection, ProblemSolutionSection, ScrollProgressIndicator } from '../components'
 import { useScrollFade } from '../composables/useScrollFade'
 
 const heroSection = ref<HTMLElement>()
@@ -58,8 +52,7 @@ function showNextHeroPortrait() {
 }
 
 function showPreviousHeroPortrait() {
-  const previousIndex =
-    (activeHeroPortrait.value - 1 + heroPortraits.length) % heroPortraits.length
+  const previousIndex = (activeHeroPortrait.value - 1 + heroPortraits.length) % heroPortraits.length
   loadedHeroPortraits.value = new Set(loadedHeroPortraits.value).add(previousIndex)
   activeHeroPortrait.value = previousIndex
 }
@@ -120,9 +113,7 @@ onBeforeUnmount(() => {
             <p class="home-hero__summary">{{ t('home.hero.summary') }}</p>
 
             <div class="home-hero__actions">
-              <AppButton to="/work" :right-icon="icons.base.arrowRight">
-                {{ t('home.hero.workAction') }}
-              </AppButton>
+              <AppTextLink to="/work">{{ t('home.hero.workAction') }}</AppTextLink>
             </div>
           </div>
 
@@ -171,7 +162,6 @@ onBeforeUnmount(() => {
       </section>
 
       <ProblemSolutionSection />
-      <TrustedBySection />
       <AboutUsSection />
     </main>
 
@@ -253,7 +243,7 @@ onBeforeUnmount(() => {
 }
 
 .home-hero__actions {
-  width: min(100%, 13rem);
+  width: fit-content;
   margin-top: var(--space-md);
 }
 
@@ -363,9 +353,6 @@ onBeforeUnmount(() => {
     width: min(64vw, 15rem);
   }
 
-  .home-hero__actions {
-    width: min(100%, 13rem);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -373,5 +360,4 @@ onBeforeUnmount(() => {
     transition: none;
   }
 }
-
 </style>

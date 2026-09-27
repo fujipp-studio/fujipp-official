@@ -3,6 +3,7 @@ import { useI18n } from 'vue-i18n'
 
 import { AppProgressiveImage } from '../../../shared/ui'
 import { homeFeatures } from '../config'
+import TrustedBySection from './TrustedBySection.vue'
 const { t } = useI18n()
 </script>
 
@@ -48,6 +49,8 @@ const { t } = useI18n()
           <p>{{ t(feature.descriptionKey) }}</p>
         </article>
       </div>
+
+      <TrustedBySection />
     </div>
   </section>
 </template>
