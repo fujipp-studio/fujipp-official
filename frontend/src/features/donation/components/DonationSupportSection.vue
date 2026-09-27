@@ -193,103 +193,108 @@ onMounted(() => void loadCampaign())
       </AppButton>
     </div>
 
-    <div v-else class="support-layout">
-      <div class="leaderboard-panel">
-        <header class="support-header">
+    <div v-else class="support-shell">
+      <header class="support-header">
+        <p class="support-eyebrow">{{ t('about.sections.support') }}</p>
+        <div class="support-header__row">
           <h2 id="support-title">{{ t('donation.ranking') }}</h2>
           <span>{{ campaign.supporterCount }} {{ t('donation.supporters') }}</span>
-        </header>
+        </div>
+      </header>
 
-        <div class="leaderboard-table-wrap">
-          <table class="leaderboard-table">
-            <thead>
-              <tr>
-                <th scope="col">{{ t('donation.rankColumn') }}</th>
-                <th scope="col">{{ t('donation.supporterColumn') }}</th>
-                <th scope="col">{{ t('donation.donationsColumn') }}</th>
-                <th scope="col">{{ t('donation.totalColumn') }}</th>
-              </tr>
-            </thead>
-            <tbody v-if="visibleLeaderboard.length">
-              <tr v-for="entry in visibleLeaderboard" :key="`${entry.rank}-${entry.displayName}`">
-                <td>
-                  <span class="rank" :data-top="entry.rank <= 3 ? entry.rank : undefined">
-                    {{ entry.rank.toString().padStart(2, '0') }}
-                  </span>
-                </td>
-                <td><strong>{{ entry.displayName }}</strong></td>
-                <td>{{ entry.donationCount }}</td>
-                <td>{{ money(entry.totalSatang) }}</td>
-              </tr>
-            </tbody>
-          </table>
+      <div class="support-layout">
+        <div class="leaderboard-panel">
+          <div class="leaderboard-table-wrap">
+            <table class="leaderboard-table">
+              <thead>
+                <tr>
+                  <th scope="col">{{ t('donation.rankColumn') }}</th>
+                  <th scope="col">{{ t('donation.supporterColumn') }}</th>
+                  <th scope="col">{{ t('donation.donationsColumn') }}</th>
+                  <th scope="col">{{ t('donation.totalColumn') }}</th>
+                </tr>
+              </thead>
+              <tbody v-if="visibleLeaderboard.length">
+                <tr v-for="entry in visibleLeaderboard" :key="`${entry.rank}-${entry.displayName}`">
+                  <td>
+                    <span class="rank" :data-top="entry.rank <= 3 ? entry.rank : undefined">
+                      {{ entry.rank.toString().padStart(2, '0') }}
+                    </span>
+                  </td>
+                  <td><strong>{{ entry.displayName }}</strong></td>
+                  <td>{{ entry.donationCount }}</td>
+                  <td>{{ money(entry.totalSatang) }}</td>
+                </tr>
+              </tbody>
+            </table>
 
-          <p v-if="!visibleLeaderboard.length" class="leaderboard-empty">
-            {{ t('donation.leaderboardEmpty') }}
-          </p>
+            <p v-if="!visibleLeaderboard.length" class="leaderboard-empty">
+              {{ t('donation.leaderboardEmpty') }}
+            </p>
+          </div>
+
+          <nav class="pagination" :aria-label="t('donation.paginationLabel')">
+            <button
+              type="button"
+              :aria-label="t('donation.previousPage')"
+              :disabled="leaderboardPage === 1"
+              @click="changePage(leaderboardPage - 1)"
+            >
+              <ChevronLeft :size="18" aria-hidden="true" />
+            </button>
+            <span>{{ leaderboardPage }} / {{ totalPages }}</span>
+            <button
+              type="button"
+              :aria-label="t('donation.nextPage')"
+              :disabled="leaderboardPage === totalPages"
+              @click="changePage(leaderboardPage + 1)"
+            >
+              <ChevronRight :size="18" aria-hidden="true" />
+            </button>
+          </nav>
         </div>
 
-        <nav class="pagination" :aria-label="t('donation.paginationLabel')">
-          <button
-            type="button"
-            :aria-label="t('donation.previousPage')"
-            :disabled="leaderboardPage === 1"
-            @click="changePage(leaderboardPage - 1)"
+        <aside class="goal-panel">
+          <span class="goal-label">{{ t('donation.goal') }}</span>
+          <strong class="goal-value">{{ money(campaign.goalSatang) }}</strong>
+
+          <div
+            class="goal-track"
+            role="progressbar"
+            :aria-label="t('donation.goalProgress')"
+            :aria-valuenow="Math.round(progress)"
+            aria-valuemin="0"
+            aria-valuemax="100"
           >
-            <ChevronLeft :size="18" aria-hidden="true" />
-          </button>
-          <span>{{ leaderboardPage }} / {{ totalPages }}</span>
-          <button
-            type="button"
-            :aria-label="t('donation.nextPage')"
-            :disabled="leaderboardPage === totalPages"
-            @click="changePage(leaderboardPage + 1)"
-          >
-            <ChevronRight :size="18" aria-hidden="true" />
-          </button>
-        </nav>
+            <span :style="{ width: `${progress}%` }" />
+          </div>
+
+          <div class="goal-progress-copy">
+            <strong>{{ money(campaign.raisedSatang) }}</strong>
+            <span>{{ Math.round(progress) }}%</span>
+          </div>
+
+          <dl class="goal-facts">
+            <div>
+              <dt>{{ t('donation.raised') }}</dt>
+              <dd>{{ money(campaign.raisedSatang) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('donation.remaining') }}</dt>
+              <dd>{{ money(remainingSatang) }}</dd>
+            </div>
+          </dl>
+
+          <AppButton class="donate-button" variant="primary" @click="openDonation">
+            <Heart :size="18" aria-hidden="true" />
+            {{ t('donation.dashboardDonate') }}
+          </AppButton>
+          <small v-if="!session" class="login-note">
+            <LockKeyhole :size="14" aria-hidden="true" />
+            {{ t('donation.loginRequiredShort') }}
+          </small>
+        </aside>
       </div>
-
-      <aside class="goal-panel">
-        <span class="goal-label">{{ t('donation.goal') }}</span>
-        <strong class="goal-value">{{ money(campaign.goalSatang) }}</strong>
-
-        <div
-          class="goal-track"
-          role="progressbar"
-          :aria-label="t('donation.goalProgress')"
-          :aria-valuenow="Math.round(progress)"
-          aria-valuemin="0"
-          aria-valuemax="100"
-        >
-          <span :style="{ width: `${progress}%` }" />
-        </div>
-
-        <div class="goal-progress-copy">
-          <strong>{{ money(campaign.raisedSatang) }}</strong>
-          <span>{{ Math.round(progress) }}%</span>
-        </div>
-
-        <dl class="goal-facts">
-          <div>
-            <dt>{{ t('donation.raised') }}</dt>
-            <dd>{{ money(campaign.raisedSatang) }}</dd>
-          </div>
-          <div>
-            <dt>{{ t('donation.remaining') }}</dt>
-            <dd>{{ money(remainingSatang) }}</dd>
-          </div>
-        </dl>
-
-        <AppButton class="donate-button" variant="primary" @click="openDonation">
-          <Heart :size="18" aria-hidden="true" />
-          {{ t('donation.dashboardDonate') }}
-        </AppButton>
-        <small v-if="!session" class="login-note">
-          <LockKeyhole :size="14" aria-hidden="true" />
-          {{ t('donation.loginRequiredShort') }}
-        </small>
-      </aside>
     </div>
 
     <AppModal
@@ -382,48 +387,80 @@ onMounted(() => void loadCampaign())
 .donation-support-section {
   box-sizing: border-box;
   width: 100%;
-  max-width: var(--layout-content-max-width);
-  min-height: calc(100dvh - 4rem);
+  padding: var(--space-5xl) var(--layout-page-gutter);
+  background:
+    radial-gradient(
+      circle at 80% 5%,
+      color-mix(in srgb, var(--semantic-color-text-text-accent) 10%, transparent),
+      transparent 30rem
+    ),
+    var(--semantic-color-background-bg-surface);
+}
+
+.support-shell {
+  width: min(100%, 72rem);
   margin-inline: auto;
-  padding: var(--space-4xl) var(--layout-page-gutter);
+}
+
+.support-header {
+  margin-bottom: var(--space-3xl);
+}
+
+.support-eyebrow {
+  margin: 0 0 var(--space-sm);
+  color: var(--semantic-color-text-text-accent);
+  font-size: var(--font-size-label-medium);
+  font-weight: var(--typography-font-weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.support-header__row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-xl);
 }
 
 .support-layout {
   display: grid;
-  width: min(100%, 66rem);
-  min-height: 34rem;
-  grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem);
-  margin-inline: auto;
-  border-block: 1px solid var(--color-border-strong);
+  min-height: 32rem;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  gap: var(--space-md);
 }
 
 .leaderboard-panel {
   display: grid;
   min-width: 0;
-  grid-template-rows: auto 1fr auto;
-  padding: var(--space-2xl) var(--space-2xl) var(--space-2xl) 0;
-}
-
-.support-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-md);
-  padding-bottom: var(--space-xl);
+  grid-template-rows: 1fr auto;
+  border: 1px solid var(--semantic-color-border-border-subtle);
+  border-radius: var(--corner-radius-lg);
+  padding: var(--space-2xl);
+  background: var(--semantic-color-background-bg-default);
+  box-shadow: var(--effect-shadow-sm);
 }
 
 .support-header h2 {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 3.5rem);
-  font-weight: var(--typography-font-weight-medium);
-  line-height: 1;
-  letter-spacing: -0.045em;
+  font-size: clamp(3.5rem, 7vw, 6.5rem);
+  font-weight: var(--typography-font-weight-bold);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
 }
 
-.support-header > span {
-  color: var(--color-text-muted);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-label-small);
+.support-header h2:lang(th) {
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.support-header__row > span {
+  flex-shrink: 0;
+  border: 1px solid var(--semantic-color-border-border-subtle);
+  border-radius: var(--corner-radius-full);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--semantic-color-background-bg-default);
+  color: var(--semantic-color-text-text-secondary);
+  font-size: var(--font-size-label-medium);
 }
 
 .leaderboard-table-wrap {
@@ -438,12 +475,13 @@ onMounted(() => void loadCampaign())
 }
 
 .leaderboard-table th {
-  padding: 0 var(--space-sm) var(--space-sm);
+  padding: 0 var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--color-border-default);
-  color: var(--color-text-muted);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-label-small);
-  font-weight: var(--typography-font-weight-medium);
+  color: var(--semantic-color-text-text-secondary);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-label-medium);
+  font-weight: var(--typography-font-weight-semibold);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -460,7 +498,7 @@ onMounted(() => void loadCampaign())
 }
 
 .leaderboard-table td {
-  height: 4.5rem;
+  height: 5rem;
   padding: var(--space-sm);
   border-bottom: 1px solid var(--color-border-subtle);
   color: var(--color-text-secondary);
@@ -487,16 +525,17 @@ onMounted(() => void loadCampaign())
 
 .rank {
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.5rem;
+  height: 2.5rem;
   place-items: center;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   color: var(--color-text-muted);
 }
 
 .rank[data-top] {
   border-color: var(--color-border-strong);
+  background: var(--semantic-color-background-bg-surface);
   color: var(--color-text-primary);
 }
 
@@ -523,7 +562,7 @@ onMounted(() => void loadCampaign())
   height: 2.25rem;
   place-items: center;
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-text-primary);
   cursor: pointer;
@@ -532,6 +571,10 @@ onMounted(() => void loadCampaign())
 .pagination button:disabled {
   color: var(--color-text-disabled);
   cursor: default;
+}
+
+.pagination button:not(:disabled):hover {
+  background: var(--semantic-color-background-bg-surface-hover);
 }
 
 .pagination button:focus-visible {
@@ -552,40 +595,52 @@ onMounted(() => void loadCampaign())
   display: flex;
   min-width: 0;
   flex-direction: column;
-  border-left: 1px solid var(--color-border-default);
-  padding: var(--space-2xl) 0 var(--space-2xl) var(--space-2xl);
+  border: 1px solid transparent;
+  border-radius: var(--corner-radius-lg);
+  padding: var(--space-2xl);
+  background:
+    radial-gradient(
+      circle at 95% 0,
+      color-mix(in srgb, var(--semantic-color-text-text-accent) 18%, transparent),
+      transparent 65%
+    ),
+    var(--semantic-color-background-bg-inverse);
+  color: var(--semantic-color-text-text-inverse);
+  box-shadow: var(--effect-shadow-lg);
 }
 
 .goal-label {
-  color: var(--color-text-muted);
+  color: inherit;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-label-small);
+  opacity: 0.65;
   text-transform: uppercase;
 }
 
 .goal-value {
-  margin-top: var(--space-xs);
-  font-family: var(--font-family-mono);
-  font-size: clamp(2rem, 3vw, 2.5rem);
-  font-weight: var(--typography-font-weight-medium);
-  line-height: 1;
-  letter-spacing: -0.06em;
-  overflow-wrap: normal;
-  white-space: nowrap;
+  margin-top: var(--space-sm);
+  font-family: var(--font-family-display);
+  font-size: clamp(2.5rem, 3.4vw, 3.5rem);
+  font-weight: var(--typography-font-weight-bold);
+  letter-spacing: -0.055em;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
 }
 
 .goal-track {
-  height: 0.65rem;
+  height: 0.75rem;
   margin-top: var(--space-3xl);
   overflow: hidden;
-  background: var(--color-border-subtle);
+  border-radius: var(--corner-radius-full);
+  background: color-mix(in srgb, currentColor 20%, transparent);
 }
 
 .goal-track span {
   display: block;
   min-width: 0.65rem;
   height: 100%;
-  background: var(--color-bg-inverse);
+  border-radius: var(--corner-radius-full);
+  background: var(--semantic-color-text-text-accent);
 }
 
 .goal-progress-copy {
@@ -599,7 +654,7 @@ onMounted(() => void loadCampaign())
 }
 
 .goal-progress-copy span {
-  color: var(--color-text-primary);
+  color: inherit;
 }
 
 .goal-facts {
@@ -614,25 +669,39 @@ onMounted(() => void loadCampaign())
   justify-content: space-between;
   gap: var(--space-md);
   padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent);
 }
 
 .goal-facts dt {
-  color: var(--color-text-muted);
+  color: inherit;
   font-size: var(--font-size-label-small);
+  opacity: 0.65;
 }
 
 .goal-facts dd {
   margin: 0;
-  color: var(--color-text-primary);
+  color: inherit;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-label-large);
 }
 
 :deep(.donate-button),
 :deep(.modal-action) {
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
+}
+
+.goal-panel :deep(.donate-button) {
+  min-height: 3rem;
+  border-color: transparent;
+  background: var(--semantic-color-background-bg-default);
   box-shadow: none;
+  color: var(--semantic-color-text-text-primary);
+  backdrop-filter: none;
+}
+
+.goal-panel :deep(.donate-button:hover) {
+  background: var(--semantic-color-background-bg-surface-hover);
+  transform: none;
 }
 
 .login-note {
@@ -641,8 +710,9 @@ onMounted(() => void loadCampaign())
   justify-content: center;
   gap: var(--space-xxs);
   padding-top: var(--space-xs);
-  color: var(--color-text-muted);
+  color: inherit;
   font-size: var(--font-size-label-small);
+  opacity: 0.7;
 }
 
 .support-state {
@@ -785,22 +855,27 @@ onMounted(() => void loadCampaign())
 
 @media (max-width: 63.99rem) {
   .support-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(15rem, 17rem);
-  }
-
-  .leaderboard-panel {
-    padding-right: var(--space-xl);
-  }
-
-  .goal-panel {
-    padding-left: var(--space-xl);
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 19rem);
   }
 }
 
 @media (max-width: 47.99rem) {
   .donation-support-section {
-    min-height: auto;
-    padding-block: var(--space-5xl);
+    padding-block: var(--space-4xl);
+  }
+
+  .support-header {
+    margin-bottom: var(--space-2xl);
+  }
+
+  .support-header__row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .support-header h2 {
+    font-size: clamp(2.75rem, 10vw, 4.5rem);
   }
 
   .support-layout {
@@ -808,13 +883,11 @@ onMounted(() => void loadCampaign())
   }
 
   .leaderboard-panel {
-    padding-right: 0;
+    padding: var(--space-lg);
   }
 
   .goal-panel {
-    border-top: 1px solid var(--color-border-default);
-    border-left: 0;
-    padding-left: 0;
+    padding: var(--space-lg);
   }
 
   .goal-facts {
