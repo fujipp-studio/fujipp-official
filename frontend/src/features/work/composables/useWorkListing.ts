@@ -1,116 +1,46 @@
-import { computed, onScopeDispose, ref, shallowRef, type Ref } from 'vue'
-import {
-  fetchWorkOverview,
-  fetchWorksPage,
-  type WorkLocale,
-  type WorkOverview,
-  type WorkSummary,
-} from '../api'
+import { storeToRefs } from 'pinia'
+import { computed, ref, type Ref } from 'vue'
+
+import { useWorkStore } from '@/stores'
+import type { WorkLocale, WorkOverview } from '../api'
+
+const emptyOverview: WorkOverview = { total: 0, categories: [], featured: [] }
 
 export function useWorkListing(
   locale: Ref<WorkLocale>,
   category: Ref<string>,
-  pageSize: Ref<number>,
+  _pageSize: Ref<number>,
 ) {
-  const works = shallowRef<WorkSummary[]>([])
-  const overview = shallowRef<WorkOverview>({ total: 0, categories: [], featured: [] })
-  const loading = ref(true)
-  const loadingMore = ref(false)
-  const error = ref('')
+  const store = useWorkStore()
+  const { entries, loading: loadingEntries, errors } = storeToRefs(store)
   const moreError = ref('')
-  const nextCursor = ref<string | null>(null)
-  const hasMore = ref(false)
-  const total = computed(() =>
-    category.value === 'all'
-      ? overview.value.total
-      : (overview.value.categories.find((item) => item.code === category.value)?.total ?? 0),
-  )
-  let controller: AbortController | undefined
-  let generation = 0
-  let disposed = false
-  const visited = new Set<string>()
+  const loadingMore = ref(false)
 
-  async function load() {
-    if (disposed) return false
-    controller?.abort()
-    const request = new AbortController()
-    controller = request
-    const version = ++generation
-    loading.value = true
-    loadingMore.value = false
-    error.value = ''
-    moreError.value = ''
-    visited.clear()
-    try {
-      const [metadata, page] = await Promise.all([
-        fetchWorkOverview(locale.value, request.signal),
-        fetchWorksPage(locale.value, {
-          category: category.value,
-          limit: pageSize.value,
-          signal: request.signal,
-        }),
-      ])
-      if (disposed || version !== generation || request.signal.aborted) return false
-      overview.value = metadata
-      works.value = page.items
-      nextCursor.value = page.nextCursor
-      hasMore.value = page.hasMore
-      if (page.nextCursor) visited.add(page.nextCursor)
-    } catch (cause) {
-      if (!disposed && version === generation && !request.signal.aborted)
-        error.value = cause instanceof Error ? cause.message : 'Unable to load portfolio projects.'
-    } finally {
-      if (version === generation && !disposed) loading.value = false
-    }
-    return !disposed && version === generation && !request.signal.aborted
-  }
-
-  async function ensureVisible(count: number) {
-    if (disposed || loading.value || loadingMore.value) return false
-    if (!hasMore.value || works.value.length >= count) return true
-    const version = generation
-    const signal = controller?.signal
-    loadingMore.value = true
-    moreError.value = ''
-    try {
-      while (works.value.length < count && hasMore.value) {
-        const cursor = nextCursor.value
-        const page = await fetchWorksPage(locale.value, {
-          category: category.value,
-          cursor,
-          limit: Math.min(100, count - works.value.length),
-          signal,
-        })
-        if (disposed || version !== generation || signal?.aborted) return false
-        if (page.hasMore && (!page.nextCursor || visited.has(page.nextCursor)))
-          throw new Error('The server returned an invalid cursor.')
-        const known = new Set(works.value.map((item) => item.slug))
-        works.value = [
-          ...works.value,
-          ...page.items.filter((item) => {
-            if (known.has(item.slug)) return false
-            known.add(item.slug)
-            return true
-          }),
-        ]
-        nextCursor.value = page.nextCursor
-        hasMore.value = page.hasMore
-        if (page.nextCursor) visited.add(page.nextCursor)
-      }
-    } catch (cause) {
-      if (!disposed && version === generation && !signal?.aborted)
-        moreError.value =
-          cause instanceof Error ? cause.message : 'Unable to load portfolio projects.'
-    } finally {
-      if (!disposed && version === generation) loadingMore.value = false
-    }
-    return !disposed && version === generation && !signal?.aborted
-  }
-
-  onScopeDispose(() => {
-    disposed = true
-    generation += 1
-    controller?.abort()
+  const currentEntry = computed(() => entries.value[locale.value])
+  const overview = computed(() => currentEntry.value?.overview ?? emptyOverview)
+  const works = computed(() => {
+    const allWorks = currentEntry.value?.works ?? []
+    if (category.value === 'all') return allWorks
+    return allWorks.filter((work) => work.category.code === category.value)
   })
+  const total = computed(() => works.value.length)
+  const error = computed(() => errors.value[locale.value] ?? '')
+  const loading = computed(
+    () => !currentEntry.value && (Boolean(loadingEntries.value[locale.value]) || !error.value),
+  )
+
+  async function load(force = false) {
+    try {
+      await store.load(locale.value, force)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  async function ensureVisible(_count: number) {
+    return true
+  }
+
   return { works, overview, total, loading, loadingMore, error, moreError, load, ensureVisible }
 }

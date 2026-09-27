@@ -1,92 +1,98 @@
+import { createPinia, setActivePinia } from 'pinia'
 import { effectScope, ref } from 'vue'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useWorkListing } from '@/features/work/composables/useWorkListing'
 import { fetchWorkOverview, fetchWorksPage, type WorkSummary } from '@/features/work/api'
-import { deferred } from './fixtures/domain'
 
 vi.mock('@/features/work/api', () => ({
   fetchWorkOverview: vi.fn<typeof import('@/features/work/api').fetchWorkOverview>(),
   fetchWorksPage: vi.fn<typeof import('@/features/work/api').fetchWorksPage>(),
+  invalidateWorkListingCache:
+    vi.fn<typeof import('@/features/work/api').invalidateWorkListingCache>(),
 }))
-const work = (slug: string) => ({ slug, category: { code: 'web', name: 'Web' } }) as WorkSummary
-const scope = () => {
-  const scope = effectScope(),
-    locale = ref<'en' | 'th'>('en'),
-    category = ref('all')
+
+const work = (slug: string, code = 'web') =>
+  ({ slug, category: { code, name: code } }) as WorkSummary
+
+const scopes: ReturnType<typeof effectScope>[] = []
+
+function listing() {
+  const scope = effectScope()
+  const locale = ref<'en' | 'th'>('en')
+  const category = ref('all')
   const data = scope.run(() => useWorkListing(locale, category, ref(2)))!
   scopes.push(scope)
   return { data, locale, category }
 }
-const scopes: ReturnType<typeof effectScope>[] = []
+
 beforeEach(() => {
+  setActivePinia(createPinia())
   vi.clearAllMocks()
   vi.mocked(fetchWorkOverview).mockResolvedValue({
-    total: 8,
-    categories: [{ code: 'web', name: 'Web', total: 8 }],
+    total: 4,
+    categories: [{ code: 'web', name: 'Web', total: 3 }],
     featured: [work('featured')],
   })
   vi.mocked(fetchWorksPage).mockResolvedValue({
     items: [work('one'), work('two')],
-    nextCursor: 'next',
-    hasMore: true,
+    nextCursor: null,
+    hasMore: false,
   })
 })
+
 afterEach(() => scopes.splice(0).forEach((scope) => scope.stop()))
 
-it('loads the visible page, retains totals/featured work, and requests more only on demand', async () => {
-  const { data } = scope()
-  await data.load()
-  expect(fetchWorksPage).toHaveBeenCalledTimes(1)
-  expect(fetchWorkOverview).toHaveBeenCalledTimes(1)
-  expect(data.total.value).toBe(8)
+it('loads all pages once and keeps the results in the session store', async () => {
+  vi.mocked(fetchWorksPage)
+    .mockResolvedValueOnce({ items: [work('one'), work('two')], nextCursor: 'next', hasMore: true })
+    .mockResolvedValueOnce({ items: [work('three'), work('four')], nextCursor: null, hasMore: false })
+
+  const { data } = listing()
+  expect(await data.load()).toBe(true)
   expect(data.overview.value.featured[0]?.slug).toBe('featured')
-  vi.mocked(fetchWorksPage).mockResolvedValueOnce({
-    items: [work('three'), work('four')],
-    nextCursor: 'next-2',
-    hasMore: true,
-  })
-  await data.ensureVisible(4)
   expect(data.works.value.map((item) => item.slug)).toEqual(['one', 'two', 'three', 'four'])
-  expect(fetchWorksPage).toHaveBeenLastCalledWith(
-    'en',
-    expect.objectContaining({ cursor: 'next', limit: 2 }),
-  )
-  await data.ensureVisible(2)
+  expect(fetchWorksPage).toHaveBeenCalledTimes(2)
+  expect(fetchWorksPage).toHaveBeenLastCalledWith('en', { cursor: 'next', limit: 100 })
+
+  await data.ensureVisible(4)
+  expect(await data.load()).toBe(true)
+  expect(fetchWorksPage).toHaveBeenCalledTimes(2)
+  expect(fetchWorkOverview).toHaveBeenCalledTimes(1)
+})
+
+it('filters cached projects and fetches each locale only once', async () => {
+  vi.mocked(fetchWorksPage)
+    .mockResolvedValueOnce({
+      items: [work('web'), work('mobile', 'mobile')],
+      nextCursor: null,
+      hasMore: false,
+    })
+    .mockResolvedValueOnce({ items: [work('thai')], nextCursor: null, hasMore: false })
+
+  const { data, category, locale } = listing()
+  await data.load()
+  category.value = 'web'
+  expect(data.works.value.map((item) => item.slug)).toEqual(['web'])
+
+  locale.value = 'th'
+  await data.load()
+  expect(data.works.value.map((item) => item.slug)).toEqual(['thai'])
+
+  locale.value = 'en'
+  await data.load()
+  expect(data.works.value.map((item) => item.slug)).toEqual(['web'])
   expect(fetchWorksPage).toHaveBeenCalledTimes(2)
 })
 
-it('discards a previous locale request and keeps already visible results when Load more fails', async () => {
-  const { data, locale } = scope()
-  const old = deferred<Awaited<ReturnType<typeof fetchWorksPage>>>()
-  vi.mocked(fetchWorksPage).mockReturnValueOnce(old.promise)
-  const pending = data.load()
-  locale.value = 'th'
-  await data.load()
-  old.resolve({ items: [work('stale')], nextCursor: null, hasMore: false })
-  expect(await pending).toBe(false)
-  expect(data.works.value.map((item) => item.slug)).toEqual(['one', 'two'])
-  vi.mocked(fetchWorksPage).mockRejectedValueOnce(new Error('Please retry'))
-  await data.ensureVisible(4)
-  expect(data.works.value).toHaveLength(2)
-  expect(data.error.value).toBe('')
-  expect(data.moreError.value).toBe('Please retry')
-})
-
-it('does not reveal stale pages after a filter change and stops cyclic cursors', async () => {
-  const { data, category } = scope()
-  await data.load()
-  const old = deferred<Awaited<ReturnType<typeof fetchWorksPage>>>()
-  vi.mocked(fetchWorksPage).mockReturnValueOnce(old.promise)
-  const pending = data.ensureVisible(4)
-  category.value = 'web'
-  await data.load()
-  old.resolve({ items: [work('stale')], nextCursor: null, hasMore: false })
-  expect(await pending).toBe(false)
-  expect(data.works.value.map((item) => item.slug)).toEqual(['one', 'two'])
+it('reports a failed request and succeeds on retry', async () => {
   vi.mocked(fetchWorksPage)
-    .mockResolvedValueOnce({ items: [work('three')], nextCursor: 'another', hasMore: true })
-    .mockResolvedValueOnce({ items: [work('four')], nextCursor: 'next', hasMore: true })
-  await data.ensureVisible(8)
-  expect(data.moreError.value).toContain('invalid cursor')
-  expect(data.works.value.map((item) => item.slug)).toEqual(['one', 'two', 'three'])
+    .mockRejectedValueOnce(new Error('Please retry'))
+    .mockResolvedValueOnce({ items: [work('one')], nextCursor: null, hasMore: false })
+
+  const { data } = listing()
+  expect(await data.load()).toBe(false)
+  expect(data.error.value).toBe('Please retry')
+  expect(await data.load()).toBe(true)
+  expect(data.error.value).toBe('')
+  expect(data.works.value.map((item) => item.slug)).toEqual(['one'])
 })
