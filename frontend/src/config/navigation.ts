@@ -15,13 +15,13 @@ export interface NavbarLink {
  */
 export const guestNavbarLinks = [
   { label: 'Home', path: '/', icon: icons.navigation.home },
-  { label: 'Work', path: '/work', icon: icons.navigation.work },
+  { label: 'Portfolio', path: '/work', icon: icons.navigation.work },
   { label: 'About', path: '/about', icon: icons.navigation.about },
 ] satisfies readonly NavbarLink[]
 
 export const authenticatedNavbarLinks = [
   { label: 'Home', path: '/', icon: icons.navigation.home },
-  { label: 'Work', path: '/work', icon: icons.navigation.work },
+  { label: 'Portfolio', path: '/work', icon: icons.navigation.work },
   { label: 'About', path: '/about', icon: icons.navigation.about },
   {
     label: 'My bot',

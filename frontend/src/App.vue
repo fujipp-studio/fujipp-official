@@ -3,9 +3,10 @@ import { computed, defineAsyncComponent, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 
-import darkFaviconUrl from './assets/brand/fujipp-tab-dark.svg?url'
-import lightFaviconUrl from './assets/brand/fujipp-tab-light.svg?url'
+import darkFaviconUrl from './assets/brand/fujipp-mark-tab-dark.svg?url'
+import lightFaviconUrl from './assets/brand/fujipp-mark-tab-light.svg?url'
 import { AppNavbar } from './shared/layout'
+import { AppScrollRail } from './shared/ui'
 import { useAuthStore, useThemeStore } from './stores'
 import { useAdminToolsVisibility } from './features/admin/composables/useAdminToolsVisibility'
 
@@ -27,7 +28,7 @@ const { visible: adminToolsVisible, initialize: initializeAdminToolsVisibility }
 const activeNavigationItem = computed(() => {
   if (route.path === '/about') return 'About'
   if (route.path === '/account') return 'Account'
-  if (route.path.startsWith('/work')) return 'Work'
+  if (route.path.startsWith('/work')) return 'Portfolio'
   if (route.path.startsWith('/store')) return 'Store'
   if (route.path.startsWith('/my-bot')) return 'My bot'
   return 'Home'
@@ -84,6 +85,7 @@ watch(
 
 <template>
   <AppNavbar v-if="!route.meta.hideGlobalNavbar" :active-item="activeNavigationItem" />
+  <AppScrollRail />
   <RouterView />
   <AdminTools v-if="currentUser?.role === 'ADMIN' && adminToolsVisible && !route.meta.hideGlobalNavbar" />
 </template>

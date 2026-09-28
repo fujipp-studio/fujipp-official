@@ -11,7 +11,7 @@ import {
   type WorkLocale,
 } from '@/features/work/api'
 import { AppFooter } from '../../../shared/layout'
-import { AppButton } from '../../../shared/ui'
+import { AppButton, AppSectionIndicator } from '../../../shared/ui'
 import { applySeoMetadata } from '../../../services/seo'
 
 const route = useRoute()
@@ -20,9 +20,7 @@ const locale = ref<WorkLocale>(appLocale.value === 'th' ? 'th' : 'en')
 const work = ref<WorkDetail>()
 const loading = ref(true)
 const error = ref('')
-const activeSection = ref(0)
 const workCache = new Map<string, WorkDetail>()
-let sectionAnimationFrame: number | undefined
 
 const copy = computed(() =>
   locale.value === 'th'
@@ -161,55 +159,17 @@ function formatWorkDate(value: string) {
   }).format(new Date(`${value}T00:00:00Z`))
 }
 
-function updateActiveSection() {
-  sectionAnimationFrame = undefined
-  let closestIndex = 0
-  let closestDistance = Number.POSITIVE_INFINITY
-
-  detailSections.value.forEach((section, index) => {
-    const element = document.getElementById(section.id)
-    if (!element) return
-
-    const distance = Math.abs(element.getBoundingClientRect().top - 64)
-    if (distance < closestDistance) {
-      closestDistance = distance
-      closestIndex = index
-    }
-  })
-
-  activeSection.value = closestIndex
-}
-
-function requestSectionUpdate() {
-  if (sectionAnimationFrame === undefined) {
-    sectionAnimationFrame = window.requestAnimationFrame(updateActiveSection)
-  }
-}
-
-function scrollToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({
-    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-    block: 'start',
-  })
-}
-
 watch(slug, () => void loadWork())
 watch(
   appLocale,
   (value) => void applyRouteLocale(value === 'th' ? 'th' : 'en'),
 )
-watch(detailSections, () => nextTick(requestSectionUpdate))
 onMounted(() => {
   document.documentElement.classList.add('work-section-scroll')
-  window.addEventListener('scroll', requestSectionUpdate, { passive: true })
-  window.addEventListener('resize', requestSectionUpdate)
   void loadWork()
 })
 onBeforeUnmount(() => {
   document.documentElement.classList.remove('work-section-scroll')
-  window.removeEventListener('scroll', requestSectionUpdate)
-  window.removeEventListener('resize', requestSectionUpdate)
-  if (sectionAnimationFrame !== undefined) window.cancelAnimationFrame(sectionAnimationFrame)
 })
 </script>
 
@@ -390,19 +350,11 @@ onBeforeUnmount(() => {
       </template>
     </main>
 
-    <nav v-if="detailSections.length" class="section-indicator" aria-label="Project sections">
-      <button
-        v-for="(section, index) in detailSections"
-        :key="section.id"
-        type="button"
-        :class="{ active: activeSection === index }"
-        :aria-label="`Go to ${section.label}`"
-        :aria-current="activeSection === index ? 'step' : undefined"
-        @click="scrollToSection(section.id)"
-      >
-        <span aria-hidden="true" />
-      </button>
-    </nav>
+    <AppSectionIndicator
+      v-if="detailSections.length"
+      :sections="detailSections"
+      aria-label="Project sections"
+    />
 
     <AppFooter v-if="!loading" />
   </div>
@@ -421,61 +373,6 @@ onBeforeUnmount(() => {
   width: 100%;
   flex: 1;
   padding-block: var(--space-2xl) var(--space-4xl);
-}
-
-.section-indicator {
-  position: fixed;
-  z-index: var(--z-sticky);
-  top: 50%;
-  right: var(--space-xs);
-  display: flex;
-  width: var(--space-sm);
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-xs);
-  transform: translateY(-50%);
-}
-
-.section-indicator button {
-  display: flex;
-  width: 1.5rem;
-  height: 1.5rem;
-  align-items: center;
-  justify-content: flex-end;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-}
-
-.section-indicator span {
-  width: 0.875rem;
-  height: 2px;
-  background: var(--semantic-color-text-text-muted);
-  opacity: 0.55;
-  transform: scaleX(0.5714);
-  transform-origin: right center;
-  transition:
-    transform 180ms ease,
-    opacity 180ms ease;
-}
-
-.section-indicator button.active span {
-  background: var(--semantic-color-text-text-primary);
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.section-indicator button:not(.active):hover span,
-.section-indicator button:not(.active):focus-visible span {
-  opacity: 0.85;
-  transform: scaleX(0.7143);
-}
-
-.section-indicator button:focus-visible {
-  border-radius: var(--corner-radius-sm);
-  outline: 2px solid var(--semantic-color-action-borders-border-focus);
-  outline-offset: 1px;
 }
 
 .detail-toolbar,

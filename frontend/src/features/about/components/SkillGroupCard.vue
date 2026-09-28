@@ -22,8 +22,20 @@ const categoryIcons = {
 
 <template>
   <article class="skill-group-card" :class="`skill-group-card--${group.category}`">
+    <component
+      :is="categoryIcons[group.category]"
+      class="skill-group-card__art"
+      :size="160"
+      :stroke-width="0.75"
+      aria-hidden="true"
+    />
     <h3>
-      <component :is="categoryIcons[group.category]" :size="24" :stroke-width="1.75" />
+      <component
+        :is="categoryIcons[group.category]"
+        :size="24"
+        :stroke-width="1.75"
+        aria-hidden="true"
+      />
       <span>{{ t(group.titleKey) }}</span>
     </h3>
 
@@ -45,8 +57,17 @@ const categoryIcons = {
   border: 1px solid var(--semantic-color-border-border-default);
   border-radius: var(--corner-radius-lg);
   padding: var(--space-xl);
-  background: color-mix(in srgb, var(--semantic-color-background-bg-glass) 38%, transparent);
-  backdrop-filter: blur(var(--effect-backdrop-blur-sm));
+  background: var(--semantic-color-background-bg-surface);
+}
+
+.skill-group-card__art {
+  position: absolute;
+  top: var(--space-lg);
+  right: var(--space-lg);
+  width: clamp(7rem, 13vw, 10rem);
+  height: auto;
+  opacity: 0.1;
+  pointer-events: none;
 }
 
 .skill-group-card--infra {

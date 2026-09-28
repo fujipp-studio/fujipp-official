@@ -2,12 +2,9 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
 
-import { icons } from '../../../config'
-import { AppButton, AppProgressiveImage } from '../../../shared/ui'
+import { AppProgressiveImage, AppTextLink } from '../../../shared/ui'
 import { useThemeStore } from '../../../stores'
-const router = useRouter()
 const { locale, t } = useI18n()
 const { isDarkTheme } = storeToRefs(useThemeStore())
 const profileImageSrc = computed(() =>
@@ -21,8 +18,8 @@ const profilePlaceholderSrc = computed(() =>
     : '/images/about/anawat-grudtoop-profile-512-lqip.webp',
 )
 
-function navigateTo(path: '/about' | '/work') {
-  void router.push({ path, query: locale.value === 'th' ? { locale: 'th' } : {} })
+function localizedRoute(path: '/about' | '/work') {
+  return { path, query: locale.value === 'th' ? { locale: 'th' } : {} }
 }
 </script>
 
@@ -51,16 +48,12 @@ function navigateTo(path: '/about' | '/work') {
         <p>{{ t('home.about.description') }}</p>
 
         <div class="about-us-section__actions">
-          <AppButton
-            variant="primary"
-            :right-icon="icons.base.arrowRight"
-            @click="navigateTo('/about')"
-          >
+          <AppTextLink :to="localizedRoute('/about')">
             {{ t('home.about.aboutAction') }}
-          </AppButton>
-          <AppButton variant="secondary" @click="navigateTo('/work')">
+          </AppTextLink>
+          <AppTextLink :to="localizedRoute('/work')">
             {{ t('home.about.workAction') }}
-          </AppButton>
+          </AppTextLink>
         </div>
       </div>
     </div>
@@ -131,10 +124,9 @@ function navigateTo(path: '/about' | '/work') {
 }
 
 .about-us-section__actions {
-  display: grid;
-  width: 100%;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-xl);
   margin-top: var(--space-sm);
 }
 
@@ -155,8 +147,5 @@ function navigateTo(path: '/about' | '/work') {
     margin-inline: auto;
   }
 
-  .about-us-section__actions {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

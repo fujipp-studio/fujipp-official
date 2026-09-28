@@ -30,6 +30,7 @@ export const icons = {
     lockup: '/icons/brand/lockup.svg',
     lockupDark: '/icons/brand/lockup-dark.svg',
     logo: '/icons/brand/logo.svg',
+    mark: '/icons/brand/mark.svg',
     mascot: '/icons/brand/fujipp-mascot.svg',
     wordmark: '/icons/brand/wordmark.svg',
   },

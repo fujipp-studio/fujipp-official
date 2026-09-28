@@ -209,11 +209,17 @@ onMounted(load)
         :description="t('admin.page.usersDescription')"
         :icon="Users"
         ><template #actions
-          ><form class="flex w-full gap-xs tablet:w-auto" @submit.prevent="load">
+          ><form
+            class="flex w-full flex-col gap-xs tablet:w-auto tablet:flex-row"
+            @submit.prevent="load"
+          >
             <div class="w-full tablet:w-80">
               <AppTextField v-model="query" label="" :placeholder="t('admin.page.usersSearch')" />
             </div>
-            <AppButton type="submit" class="!w-auto" :aria-label="t('admin.common.search')"
+            <AppButton
+              type="submit"
+              class="!w-auto self-start tablet:self-auto"
+              :aria-label="t('admin.common.search')"
               ><Search class="size-4"
             /></AppButton>
           </form>

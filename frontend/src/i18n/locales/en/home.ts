@@ -4,7 +4,7 @@ export default {
     accent: "Here's what I've made.",
     summary:
       'This website is a collection of projects I have designed and developed—a place to share what happens when an idea becomes something real.',
-    workAction: 'View my work',
+    workAction: 'View my portfolio',
     galleryLabel: 'Portrait gallery',
     gallerySlide: 'Show portrait {number}',
   },
@@ -24,7 +24,7 @@ export default {
       'Keep your bot online 24/7. We offer flexible runtime subscriptions tailored to your needs available in 1, 2, or 3 month plans.',
   },
   trusted: {
-    title: 'Trusted by Real Server Owners',
+    title: 'Powering Discord Communities Every Day',
     description:
       'Join our growing community! Currently powering custom bots and delivering smooth experiences for 3 active Discord communities.',
     listLabel: 'Trusted communities',
@@ -35,7 +35,7 @@ export default {
       'I’m Anawat, a full-stack developer focused on practical products, thoughtful interfaces, automation, and systems that remain maintainable after launch.',
     imageAlt: 'Portrait of Anawat Boripakhirun',
     aboutAction: 'More about me',
-    workAction: 'View my work',
+    workAction: 'View my portfolio',
   },
   sections: {
     navigationLabel: 'Home sections',

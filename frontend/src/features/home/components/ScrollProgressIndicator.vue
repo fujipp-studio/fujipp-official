@@ -1,150 +1,25 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-const sections = [
-  { id: 'home-hero', labelKey: 'home.sections.introduction' },
-  { id: 'discord-bot-services', labelKey: 'home.sections.botServices' },
-  { id: 'trusted-by', labelKey: 'home.sections.communities' },
-  { id: 'about-us', labelKey: 'home.sections.developer' },
-] as const
+import { AppSectionIndicator } from '../../../shared/ui'
 
-const activeSection = ref(0)
 const { t } = useI18n()
-let animationFrame: number | undefined
+const sections = computed(() => [
+  { id: 'home-hero', label: t('home.sections.introduction') },
+  { id: 'discord-bot-services', label: t('home.sections.botServices') },
+  { id: 'about-us', label: t('home.sections.developer') },
+])
 
-function updateProgress() {
-  animationFrame = undefined
-  const sectionElements = sections
-    .map(({ id }) => document.getElementById(id))
-    .filter((element): element is HTMLElement => element !== null)
-
-  if (!sectionElements.length) return
-
-  const navbarOffset = 64
-  let closestIndex = 0
-  let closestDistance = Number.POSITIVE_INFINITY
-
-  sectionElements.forEach((element, index) => {
-    const distance = Math.abs(element.getBoundingClientRect().top - navbarOffset)
-    if (distance < closestDistance) {
-      closestDistance = distance
-      closestIndex = index
-    }
-  })
-
-  activeSection.value = closestIndex
+function sectionActionLabel(label: string) {
+  return t('home.sections.goTo', { section: label })
 }
-
-function requestUpdate() {
-  if (animationFrame === undefined) animationFrame = window.requestAnimationFrame(updateProgress)
-}
-
-function goToSection(id: string) {
-  document.getElementById(id)?.scrollIntoView({
-    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-    block: 'start',
-  })
-}
-
-onMounted(() => {
-  updateProgress()
-  window.addEventListener('scroll', requestUpdate, { passive: true })
-  window.addEventListener('resize', requestUpdate)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('scroll', requestUpdate)
-  window.removeEventListener('resize', requestUpdate)
-  if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame)
-})
 </script>
 
 <template>
-  <nav
-    class="scroll-progress"
+  <AppSectionIndicator
+    :sections="sections"
     :aria-label="t('home.sections.navigationLabel')"
-  >
-    <button
-      v-for="(section, index) in sections"
-      :key="section.id"
-      type="button"
-      class="scroll-progress__button"
-      :class="{ 'scroll-progress__button--active': index === activeSection }"
-      :aria-label="t('home.sections.goTo', { section: t(section.labelKey) })"
-      :aria-current="index === activeSection ? 'step' : undefined"
-      @click="goToSection(section.id)"
-    >
-      <span class="scroll-progress__tick" aria-hidden="true" />
-    </button>
-  </nav>
+    :section-action-label="sectionActionLabel"
+  />
 </template>
-
-<style scoped>
-.scroll-progress {
-  position: fixed;
-  z-index: var(--z-sticky);
-  top: 50%;
-  right: var(--space-xs);
-  display: flex;
-  width: var(--space-sm);
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-xs);
-  transform: translateY(-50%);
-}
-
-.scroll-progress__button {
-  display: flex;
-  width: 1.5rem;
-  height: 1.5rem;
-  align-items: center;
-  justify-content: flex-end;
-  cursor: pointer;
-  border: 0;
-  padding: 0;
-  background: transparent;
-}
-
-.scroll-progress__tick {
-  width: 0.875rem;
-  height: 2px;
-  background: var(--semantic-color-text-text-muted);
-  opacity: 0.55;
-  transform: scaleX(0.5714);
-  transform-origin: right center;
-  transition:
-    transform 180ms ease,
-    opacity 180ms ease;
-}
-
-.scroll-progress__button--active .scroll-progress__tick {
-  background: var(--semantic-color-text-text-primary);
-  opacity: 1;
-  transform: scaleX(1);
-}
-
-.scroll-progress__button:not(.scroll-progress__button--active):hover .scroll-progress__tick,
-.scroll-progress__button:not(.scroll-progress__button--active):focus-visible .scroll-progress__tick {
-  opacity: 0.85;
-  transform: scaleX(0.7143);
-}
-
-.scroll-progress__button:focus-visible {
-  border-radius: var(--corner-radius-sm);
-  outline: 2px solid var(--semantic-color-action-borders-border-focus);
-  outline-offset: 1px;
-}
-
-@media (max-width: 47.99rem) {
-  .scroll-progress {
-    right: var(--space-xxs);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scroll-progress__tick {
-    transition: none;
-  }
-}
-</style>
