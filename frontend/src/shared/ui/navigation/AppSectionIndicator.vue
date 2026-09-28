@@ -87,6 +87,7 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: space-evenly;
   mix-blend-mode: difference;
+  pointer-events: none;
 }
 
 .section-indicator button {
@@ -101,6 +102,7 @@ onBeforeUnmount(() => {
   padding: 0;
   background: transparent;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .section-indicator__label {
