@@ -57,7 +57,7 @@ test('loads more Admin users on scroll and resets the cursor for a new search', 
   expect(requests[2]?.searchParams.get('query')).toBe('needle')
 })
 
-test('navigates from Home without reloading and loads Work pages on demand', async ({ page, isMobile }) => {
+test('navigates from Home without reloading and reuses cached Work data', async ({ page, isMobile }) => {
   const documents: string[] = []
   const requests: URL[] = []
   page.on('request', request => {
@@ -71,15 +71,16 @@ test('navigates from Home without reloading and loads Work pages on demand', asy
   await expect(page.locator('.work-card')).toHaveCount(isMobile ? 4 : 6)
   expect(documents).toHaveLength(1)
   expect(requests).toHaveLength(1)
-  expect(requests[0]?.searchParams.get('limit')).toBe(isMobile ? '4' : '6')
+  expect(requests[0]?.searchParams.get('limit')).toBe('100')
   expect(requests.every(url => url.searchParams.get('locale') === 'en')).toBe(true)
   await page.getByRole('button', { name: 'Load more', exact: true }).click()
   await expect(page.locator('.work-card')).toHaveCount(8)
-  expect(requests).toHaveLength(2)
+  expect(requests).toHaveLength(1)
   await page.getByRole('button', { name: 'Show less', exact: true }).click()
   await expect(page.locator('.work-card')).toHaveCount(isMobile ? 4 : 6)
   await page.locator('.work-filters').getByRole('button', { name: 'Web', exact: true }).click()
   await expect(page.locator('.work-card')).toHaveCount(4)
+  expect(requests).toHaveLength(1)
   await expect(page.locator('.work-pagination')).toContainText('of 4 projects')
 })
 
