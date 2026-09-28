@@ -49,7 +49,7 @@ const route = useRoute()
 const router = useRouter()
 const { locale, t } = useI18n()
 const isAtPageTop = ref(true)
-const showScrolledBackground = computed(() => route.path !== '/' && !isAtPageTop.value)
+const showScrolledBackground = computed(() => !isAtPageTop.value)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
 const openNavigationMenu = ref<string>()
@@ -761,6 +761,22 @@ function closeProfileMenu() {
   letter-spacing: 0.04em;
 }
 
+@media (min-width: 64rem) and (max-width: 79.99rem) {
+  .navbar--at-top .desktop-navbar > .brand .brand__lockup,
+  .navbar--at-top .desktop-navbar > .brand .brand__mark {
+    width: auto;
+    height: 4.5rem;
+  }
+
+  .navbar--at-top .desktop-navbar > .brand .brand__mark {
+    width: 4.5rem;
+  }
+
+  .navbar--at-top .desktop-navbar > .brand .brand__wordmark {
+    font-size: 2.75rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .navbar::before {
     transition: none;
@@ -772,12 +788,12 @@ function closeProfileMenu() {
   isolation: isolate;
   display: flex;
   height: 2.5rem;
-  margin-right: clamp(1.5rem, 4vw, 4rem);
+  margin-right: var(--space-md);
   margin-left: auto;
   align-items: center;
   gap: var(--space-md);
-  font-family: var(--font-family-display);
-  font-size: 1.125rem;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-heading-h4);
   line-height: var(--line-height-body);
   text-align: center;
 }
@@ -836,6 +852,7 @@ function closeProfileMenu() {
   font: inherit;
   text-decoration: none;
   touch-action: none;
+  white-space: nowrap;
   transition:
     border-color 180ms ease,
     background-color 180ms ease,
@@ -918,14 +935,14 @@ function closeProfileMenu() {
 
 .actions {
   display: flex;
-  height: 2rem;
+  height: 2.5rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: flex-end;
   gap: var(--space-md);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label-large);
-  line-height: var(--line-height-label);
+  font-size: var(--font-size-heading-h4);
+  line-height: var(--line-height-body);
 }
 
 .actions--authenticated {
@@ -1030,7 +1047,7 @@ function closeProfileMenu() {
   z-index: 2;
   isolation: isolate;
   display: inline-flex;
-  height: 2rem;
+  height: 2.5rem;
   align-items: center;
   justify-content: center;
   border-radius: var(--corner-radius-lg);
@@ -1040,7 +1057,7 @@ function closeProfileMenu() {
   background: transparent;
   color: inherit;
   font: inherit;
-  font-weight: var(--typography-font-weight-medium);
+  font-weight: var(--typography-font-weight-regular);
   text-decoration: none;
 }
 
@@ -1067,7 +1084,8 @@ function closeProfileMenu() {
 }
 
 .action-button--outline {
-  width: 6.875rem;
+  width: auto;
+  min-width: 6.875rem;
   border: 1px solid var(--semantic-color-background-bg-inverse);
   padding-inline: var(--space-md);
   background: transparent;
