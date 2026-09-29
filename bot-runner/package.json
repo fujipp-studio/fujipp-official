@@ -20,8 +20,8 @@
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
-    "@types/node": "^24.13.5",
-    "tsx": "^4.23.13",
+    "@types/node": "^24.13.6",
+    "tsx": "^4.23.15",
     "typescript": "^5.8.3"
   },
   "engines": {
