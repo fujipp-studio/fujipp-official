@@ -93,6 +93,13 @@ test("resolves Roblox Robux payout version 3.0.0 without replacing earlier versi
   assert.equal(getFeature("roblox-robux-payout", "2.2.0")?.version, "2.2.0");
 });
 
+test("resolves the isolated Roblox payout test feature", () => {
+  const feature = getFeature("roblox-payout-test", "1.0.0");
+  assert.equal(feature?.runtimeKey, "roblox-payout-test");
+  assert.deepEqual(feature?.intents, ["Guilds"]);
+  assert.equal(getFeature("roblox-robux-payout", "3.0.0")?.runtimeKey, "roblox-robux-payout");
+});
+
 test("resolves Price Reader version 1.0.0 with message content intent", () => {
   const feature = getFeature("price-reader", "1.0.0");
 

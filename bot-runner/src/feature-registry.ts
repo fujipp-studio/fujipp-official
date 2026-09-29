@@ -11,6 +11,7 @@ import { memberSpendingFeature } from "./features/member-spending/index.js";
 import { botPermissionsFeature } from "./features/bot-permissions/index.js";
 import { channelMessageTriggersFeature } from "./features/channel-message-triggers/index.js";
 import { paymentTriggerFeature } from "./features/payment-trigger/index.js";
+import { robloxPayoutTestFeature } from "./features/roblox-payout-test/index.js";
 import type { FeatureModule } from "./types.js";
 
 const modules = new Map<string, FeatureModule>([
@@ -36,6 +37,7 @@ const modules = new Map<string, FeatureModule>([
   [moduleKey(botPermissionsFeature.runtimeKey, botPermissionsFeature.version), botPermissionsFeature],
   [moduleKey(channelMessageTriggersFeature.runtimeKey, channelMessageTriggersFeature.version), channelMessageTriggersFeature],
   [moduleKey(paymentTriggerFeature.runtimeKey, paymentTriggerFeature.version), paymentTriggerFeature],
+  [moduleKey(robloxPayoutTestFeature.runtimeKey, robloxPayoutTestFeature.version), robloxPayoutTestFeature],
 ]);
 
 export function getFeature(runtimeKey: string, version: string): FeatureModule | undefined {

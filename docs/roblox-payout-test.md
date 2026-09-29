@@ -1,0 +1,14 @@
+# Roblox Payout Test
+
+Feature `roblox-payout-test` เป็นตัวทดลองแยกจาก `roblox-robux-payout` เดิม ใช้คำสั่ง `/robux-payout-test` เฉพาะผู้ดูแลเซิร์ฟเวอร์เพื่อส่งคำขอโอนจริง **1 Robux** และแสดงผล challenge ที่ Roblox ส่งกลับ โดยไม่ใช้ยอดเงินในกระเป๋าของร้าน
+
+## เปิดใช้สำหรับทดสอบ
+
+1. หลัง deploy migration และ bot runner ให้ผู้ดูแลระบบ grant Feature `roblox-payout-test` (product ID `e0710000-0000-0000-0000-000000000001`) แก่บัญชีเจ้าของบอท Feature นี้อยู่ในสถานะ `DRAFT` จึงไม่แสดงในหน้าร้านทั่วไป
+2. ติดตั้ง Feature ทดสอบบนบอทที่ต้องการ แล้วตั้งค่า `ROBLOX_TEST_GROUP_ID` และ `ROBLOX_TEST_RECIPIENT_ID` เป็นเลข ID ของกลุ่มต้นทางและบัญชีผู้รับ
+3. ใส่ `.ROBLOSECURITY` ของบัญชีที่มีสิทธิ์จ่ายจากกลุ่มในช่องลับ `ROBLOX_TEST_COOKIE` โดยใส่เฉพาะค่าคุกกี้ หากบัญชีเปิด authenticator 2FA ให้ใส่ TOTP secret ใน `ROBLOX_TEST_TOTP_SECRET` ด้วย
+4. ผู้ดูแลเซิร์ฟเวอร์ใช้ `/robux-payout-test` ตรวจสอบ Group ID และ Recipient ID แล้วกดปุ่มยืนยันภายใน 5 นาที คำสั่งนี้ส่งคำขอโอน **จริง** ครั้งละ 1 Robux
+
+ผลลัพธ์จะแสดงรหัสข้อผิดพลาด เช่น `ROBLOX_CHALLENGE_CAPTCHA`, `ROBLOX_SESSION_BLOCKED`, `ROBLOX_2FA_REQUIRED` หรือ `ROBLOX_CHALLENGE_CHEF` โดยไม่แสดงคุกกี้หรือ TOTP secret ถ้าผลการโอนไม่แน่ชัด ให้ตรวจประวัติการจ่ายใน Roblox ก่อนกดทดสอบซ้ำ
+
+ตัวทดลองสามารถดำเนิน challenge แบบ `chef` และ authenticator 2FA ที่ Roblox ยอมรับได้ แต่จะหยุดเมื่อ Roblox ขอ CAPTCHA หรือบล็อก session; การแก้ CAPTCHA ต้องทำผ่าน Roblox โดยเจ้าของบัญชี
