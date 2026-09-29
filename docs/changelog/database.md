@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-30 | Added a private Roblox payout test Feature with separate group, recipient, cookie, and TOTP settings. |
 | 2026-09-26 | Added validated storefront and membership-only action modes to Roblox Robux Payout 3.0 panels. |
 | 2026-09-23 | Added the draft Roblox Robux Payout 3.0 catalog version with independent panel presentations, panel assignments, and per-group rates. |
 | 2026-09-20 | Added Capstone Project and Integrated Project categories to the portfolio work catalog. |
