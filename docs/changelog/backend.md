@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-30 | Fixed administrator Feature grants so their licenses include the configuration needed for Bot installation. |
 | 2026-09-30 | Added an isolated administrator Roblox payout test with challenge reporting and a confirmed 1 Robux transfer. |
 | 2026-09-26 | Added per-panel storefront and membership-only modes to Roblox Robux Payout 3.0. |
 | 2026-09-23 | Added Roblox Robux Payout 3.0 with independently styled and refreshed sales panels, panel-scoped groups, and group-specific package rates. |

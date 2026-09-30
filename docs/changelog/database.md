@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-30 | Restored missing configuration sets for previously granted Feature licenses. |
 | 2026-09-30 | Repaired the private Roblox payout test catalog so its published version satisfies database constraints and can be recovered if partially applied. |
 | 2026-09-30 | Added a private Roblox payout test Feature with separate group, recipient, cookie, and TOTP settings. |
 | 2026-09-26 | Added validated storefront and membership-only action modes to Roblox Robux Payout 3.0 panels. |
