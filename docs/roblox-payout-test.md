@@ -13,3 +13,5 @@ Feature `roblox-payout-test` เป็นตัวทดลองแยกจา
 ผลลัพธ์จะแสดงรหัสข้อผิดพลาด เช่น `ROBLOX_CHALLENGE_CAPTCHA`, `ROBLOX_SESSION_BLOCKED`, `ROBLOX_2FA_REQUIRED` หรือ `ROBLOX_CHALLENGE_CHEF` โดยไม่แสดงคุกกี้หรือ TOTP secret ถ้าผลการโอนไม่แน่ชัด ให้ตรวจประวัติการจ่ายใน Roblox ก่อนกดทดสอบซ้ำ
 
 ตัวทดลองสามารถดำเนิน challenge แบบ `chef` และ authenticator 2FA ที่ Roblox ยอมรับได้ แต่จะหยุดเมื่อ Roblox ขอ CAPTCHA หรือบล็อก session; การแก้ CAPTCHA ต้องทำผ่าน Roblox โดยเจ้าของบัญชี
+
+`ROBLOX_SESSION_BLOCKED` ไม่ใช่ CAPTCHA ผลทดสอบจะแสดงว่าถูกปฏิเสธตอนส่งคำขอโอน, ยืนยัน `chef` หรือยืนยัน 2FA พร้อม HTTP status, รหัสเหตุผลที่ปลอดภัยต่อการแสดง และเวลา `Retry-After` เฉพาะเมื่อ Roblox ส่งมา หากไม่มี `Retry-After` จะไม่สามารถระบุเวลาปลดบล็อกได้ ให้หยุดคำขอโอนจากบอท ตรวจการแจ้งเตือนความปลอดภัยของบัญชี Roblox และใช้ช่องทาง Roblox เพื่อจัดการการยืนยันตัวตนก่อนทดสอบอีกครั้ง

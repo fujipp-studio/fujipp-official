@@ -2,7 +2,7 @@ import axios,{AxiosError,type AxiosResponse} from "axios";
 import { authenticator } from "otplib";
 
 export interface RobloxGroup { groupId:number; cookie:string; totpSecret?:string; }
-export interface RobloxFailure { code:string; message:string; status?:number; providerCode?:number; unknownOutcome?:boolean; retryAfterSeconds?:number; }
+export interface RobloxFailure { code:string; message:string; status?:number; providerCode?:number; unknownOutcome?:boolean; retryAfterSeconds?:number; challengeStage?:"payout"|"chef"|"2fa"; challengeReason?:string; }
 type Result<T> = ({ok:true}&T)|{ok:false;error:RobloxFailure};
 
 const GROUPS_API_BASE="https://groups.roblox.com";
@@ -69,7 +69,7 @@ async function handlePayoutFailure(group:RobloxGroup,url:string,payload:unknown,
   const challengeType=header(axiosError.response,"rblx-challenge-type").toLowerCase();
   const challengeMetadata=header(axiosError.response,"rblx-challenge-metadata");
   if(challengeId&&challengeType==="twostepverification")return handle2FAChallenge(group,url,payload,challengeId,challengeMetadata);
-  if(challengeType==="blocksession")return {ok:false,error:blockedSession(axiosError.response)};
+  if(challengeType==="blocksession")return {ok:false,error:blockedSession(axiosError.response,"payout")};
   if(challengeType==="chef")return handleChefChallenge(group,url,payload,challengeId,challengeMetadata);
   if(challengeType)return {ok:false,error:{code:"ROBLOX_CHALLENGE_UNSUPPORTED",message:`Roblox ต้องการ challenge ชนิด ${challengeType} ซึ่ง runner ไม่สามารถยืนยันแทนได้`,...(axiosError.response?.status?{status:axiosError.response.status}:{})}};
   return {ok:false,error:axiosFailure(error,true)};
@@ -84,13 +84,13 @@ async function handleChefChallenge(group:RobloxGroup,url:string,payload:unknown,
   }catch(error){
     const response=asAxiosError(error).response;
     const type=String(objectData(response?.data).challengeType??header(response,"rblx-challenge-type")).toLowerCase();
-    if(type==="blocksession")return {ok:false,error:blockedSession(response)};
+    if(type==="blocksession")return {ok:false,error:blockedSession(response,"chef")};
     if(type==="captcha")return {ok:false,error:captchaChallenge(response)};
     return {ok:false,error:axiosFailure(error,false)};
   }
   const next=objectData(continued.data);
   const nextType=String(next.challengeType??"").toLowerCase();
-  if(nextType==="blocksession")return {ok:false,error:blockedSession(continued)};
+  if(nextType==="blocksession")return {ok:false,error:blockedSession(continued,"chef")};
   if(nextType==="captcha")return {ok:false,error:captchaChallenge(continued)};
   if(nextType==="twostepverification"){
     const nextMetadata=next.challengeMetadata;
@@ -102,7 +102,7 @@ async function handleChefChallenge(group:RobloxGroup,url:string,payload:unknown,
     catch(error){
       const response=asAxiosError(error).response;
       const retryType=header(response,"rblx-challenge-type").toLowerCase();
-      if(retryType==="blocksession")return {ok:false,error:blockedSession(response)};
+      if(retryType==="blocksession")return {ok:false,error:blockedSession(response,"payout")};
       if(retryType==="captcha")return {ok:false,error:captchaChallenge(response)};
       if(retryType==="twostepverification")return handle2FAChallenge(group,url,payload,header(response,"rblx-challenge-id"),header(response,"rblx-challenge-metadata"));
       if(retryType==="chef")return {ok:false,error:{code:"ROBLOX_CHALLENGE_CHEF",message:"Roblox ยังต้องการการยืนยันตัวตนเพิ่มเติมสำหรับคำขอโอนนี้"}};
@@ -135,13 +135,13 @@ async function handle2FAChallenge(group:RobloxGroup,url:string,payload:unknown,f
   try{
     const continued=await axios.post("https://apis.roblox.com/challenge/v1/continue",{challengeId:firstChallengeId,challengeMetadata:responseMetadataJson,challengeType:"twostepverification"},{headers:headers(group,true),timeout:REQUEST_TIMEOUT_MS});
     const nextType=String(objectData(continued.data).challengeType??"").toLowerCase();
-    if(nextType==="blocksession")return {ok:false,error:blockedSession(continued)};
+    if(nextType==="blocksession")return {ok:false,error:blockedSession(continued,"2fa")};
     if(nextType==="captcha")return {ok:false,error:captchaChallenge(continued)};
     if(nextType)return {ok:false,error:{code:"ROBLOX_CHALLENGE_UNSUPPORTED",message:`Roblox ต้องการ challenge ชนิด ${nextType} หลังการยืนยัน 2FA`}};
   }catch(error){
     const response=asAxiosError(error).response;
     const type=String(objectData(response?.data).challengeType??header(response,"rblx-challenge-type")).toLowerCase();
-    if(type==="blocksession")return {ok:false,error:blockedSession(response)};
+    if(type==="blocksession")return {ok:false,error:blockedSession(response,"2fa")};
     if(type==="captcha")return {ok:false,error:captchaChallenge(response)};
     const shared=metadata.sharedParameters as Record<string,unknown>|undefined;
     if(shared?.useContinueMode!==false)return {ok:false,error:axiosFailure(error,false)};
@@ -152,12 +152,16 @@ async function handle2FAChallenge(group:RobloxGroup,url:string,payload:unknown,f
     const final=await axios.post(url,payload,{headers:{...baseHeaders,"rblx-challenge-metadata":Buffer.from(responseMetadataJson).toString("base64")},timeout:REQUEST_TIMEOUT_MS});
     return success(final);
   }catch(error){
+    if(header(asAxiosError(error).response,"rblx-challenge-type").toLowerCase()==="blocksession")return {ok:false,error:blockedSession(asAxiosError(error).response,"payout")};
     const failure=axiosFailure(error,true);
     if(!/challenge/i.test(failure.message))return {ok:false,error:failure};
     try{
       const final=await axios.post(url,payload,{headers:{...baseHeaders,"rblx-challenge-metadata":responseMetadataJson},timeout:REQUEST_TIMEOUT_MS});
       return success(final);
-    }catch(jsonError){return {ok:false,error:axiosFailure(jsonError,true)};}
+    }catch(jsonError){
+      if(header(asAxiosError(jsonError).response,"rblx-challenge-type").toLowerCase()==="blocksession")return {ok:false,error:blockedSession(asAxiosError(jsonError).response,"payout")};
+      return {ok:false,error:axiosFailure(jsonError,true)};
+    }
   }
 }
 
@@ -172,9 +176,12 @@ function success(response:AxiosResponse):Result<{data:Record<string,unknown>}>{r
 function objectData(value:unknown):Record<string,unknown>{return value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};}
 function asAxiosError(error:unknown){return error instanceof AxiosError?error:axios.isAxiosError(error)?error:new AxiosError(error instanceof Error?error.message:String(error));}
 function header(response:AxiosResponse|undefined,name:string){const value=response?.headers?.[name];return Array.isArray(value)?String(value[0]??""):String(value??"");}
-function blockedSession(response:AxiosResponse|undefined):RobloxFailure{
+function blockedSession(response:AxiosResponse|undefined,challengeStage:"payout"|"chef"|"2fa"):RobloxFailure{
   const seconds=Number(header(response,"retry-after"));
-  return {code:"ROBLOX_SESSION_BLOCKED",message:"Roblox บล็อก Session นี้ชั่วคราว หยุดส่ง payout และรอ Retry-After ก่อนเข้าสู่ระบบใหม่",...(response?.status?{status:response.status}:{}),...(Number.isFinite(seconds)&&seconds>0?{retryAfterSeconds:seconds}:{})};
+  const challengeMetadata=objectData(response?.data).challengeMetadata;
+  const metadata=parseChallengeMetadata(typeof challengeMetadata==="string"?challengeMetadata:header(response,"rblx-challenge-metadata"));
+  const reason=metadata?.bodyTranslationKey;
+  return {code:"ROBLOX_SESSION_BLOCKED",message:"Roblox ปฏิเสธ session นี้สำหรับคำขอโอน หยุดทดสอบและตรวจสอบการแจ้งเตือนความปลอดภัยของบัญชี",challengeStage,...(response?.status?{status:response.status}:{}),...(Number.isFinite(seconds)&&seconds>0?{retryAfterSeconds:seconds}:{}),...(typeof reason==="string"&&/^[A-Za-z0-9._-]{1,100}$/.test(reason)?{challengeReason:reason}:{})};
 }
 function captchaChallenge(response:AxiosResponse|undefined):RobloxFailure{
   return {code:"ROBLOX_CHALLENGE_CAPTCHA",message:"Roblox ขอ CAPTCHA สำหรับคำขอโอนจากบอท ซึ่งต้องให้เจ้าของบัญชียืนยันผ่าน Roblox",...(response?.status&&response.status>=400?{status:response.status}:{})};
