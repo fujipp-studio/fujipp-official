@@ -1,3 +1,5 @@
+-- Ensure the test catalog exists even if the original migration was recorded before
+-- its PUBLISHED version insert satisfied feature_versions_publication_chk.
 INSERT INTO shop.feature_products (
     id, code, name, description, category, icon_key, status, sort_order
 ) VALUES (
