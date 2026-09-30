@@ -85,7 +85,16 @@ export const robloxPayoutTestFeature: FeatureModule = {
         const result = await payout(config.group, config.recipientId, 1);
         const detail = result.ok
           ? "Roblox ยืนยันคำขอโอน 1 Robux สำเร็จ"
-          : `${result.error.code}: ${result.error.message}${result.error.unknownOutcome ? "\nผลการโอนไม่แน่ชัด ตรวจประวัติ Roblox ก่อนทดสอบซ้ำ" : ""}`;
+          : `${result.error.code}: ${result.error.message}`
+            + (result.error.challengeStage ? `\nขั้นตอน: ${{ payout: "ส่งคำขอโอน", chef: "ยืนยัน chef", "2fa": "ยืนยัน 2FA" }[result.error.challengeStage]}` : "")
+            + (result.error.status ? `\nHTTP ${result.error.status}` : "")
+            + (result.error.challengeReason ? `\nรหัสเหตุผล Roblox: ${result.error.challengeReason}` : "")
+            + (result.error.code === "ROBLOX_SESSION_BLOCKED"
+              ? result.error.retryAfterSeconds
+                ? `\nRoblox ระบุให้รออย่างน้อย ${result.error.retryAfterSeconds} วินาที`
+                : "\nRoblox ไม่ได้ระบุเวลารอ Retry-After"
+              : "")
+            + (result.error.unknownOutcome ? "\nผลการโอนไม่แน่ชัด ตรวจประวัติ Roblox ก่อนทดสอบซ้ำ" : "");
         await interaction.editReply({ content: detail.slice(0, 1800), components: [], allowedMentions: { parse: [] } });
       } finally {
         running = false;

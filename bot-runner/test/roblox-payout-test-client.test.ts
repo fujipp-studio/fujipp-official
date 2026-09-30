@@ -42,7 +42,11 @@ test("payout stops immediately when Roblox returns blocksession",async(t)=>{
   const result=await payout({...group,cookie:"blocked-cookie"},42,5);
 
   assert.equal(result.ok,false);
-  if(!result.ok)assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+  if(!result.ok){
+    assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+    assert.equal(result.error.challengeStage,"payout");
+    assert.equal(result.error.retryAfterSeconds,120);
+  }
 });
 
 test("payout caches the CSRF token using the legacy Axios behavior",async(t)=>{
@@ -83,7 +87,7 @@ test("payout stops if Roblox blocks the session after authenticator verification
     failure({},403,{"rblx-challenge-id":"chef-2fa-block-id","rblx-challenge-type":"chef","rblx-challenge-metadata":"e30="}),
     response({challengeType:"twostepverification",challengeMetadata:JSON.stringify({challengeId:"verify-id",userId:42})}),
     response({verificationToken:"verified"}),
-    response({challengeType:"blocksession"}),
+    response({challengeType:"blocksession",challengeMetadata:JSON.stringify({bodyTranslationKey:"Denied.AutomatedTampering.Body"})}),
   ];
   let payoutCalls=0;
   t.mock.method(axios,"post",async(url)=>{if(String(url).endsWith("/payouts"))payoutCalls++;const outcome=outcomes.shift()!;if(outcome instanceof Error)throw outcome;return outcome;});
@@ -91,8 +95,32 @@ test("payout stops if Roblox blocks the session after authenticator verification
   const result=await payout({...group,cookie:"chef-2fa-block-cookie"},42,5);
 
   assert.equal(result.ok,false);
-  if(!result.ok)assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+  if(!result.ok){
+    assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+    assert.equal(result.error.challengeStage,"2fa");
+    assert.equal(result.error.retryAfterSeconds,undefined);
+    assert.equal(result.error.challengeReason,"Denied.AutomatedTampering.Body");
+  }
   assert.equal(payoutCalls,1);
+});
+
+test("payout reports a blocked session on the final payout retry",async(t)=>{
+  const outcomes:Array<AxiosResponse|Error>=[
+    failure({},403,{"x-csrf-token":"final-block-csrf"}),
+    failure({},403,{"rblx-challenge-id":"outer-id","rblx-challenge-type":"twostepverification","rblx-challenge-metadata":JSON.stringify({challengeId:"verify-id",userId:42})}),
+    response({verificationToken:"verified"}),
+    response({}),
+    failure({},403,{"rblx-challenge-type":"blocksession"}),
+  ];
+  t.mock.method(axios,"post",async()=>{const outcome=outcomes.shift()!;if(outcome instanceof Error)throw outcome;return outcome;});
+
+  const result=await payout({...group,cookie:"final-block-cookie"},42,5);
+
+  assert.equal(result.ok,false);
+  if(!result.ok){
+    assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+    assert.equal(result.error.challengeStage,"payout");
+  }
 });
 
 test("payout stops when chef continues to blocksession",async(t)=>{
@@ -107,7 +135,10 @@ test("payout stops when chef continues to blocksession",async(t)=>{
   const result=await payout({...group,cookie:"chef-block-cookie"},42,5);
 
   assert.equal(result.ok,false);
-  if(!result.ok)assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+  if(!result.ok){
+    assert.equal(result.error.code,"ROBLOX_SESSION_BLOCKED");
+    assert.equal(result.error.challengeStage,"chef");
+  }
   assert.equal(calls,3);
 });
 
@@ -140,4 +171,3 @@ test("payout identifies captcha after chef without attempting another payout",as
   assert.equal(result.ok,false);
   if(!result.ok)assert.equal(result.error.code,"ROBLOX_CHALLENGE_CAPTCHA");
 });
-

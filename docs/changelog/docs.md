@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-09-30 | Clarified blocked-session results and safe retry guidance for the private Roblox payout test Feature. |
 | 2026-09-30 | Clarified how to find, grant, install, and configure the private Roblox payout test Feature in Admin and My Bots. |
 | 2026-09-30 | Documented setup and use of the isolated Roblox payout test Feature. |
 | 2026-09-26 | Documented storefront and membership-only modes for Roblox Robux Payout 3.0 panels. |
