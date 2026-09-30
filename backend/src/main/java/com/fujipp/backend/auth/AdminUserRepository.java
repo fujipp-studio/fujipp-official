@@ -118,15 +118,22 @@ public class AdminUserRepository {
     }
 
     public UUID grantFeature(UUID userId,AdminUserRequests.GrantFeatureRequest request,UUID adminId){
-        return jdbcTemplate.queryForObject("""
+        UUID licenseId = jdbcTemplate.queryForObject("""
             INSERT INTO private.feature_licenses(owner_user_id,feature_product_id,acquired_version_id,source,
                 installation_limit,granted_by,expires_at)
             SELECT ?,product.id,version.id,'GRANT',?,?,?
               FROM shop.feature_products product JOIN shop.feature_versions version
                 ON version.feature_product_id=product.id AND version.status='PUBLISHED'
-             WHERE product.id=? AND EXISTS(SELECT 1 FROM private.user_accounts WHERE user_id=?)
+            WHERE product.id=? AND EXISTS(SELECT 1 FROM private.user_accounts WHERE user_id=?)
             RETURNING id
             """,UUID.class,userId,request.installationLimit(),adminId,request.expiresAt(),request.featureProductId(),userId);
+        jdbcTemplate.update("""
+            INSERT INTO private.feature_config_sets(license_id,feature_product_id,feature_version_id)
+            SELECT id,feature_product_id,acquired_version_id
+              FROM private.feature_licenses
+             WHERE id=?
+            """,licenseId);
+        return licenseId;
     }
 
     public boolean updateFeatureLicense(UUID userId,UUID licenseId,String status,AdminUserRequests.UpdateFeatureLicenseRequest request){
