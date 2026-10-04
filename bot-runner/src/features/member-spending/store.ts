@@ -1,7 +1,6 @@
 import { Pool } from "pg";
-import { connect } from "node:net";
 import type { MemberSpendingEntry, MemberSpendingStore } from "../../types.js";
-import { resolvePublicPostgresUrl } from "../../network-security.js";
+import { createPinnedPostgresSocket, resolvePublicPostgresUrl } from "../../network-security.js";
 
 export async function createOwnDatabaseStore(url:string,subjectId:string):Promise<MemberSpendingStore & {close():Promise<void>}> {
   const {url:safeUrl,addresses}=await resolvePublicPostgresUrl(url);
@@ -9,7 +8,7 @@ export async function createOwnDatabaseStore(url:string,subjectId:string):Promis
   let nextAddress=0;
   const port=Number(safeUrl.port||5432);
   const pool=new Pool({connectionString,max:2,connectionTimeoutMillis:10_000,idleTimeoutMillis:30_000,query_timeout:15_000,statement_timeout:15_000,ssl:needsSsl(connectionString)?{rejectUnauthorized:true}:undefined,
-    stream:()=>connect({host:addresses[nextAddress++%addresses.length]!,port})});
+    stream:()=>createPinnedPostgresSocket(addresses[nextAddress++%addresses.length]!,port)});
   pool.on("error",(error)=>console.error(`Member Spending external database pool error: ${error.message}`));
   await pool.query("CREATE SCHEMA IF NOT EXISTS shop");
   await pool.query(`CREATE TABLE IF NOT EXISTS shop.member_spending(

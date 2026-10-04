@@ -1,4 +1,4 @@
-import { isIP } from "node:net";
+import { isIP, Socket } from "node:net";
 import { lookup } from "node:dns/promises";
 
 const PRIVATE_IPV4 = [
@@ -44,6 +44,18 @@ export async function resolvePublicPostgresUrl(rawUrl: string): Promise<{ url: U
     throw new Error("SPENDING_DB_URL resolved to a private or unavailable network address");
   }
   return { url, addresses: [...new Set(resolved.map(({ address }) => address))] };
+}
+
+export function createPinnedPostgresSocket(address: string, port: number): Socket {
+  if (!isIP(address) || isPrivateNetworkAddress(address)) {
+    throw new Error("PostgreSQL socket requires a validated public IP address");
+  }
+  const socket = new Socket();
+  const connect = socket.connect.bind(socket);
+  // pg owns the connection lifecycle. Connecting here as well would connect
+  // twice, cancel the first connection, and resolve the original hostname again.
+  socket.connect = (() => connect({ host: address, port })) as Socket["connect"];
+  return socket;
 }
 
 export function assertDiscordCdnImageUrl(rawUrl: string): URL {
