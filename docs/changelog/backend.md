@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-05 | Fixed Member Spending cards to show the selected customer’s Discord avatar, including server profiles and default-avatar fallback. |
 | 2026-10-04 | Fixed customer-owned PostgreSQL connections for Member Spending while preserving validated IP pinning and TLS hostname verification. |
 | 2026-09-30 | Added precise Roblox payout test diagnostics for blocked sessions, including challenge stage and provider retry timing when available. |
 | 2026-09-30 | Fixed administrator Feature grants so their licenses include the configuration needed for Bot installation. |
