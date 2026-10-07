@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { defineAsyncComponent, provide, watch } from 'vue'
+import { computed, defineAsyncComponent, provide, watch } from 'vue'
 import { useFeatureSettings } from '../composables/useFeatureSettings'
 import { featureEditorKey } from '../composables/featureEditorContext'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
@@ -12,7 +12,8 @@ import FeaturePresentationSettings from '@/features/bots/components/FeaturePrese
 import { ArrowLeft, Save } from 'lucide-vue-next'
 
 const loadConfigFields = () => import('@/features/bots/components/FeatureConfigFields.vue')
-const loadPresentationEditor = () => import('@/features/bots/components/FeaturePresentationEditor.vue')
+const loadPresentationEditor = () =>
+  import('@/features/bots/components/FeaturePresentationEditor.vue')
 const FeatureConfigFields = defineAsyncComponent(loadConfigFields)
 const FeaturePresentationEditor = defineAsyncComponent(loadPresentationEditor)
 const { t } = useI18n()
@@ -23,8 +24,11 @@ const {
   goBack,
   presentationMode,
   license,
+  text,
   configuration,
   saving,
+  canSave,
+  requestSave,
   saveConfirmationOpen,
   error,
   loading,
@@ -34,13 +38,40 @@ const {
   toastOpen,
   toastMessage,
   toastVariant,
+  isRuntimeAlertFeature,
 } = editor
-watch(presentationMode, mode => {
-  // Fetch the selected editor alongside its API data, avoiding a second waterfall.
-  void (mode ? loadPresentationEditor() : loadConfigFields()).catch(() => {
-    // The async component retries and reports a load error when it is rendered.
-  })
-}, { immediate: true })
+const isMemberSpending = computed(() => license.value?.featureCode === 'member-spending')
+const isBotPresence = computed(() => license.value?.featureCode === 'bot-presence')
+const isBotPermissions = computed(() => license.value?.featureCode === 'bot-permissions')
+const isReviewCredit = computed(() => license.value?.featureCode === 'review-credit')
+const isVoiceKeeper = computed(() => license.value?.featureCode === 'voice-keeper')
+const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topup')
+const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
+const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
+const hasCustomConfig = computed(
+  () =>
+    isMemberSpending.value ||
+    isBotPresence.value ||
+    isRuntimeAlertFeature.value ||
+    isBotPermissions.value ||
+    isReviewCredit.value ||
+    isVoiceKeeper.value ||
+    isWalletTopup.value ||
+    editor.isRobloxPayoutFeature.value ||
+    isMessageTriggers.value ||
+    isPaymentTrigger.value ||
+    editor.isPriceReaderFeature.value,
+)
+watch(
+  presentationMode,
+  (mode) => {
+    // Fetch the selected editor alongside its API data, avoiding a second waterfall.
+    void (mode ? loadPresentationEditor() : loadConfigFields()).catch(() => {
+      // The async component retries and reports a load error when it is rendered.
+    })
+  },
+  { immediate: true },
+)
 </script>
 <template>
   <section
@@ -68,7 +99,16 @@ watch(presentationMode, mode => {
       </button>
       <header class="flex flex-col gap-md tablet:flex-row tablet:items-end tablet:justify-between">
         <div>
-          <h1 class="text-3xl font-bold tracking-tight desktop:text-5xl">
+          <h1
+            class="text-3xl font-bold tracking-tight"
+            :class="
+              presentationMode === 'EMBED'
+                ? 'desktop:text-3xl'
+                : hasCustomConfig && !presentationMode
+                  ? 'desktop:text-4xl'
+                  : 'desktop:text-5xl'
+            "
+          >
             {{
               presentationMode === 'EMBED'
                 ? `Embed · ${license?.featureName ?? 'Feature'}`
@@ -81,7 +121,9 @@ watch(presentationMode, mode => {
             {{
               presentationMode
                 ? t('botSettings.editMessageLayoutAndPreviewBeforeSaving')
-                : t('botSettings.configSecretsAndDisplayFormatsForYour')
+                : hasCustomConfig
+                  ? text('Feature settings', 'ตั้งค่าฟีเจอร์')
+                  : t('botSettings.configSecretsAndDisplayFormatsForYour')
             }}
             · Version
             {{ configuration?.revision ?? '—' }}
@@ -91,8 +133,8 @@ watch(presentationMode, mode => {
           v-if="configuration"
           class="tablet:!w-auto"
           variant="secondary"
-          :disabled="saving"
-          @click="saveConfirmationOpen = true"
+          :disabled="!canSave"
+          @click="requestSave"
         >
           <Save :size="18" />
           {{ saving ? t('botSettings.saving') : t('botSettings.saveAll') }}
@@ -107,11 +149,17 @@ watch(presentationMode, mode => {
       <template v-else-if="configuration">
         <FeatureConfigFields v-if="!presentationMode" />
 
-        <FeaturePresentationSettings v-if="!presentationMode" />
+        <FeaturePresentationSettings
+          v-if="!presentationMode && (!hasCustomConfig || configuration.presentations.length)"
+        />
 
-        <FeaturePresentationEditor v-else />
+        <FeaturePresentationEditor v-if="presentationMode" />
       </template>
-      <AppSectionIndicator :sections="pageSections" aria-label="Feature settings sections" />
+      <AppSectionIndicator
+        v-if="!hasCustomConfig || presentationMode || configuration?.presentations.length"
+        :sections="pageSections"
+        aria-label="Feature settings sections"
+      />
       <AppModal
         v-model:open="saveConfirmationOpen"
         size="sm"
@@ -126,7 +174,7 @@ watch(presentationMode, mode => {
           <AppButton variant="secondary" :disabled="saving" @click="saveConfirmationOpen = false">
             {{ t('botSettings.cancel') }}
           </AppButton>
-          <AppButton :disabled="saving" @click="confirmSave">
+          <AppButton :disabled="!canSave" @click="confirmSave">
             <Save :size="18" />
             {{ saving ? t('botSettings.saving') : t('botSettings.confirmSave') }}
           </AppButton>

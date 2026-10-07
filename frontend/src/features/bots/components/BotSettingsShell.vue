@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Clock3 } from 'lucide-vue-next'
 
 import { icons } from '../../../config'
@@ -29,29 +30,30 @@ const emit = defineEmits<{
   control: [action: 'start' | 'stop' | 'restart']
 }>()
 
+const { t } = useI18n()
 const online = computed(() => Boolean(props.bot && isBotOnline(props.bot)))
 const runtimeLabels: Record<BotRuntimeDisplayState, string> = {
-  starting: 'Starting…',
-  stopping: 'Stopping…',
-  restarting: 'Restarting…',
-  running: 'Running',
-  stopped: 'Stopped',
-  crashed: 'Crashed',
-  offline: 'Offline',
+  starting: 'myBots.runtimeStateStarting',
+  stopping: 'myBots.runtimeStateStopping',
+  restarting: 'myBots.runtimeStateRestarting',
+  running: 'myBots.runtimeStateRunning',
+  stopped: 'myBots.runtimeStateStopped',
+  crashed: 'myBots.runtimeStateCrashed',
+  offline: 'myBots.runtimeStateOffline',
 }
 
 function runtimeLabel() {
   if (!props.bot) return ''
-  return runtimeLabels[botRuntimeDisplayState(props.bot, props.controlAction)]
+  return t(runtimeLabels[botRuntimeDisplayState(props.bot, props.controlAction)])
 }
 </script>
 
 <template>
   <header class="bot-shell-hero">
-    <h1>Bot settings</h1>
-    <AppButton class="bot-shell-hug" :left-icon="icons.base.arrowLeft" @click="emit('back')"
-      >Back</AppButton
-    >
+    <h1>{{ t('botSettings.shellTitle') }}</h1>
+    <AppButton class="bot-shell-hug" :left-icon="icons.base.arrowLeft" @click="emit('back')">{{
+      t('botSettings.back')
+    }}</AppButton>
   </header>
   <section v-if="bot" class="bot-shell-summary">
     <div class="bot-shell-identity">
@@ -59,7 +61,7 @@ function runtimeLabel() {
         v-if="bot.discordAvatarUrl"
         class="bot-shell-avatar"
         :src="bot.discordAvatarUrl"
-        :alt="`${bot.name} avatar`"
+        :alt="t('myBots.avatarAlt', { name: bot.name })"
         decoding="async"
         fetchpriority="high"
       />
@@ -69,7 +71,7 @@ function runtimeLabel() {
       <div class="min-w-0">
         <h2>{{ bot.name }}</h2>
         <strong :class="online ? 'bot-shell-online' : 'bot-shell-offline'">{{
-          online ? 'online' : 'offline'
+          t(online ? 'myBots.online' : 'myBots.offline')
         }}</strong>
         <p><Clock3 :size="16" />{{ runtimeLabel() }}</p>
       </div>
@@ -81,7 +83,7 @@ function runtimeLabel() {
         :left-icon="bot.desiredState === 'RUNNING' ? icons.action.pause : icons.action.play"
         :disabled="controlling"
         @click="emit('control', bot.desiredState === 'RUNNING' ? 'stop' : 'start')"
-        >{{ bot.desiredState === 'RUNNING' ? 'Stop' : 'Start' }}</AppButton
+        >{{ t(bot.desiredState === 'RUNNING' ? 'myBots.stop' : 'myBots.start') }}</AppButton
       >
       <AppButton
         class="bot-shell-hug"
@@ -89,14 +91,15 @@ function runtimeLabel() {
         :left-icon="icons.action.restart"
         :disabled="controlling || bot.desiredState !== 'RUNNING'"
         @click="emit('control', 'restart')"
-        >Restart</AppButton
+        >{{ t('myBots.restart') }}</AppButton
       >
     </div>
   </section>
   <div v-else-if="loading" class="bot-shell-loading" />
-  <nav class="bot-shell-breadcrumb" aria-label="Bot settings breadcrumb">
-    <button v-if="trail.length" type="button" @click="emit('main')">Main</button
-    ><span v-else>Main</span>
+  <nav class="bot-shell-breadcrumb" :aria-label="t('botSettings.breadcrumbLabel')">
+    <button v-if="trail.length" type="button" @click="emit('main')">
+      {{ t('botSettings.main') }}</button
+    ><span v-else>{{ t('botSettings.main') }}</span>
     <TransitionGroup name="breadcrumb-item">
       <span v-for="(item, index) in trail" :key="item" class="bot-shell-crumb">
         <span aria-hidden="true">&gt;</span>

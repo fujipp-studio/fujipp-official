@@ -1,145 +1,160 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { Hash, MessageSquareText, Plus, Trash2 } from 'lucide-vue-next'
+import { computed, nextTick, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { Plus, Trash2 } from 'lucide-vue-next'
+import AppButton from '@/shared/ui/buttons/AppButton.vue'
+import AppTextField from '@/shared/ui/fields/AppTextField.vue'
+import { parseMessageTriggerRules } from '../config/channel-message-triggers'
 
-type RuleKind = 'channel-create' | 'admin-message'
-type Rule = { categoryId?: string; trigger?: string; template: string }
-
-const props = defineProps<{
-  modelValue: string
-  kind: RuleKind
-  templates: Array<{ value: string; label: string }>
-}>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: string
+    kind: 'channel-create' | 'admin-message'
+    templates: Array<{ value: string; label: string }>
+    limit?: number
+  }>(),
+  { limit: 25 },
+)
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
-
-const rules = computed<Rule[]>(() => {
-  try {
-    const value: unknown = JSON.parse(props.modelValue)
-    if (!Array.isArray(value)) return []
-    const parsed: Rule[] = []
-    for (const item of value) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
-      const record = item as Record<string, unknown>
-      const template = String(record.template ?? props.templates[0]?.value ?? 'template_1')
-      parsed.push(
-        props.kind === 'channel-create'
-          ? { categoryId: String(record.categoryId ?? ''), template }
-          : { trigger: String(record.trigger ?? ''), template },
-      )
-    }
-    return parsed
-  } catch {
-    return []
-  }
-})
-
-const targetKey = computed<'categoryId' | 'trigger'>(() =>
-  props.kind === 'channel-create' ? 'categoryId' : 'trigger',
-)
-const title = computed(() =>
-  props.kind === 'channel-create' ? 'Category Trigger' : 'Admin Message Trigger',
-)
-const description = computed(() =>
-  props.kind === 'channel-create'
-    ? 'เมื่อมีห้องข้อความใหม่ใน Category นี้ บอทจะส่ง Template ที่เลือก'
-    : 'ตรงกับข้อความทั้งประโยค ไม่สนตัวพิมพ์เล็ก-ใหญ่ และบอทจะลบข้อความ Trigger ก่อนส่ง Template',
-)
-
-function commit(value: Rule[]) {
+const { locale } = useI18n()
+const text = (en: string, th: string) => (locale.value === 'th' ? th : en)
+const list = ref<HTMLElement>()
+const rules = computed(() => parseMessageTriggerRules(props.modelValue))
+const targetKey = computed(() => (props.kind === 'channel-create' ? 'categoryId' : 'trigger'))
+const target = (rule: Record<string, unknown>) => String(rule[targetKey.value] ?? '')
+const template = (rule: Record<string, unknown>) => String(rule.template ?? '')
+const normalizedTarget = (rule: Record<string, unknown>) =>
+  target(rule).trim().toLocaleLowerCase('en-US')
+function targetError(rule: Record<string, unknown>) {
+  if (props.kind === 'channel-create')
+    return /^\d{15,30}$/.test(target(rule))
+      ? ''
+      : text(
+          'Enter a Discord Category ID with 15–30 digits.',
+          'กรอก Category ID เป็นตัวเลข 15–30 หลัก',
+        )
+  return target(rule).trim().length > 0 && target(rule).length <= 100
+    ? ''
+    : text('Enter a trigger of 1–100 characters.', 'กรอกข้อความ Trigger 1–100 ตัวอักษร')
+}
+function templateError(rule: Record<string, unknown>) {
+  return props.templates.some((item) => item.value === template(rule))
+    ? ''
+    : text('Choose an available message template.', 'เลือก Template ที่มีอยู่')
+}
+function duplicate(rule: Record<string, unknown>, index: number) {
+  const value = normalizedTarget(rule)
+  return value && rules.value.slice(0, index).some((item) => normalizedTarget(item) === value)
+}
+function commit(value: Record<string, unknown>[]) {
   emit('update:modelValue', JSON.stringify(value, null, 2))
 }
-function update(index: number, key: 'categoryId' | 'trigger' | 'template', value: string) {
+function update(index: number, key: string, value: string) {
   const next = rules.value.map((rule) => ({ ...rule }))
   if (!next[index]) return
   next[index][key] = value
   commit(next)
 }
-function add() {
-  const template = props.templates[0]?.value ?? 'template_1'
-  commit([
-    ...rules.value,
-    props.kind === 'channel-create' ? { categoryId: '', template } : { trigger: '', template },
-  ])
+async function add() {
+  if (rules.value.length >= props.limit || !props.templates.length) return
+  commit([...rules.value, { [targetKey.value]: '', template: props.templates[0]!.value }])
+  await nextTick()
+  list.value
+    ?.querySelectorAll<HTMLInputElement>('[data-trigger-rule] input')
+    .item(rules.value.length - 1)
+    ?.focus()
 }
-function remove(index: number) {
-  commit(rules.value.filter((_, itemIndex) => itemIndex !== index))
+async function remove(index: number) {
+  commit(rules.value.filter((_, current) => current !== index))
+  await nextTick()
+  const fields = list.value?.querySelectorAll<HTMLInputElement>('[data-trigger-rule] input')
+  if (fields?.length) fields.item(Math.min(index, fields.length - 1))?.focus()
+  else list.value?.querySelector<HTMLButtonElement>('[data-add-trigger]')?.focus()
 }
 </script>
 
 <template>
-  <div class="trigger-editor">
-    <div class="trigger-summary">
-      <span class="trigger-summary__icon">
-        <Hash v-if="kind === 'channel-create'" :size="20" />
-        <MessageSquareText v-else :size="20" />
-      </span>
-      <span>
-        <strong>{{ title }}</strong>
-        <small>{{ description }}</small>
-      </span>
-    </div>
-
-    <div v-if="!rules.length" class="trigger-empty">
-      ยังไม่มีกฎสำหรับ {{ title }}
-    </div>
-
-    <article v-for="(rule, index) in rules" :key="index" class="trigger-rule">
-      <header>
-        <strong>Rule {{ index + 1 }}</strong>
-        <button type="button" :aria-label="`ลบ Rule ${index + 1}`" @click="remove(index)">
-          <Trash2 :size="17" />
-        </button>
+  <div ref="list" class="trigger-editor space-y-md">
+    <p
+      v-if="!rules.length"
+      class="rounded-lg border border-dashed border-border-default p-lg text-center text-sm text-text-muted"
+    >
+      {{
+        kind === 'channel-create'
+          ? text('No channel creation rules yet.', 'ยังไม่มีกฎเมื่อสร้างห้อง')
+          : text('No administrator triggers yet.', 'ยังไม่มี Trigger สำหรับแอดมิน')
+      }}
+    </p>
+    <article
+      v-for="(rule, index) in rules"
+      :key="index"
+      class="min-w-0 rounded-lg border border-border-subtle bg-bg-default p-md"
+      data-trigger-rule
+    >
+      <header class="mb-md flex items-center justify-between gap-sm">
+        <h3 class="text-sm font-semibold">{{ text(`Rule ${index + 1}`, `กฎ ${index + 1}`) }}</h3>
+        <AppButton
+          variant="secondary"
+          class="!h-10 !w-10 !shrink-0 !px-0 hover:!bg-error-bg hover:!text-error-text"
+          :aria-label="text(`Delete rule ${index + 1}`, `ลบกฎ ${index + 1}`)"
+          @click="remove(index)"
+        >
+          <Trash2 :size="16" aria-hidden="true" />
+        </AppButton>
       </header>
-      <div class="trigger-fields">
-        <div class="trigger-field">
-          <span>{{ kind === 'channel-create' ? 'Discord Category ID' : 'ข้อความ Trigger' }}</span>
-          <input
-            :value="String(rule[targetKey] ?? '')"
-            :placeholder="kind === 'channel-create' ? '123456789012345678' : 'pay'"
-            :maxlength="kind === 'channel-create' ? 30 : 100"
-            :inputmode="kind === 'channel-create' ? 'numeric' : 'text'"
-            :aria-label="kind === 'channel-create' ? 'Discord Category ID' : 'ข้อความ Trigger'"
-            @input="update(index, targetKey, ($event.target as HTMLInputElement).value)"
-          />
-        </div>
-        <div class="trigger-field">
-          <span>Message Template</span>
-          <select
-            :value="rule.template"
-            aria-label="Message Template"
-            @change="update(index, 'template', ($event.target as HTMLSelectElement).value)"
-          >
-            <option v-for="template in templates" :key="template.value" :value="template.value">
-              {{ template.label }}
-            </option>
-          </select>
-        </div>
+      <div class="grid min-w-0 gap-md tablet:grid-cols-2">
+        <AppTextField
+          :model-value="target(rule)"
+          :label="
+            kind === 'channel-create'
+              ? 'Discord Category ID'
+              : text('Trigger text', 'ข้อความ Trigger')
+          "
+          :placeholder="kind === 'channel-create' ? '123456789012345678' : 'pay'"
+          :maxlength="kind === 'channel-create' ? 30 : 100"
+          :pattern="kind === 'channel-create' ? '[0-9]{15,30}' : undefined"
+          required
+          :state="targetError(rule) ? 'error' : 'default'"
+          :support-text="
+            targetError(rule) || (kind === 'admin-message' ? `${target(rule).length} / 100` : '')
+          "
+          @update:model-value="update(index, targetKey, $event)"
+        />
+        <AppTextField
+          variant="dropdown"
+          :model-value="template(rule)"
+          :label="text(`Message template for rule ${index + 1}`, `Template สำหรับกฎ ${index + 1}`)"
+          :placeholder="text('Choose a template', 'เลือก Template')"
+          :options="templates"
+          required
+          :state="templateError(rule) ? 'error' : 'default'"
+          :support-text="templateError(rule)"
+          @update:model-value="update(index, 'template', $event)"
+        />
       </div>
+      <p v-if="duplicate(rule, index)" class="mt-sm text-xs text-warning-text" role="status">
+        {{
+          text(
+            'This target is already used above. The bot uses the first matching rule.',
+            'เงื่อนไขนี้ซ้ำกับกฎด้านบน บอทจะใช้กฎแรกที่ตรงเงื่อนไข',
+          )
+        }}
+      </p>
     </article>
-
-    <button type="button" class="trigger-add" :disabled="rules.length >= 25" @click="add">
-      <Plus :size="17" /> เพิ่ม Rule
-    </button>
+    <div class="flex flex-wrap items-center justify-between gap-sm">
+      <AppButton
+        data-add-trigger
+        class="!w-auto"
+        variant="secondary"
+        :disabled="rules.length >= limit || !templates.length"
+        @click="add"
+      >
+        <Plus :size="16" aria-hidden="true" />{{ text('Add rule', 'เพิ่มกฎ') }}
+      </AppButton>
+      <span class="text-xs text-text-muted">{{ rules.length }} / {{ limit }}</span>
+    </div>
+    <p v-if="!templates.length" class="text-xs text-text-muted">
+      {{ text('No message templates are available.', 'ยังไม่มี Template ข้อความให้เลือก') }}
+    </p>
   </div>
 </template>
-
-<style scoped>
-.trigger-editor { display: grid; gap: var(--space-md); margin-top: var(--space-sm); }
-.trigger-summary { display: flex; align-items: center; gap: var(--space-sm); }
-.trigger-summary__icon { display: grid; width: 2.5rem; height: 2.5rem; flex: 0 0 auto; place-items: center; border-radius: var(--radius-md); background: var(--semantic-color-action-backgrounds-bg-secondary); color: var(--semantic-color-action-text-text-on-secondary); }
-.trigger-summary strong, .trigger-summary small { display: block; }
-.trigger-summary small { margin-top: var(--space-xxs); color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); font-weight: var(--typography-font-weight-regular); }
-.trigger-empty { padding: var(--space-lg); border: 1px dashed var(--semantic-color-border-border-default); border-radius: var(--radius-lg); color: var(--semantic-color-text-text-muted); text-align: center; }
-.trigger-rule { overflow: hidden; border: 1px solid var(--semantic-color-border-border-default); border-radius: var(--radius-lg); background: var(--semantic-color-background-bg-default); }
-.trigger-rule header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-xs) var(--space-sm); border-bottom: 1px solid var(--semantic-color-border-border-subtle); background: var(--semantic-color-background-bg-surface); }
-.trigger-rule header button { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--radius-md); color: var(--semantic-color-error-error-text); }
-.trigger-rule header button:hover { background: var(--semantic-color-error-error-bg); }
-.trigger-fields { display: grid; gap: var(--space-sm); padding: var(--space-sm); }
-.trigger-field { display: grid; gap: var(--space-xxs); color: var(--semantic-color-text-text-secondary); font-size: var(--font-size-label-small); }
-.trigger-field input, .trigger-field select { width: 100%; height: 2.75rem; padding: 0 var(--space-sm); border: 1px solid var(--semantic-color-border-border-default); border-radius: var(--radius-md); background: var(--semantic-color-background-bg-surface); color: var(--semantic-color-text-text-primary); outline: none; }
-.trigger-field input:focus, .trigger-field select:focus { border-color: var(--semantic-color-action-borders-border-focus); box-shadow: 0 0 0 1px var(--semantic-color-action-borders-border-focus); }
-.trigger-add { display: inline-flex; width: fit-content; height: 2.5rem; align-items: center; gap: var(--space-xs); padding: 0 var(--space-md); border: 1px solid var(--semantic-color-border-border-default); border-radius: var(--radius-md); background: var(--semantic-color-background-bg-surface); font-weight: var(--typography-font-weight-medium); }
-.trigger-add:hover:not(:disabled) { background: var(--semantic-color-background-bg-surface-hover); }
-.trigger-add:disabled { cursor: not-allowed; opacity: .5; }
-@media (min-width: 768px) { .trigger-fields { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); } }
-</style>

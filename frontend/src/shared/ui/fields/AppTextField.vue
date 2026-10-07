@@ -20,6 +20,9 @@ const props = withDefaults(
     autocomplete?: string
     inputType?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'date'
     maxlength?: number
+    min?: number
+    max?: number
+    step?: number | 'any'
     pattern?: string
     disabled?: boolean
     required?: boolean
@@ -62,6 +65,7 @@ const dropdownSearch = ref('')
 const isSecretVisible = ref(false)
 const highlightedOptionIndex = ref(-1)
 const dropdownStyle = ref<Record<string, string>>({})
+let dropdownMaxHeight: number | undefined
 const generatedId = useId()
 const fieldId = computed(() => `text-field-${generatedId}`)
 const supportId = computed(() => `${fieldId.value}-support`)
@@ -187,19 +191,36 @@ function updateDropdownPosition() {
     dropdownStyle.value = {}
     return
   }
-  const rect = fieldElement.value.getBoundingClientRect()
+  const control = fieldElement.value.querySelector<HTMLElement>('.text-field__control')
+  const dropdown = dropdownElement.value
+  if (!control || !dropdown) return
+  const rect = control.getBoundingClientRect()
+  const gap = 4
+  const maxHeight = (dropdownMaxHeight ??= Number.parseFloat(getComputedStyle(dropdown).maxHeight))
+  const contentHeight = Math.min(dropdown.scrollHeight + 2, maxHeight)
+  const below = Math.max(0, window.innerHeight - rect.bottom - gap * 2)
+  const above = Math.max(0, rect.top - gap * 2)
+  const opensAbove = below < contentHeight && above > below
+  const availableHeight = opensAbove ? above : below
+  const height = Math.min(contentHeight, availableHeight)
+  const width = Math.min(rect.width, window.innerWidth - gap * 2)
   dropdownStyle.value = {
     position: 'fixed',
-    top: `${rect.bottom + 4}px`,
-    left: `${rect.left}px`,
-    width: `${rect.width}px`,
+    top: `${opensAbove ? rect.top - gap - height : rect.bottom + gap}px`,
+    left: `${Math.max(gap, Math.min(rect.left, window.innerWidth - width - gap))}px`,
+    right: 'auto',
+    width: `${width}px`,
+    maxHeight: `${Math.min(maxHeight, availableHeight)}px`,
+    transformOrigin: opensAbove ? 'bottom' : 'top',
     zIndex: '99999',
   }
 }
 
 watch(isDropdownOpen, (open) => {
   if (open) {
-    updateDropdownPosition()
+    dropdownStyle.value = {}
+    dropdownMaxHeight = undefined
+    void nextTick(updateDropdownPosition)
     window.addEventListener('scroll', updateDropdownPosition, true)
     window.addEventListener('resize', updateDropdownPosition)
   } else {
@@ -209,6 +230,7 @@ watch(isDropdownOpen, (open) => {
 })
 watch(dropdownSearch, () => {
   highlightedOptionIndex.value = enabledOptionIndexes.value[0] ?? -1
+  if (isDropdownOpen.value) void nextTick(updateDropdownPosition)
 })
 
 function handleDocumentClick(event: MouseEvent) {
@@ -260,6 +282,9 @@ onBeforeUnmount(() => {
         :autocomplete="autocomplete"
         :placeholder="placeholder"
         :maxlength="maxlength"
+        :min="min"
+        :max="max"
+        :step="step"
         :pattern="pattern"
         :disabled="disabled"
         :required="required"
@@ -480,7 +505,9 @@ onBeforeUnmount(() => {
   height: var(--icon-size-24);
   color: var(--semantic-color-text-text-secondary);
   stroke-width: 1.75;
-  transition: transform 160ms ease, color 160ms ease;
+  transition:
+    transform 160ms ease,
+    color 160ms ease;
 }
 
 .text-field__secret-toggle:hover .text-field__secret-icon {

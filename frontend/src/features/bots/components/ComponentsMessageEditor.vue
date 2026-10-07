@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
+import PresentationSystemComponentsEditor from './PresentationSystemComponentsEditor.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import type { FeatureConfiguration } from '../api'
 
 const { t } = useI18n()
-defineProps<{ messageSlot: FeatureConfiguration['presentations'][number] }>()
+const props = defineProps<{ messageSlot: FeatureConfiguration['presentations'][number] }>()
 const {
   supportsBlockBuilder,
   componentBlocks,
@@ -47,8 +48,6 @@ const {
   updateContainerChild,
   addContainerChild,
   addComponentBlock,
-  systemComponents,
-  updateSystemComponent,
   componentStyleOptions,
   addLink,
   visualArray,
@@ -61,6 +60,23 @@ const {
   addCoFeature,
   availableCoFeatures,
 } = useFeatureEditor()
+
+function startBlockDrag(event: DragEvent, index: number) {
+  draggedComponent.value = { slotKey: props.messageSlot.key, index }
+  if (!event.dataTransfer) return
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('application/x-fujipp-component', props.messageSlot.key)
+  const block = (event.currentTarget as HTMLElement).closest<HTMLElement>('.builder-item')
+  if (block) {
+    const bounds = block.getBoundingClientRect()
+    event.dataTransfer.setDragImage(block, event.clientX - bounds.left, event.clientY - bounds.top)
+  }
+}
+function dropBlock(event: DragEvent, index: number) {
+  if (draggedComponent.value?.slotKey !== props.messageSlot.key) return
+  event.preventDefault()
+  dropComponentBlock(props.messageSlot.key, index)
+}
 </script>
 <template>
   <div class="builder-section desktop:col-span-2 wide:col-span-1">
@@ -81,14 +97,18 @@ const {
         v-for="(block, blockIndex) in componentBlocks(messageSlot.key)"
         :key="blockIndex"
         class="builder-item"
-        draggable="true"
-        @dragstart="draggedComponent = { slotKey: messageSlot.key, index: blockIndex }"
-        @dragend="draggedComponent = null"
-        @dragover.prevent
-        @drop.prevent="dropComponentBlock(messageSlot.key, blockIndex)"
+        @dragover="draggedComponent?.slotKey === messageSlot.key && $event.preventDefault()"
+        @drop="dropBlock($event, blockIndex)"
       >
         <div class="flex items-center gap-xs">
-          <span class="component-drag-handle" :title="t('botSettings.dragToReorder')">⠿</span>
+          <span
+            class="component-drag-handle"
+            :title="t('botSettings.dragToReorder')"
+            draggable="true"
+            @dragstart.stop="startBlockDrag($event, blockIndex)"
+            @dragend="draggedComponent = null"
+            >⠿</span
+          >
           <strong class="min-w-0 flex-1 truncate text-sm">{{ blockSummary(block) }}</strong
           ><button
             type="button"
@@ -750,68 +770,7 @@ const {
         </button>
       </div>
     </template>
-    <template v-if="systemComponents(messageSlot.key).length">
-      <div class="builder-heading">
-        <div>
-          <strong>{{ t('botSettings.featureComponents') }}</strong>
-          <p>
-            {{ t('botSettings.customizeFixedButtonsAndSelectionsWithoutChanging') }}
-          </p>
-        </div>
-      </div>
-      <div v-for="item in systemComponents(messageSlot.key)" :key="item.role" class="builder-item">
-        <div class="component-role">
-          <strong>{{ item.role }}</strong>
-          <span>{{
-            item.role.includes('select') ? t('botSettings.selection') : t('botSettings.button')
-          }}</span>
-        </div>
-        <div class="component-editor-grid">
-          <label class="component-field">
-            <span>{{ item.role.includes('select') ? 'Placeholder' : 'Label' }}</span>
-            <input
-              :value="String(item.config.label ?? item.config.placeholder ?? '')"
-              class="field-control h-10"
-              :placeholder="item.role.includes('select') ? 'เลือกตัวเลือก…' : 'ข้อความบนปุ่ม'"
-              @input="
-                updateSystemComponent(
-                  messageSlot.key,
-                  item.role,
-                  item.role.includes('select') ? 'placeholder' : 'label',
-                  ($event.target as HTMLInputElement).value,
-                )
-              "
-            />
-          </label>
-          <AppTextField
-            v-if="!item.role.includes('select')"
-            :model-value="String(item.config.style ?? 'secondary')"
-            variant="dropdown"
-            label="Style"
-            :options="componentStyleOptions"
-            @update:model-value="
-              (val) => updateSystemComponent(messageSlot.key, item.role, 'style', String(val))
-            "
-          />
-          <label class="component-field">
-            <span>Emoji</span>
-            <input
-              :value="String(item.config.emoji ?? '')"
-              class="field-control h-10"
-              placeholder="💰 หรือ <:name:id>"
-              @input="
-                updateSystemComponent(
-                  messageSlot.key,
-                  item.role,
-                  'emoji',
-                  ($event.target as HTMLInputElement).value,
-                )
-              "
-            />
-          </label>
-        </div>
-      </div>
-    </template>
+    <PresentationSystemComponentsEditor :message-slot="messageSlot" />
     <div class="mt-md border-t border-border-subtle pt-md">
       <div class="builder-heading">
         <div>

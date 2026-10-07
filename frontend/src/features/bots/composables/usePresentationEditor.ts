@@ -52,10 +52,14 @@ export function usePresentationEditor({
   function embedArrayDefinition(definition: Record<string, unknown>): Record<string, unknown> {
     const embed = firstEmbed(definition) ?? {}
     return {
-      ...definition,
       ...embed,
-      image_url: mediaUrl(embed.image ?? definition.image_url),
-      thumbnail_url: mediaUrl(embed.thumbnail ?? definition.thumbnail_url),
+      content: definition.content,
+      actions: definition.actions,
+      action_overrides: definition.action_overrides,
+      links: definition.links,
+      co_features: definition.co_features,
+      image_url: mediaUrl(embed.image),
+      thumbnail_url: mediaUrl(embed.thumbnail),
     }
   }
 
@@ -67,6 +71,8 @@ export function usePresentationEditor({
     mode: Exclude<PresentationMode, null>,
   ): PresentationStorage {
     const nestedKey = nestedKeyFor(mode)
+    if (mode === 'EMBED' && mode === normalizedMode(definition.mode) && firstEmbed(definition))
+      return { kind: 'embed-array' }
     if (isRecord(definition[nestedKey])) return { kind: 'nested', key: nestedKey }
     if (mode === normalizedMode(definition.mode)) {
       if (mode === 'EMBED' && firstEmbed(definition)) return { kind: 'embed-array' }
@@ -162,15 +168,16 @@ export function usePresentationEditor({
 
   function embedColor(slotKey: string) {
     const value = visualDefinition(slotKey).color
-    if (typeof value === 'number' && Number.isInteger(value))
-      return `#${value.toString(16).padStart(6, '0').slice(-6)}`
-    const normalized = String(value ?? '').trim()
-    return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : '#5865f2'
+    if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 0xffffff)
+      return `#${value.toString(16).padStart(6, '0')}`
+    const normalized = typeof value === 'string' ? value.trim().replace(/^#/, '') : ''
+    return /^[0-9a-f]{6}$/i.test(normalized) ? `#${normalized}` : ''
   }
 
   function updateEmbedColor(slotKey: string, value: string) {
     const normalized = value.trim()
-    if (/^#[0-9a-f]{6}$/i.test(normalized)) updatePresentation(slotKey, 'color', normalized)
+    if (!normalized) updatePresentation(slotKey, 'color', undefined)
+    else if (/^#[0-9a-f]{6}$/i.test(normalized)) updatePresentation(slotKey, 'color', normalized)
   }
 
   function embedObject(slotKey: string, key: 'author' | 'footer') {
@@ -206,6 +213,20 @@ export function usePresentationEditor({
   }
 
   const defaultActionLabel = (labels: [string, string]) => text(labels[0], labels[1])
+
+  function moveFixedAction(slotKey: string, action: string, direction: -1 | 1) {
+    const definition = visualDefinition(slotKey)
+    if (!Array.isArray(definition.actions)) return
+    const visible = fixedActions(slotKey)
+    const index = visible.findIndex((item) => item.action === action)
+    const neighbor = visible[index + direction]
+    if (index < 0 || !neighbor) return
+    const actions = [...definition.actions]
+    const source = actions.indexOf(action)
+    const target = actions.indexOf(neighbor.action)
+    ;[actions[source], actions[target]] = [actions[target], actions[source]]
+    updatePresentation(slotKey, 'actions', actions)
+  }
 
   function updateActionOverride(slotKey: string, action: string, key: string, value: string) {
     const definition = visualDefinition(slotKey)
@@ -914,6 +935,7 @@ export function usePresentationEditor({
     updateEmbedObject,
     fixedActions,
     defaultActionLabel,
+    moveFixedAction,
     updateActionOverride,
     visualArray,
     updateVisualArray,

@@ -17,6 +17,7 @@ describe('RobuxPanelsEditor', () => {
             name: 'Main Panel',
             groupKeys: ['main'],
             presentationSlot: 'panel_1',
+            future: { retained: true },
           },
         ]),
         groupsJson: JSON.stringify([{ key: 'main', name: 'Main Group' }]),
@@ -43,6 +44,8 @@ describe('RobuxPanelsEditor', () => {
     const updates = wrapper.emitted('update:panelsJson') ?? []
     const latest = JSON.parse(String(updates.at(-1)?.[0]))
     expect(latest[0].mode).toBe('membership_only')
+    expect(latest[0].future).toEqual({ retained: true })
+    expect(latest[0].presentationSlot).toBe('panel_1')
 
     wrapper.unmount()
   })

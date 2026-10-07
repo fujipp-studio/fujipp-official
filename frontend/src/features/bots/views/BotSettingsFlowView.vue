@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { createBotSettingsData, botSettingsDataKey } from '../composables/useBotSettingsData'
 import AppRequestError from '@/shared/ui/feedback/AppRequestError.vue'
-import { computed, onMounted, provide, ref, watch } from 'vue'
+import { computed, onMounted, provide } from 'vue'
 
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -18,7 +18,6 @@ const adminMode = computed(() => route.path.startsWith('/admin/bots/'))
 const data = createBotSettingsData({ botId, adminMode })
 provide(botSettingsDataKey, data)
 const { bot, licenses, loading, controlling, controlAction, error, runControl } = data
-const transitionName = ref('bot-child-forward')
 const currentLicense = computed(() =>
   licenses.value.find((item) => item.id === String(route.params.licenseId ?? '')),
 )
@@ -30,14 +29,14 @@ const featureParentRoute = computed(
 const trail = computed(() => {
   if (route.name === 'bot-settings' || route.name === 'admin-bot-settings') return []
   if (route.name === 'bot-config-settings' || route.name === 'admin-bot-config-settings')
-    return ['Bot config']
+    return [t('botSettings.botConfig')]
   if (route.name === 'bot-runtime-settings' || route.name === 'admin-bot-runtime-settings')
-    return ['Runtime settings']
+    return [t('botSettings.runtimeSettings')]
   if (route.name === 'bot-package-settings' || route.name === 'admin-bot-package-settings')
-    return ['Package settings']
+    return [t('botSettings.packageSettings')]
   const result = [
     t(isRuntimeAlert.value ? 'botSettings.runtimeSettings' : 'botSettings.packageSettings'),
-    currentLicense.value?.featureName ?? 'Feature',
+    currentLicense.value?.featureName ?? t('botSettings.featureFallback'),
   ]
   if (
     route.name === 'bot-feature-embed-settings' ||
@@ -60,24 +59,10 @@ const featureRouteNames = new Set([
   'admin-bot-feature-components-v2-settings',
 ])
 const isFeatureRoute = computed(() => featureRouteNames.has(String(route.name)))
-const shellSections = [
-  { id: 'bot-settings-overview', label: 'Bot' },
-  { id: 'bot-settings-content', label: 'Settings' },
-]
-function routeDepth(name: unknown) {
-  if (name === 'bot-settings' || name === 'admin-bot-settings') return 0
-  if (
-    name === 'bot-config-settings' ||
-    name === 'bot-runtime-settings' ||
-    name === 'bot-package-settings' ||
-    name === 'admin-bot-config-settings' ||
-    name === 'admin-bot-runtime-settings' ||
-    name === 'admin-bot-package-settings'
-  )
-    return 1
-  if (name === 'bot-feature-settings' || name === 'admin-bot-feature-settings') return 2
-  return 3
-}
+const shellSections = computed(() => [
+  { id: 'bot-settings-overview', label: t('botSettings.botOverview') },
+  { id: 'bot-settings-content', label: t('botSettings.settings') },
+])
 
 function goMain() {
   if (adminMode.value) {
@@ -131,13 +116,6 @@ function openTrail(index: number) {
     })
   }
 }
-watch(
-  () => route.name,
-  (name, previous) => {
-    transitionName.value =
-      routeDepth(name) < routeDepth(previous) ? 'bot-child-backward' : 'bot-child-forward'
-  },
-)
 onMounted(() => void data.load())
 </script>
 
@@ -159,16 +137,17 @@ onMounted(() => void data.load())
       </div>
       <AppRequestError v-if="error" :message="error" @retry="data.load(true)" />
       <div id="bot-settings-content" class="bot-child-stage">
-        <RouterView v-slot="{ Component, route: childRoute }">
-          <Transition :name="transitionName" mode="out-in" appear>
-            <component :is="Component" :key="childRoute.fullPath" />
-          </Transition>
+        <RouterView v-slot="{ Component }">
+          <component
+            :is="Component"
+            :key="isFeatureRoute ? route.fullPath : `${adminMode ? 'admin' : 'user'}:${botId}`"
+          />
         </RouterView>
       </div>
       <AppSectionIndicator
         v-if="!isFeatureRoute"
         :sections="shellSections"
-        aria-label="Bot settings sections"
+        :aria-label="t('botSettings.sectionsLabel')"
       />
     </div>
   </main>
@@ -177,31 +156,5 @@ onMounted(() => void data.load())
 <style scoped>
 .bot-child-stage {
   overflow-x: clip;
-}
-.bot-child-forward-enter-active,
-.bot-child-forward-leave-active,
-.bot-child-backward-enter-active,
-.bot-child-backward-leave-active {
-  transition:
-    opacity 220ms ease,
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-.bot-child-forward-enter-from,
-.bot-child-backward-leave-to {
-  opacity: 0;
-  transform: translateX(var(--space-3xl));
-}
-.bot-child-forward-leave-to,
-.bot-child-backward-enter-from {
-  opacity: 0;
-  transform: translateX(calc(var(--space-3xl) * -1));
-}
-@media (prefers-reduced-motion: reduce) {
-  .bot-child-forward-enter-active,
-  .bot-child-forward-leave-active,
-  .bot-child-backward-enter-active,
-  .bot-child-backward-leave-active {
-    transition: none;
-  }
 }
 </style>

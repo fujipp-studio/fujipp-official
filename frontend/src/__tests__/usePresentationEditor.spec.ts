@@ -21,6 +21,113 @@ function setup(definition: Record<string, unknown>, mode: PresentationMode) {
 }
 
 describe('usePresentationEditor presentation storage', () => {
+  it.each(['EMBED', 'COMPONENTS_V2'] as const)(
+    'keeps payment button edits at the root while preserving both %s layouts and other metadata',
+    (mode) => {
+      const definition = {
+        mode,
+        future: { retained: true },
+        components: {
+          bank_button: { label: 'Bank', style: 'success', future: 'keep' },
+          wallet_button: { label: 'Wallet', style: 'primary' },
+        },
+        embed: { title: 'Embed body', future: true },
+        components_v2: { components: [{ type: 10, content: 'Components body' }] },
+      }
+      const { editor, presentations } = setup(definition, mode)
+      editor.updateSystemComponent('slot', 'bank_button', 'label', 'New bank label')
+      editor.updateSystemComponent('slot', 'bank_button', 'style', 'danger')
+      expect(presentations.value.slot).toEqual({
+        ...definition,
+        components: {
+          ...definition.components,
+          bank_button: {
+            ...definition.components.bank_button,
+            label: 'New bank label',
+            style: 'danger',
+          },
+        },
+      })
+    },
+  )
+  it.each([
+    {
+      mode: 'EMBED',
+      title: 'Flat',
+      actions: ['wallet.topup', 'custom.action', 'wallet.balance'],
+      action_overrides: {
+        'wallet.topup': { label: 'Custom text', emoji: '⭐', style: 'danger', future: true },
+      },
+    },
+    {
+      mode: 'EMBED',
+      embed: {
+        title: 'Nested',
+        actions: ['wallet.topup', 'custom.action', 'wallet.balance'],
+        action_overrides: { 'wallet.balance': { label: 'Balance', future: true } },
+      },
+      components_v2: { title: 'Keep alternate design', actions: ['wallet.promptpay'] },
+    },
+    {
+      mode: 'EMBED',
+      embeds: [{ title: 'Array embed', future: true }],
+      actions: ['wallet.topup', 'custom.action', 'wallet.balance'],
+    },
+  ])(
+    'reorders system actions in their active storage without changing overrides or other data',
+    (definition) => {
+      const { editor, presentations } = setup(definition, 'EMBED')
+      const original = JSON.parse(JSON.stringify(presentations.value.slot))
+      editor.moveFixedAction('slot', 'wallet.topup', -1)
+      editor.moveFixedAction('slot', 'missing.action', 1)
+      expect(presentations.value.slot).toEqual(original)
+      editor.moveFixedAction('slot', 'wallet.balance', -1)
+      expect(editor.fixedActions('slot').map((item) => item.action)).toEqual([
+        'wallet.balance',
+        'wallet.topup',
+      ])
+      expect(editor.visualDefinition('slot').actions).toEqual([
+        'wallet.balance',
+        'custom.action',
+        'wallet.topup',
+      ])
+      const moved = JSON.parse(JSON.stringify(presentations.value.slot))
+      editor.moveFixedAction('slot', 'wallet.topup', 1)
+      expect(presentations.value.slot).toEqual(moved)
+      editor.moveFixedAction('slot', 'wallet.balance', 1)
+      expect(presentations.value.slot).toEqual(original)
+    },
+  )
+
+  it('keeps an unset accent unset and allows clearing an explicit color', () => {
+    const { editor, presentations } = setup({ mode: 'EMBED', title: 'Balance' }, 'EMBED')
+    expect(editor.embedColor('slot')).toBe('')
+    editor.updateEmbedColor('slot', '#123456')
+    expect(editor.embedColor('slot')).toBe('#123456')
+    editor.updateEmbedColor('slot', '')
+    expect(editor.embedColor('slot')).toBe('')
+    expect(JSON.stringify(presentations.value.slot)).not.toContain('color')
+  })
+  it('keeps legacy outer media and colors out of the actual embeds array', () => {
+    const { editor, presentations } = setup(
+      {
+        mode: 'EMBED',
+        color: '#5865f2',
+        thumbnail_url: '/unused.png',
+        image_url: '/unused-image.png',
+        embed: { title: 'Unused nested title' },
+        embeds: [{ title: 'Actual title' }],
+      },
+      'EMBED',
+    )
+    expect(editor.visualDefinition('slot').title).toBe('Actual title')
+    expect(editor.visualDefinition('slot').color).toBeUndefined()
+    expect(editor.visualDefinition('slot').image_url).toBe('')
+    expect(editor.visualDefinition('slot').thumbnail_url).toBe('')
+    editor.updatePresentation('slot', 'title', 'Updated title')
+    expect(presentations.value.slot.embeds).toEqual([{ title: 'Updated title' }])
+    expect(presentations.value.slot.embed).toEqual({ title: 'Unused nested title' })
+  })
   it('updates an active flat Embed without creating a partial nested definition', () => {
     const { editor, presentations } = setup(
       { mode: 'EMBED', title: 'Original', description: 'Keep me', color: 0x5865f2 },

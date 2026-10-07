@@ -55,6 +55,13 @@ export const walletConfigCopy: Record<
     label: ['PromptPay account name', 'ชื่อบัญชีพร้อมเพย์'],
     description: ['Account name displayed beside the QR.', 'ชื่อบัญชีที่แสดงคู่กับ QR พร้อมเพย์'],
   },
+  PROMPTPAY_QR_EXPIRY_MINUTES: {
+    label: ['QR lifetime (minutes)', 'อายุ QR (นาที)'],
+    description: [
+      '1–60 minutes. Temporary slip access ends when the QR expires.',
+      '1–60 นาที ยศส่งสลิปชั่วคราวจะหมดสิทธิ์เมื่อ QR หมดอายุ',
+    ],
+  },
   SLIPOK_BRANCH_ID: {
     label: ['SlipOK branch ID', 'รหัสสาขา SlipOK'],
     description: ['Branch ID supplied by SlipOK.', 'รหัสสาขาที่ได้รับจาก SlipOK'],
@@ -184,6 +191,20 @@ export const robloxConfigCopy: Record<
   ROBUX_NOTIFICATION_CHANNEL_ID: {
     label: ['Notification channel', 'ช่องแจ้งเตือน'],
     description: ['Channel receiving payout results.', 'ช่องที่รับผลการทำรายการโอน Robux'],
+  },
+  ROBUX_SUCCESS_NOTIFICATION_CHANNEL_ID: {
+    label: ['Success notification channel', 'ห้องแจ้งโอนสำเร็จ'],
+    description: [
+      'Channel receiving successful payout notifications.',
+      'ห้องรับแจ้งเตือนเมื่อโอน Robux สำเร็จ',
+    ],
+  },
+  ROBUX_ERROR_NOTIFICATION_CHANNEL_ID: {
+    label: ['Error notification channel', 'ห้องแจ้งข้อผิดพลาด'],
+    description: [
+      'Channel receiving failed or refunded payout notifications.',
+      'ห้องรับแจ้งเตือนเมื่อโอนไม่สำเร็จหรือคืนเงิน',
+    ],
   },
   ROBUX_RECEIPT_CHANNEL_ID: {
     label: ['Receipt channel', 'ห้องใบเสร็จ'],

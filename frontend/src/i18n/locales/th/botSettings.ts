@@ -1,4 +1,12 @@
 export default {
+  shellTitle: 'ตั้งค่าบอท',
+  back: 'ย้อนกลับ',
+  main: 'หน้าหลัก',
+  breadcrumbLabel: 'เส้นทางหน้าตั้งค่าบอท',
+  sectionsLabel: 'ส่วนต่าง ๆ ของหน้าตั้งค่าบอท',
+  botOverview: 'บอท',
+  featureFallback: 'ฟีเจอร์',
+
   addRemoveAndReorderBlocks: 'เพิ่ม ลบ และเรียงบล็อกได้เหมือน editor ตัวเก่า',
   messageBlocks: 'บล็อกในข้อความ',
   dragToReorder: 'ลากเพื่อเรียงลำดับ',
