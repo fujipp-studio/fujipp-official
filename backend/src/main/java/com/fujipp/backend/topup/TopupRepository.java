@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -117,18 +118,33 @@ class TopupRepository {
     }
 
     @Transactional
-    List<Invoice> list(UUID userId, OffsetDateTime beforeCreatedAt, UUID beforeId, int limit) {
+    List<Invoice> list(UUID userId, OffsetDateTime beforeCreatedAt, UUID beforeId, int limit,
+            TopupRequests.Status status, OffsetDateTime createdFrom) {
         jdbc.update("""
                 UPDATE billing.topup_invoices i SET status='EXPIRED'
                  FROM billing.customers c
                  WHERE i.customer_id=c.id AND c.user_id=? AND i.status IN ('PENDING','FAILED')
                    AND i.expires_at<=now()
                 """, userId);
-        String cursor=beforeCreatedAt==null?"":" AND (i.created_at,i.id)<(?,?)";
-        String sql=INVOICE_SELECT+" WHERE c.user_id=?"+cursor+" ORDER BY i.created_at DESC,i.id DESC LIMIT ?";
-        return beforeCreatedAt==null
-                ? jdbc.query(sql,this::mapInvoice,userId,limit)
-                : jdbc.query(sql,this::mapInvoice,userId,beforeCreatedAt,beforeId,limit);
+        StringBuilder sql=new StringBuilder(INVOICE_SELECT).append(" WHERE c.user_id=?");
+        List<Object> parameters=new ArrayList<>();
+        parameters.add(userId);
+        if (status!=null) {
+            sql.append(" AND i.status=?::billing.topup_status");
+            parameters.add(status.name());
+        }
+        if (createdFrom!=null) {
+            sql.append(" AND i.created_at>=?");
+            parameters.add(createdFrom);
+        }
+        if (beforeCreatedAt!=null) {
+            sql.append(" AND (i.created_at,i.id)<(?,?)");
+            parameters.add(beforeCreatedAt);
+            parameters.add(beforeId);
+        }
+        sql.append(" ORDER BY i.created_at DESC,i.id DESC LIMIT ?");
+        parameters.add(limit);
+        return jdbc.query(sql.toString(),this::mapInvoice,parameters.toArray());
     }
 
     @Transactional

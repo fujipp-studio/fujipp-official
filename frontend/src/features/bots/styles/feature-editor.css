@@ -558,10 +558,11 @@
     flex: none;
     color: var(--semantic-color-text-text-muted);
     cursor: grab;
+    user-select: none;
     font-size: 1.25rem;
     line-height: 1;
   }
-  .builder-item[draggable='true']:active .component-drag-handle {
+  .component-drag-handle:active {
     cursor: grabbing;
   }
   .component-role {

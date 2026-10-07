@@ -66,9 +66,8 @@
   src: url('@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2')
     format('woff2-variations');
   unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
-    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
-    U+FEFF, U+FFFD;
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
@@ -79,9 +78,8 @@
   src: url('@fontsource-variable/roboto-mono/files/roboto-mono-latin-wght-normal.woff2')
     format('woff2-variations');
   unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
-    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
-    U+FEFF, U+FFFD;
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
@@ -92,9 +90,44 @@
   src: url('@fontsource-variable/caveat/files/caveat-latin-wght-normal.woff2')
     format('woff2-variations');
   unicode-range:
-    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304,
-    U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215,
-    U+FEFF, U+FFFD;
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/noto-sans/files/noto-sans-latin-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* U+203F is absent from the Google Fonts Latin subset. These SIL-licensed
+ * subsets retain Discord's Noto Sans fallback glyph metrics for this symbol.
+ * Source: https://discord.com/assets/f72b5ce64feb2086.woff2 (regular)
+ *         https://discord.com/assets/cb2006dbced0e246.woff2 (bold)
+ * License: ../assets/fonts/discord-preview/OFL.txt
+ */
+@font-face {
+  font-family: 'Noto Sans Preview Symbols';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('../assets/fonts/discord-preview/noto-sans-symbols-regular.woff2') format('woff2');
+  unicode-range: U+203F;
+}
+
+@font-face {
+  font-family: 'Noto Sans Preview Symbols';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url('../assets/fonts/discord-preview/noto-sans-symbols-bold.woff2') format('woff2');
+  unicode-range: U+203F;
 }
 
 :root {
@@ -104,6 +137,11 @@
   --font-family-mono: 'Roboto Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-family-handwriting: 'Caveat Variable', cursive;
   --font-family-brand: 'Bruno Ace', sans-serif;
+  /* Discord's open-source Latin fallback. Unsupported scripts use the platform's
+     sans-serif fallback, as they do in Discord, rather than the site's Kanit. */
+  --font-family-discord-preview:
+    'Noto Sans Variable', 'Noto Sans Preview Symbols', 'Helvetica Neue', Helvetica, Arial,
+    sans-serif;
 }
 
 @theme inline {

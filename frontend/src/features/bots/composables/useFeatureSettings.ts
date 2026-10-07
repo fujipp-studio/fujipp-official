@@ -10,7 +10,24 @@ import {
   variableDescriptions,
   coFeatureCatalog,
 } from '../config/feature-editor'
+import { priceReaderPresentationPreview } from '../models/price-reader-presentation-preview'
+import { priceReaderSampleValues } from '../config/price-reader'
 import { clone } from '../models/presentation'
+import { walletPresentationPreview } from '../models/wallet-presentation-preview'
+import { paymentTriggerPresentationPreview } from '../models/payment-trigger-presentation-preview'
+import {
+  paymentTriggerPresentationCopy,
+  paymentTriggerSampleValues,
+} from '../config/payment-trigger'
+import { memberSpendingPresentationCopy } from '../config/member-spending'
+import { walletPresentationCopy } from '../config/wallet-topup'
+import { parseReviewList, reviewCreditListKeys } from '../config/review-credit'
+import {
+  hasPermissionCommandSuggestions,
+  needsCommandConfiguration,
+  permissionCommands,
+  type PermissionCommandFeature,
+} from '../config/permission-commands'
 import { usePresentationEditor } from './usePresentationEditor'
 import { useBotSettingsData } from '../composables/useBotSettingsData'
 import { computed, onMounted, ref } from 'vue'
@@ -61,6 +78,10 @@ export function useFeatureSettings() {
   )
   const isWalletTopupFeature = computed(() => license.value?.featureCode === 'wallet-topup')
   const isPriceReaderFeature = computed(() => license.value?.featureCode === 'price-reader')
+  const isMemberSpendingFeature = computed(() => license.value?.featureCode === 'member-spending')
+  const isRuntimeAlertFeature = computed(
+    () => license.value?.featureCode === 'runtime-expiry-alert',
+  )
   const isMessageTriggersFeature = computed(
     () => license.value?.featureCode === 'channel-message-triggers',
   )
@@ -105,6 +126,10 @@ export function useFeatureSettings() {
   }
 
   function presentationSlotLabel(slot: FeatureConfiguration['presentations'][number]) {
+    if (isMessageTriggersFeature.value && /^template_(?:[1-9]|10)$/.test(slot.key)) {
+      const number = slot.key.slice('template_'.length)
+      return text(`Message template ${number}`, `Template ข้อความ ${number}`)
+    }
     const panelIndex = robuxPanelSlotIndex(slot.key)
     if (isRobloxPayoutV3.value && panelIndex >= 0) {
       return (
@@ -116,10 +141,22 @@ export function useFeatureSettings() {
       ? robloxPresentationCopy[slot.key]
       : isPriceReaderFeature.value
         ? priceReaderPresentationCopy[slot.key]
-        : undefined
+        : isMemberSpendingFeature.value
+          ? memberSpendingPresentationCopy[slot.key]
+          : isWalletTopupFeature.value
+            ? walletPresentationCopy[slot.key]
+            : isPaymentTriggerFeature.value
+              ? paymentTriggerPresentationCopy[slot.key]
+              : undefined
     return copy ? text(...copy.label) : slot.label
   }
   function presentationSlotDescription(slot: FeatureConfiguration['presentations'][number]) {
+    if (isMessageTriggersFeature.value) {
+      return text(
+        'Reusable message for channel creation and administrator triggers.',
+        'ข้อความที่ใช้ร่วมกันได้กับกฎสร้างห้องและข้อความแอดมิน',
+      )
+    }
     const panelIndex = robuxPanelSlotIndex(slot.key)
     if (isRobloxPayoutV3.value && panelIndex >= 0) {
       const panelName =
@@ -134,7 +171,13 @@ export function useFeatureSettings() {
       ? robloxPresentationCopy[slot.key]
       : isPriceReaderFeature.value
         ? priceReaderPresentationCopy[slot.key]
-        : undefined
+        : isMemberSpendingFeature.value
+          ? memberSpendingPresentationCopy[slot.key]
+          : isWalletTopupFeature.value
+            ? walletPresentationCopy[slot.key]
+            : isPaymentTriggerFeature.value
+              ? paymentTriggerPresentationCopy[slot.key]
+              : undefined
     return copy ? text(...copy.description) : slot.description
   }
   function configFieldLabel(field: FeatureConfiguration['fields'][number]) {
@@ -211,6 +254,7 @@ export function useFeatureSettings() {
   const settingsData = useBotSettingsData({ botId: flowBotId, adminMode, licenseId })
   const previewBot = settingsData.bot
   const installedFeatureCodes = ref(new Set<string>())
+  const permissionCommandFeatures = ref<PermissionCommandFeature[]>([])
   const configuration = ref<FeatureConfiguration | null>(null)
   const values = ref<Record<string, EditableValue>>({})
   const secrets = ref<Record<string, string>>({})
@@ -234,6 +278,47 @@ export function useFeatureSettings() {
   const toastOpen = ref(false)
   const toastMessage = ref('')
   const toastVariant = ref<'success' | 'error'>('success')
+  const savedSnapshot = ref<string | null>(null)
+  const hasChanges = computed(
+    () =>
+      configuration.value !== null &&
+      savedSnapshot.value !== null &&
+      draftSnapshot(configuration.value) !== savedSnapshot.value,
+  )
+  const canSave = computed(() => hasChanges.value && !loading.value && !saving.value)
+
+  function draftSnapshot(config: FeatureConfiguration) {
+    const fieldValues = Object.fromEntries(
+      config.fields.map((field) => {
+        if (field.secret) return [field.key, secrets.value[field.key] || '']
+        try {
+          return [field.key, { valid: true, value: parseField(field) }]
+        } catch {
+          return [field.key, { valid: false, value: values.value[field.key] }]
+        }
+      }),
+    )
+    const messages = Object.fromEntries(
+      Object.entries(presentations.value).map(([key, definition]) => {
+        if (!advancedSlots.value.has(key)) return [key, { valid: true, value: definition }]
+        const json = presentationJson.value[key] ?? '{}'
+        try {
+          const parsed: unknown = JSON.parse(json)
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+            return [key, { valid: true, value: parsed }]
+        } catch {
+          // An incomplete JSON edit still differs from the saved message.
+        }
+        return [key, { valid: false, value: json }]
+      }),
+    )
+    // Compare saved data, so JSON formatting and object key order are not edits.
+    return JSON.stringify({ fields: fieldValues, messages }, (_, value: unknown) =>
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+        : value,
+    )
+  }
 
   const presentationEditor = usePresentationEditor({
     presentations,
@@ -253,6 +338,7 @@ export function useFeatureSettings() {
     updateEmbedObject,
     fixedActions,
     defaultActionLabel,
+    moveFixedAction,
     updateActionOverride,
     visualArray,
     addEmbedField,
@@ -382,49 +468,52 @@ export function useFeatureSettings() {
   }
 
   function presentationSampleValues(slotKey: string): Record<string, string> {
-    if (isPaymentTriggerFeature.value) {
+    if (isWalletTopupFeature.value) {
       return {
-        amount: '10',
-        base_amount: '10',
-        fee_amount: '5',
-        total_amount: '15',
-        qr_image_url: String(
-          values.value.BANK_QR_IMAGE_URL || 'https://example.com/payment-qr.png',
-        ),
-        wallet_number: String(values.value.WALLET_NUMBER || '0812345678'),
-        trigger: String(values.value.PAYMENT_TRIGGER_PREFIX || 'p'),
-        datetime: '13/9/2569 19:55:40',
+        // Wallet runtime currently supplies no member avatar. Do not invent a thumbnail.
+        member_avatar_url: '',
+        operation: slotKey === 'adjustment_result' ? 'ตั้งยอดเงิน' : 'เติมเงิน',
+        transaction_time: '6/10/2569 14:30:00',
+        minimum_amount: (Number(values.value.MIN_TOPUP_SATANG ?? 1000) / 100).toFixed(2),
+        truemoney_fee:
+          values.value.TRUEMONEY_FEE_MODE === 'PERCENT'
+            ? `${values.value.TRUEMONEY_FEE_PERCENT ?? 0}%`
+            : (Number(values.value.TRUEMONEY_FEE_SATANG ?? 500) / 100).toFixed(2),
+        account_name: String(values.value.PROMPTPAY_ACCOUNT_NAME || 'FUJIPP COMPANY'),
       }
     }
-    if (license.value?.featureCode !== 'price-reader' || slotKey !== 'result') return {}
-    const template = String(values.value.PRICE_READER_RESULTS_ITEM_TEMPLATE ?? '')
-    if (!template.trim()) return {}
-    const samples = [
-      {
-        result_index: '1',
-        discord_price: '289.00',
-        discount_text: ' (ลด 20%)',
-        shop_price_text: '259.00 บาท',
-        no_nitro_markup: '15.00',
-      },
-      {
-        result_index: '2',
-        discord_price: '499.00',
-        discount_text: '',
-        shop_price_text: 'ไม่พบราคาที่ตรงกัน',
-        no_nitro_markup: '15.00',
-      },
-      {
-        result_index: '3',
-        discord_price: '1,050.00',
-        discount_text: ' (ลด 10%)',
-        shop_price_text: '999.00 บาท',
-        no_nitro_markup: '15.00',
-      },
-    ]
-    const renderItem = (sample: Record<string, string>) =>
-      template.replace(/\{\{([^}]+)}}/g, (_, key: string) => sample[key.trim()] ?? '')
-    return { results_text: samples.map(renderItem).join('\n\n---\n\n') }
+    if (isRuntimeAlertFeature.value) {
+      return {
+        bot_name: previewBot.value?.discordUsername || previewBot.value?.name || 'Discord Bot',
+        remaining: text('3 days', '3 วัน'),
+        expires_at: text('15 October 2026 at 14:30', '15 ตุลาคม 2569 เวลา 14:30'),
+        auto_renew: text('Enabled', 'เปิดอยู่'),
+        renew_url: `https://fujipp.com/my-bot/${encodeURIComponent(previewBot.value?.id || flowBotId.value || 'sample-bot')}/settings/runtime`,
+      }
+    }
+    if (isMemberSpendingFeature.value) {
+      return {
+        member: 'Fujipp',
+        member_mention: '@Fujipp',
+        today: '500.00',
+        total: slotKey === 'first_card' ? '500.00' : '2,500.00',
+        count: slotKey === 'first_card' ? '1' : '5',
+        member_count: '3',
+        avatar: 'https://cdn.discordapp.com/embed/avatars/0.png',
+        leaderboard_lines:
+          '🥇 @Minnie — 5,000.00 THB\n🥈 @Nont — 3,500.00 THB\n🥉 @Fujipp — 2,500.00 THB',
+      }
+    }
+    if (isPaymentTriggerFeature.value) {
+      return paymentTriggerSampleValues(values.value)
+    }
+    if (isPriceReaderFeature.value)
+      return priceReaderSampleValues(
+        values.value,
+        license.value?.version ?? '',
+        previewBot.value?.discordGuildId,
+      )
+    return {}
   }
 
   function goBack() {
@@ -449,7 +538,7 @@ export function useFeatureSettings() {
     )
   }
 
-  async function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2') {
+  async function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2', slotKey?: string) {
     if (!(await save())) return
     const name = adminMode.value
       ? mode === 'EMBED'
@@ -464,6 +553,10 @@ export function useFeatureSettings() {
           : 'feature-components-v2-settings'
     void router.push({
       name,
+      query: {
+        ...(route.query.locale ? { locale: route.query.locale } : {}),
+        ...(slotKey ? { message: slotKey } : {}),
+      },
       params: {
         ...(inBotSettingsFlow.value ? { botId: flowBotId.value } : {}),
         licenseId: licenseId.value,
@@ -471,11 +564,16 @@ export function useFeatureSettings() {
     })
   }
 
-  function hydrate(config: FeatureConfiguration) {
+  function hydrate(config: FeatureConfiguration, selectedSlotKey?: string) {
     values.value = Object.fromEntries(
       config.fields
         .filter((field) => !field.secret)
-        .map((field) => [field.key, displayValue(field.value ?? field.defaultValue, field.type)]),
+        .map((field) => [
+          field.key,
+          license.value?.featureCode === 'review-credit' && reviewCreditListKeys.has(field.key)
+            ? JSON.stringify(field.value ?? field.defaultValue ?? [])
+            : displayValue(field.value ?? field.defaultValue, field.type),
+        ]),
     )
     secrets.value = {}
     presentations.value = {}
@@ -486,8 +584,17 @@ export function useFeatureSettings() {
       presentationJson.value[slot.key] = JSON.stringify(definition, null, 2)
     }
     walletExpandedSlots.value = new Set(config.presentations.slice(0, 1).map((slot) => slot.key))
+    const requestedSlotKey =
+      selectedSlotKey ??
+      (usesPresentationDesigner.value && typeof route.query.message === 'string'
+        ? route.query.message
+        : '')
     walletActiveSlotKey.value =
-      visiblePresentationSlots.value[0]?.key ?? config.presentations[0]?.key ?? ''
+      visiblePresentationSlots.value.find((slot) => slot.key === requestedSlotKey)?.key ??
+      visiblePresentationSlots.value[0]?.key ??
+      config.presentations[0]?.key ??
+      ''
+    savedSnapshot.value = draftSnapshot(config)
   }
 
   function slotMode(slotKey: string): 'EMBED' | 'COMPONENTS_V2' {
@@ -530,6 +637,12 @@ export function useFeatureSettings() {
   })
 
   const editablePresentationSlots = computed(() => {
+    if (isMemberSpendingFeature.value && typeof route.query.message === 'string') {
+      const selected = visiblePresentationSlots.value.find(
+        (slot) => slot.key === route.query.message,
+      )
+      if (selected) return [selected]
+    }
     if (!usesPresentationDesigner.value) return visiblePresentationSlots.value
     const selected =
       walletActiveSlotKey.value &&
@@ -542,12 +655,17 @@ export function useFeatureSettings() {
   function presentationPreviewDefinition(slotKey: string) {
     const definition = presentations.value[slotKey] ?? {}
     const mode = presentationMode.value
-    if (!mode) return definition
-    return {
-      ...definition,
-      mode,
-      [mode === 'EMBED' ? 'embed' : 'components_v2']: visualDefinition(slotKey),
-    }
+    const preview = !mode
+      ? definition
+      : {
+          ...definition,
+          mode,
+          [mode === 'EMBED' ? 'embed' : 'components_v2']: visualDefinition(slotKey),
+        }
+    if (isPriceReaderFeature.value)
+      return priceReaderPresentationPreview(preview, presentationSampleValues(slotKey))
+    if (isPaymentTriggerFeature.value) return paymentTriggerPresentationPreview(preview, slotKey)
+    return isWalletTopupFeature.value ? walletPresentationPreview(preview) : preview
   }
 
   function toggleWalletMessage(slotKey: string) {
@@ -570,13 +688,19 @@ export function useFeatureSettings() {
     )
   })
 
+  function requestSave() {
+    if (canSave.value) saveConfirmationOpen.value = true
+  }
+
   async function confirmSave() {
+    if (!canSave.value) return
     if (await save()) saveConfirmationOpen.value = false
   }
 
   async function load() {
     loading.value = true
     error.value = ''
+    permissionCommandFeatures.value = []
     if (!initialized.value) await authStore.initialize()
     if (!session.value) {
       error.value = t('botSettings.pleaseSignInBeforeOpeningFeatureSettings')
@@ -607,6 +731,29 @@ export function useFeatureSettings() {
       )
       configuration.value = config
       hydrate(config)
+      if (license.value?.featureCode === 'bot-permissions') {
+        const installed = allLicenses.filter(
+          (item) =>
+            hasPermissionCommandSuggestions(item) &&
+            item.installations.some(
+              (installation) =>
+                installation.botId === targetBotId && installation.status === 'ACTIVE',
+            ),
+        )
+        permissionCommandFeatures.value = await Promise.all(
+          installed.map(async (item) => {
+            if (!needsCommandConfiguration(item)) return permissionCommands(item)
+            try {
+              const featureConfig = adminMode.value
+                ? await fetchAdminFeatureConfiguration(targetBotId!, item.id, session.value!)
+                : await fetchFeatureConfiguration(item.id, session.value!)
+              return permissionCommands(item, featureConfig)
+            } catch {
+              return { id: item.id, name: item.featureName, commands: [], unavailable: true }
+            }
+          }),
+        )
+      }
     } catch (cause) {
       error.value =
         cause instanceof Error ? cause.message : t('botSettings.unableToLoadFeatureConfiguration')
@@ -617,6 +764,10 @@ export function useFeatureSettings() {
 
   function parseField(field: FeatureConfiguration['fields'][number]): FeatureConfigValue {
     const value = values.value[field.key]
+    if (license.value?.featureCode === 'review-credit' && reviewCreditListKeys.has(field.key))
+      return parseReviewList(String(value))
+        .map((item) => item.trim())
+        .filter(Boolean)
     if (field.type === 'INTEGER') return Number.parseInt(String(value), 10)
     if (field.type === 'DECIMAL') return Number(value)
     if (field.type === 'BOOLEAN') return Boolean(value)
@@ -663,7 +814,7 @@ export function useFeatureSettings() {
           )
         : await updateFeatureConfiguration(licenseId.value, input, session.value)
       configuration.value = updated
-      hydrate(updated)
+      hydrate(updated, walletActiveSlotKey.value)
       showToast(
         text(`Saved · Version ${updated.revision}`, `บันทึกแล้ว · Version ${updated.revision}`),
         'success',
@@ -689,7 +840,11 @@ export function useFeatureSettings() {
     text,
     license,
     configuration,
+    permissionCommandFeatures,
     saving,
+    hasChanges,
+    canSave,
+    requestSave,
     saveConfirmationOpen,
     error,
     loading,
@@ -717,6 +872,8 @@ export function useFeatureSettings() {
     visiblePresentationSlots,
     editablePresentationSlots,
     isPriceReaderFeature,
+    isMemberSpendingFeature,
+    isRuntimeAlertFeature,
     isMessageTriggersFeature,
     walletExpandedSlots,
     toggleWalletMessage,
@@ -736,6 +893,7 @@ export function useFeatureSettings() {
     updateEmbedColor,
     fixedActions,
     defaultActionLabel,
+    moveFixedAction,
     updateActionOverride,
     componentStyles,
     visualArray,

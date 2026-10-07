@@ -6,6 +6,7 @@ import { AppButton, AppTextField } from '../../../shared/ui'
 
 interface PanelRow {
   id: string
+  source: Record<string, unknown>
   key: string
   name: string
   groupKeys: string[]
@@ -13,7 +14,7 @@ interface PanelRow {
   mode: 'storefront' | 'membership_only'
 }
 
-const props = defineProps<{ panelsJson: string; groupsJson: string }>()
+const props = defineProps<{ panelsJson: string; groupsJson: string; standalone?: boolean }>()
 const emit = defineEmits<{ (e: 'update:panelsJson', value: string): void }>()
 const { t } = useI18n()
 const panels = ref<PanelRow[]>([])
@@ -42,6 +43,7 @@ const groups = computed(() => {
 function newPanel(index: number): PanelRow {
   return {
     id: `panel-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    source: {},
     key: `panel-${index}`,
     name: `Panel ${index}`,
     groupKeys: [],
@@ -62,6 +64,7 @@ watch(
           return [
             {
               id: `panel-${Date.now()}-${index}`,
+              source: { ...item },
               key: String(Reflect.get(item, 'key') ?? `panel-${index + 1}`),
               name: String(Reflect.get(item, 'name') ?? `Panel ${index + 1}`),
               groupKeys: Array.isArray(Reflect.get(item, 'groupKeys'))
@@ -73,9 +76,7 @@ watch(
                 ? String(Reflect.get(item, 'presentationSlot'))
                 : `panel_${index + 1}`,
               mode:
-                Reflect.get(item, 'mode') === 'membership_only'
-                  ? 'membership_only'
-                  : 'storefront',
+                Reflect.get(item, 'mode') === 'membership_only' ? 'membership_only' : 'storefront',
             },
           ]
         })
@@ -104,6 +105,7 @@ watch(
       'update:panelsJson',
       JSON.stringify(
         value.map((panel, index) => ({
+          ...panel.source,
           key: (panel.key || `panel-${index + 1}`).trim(),
           name: (panel.name || `Panel ${index + 1}`).trim(),
           groupKeys: [...new Set(panel.groupKeys.filter((key) => known.has(key)))],
@@ -152,7 +154,10 @@ function toggleGroup(panel: PanelRow, key: string, enabled: boolean) {
 </script>
 
 <template>
-  <section class="mt-lg rounded-lg border border-border-subtle bg-bg-surface p-lg">
+  <section
+    class="min-w-0 rounded-xl border border-border-subtle bg-bg-surface p-md tablet:p-lg"
+    :class="{ 'mt-lg': !standalone }"
+  >
     <header class="flex flex-wrap items-center justify-between gap-md">
       <div class="flex items-center gap-sm">
         <LayoutPanelTop class="size-5 text-text-accent" />
@@ -161,7 +166,7 @@ function toggleGroup(panel: PanelRow, key: string, enabled: boolean) {
           <p class="text-sm text-text-secondary">{{ t('botSettings.assignGroupsToEachPanel') }}</p>
         </div>
       </div>
-      <AppButton @click="addPanel"
+      <AppButton :disabled="panels.length >= 25" @click="addPanel"
         ><Plus class="size-4" /> {{ t('botSettings.addPanel') }}</AppButton
       >
     </header>

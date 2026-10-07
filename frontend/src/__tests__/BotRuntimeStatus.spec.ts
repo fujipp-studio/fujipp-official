@@ -1,5 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+
+import { i18n } from '@/i18n'
 
 import BotSettingsShell from '../features/bots/components/BotSettingsShell.vue'
 import {
@@ -45,6 +47,9 @@ describe('bot runtime presentation', () => {
 })
 
 describe('BotSettingsShell', () => {
+  beforeEach(() => {
+    i18n.global.locale.value = 'en'
+  })
   const staleStoppedBot: UserBot = {
     id: 'bot-id',
     name: 'Fujipp',
@@ -60,14 +65,45 @@ describe('BotSettingsShell', () => {
   }
 
   it('keeps the badge and settled runtime label consistent', async () => {
-    const wrapper = mount(BotSettingsShell, { props: { bot: staleStoppedBot } })
+    const wrapper = mount(BotSettingsShell, {
+      props: { bot: staleStoppedBot },
+      global: { plugins: [i18n] },
+    })
 
-    expect(wrapper.text()).toContain('offline')
+    expect(wrapper.text()).toContain('Offline')
     expect(wrapper.text()).toContain('Stopped')
     expect(wrapper.text()).not.toContain('Stopping…')
 
     await wrapper.setProps({ controlAction: 'stop', controlling: true })
 
     expect(wrapper.text()).toContain('Stopping…')
+    wrapper.unmount()
+  })
+
+  it('updates translated controls and pending runtime labels when the app language changes', async () => {
+    const wrapper = mount(BotSettingsShell, {
+      props: { bot: staleStoppedBot, controlAction: 'start' },
+      global: { plugins: [i18n] },
+    })
+    i18n.global.locale.value = 'th'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('กำลังเริ่มทำงาน…')
+    expect(wrapper.text()).toContain('ออฟไลน์')
+    expect(wrapper.get('h1').text()).toBe('ตั้งค่าบอท')
+    expect(wrapper.get('nav').text()).toBe('หน้าหลัก')
+    const start = wrapper.findAll('button').find((button) => button.text() === 'เริ่ม')!
+    await start.trigger('click')
+    expect(wrapper.emitted('control')).toEqual([['start']])
+    await wrapper.setProps({
+      bot: { ...staleStoppedBot, desiredState: 'RUNNING' },
+      controlAction: 'restart',
+    })
+    expect(wrapper.text()).toContain('กำลังเริ่มใหม่…')
+    expect(wrapper.text()).toContain('ออนไลน์')
+    i18n.global.locale.value = 'en'
+    await wrapper.vm.$nextTick()
+    expect(wrapper.text()).toContain('Restarting…')
+    expect(wrapper.findAll('button').map((button) => button.text())).toContain('Stop')
+    wrapper.unmount()
   })
 })

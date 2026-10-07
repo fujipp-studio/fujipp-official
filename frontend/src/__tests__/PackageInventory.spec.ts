@@ -129,7 +129,11 @@ describe('package inventory grouping', () => {
       ],
     })
     const available = license({ id: 'available', expiresAt: '2026-10-01T00:00:00Z' })
-    const group = groupPackageInventory([installed, available])[0]
+    const group = groupPackageInventory(
+      [installed, available],
+      '',
+      Date.parse('2026-08-28T12:00:00Z'),
+    )[0]
 
     expect(group && nextInstallableLicense(group)?.id).toBe('available')
   })

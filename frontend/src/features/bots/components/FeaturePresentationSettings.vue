@@ -1,12 +1,20 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
+import FeatureMessageDesign from './FeatureMessageDesign.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const { t } = useI18n()
 const {
+  isMemberSpendingFeature,
+  isRuntimeAlertFeature,
+  isPriceReaderFeature,
+  isRobloxPayoutFeature,
+  text,
   configuration,
+  license,
   visiblePresentationSlots,
   openPresentation,
   presentationSlotLabel,
@@ -16,9 +24,47 @@ const {
   canSwitchPresentationMode,
   setPresentationMode,
 } = useFeatureEditor()
+const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topup')
+const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
+const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
 </script>
 <template>
-  <section v-if="configuration" id="feature-presentations" class="mt-2xl">
+  <FeatureMessageDesign
+    v-if="
+      (isMemberSpendingFeature ||
+        isRuntimeAlertFeature ||
+        isWalletTopup ||
+        isRobloxPayoutFeature ||
+        isMessageTriggers ||
+        isPaymentTrigger ||
+        isPriceReaderFeature) &&
+      configuration
+    "
+    :description="
+      isRuntimeAlertFeature
+        ? text(
+            'Preview the alert your recipients will receive.',
+            'ดูตัวอย่างข้อความที่ผู้รับจะได้รับ',
+          )
+        : isMessageTriggers
+          ? text(
+              'Design reusable templates for your channel and administrator triggers.',
+              'ออกแบบ Template ที่ใช้ร่วมกันได้กับกฎสร้างห้องและข้อความแอดมิน',
+            )
+          : isPaymentTrigger
+            ? text(
+                'Preview and edit each step of the payment flow.',
+                'ดูตัวอย่างและแก้ไขข้อความแต่ละขั้นตอนของการชำระเงิน',
+              )
+            : isPriceReaderFeature
+              ? text(
+                  'Preview and edit the reading progress and price results.',
+                  'ดูตัวอย่างและแก้ไขข้อความกำลังอ่านรูปและผลการอ่านราคา',
+                )
+              : undefined
+    "
+  />
+  <section v-else-if="configuration" id="feature-presentations" class="mt-2xl">
     <div class="mb-md">
       <h2 class="text-2xl font-semibold">{{ t('botSettings.messageDesign') }}</h2>
       <p class="text-sm text-text-secondary">

@@ -41,7 +41,6 @@ function routeView(): SettingsView {
   return 'main'
 }
 const activeView = ref<SettingsView>(routeView())
-const transitionName = ref('settings-forward')
 const saving = ref(false)
 const runtimeBusy = ref(false)
 const upgradingLicenseId = ref('')
@@ -125,7 +124,6 @@ async function saveBot() {
 
 function openView(view: SettingsView) {
   if (view === 'bot-config') syncForm()
-  transitionName.value = view === 'main' ? 'settings-backward' : 'settings-forward'
   const routeName = {
     main: 'bot-settings',
     'bot-config': 'bot-config-settings',
@@ -221,7 +219,6 @@ watch(
   () => route.name,
   () => {
     const target = routeView()
-    transitionName.value = target === 'main' ? 'settings-backward' : 'settings-forward'
     activeView.value = target
   },
 )
@@ -238,8 +235,7 @@ const showAutoRenewModal = ref(false)
 const showRuntimeRenewalModal = ref(false)
 
 const canRenewAssignedRuntime = computed(
-  () =>
-    assignedRuntime.value?.status === 'ACTIVE' || assignedRuntime.value?.status === 'GRACE',
+  () => assignedRuntime.value?.status === 'ACTIVE' || assignedRuntime.value?.status === 'GRACE',
 )
 
 const projectedRuntimeEnd = computed(() => {
@@ -323,226 +319,224 @@ onMounted(async () => {
 
 <template>
   <div class="space-y-xl">
-    <Transition :name="transitionName" mode="out-in">
-      <section
-        v-if="activeView === 'main'"
-        id="bot-settings-panel"
-        key="main"
-        class="setting-menu"
-        :aria-label="t('botSettings.settingsMenu')"
-      >
-        <div class="setting-grid">
-          <button class="setting-card" type="button" @click="openView('bot-config')">
-            <AppIcon class="setting-card-icon" :source="icons.social.discord" />
-            <span>{{ t('botSettings.botConfig') }}</span>
-          </button>
-          <button class="setting-card" type="button" @click="openView('runtime')">
-            <AppIcon class="setting-card-icon" :source="icons.shop.server" />
-            <span>{{ t('botSettings.runtimeSettings') }}</span>
-          </button>
-          <button class="setting-card" type="button" @click="openView('packages')">
-            <AppIcon class="setting-card-icon" :source="icons.shop.package" />
-            <span>{{ t('botSettings.packageSettings') }}</span>
-          </button>
+    <section
+      v-if="activeView === 'main'"
+      id="bot-settings-panel"
+      key="main"
+      class="setting-menu"
+      :aria-label="t('botSettings.settingsMenu')"
+    >
+      <div class="setting-grid">
+        <button class="setting-card" type="button" @click="openView('bot-config')">
+          <AppIcon class="setting-card-icon" :source="icons.social.discord" />
+          <span>{{ t('botSettings.botConfig') }}</span>
+        </button>
+        <button class="setting-card" type="button" @click="openView('runtime')">
+          <AppIcon class="setting-card-icon" :source="icons.shop.server" />
+          <span>{{ t('botSettings.runtimeSettings') }}</span>
+        </button>
+        <button class="setting-card" type="button" @click="openView('packages')">
+          <AppIcon class="setting-card-icon" :source="icons.shop.package" />
+          <span>{{ t('botSettings.packageSettings') }}</span>
+        </button>
+      </div>
+    </section>
+
+    <section v-else id="bot-settings-panel" key="detail" class="space-y-lg">
+      <section v-if="activeView === 'bot-config'" class="config-card">
+        <div class="config-content">
+          <h2 class="text-2xl font-bold">{{ t('botSettings.botConfig') }}</h2>
+          <form class="space-y-md" @submit.prevent="saveBot">
+            <AppTextField
+              v-model="form.name"
+              :label="t('botSettings.botName')"
+              required
+              :maxlength="100"
+              :disabled="saving"
+            />
+            <AppTextField
+              v-model="form.token"
+              variant="secret"
+              :label="t('botSettings.botTokenLeaveBlankToKeepCurrent')"
+              placeholder="••••••••••••••••"
+              autocomplete="new-password"
+              :disabled="saving"
+            />
+            <AppTextField
+              v-model="form.discordApplicationId"
+              label="Application ID (Client ID)"
+              placeholder="Application ID"
+              pattern="[0-9]{15,30}"
+              :disabled="saving"
+            />
+            <AppTextField
+              v-model="form.discordGuildId"
+              label="Server ID (Guild)"
+              placeholder="Server ID"
+              pattern="[0-9]{15,30}"
+              :disabled="saving"
+            />
+            <div class="config-actions">
+              <AppButton
+                class="settings-hug"
+                type="button"
+                :disabled="saving"
+                @click="openView('main')"
+                >{{ t('botSettings.cancel') }}</AppButton
+              >
+              <AppButton
+                class="settings-hug"
+                type="submit"
+                :left-icon="icons.action.save"
+                :disabled="saving || !form.name.trim()"
+                >{{ saving ? t('botSettings.saving') : t('botSettings.save') }}</AppButton
+              >
+            </div>
+          </form>
         </div>
       </section>
 
-      <section v-else id="bot-settings-panel" key="detail" class="space-y-lg">
-        <section v-if="activeView === 'bot-config'" class="config-card">
-          <div class="config-content">
-            <h2 class="text-2xl font-bold">{{ t('botSettings.botConfig') }}</h2>
-            <form class="space-y-md" @submit.prevent="saveBot">
-              <AppTextField
-                v-model="form.name"
-                :label="t('botSettings.botName')"
-                required
-                :maxlength="100"
-                :disabled="saving"
-              />
-              <AppTextField
-                v-model="form.token"
-                variant="secret"
-                :label="t('botSettings.botTokenLeaveBlankToKeepCurrent')"
-                placeholder="••••••••••••••••"
-                autocomplete="new-password"
-                :disabled="saving"
-              />
-              <AppTextField
-                v-model="form.discordApplicationId"
-                label="Application ID (Client ID)"
-                placeholder="Application ID"
-                pattern="[0-9]{15,30}"
-                :disabled="saving"
-              />
-              <AppTextField
-                v-model="form.discordGuildId"
-                label="Server ID (Guild)"
-                placeholder="Server ID"
-                pattern="[0-9]{15,30}"
-                :disabled="saving"
-              />
-              <div class="config-actions">
-                <AppButton
-                  class="settings-hug"
-                  type="button"
-                  :disabled="saving"
-                  @click="openView('main')"
-                  >{{ t('botSettings.cancel') }}</AppButton
-                >
-                <AppButton
-                  class="settings-hug"
-                  type="submit"
-                  :left-icon="icons.action.save"
-                  :disabled="saving || !form.name.trim()"
-                  >{{ saving ? t('botSettings.saving') : t('botSettings.save') }}</AppButton
-                >
-              </div>
-            </form>
-          </div>
-        </section>
-
-        <section v-else-if="activeView === 'runtime'" class="items-card">
-          <h2 class="text-2xl font-bold">{{ t('botSettings.runtimeSettings') }}</h2>
-          <article v-if="assignedRuntime" class="runtime-detail">
-            <div class="runtime-detail-header">
-              <div>
-                <p class="text-sm font-semibold uppercase tracking-widest text-text-muted">
-                  SLOT-{{ assignedRuntime.slotNumber }}
-                </p>
-                <h3 class="mt-xs text-xl font-extrabold">{{ assignedRuntime.planName }}</h3>
-              </div>
-              <span
-                class="runtime-status"
-                :class="{ 'runtime-status--grace': assignedRuntime.status === 'GRACE' }"
-                >{{ assignedRuntime.status }}</span
-              >
-            </div>
-            <dl class="runtime-detail-grid">
-              <div>
-                <dt>{{ t('botSettings.connectedBot') }}</dt>
-                <dd>{{ assignedRuntime.botName ?? bot?.name ?? '—' }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('botSettings.currentPeriodEnds') }}</dt>
-                <dd>{{ formatRuntimeDate(assignedRuntime.currentPeriodEnd) }}</dd>
-              </div>
-              <div>
-                <dt>{{ t('botSettings.automaticRenewal') }}</dt>
-                <dd class="mt-xs">
-                  <AppToggle
-                    :model-value="assignedRuntime.autoRenew"
-                    :disabled="runtimeBusy"
-                    label="Auto-renew"
-                    @change="openAutoRenewModal"
-                  />
-                </dd>
-              </div>
-              <div v-if="assignedRuntime.status === 'GRACE'">
-                <dt>{{ t('botSettings.gracePeriodEnds') }}</dt>
-                <dd>{{ formatRuntimeDate(assignedRuntime.graceUntil) }}</dd>
-              </div>
-            </dl>
-            <div v-if="canRenewAssignedRuntime" class="runtime-actions">
-              <p class="runtime-renewal-offer">
-                {{
-                  t('botSettings.runtimeRenewalOffer', {
-                    price: formatRuntimePrice(assignedRuntime.effectiveRenewalPriceSatang),
-                    days: assignedRuntime.durationDays,
-                  })
-                }}
+      <section v-else-if="activeView === 'runtime'" class="items-card">
+        <h2 class="text-2xl font-bold">{{ t('botSettings.runtimeSettings') }}</h2>
+        <article v-if="assignedRuntime" class="runtime-detail">
+          <div class="runtime-detail-header">
+            <div>
+              <p class="text-sm font-semibold uppercase tracking-widest text-text-muted">
+                SLOT-{{ assignedRuntime.slotNumber }}
               </p>
+              <h3 class="mt-xs text-xl font-extrabold">{{ assignedRuntime.planName }}</h3>
+            </div>
+            <span
+              class="runtime-status"
+              :class="{ 'runtime-status--grace': assignedRuntime.status === 'GRACE' }"
+              >{{ assignedRuntime.status }}</span
+            >
+          </div>
+          <dl class="runtime-detail-grid">
+            <div>
+              <dt>{{ t('botSettings.connectedBot') }}</dt>
+              <dd>{{ assignedRuntime.botName ?? bot?.name ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('botSettings.currentPeriodEnds') }}</dt>
+              <dd>{{ formatRuntimeDate(assignedRuntime.currentPeriodEnd) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('botSettings.automaticRenewal') }}</dt>
+              <dd class="mt-xs">
+                <AppToggle
+                  :model-value="assignedRuntime.autoRenew"
+                  :disabled="runtimeBusy"
+                  label="Auto-renew"
+                  @change="openAutoRenewModal"
+                />
+              </dd>
+            </div>
+            <div v-if="assignedRuntime.status === 'GRACE'">
+              <dt>{{ t('botSettings.gracePeriodEnds') }}</dt>
+              <dd>{{ formatRuntimeDate(assignedRuntime.graceUntil) }}</dd>
+            </div>
+          </dl>
+          <div v-if="canRenewAssignedRuntime" class="runtime-actions">
+            <p class="runtime-renewal-offer">
+              {{
+                t('botSettings.runtimeRenewalOffer', {
+                  price: formatRuntimePrice(assignedRuntime.effectiveRenewalPriceSatang),
+                  days: assignedRuntime.durationDays,
+                })
+              }}
+            </p>
+            <AppButton
+              class="settings-hug"
+              :disabled="runtimeBusy"
+              @click="openRuntimeRenewalModal"
+              >{{ t('botSettings.topUpRuntimeNow') }}</AppButton
+            >
+          </div>
+        </article>
+        <p v-else class="py-2xl text-center text-text-muted">
+          {{ t('botSettings.noRuntimeAssignedToThisBot') }}
+        </p>
+        <article
+          v-if="runtimeAlertLicense"
+          class="mt-lg rounded-lg border border-border-default bg-bg-surface p-lg"
+        >
+          <div
+            class="flex flex-col gap-md tablet:flex-row tablet:items-start tablet:justify-between"
+          >
+            <div class="min-w-0 space-y-sm">
+              <p class="text-sm font-semibold text-text-secondary">
+                {{ t('botSettings.coreFeature') }}
+              </p>
+              <h3 class="text-xl font-bold">{{ runtimeAlertLicense.featureName }}</h3>
+              <p class="text-text-secondary">
+                {{ t('botSettings.runtimeExpiryDescription') }}
+              </p>
+              <p class="text-sm text-text-muted">
+                {{ t('botSettings.runtimeExpirySetupHint') }}
+              </p>
+            </div>
+            <AppButton
+              class="shrink-0 tablet:!w-auto"
+              variant="secondary"
+              :left-icon="icons.action.setting"
+              @click="openFeature(runtimeAlertLicense.id)"
+            >
+              {{ t('botSettings.configureRuntimeAlerts') }}
+            </AppButton>
+          </div>
+        </article>
+      </section>
+
+      <section v-else class="items-card">
+        <h2 class="text-2xl font-bold">{{ t('botSettings.packageSettings') }}</h2>
+        <div v-if="packageLicenses.length" class="item-list">
+          <article v-for="license in packageLicenses" :key="license.id" class="setting-item">
+            <div>
+              <h3 class="font-bold">{{ license.featureName }}</h3>
+              <p class="text-sm text-text-muted">v{{ license.version }} · {{ license.status }}</p>
+            </div>
+            <div class="setting-item-actions">
               <AppButton
                 class="settings-hug"
-                :disabled="runtimeBusy"
-                @click="openRuntimeRenewalModal"
-                >{{ t('botSettings.topUpRuntimeNow') }}</AppButton
-              >
-            </div>
-          </article>
-          <p v-else class="py-2xl text-center text-text-muted">
-            {{ t('botSettings.noRuntimeAssignedToThisBot') }}
-          </p>
-          <article
-            v-if="runtimeAlertLicense"
-            class="mt-lg rounded-lg border border-border-default bg-bg-surface p-lg"
-          >
-            <div
-              class="flex flex-col gap-md tablet:flex-row tablet:items-start tablet:justify-between"
-            >
-              <div class="min-w-0 space-y-sm">
-                <p class="text-sm font-semibold text-text-secondary">
-                  {{ t('botSettings.coreFeature') }}
-                </p>
-                <h3 class="text-xl font-bold">{{ runtimeAlertLicense.featureName }}</h3>
-                <p class="text-text-secondary">
-                  {{ t('botSettings.runtimeExpiryDescription') }}
-                </p>
-                <p class="text-sm text-text-muted">
-                  {{ t('botSettings.runtimeExpirySetupHint') }}
-                </p>
-              </div>
-              <AppButton
-                class="shrink-0 tablet:!w-auto"
                 variant="secondary"
                 :left-icon="icons.action.setting"
-                @click="openFeature(runtimeAlertLicense.id)"
+                @click="openFeature(license.id)"
               >
-                {{ t('botSettings.configureRuntimeAlerts') }}
+                {{ t('botSettings.settings') }}
+              </AppButton>
+              <AppButton
+                v-if="adminMode && !coreFeatureCodes.has(license.featureCode)"
+                class="remove-feature-button settings-hug"
+                variant="secondary"
+                :disabled="Boolean(removingInstallationId)"
+                @click="openFeatureRemoval(license)"
+              >
+                {{ t('botSettings.removeFeature') }}
+              </AppButton>
+              <AppButton
+                v-if="!adminMode && license.upgradeAvailable"
+                class="settings-hug"
+                :disabled="Boolean(upgradingLicenseId)"
+                @click="upgradeLicense(license)"
+              >
+                {{
+                  upgradingLicenseId === license.id
+                    ? t('botSettings.upgrading')
+                    : text(
+                        `Upgrade to v${license.latestVersion}`,
+                        `อัปเกรดเป็น v${license.latestVersion}`,
+                      )
+                }}
               </AppButton>
             </div>
           </article>
-        </section>
-
-        <section v-else class="items-card">
-          <h2 class="text-2xl font-bold">{{ t('botSettings.packageSettings') }}</h2>
-          <div v-if="packageLicenses.length" class="item-list">
-            <article v-for="license in packageLicenses" :key="license.id" class="setting-item">
-              <div>
-                <h3 class="font-bold">{{ license.featureName }}</h3>
-                <p class="text-sm text-text-muted">v{{ license.version }} · {{ license.status }}</p>
-              </div>
-              <div class="setting-item-actions">
-                <AppButton
-                  class="settings-hug"
-                  variant="secondary"
-                  :left-icon="icons.action.setting"
-                  @click="openFeature(license.id)"
-                >
-                  {{ t('botSettings.settings') }}
-                </AppButton>
-                <AppButton
-                  v-if="adminMode && !coreFeatureCodes.has(license.featureCode)"
-                  class="remove-feature-button settings-hug"
-                  variant="secondary"
-                  :disabled="Boolean(removingInstallationId)"
-                  @click="openFeatureRemoval(license)"
-                >
-                  {{ t('botSettings.removeFeature') }}
-                </AppButton>
-                <AppButton
-                  v-if="!adminMode && license.upgradeAvailable"
-                  class="settings-hug"
-                  :disabled="Boolean(upgradingLicenseId)"
-                  @click="upgradeLicense(license)"
-                >
-                  {{
-                    upgradingLicenseId === license.id
-                      ? t('botSettings.upgrading')
-                      : text(
-                          `Upgrade to v${license.latestVersion}`,
-                          `อัปเกรดเป็น v${license.latestVersion}`,
-                        )
-                  }}
-                </AppButton>
-              </div>
-            </article>
-          </div>
-          <p v-else class="py-2xl text-center text-text-muted">
-            {{ t('botSettings.noPackagesAssignedToThisBot') }}
-          </p>
-        </section>
+        </div>
+        <p v-else class="py-2xl text-center text-text-muted">
+          {{ t('botSettings.noPackagesAssignedToThisBot') }}
+        </p>
       </section>
-    </Transition>
+    </section>
 
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
 
@@ -919,24 +913,6 @@ onMounted(async () => {
 .remove-feature-button:not(:disabled):hover {
   background: color-mix(in srgb, var(--color-error-bg) 80%, var(--color-error-text));
 }
-.settings-forward-enter-active,
-.settings-forward-leave-active,
-.settings-backward-enter-active,
-.settings-backward-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 220ms ease;
-}
-.settings-forward-enter-from,
-.settings-backward-leave-to {
-  opacity: 0;
-  transform: translateX(var(--spacing-xl));
-}
-.settings-forward-leave-to,
-.settings-backward-enter-from {
-  opacity: 0;
-  transform: translateX(calc(var(--spacing-xl) * -1));
-}
 @keyframes breadcrumb-reveal {
   from {
     opacity: 0;
@@ -989,11 +965,7 @@ onMounted(async () => {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .setting-card,
-  .settings-forward-enter-active,
-  .settings-forward-leave-active,
-  .settings-backward-enter-active,
-  .settings-backward-leave-active {
+  .setting-card {
     transition: none;
   }
   .breadcrumb-trail {

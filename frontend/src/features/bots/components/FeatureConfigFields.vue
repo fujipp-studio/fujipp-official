@@ -3,18 +3,40 @@ import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
 import PriceMapEditor from '@/features/bots/components/PriceMapEditor.vue'
-import RobloxGroupEditor from '@/features/bots/components/RobloxGroupEditor.vue'
 import RobuxPackagesEditor from '@/features/bots/components/RobuxPackagesEditor.vue'
-import RobuxPanelsEditor from '@/features/bots/components/RobuxPanelsEditor.vue'
 import StringListEditor from '@/features/bots/components/StringListEditor.vue'
 import ThresholdRoleEditor from '@/features/bots/components/ThresholdRoleEditor.vue'
 import CommandPermissionsEditor from '@/features/bots/components/CommandPermissionsEditor.vue'
 import MessageTriggerRulesEditor from '@/features/bots/components/MessageTriggerRulesEditor.vue'
+import MemberSpendingConfig from '@/features/bots/components/MemberSpendingConfig.vue'
+import BotPresenceConfig from '@/features/bots/components/BotPresenceConfig.vue'
+import BotPermissionsConfig from './BotPermissionsConfig.vue'
+import ReviewCreditConfig from './ReviewCreditConfig.vue'
+import ChannelMessageTriggersConfig from './ChannelMessageTriggersConfig.vue'
+import PaymentTriggerConfig from './PaymentTriggerConfig.vue'
+import PriceReaderConfig from './PriceReaderConfig.vue'
+import { priceReaderConfigKeys } from '../config/price-reader'
+import { paymentTriggerConfigKeys } from '../config/payment-trigger'
+import { channelMessageTriggerConfigKeys } from '../config/channel-message-triggers'
+import { reviewCreditConfigKeys } from '../config/review-credit'
+import VoiceKeeperConfig from './VoiceKeeperConfig.vue'
+import WalletTopupConfig from './WalletTopupConfig.vue'
+import RobloxPayoutConfig from './RobloxPayoutConfig.vue'
+import { robloxPayoutConfigKeys } from '../config/roblox-payout'
+import { walletTopupConfigKeys } from '../config/wallet-topup'
+import { voiceKeeperConfigKeys } from '../config/voice-keeper'
+import { botPermissionsConfigKeys } from '../config/bot-permissions'
+import RuntimeExpiryAlertConfig from './RuntimeExpiryAlertConfig.vue'
+import { runtimeAlertConfigKeys } from '../config/runtime-expiry-alert'
+import { botPresenceConfigKeys } from '../config/bot-presence'
+import { memberSpendingConfigKeys } from '../config/member-spending'
+import { computed } from 'vue'
 import { Settings2 } from 'lucide-vue-next'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const { t } = useI18n()
 const {
+  license,
   configuration,
   isRobloxGroupField,
   configFieldDescription,
@@ -27,10 +49,50 @@ const {
   isWalletPanelCommand,
   usesPresentationDesigner,
   isRobloxPayoutFeature,
-  robloxCredentialsConfigured,
-  isRobloxPayoutV2,
   isRobloxPayoutV3,
+  isRuntimeAlertFeature,
 } = useFeatureEditor()
+
+const isMemberSpending = computed(() => license.value?.featureCode === 'member-spending')
+const isBotPresence = computed(() => license.value?.featureCode === 'bot-presence')
+const isBotPermissions = computed(() => license.value?.featureCode === 'bot-permissions')
+const isReviewCredit = computed(() => license.value?.featureCode === 'review-credit')
+const isVoiceKeeper = computed(() => license.value?.featureCode === 'voice-keeper')
+const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topup')
+const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
+const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
+const isPriceReader = computed(() => license.value?.featureCode === 'price-reader')
+const hasCustomConfig = computed(
+  () =>
+    isMemberSpending.value ||
+    isBotPresence.value ||
+    isRuntimeAlertFeature.value ||
+    isBotPermissions.value ||
+    isReviewCredit.value ||
+    isVoiceKeeper.value ||
+    isWalletTopup.value ||
+    isRobloxPayoutFeature.value ||
+    isMessageTriggers.value ||
+    isPaymentTrigger.value ||
+    isPriceReader.value,
+)
+const genericFields = computed(
+  () =>
+    configuration.value?.fields.filter(
+      (field) =>
+        (!isMemberSpending.value || !memberSpendingConfigKeys.has(field.key)) &&
+        (!isBotPresence.value || !botPresenceConfigKeys.has(field.key)) &&
+        (!isRuntimeAlertFeature.value || !runtimeAlertConfigKeys.has(field.key)) &&
+        (!isBotPermissions.value || !botPermissionsConfigKeys.has(field.key)) &&
+        (!isReviewCredit.value || !reviewCreditConfigKeys.has(field.key)) &&
+        (!isVoiceKeeper.value || !voiceKeeperConfigKeys.has(field.key)) &&
+        (!isWalletTopup.value || !walletTopupConfigKeys.has(field.key)) &&
+        (!isRobloxPayoutFeature.value || !robloxPayoutConfigKeys.has(field.key)) &&
+        (!isMessageTriggers.value || !channelMessageTriggerConfigKeys.has(field.key)) &&
+        (!isPaymentTrigger.value || !paymentTriggerConfigKeys.has(field.key)) &&
+        (!isPriceReader.value || !priceReaderConfigKeys.has(field.key)),
+    ) ?? [],
+)
 
 function robuxGroupRates() {
   if (!isRobloxPayoutV3.value) return []
@@ -48,7 +110,7 @@ function robuxGroupRates() {
 </script>
 <template>
   <section v-if="configuration" id="feature-config" class="mt-xl">
-    <div class="mb-md flex items-center gap-sm">
+    <div v-if="!hasCustomConfig" class="mb-md flex items-center gap-sm">
       <Settings2 :size="24" />
       <div>
         <h2 class="text-2xl font-semibold">Config</h2>
@@ -57,8 +119,23 @@ function robuxGroupRates() {
         </p>
       </div>
     </div>
-    <div v-if="configuration.fields.length" class="grid gap-md desktop:grid-cols-2">
-      <template v-for="field in configuration.fields" :key="field.key">
+    <MemberSpendingConfig v-if="isMemberSpending" />
+    <BotPresenceConfig v-else-if="isBotPresence" />
+    <RuntimeExpiryAlertConfig v-else-if="isRuntimeAlertFeature" />
+    <BotPermissionsConfig v-else-if="isBotPermissions" />
+    <ReviewCreditConfig v-else-if="isReviewCredit" />
+    <VoiceKeeperConfig v-else-if="isVoiceKeeper" />
+    <WalletTopupConfig v-else-if="isWalletTopup" />
+    <RobloxPayoutConfig v-else-if="isRobloxPayoutFeature" />
+    <ChannelMessageTriggersConfig v-else-if="isMessageTriggers" />
+    <PaymentTriggerConfig v-else-if="isPaymentTrigger" />
+    <PriceReaderConfig v-else-if="isPriceReader" />
+    <div
+      v-if="genericFields.length"
+      class="grid gap-md desktop:grid-cols-2"
+      :class="{ 'mt-lg': hasCustomConfig }"
+    >
+      <template v-for="field in genericFields" :key="field.key">
         <div
           v-if="!isRobloxGroupField(field.key)"
           :class="[
@@ -196,23 +273,8 @@ function robuxGroupRates() {
       </template>
     </div>
 
-    <RobloxGroupEditor
-      v-if="isRobloxPayoutFeature"
-      v-model:groups-json="values['ROBLOX_GROUPS'] as string"
-      v-model:credentials-json="secrets['ROBLOX_CREDENTIALS'] as string"
-      :credentials-configured="robloxCredentialsConfigured"
-      :show-membership-lookup="isRobloxPayoutV2"
-      :show-rate="isRobloxPayoutV3"
-      :default-rate="Number(values['ROBUX_RATE'] ?? 3.5)"
-      class="mt-lg"
-    />
-    <RobuxPanelsEditor
-      v-if="isRobloxPayoutV3"
-      v-model:panels-json="values['ROBUX_PANELS'] as string"
-      :groups-json="values['ROBLOX_GROUPS'] as string"
-    />
     <div
-      v-else-if="!configuration.fields.length"
+      v-if="!configuration.fields.length && !hasCustomConfig"
       class="rounded-lg border border-dashed border-border-default p-xl text-center text-text-muted"
     >
       {{ t('botSettings.thisFeatureHasNoConfigFields') }}

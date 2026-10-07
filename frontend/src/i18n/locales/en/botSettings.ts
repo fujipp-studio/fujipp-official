@@ -1,4 +1,12 @@
 export default {
+  shellTitle: 'Bot settings',
+  back: 'Back',
+  main: 'Main',
+  breadcrumbLabel: 'Bot settings breadcrumb',
+  sectionsLabel: 'Bot settings sections',
+  botOverview: 'Bot',
+  featureFallback: 'Feature',
+
   addRemoveAndReorderBlocks: 'Add, remove, and reorder blocks',
   messageBlocks: 'Message blocks',
   dragToReorder: 'Drag to reorder',

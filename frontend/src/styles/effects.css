@@ -91,6 +91,11 @@ html.theme-switching *::after {
   transition: none !important;
 }
 
+/* Include named navigation snapshots in the page-wide theme reveal. */
+html.theme-reveal * {
+  view-transition-name: none !important;
+}
+
 html.theme-reveal::view-transition-old(root),
 html.theme-reveal::view-transition-new(root) {
   animation: none;

@@ -1,12 +1,17 @@
 import type { Session } from '@supabase/supabase-js'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WalletTopupView from '../features/topup/views/WalletTopupView.vue'
 import { i18n } from '../i18n'
 import { useAuthStore } from '../stores'
-import { createWalletTopup, fetchWalletTopup, listWalletTopups } from '@/features/topup/api'
+import {
+  createWalletTopup,
+  fetchWalletTopup,
+  listWalletTopups,
+  verifyWalletTopupSlip,
+} from '@/features/topup/api'
 import { type CursorPage } from '@/shared/api/http'
 import { type WalletTopupInvoice, type WalletTopupSummary } from '@/features/topup/api'
 
@@ -46,11 +51,22 @@ const pendingInvoice = {
   completedAt: null,
   createdAt: new Date().toISOString(),
 }
+const originalScrollIntoView = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'scrollIntoView',
+)
 
 describe('WalletTopupView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubGlobal('scrollTo', vi.fn())
+    vi.mocked(listWalletTopups).mockResolvedValue({ items: [], nextCursor: null, hasMore: false })
+    vi.stubGlobal('scrollTo', vi.fn<typeof window.scrollTo>())
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      value: vi.fn<typeof HTMLElement.prototype.scrollIntoView>(),
+      configurable: true,
+    })
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:test-slip')
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
@@ -71,12 +87,31 @@ describe('WalletTopupView', () => {
     i18n.global.locale.value = 'en'
   })
 
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (originalScrollIntoView)
+      Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', originalScrollIntoView)
+    else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  })
+
+  it('keeps the skin based on the actual balance when a top-up amount is selected', async () => {
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    expect(wrapper.get('.balance-card').attributes('data-wallet-skin')).toBe('green')
+    await wrapper.get('.amount-grid button:last-child').trigger('click')
+    expect(wrapper.get('.balance-card').attributes('data-wallet-skin')).toBe('green')
+    useAuthStore().currentUser!.walletBalanceSatang = 100000
+    await flushPromises()
+    expect(wrapper.get('.balance-card').attributes('data-wallet-skin')).toBe('emerald')
+    wrapper.unmount()
+  })
+
   it('shows the current balance and amount choices', () => {
     const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
 
     expect(wrapper.text()).toContain('Current balance')
     expect(wrapper.text()).toContain('125.00')
     expect(wrapper.text()).toContain('฿1,000')
+    wrapper.unmount()
   })
 
   it('creates an invoice for the selected preset and displays its QR', async () => {
@@ -84,7 +119,7 @@ describe('WalletTopupView', () => {
     const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
 
     await wrapper.get('.amount-grid button:nth-child(3)').trigger('click')
-    await wrapper.get('.topup-panel .app-button').trigger('click')
+    await wrapper.get('.continue-button').trigger('click')
     await flushPromises()
 
     expect(createWalletTopup).toHaveBeenCalledWith(
@@ -103,7 +138,7 @@ describe('WalletTopupView', () => {
 
     const amountInput = wrapper.get('input[inputmode="numeric"]')
     await amountInput.setValue('abc750')
-    await wrapper.get('.topup-panel .app-button').trigger('click')
+    await wrapper.get('.continue-button').trigger('click')
     await flushPromises()
 
     expect((amountInput.element as HTMLInputElement).value).toBe('750')
@@ -130,6 +165,106 @@ describe('WalletTopupView', () => {
     await flushPromises()
 
     expect(wrapper.get('.qr-frame img').attributes('src')).toBe(pendingInvoice.qrImageUrl)
+    wrapper.unmount()
+  })
+
+  it('blocks out-of-range amounts and restores the preset selection', async () => {
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const input = wrapper.get('input[inputmode="numeric"]')
+    const button = wrapper.get('.continue-button')
+    for (const value of ['9', '100001']) {
+      await input.setValue(value)
+      expect(input.attributes('aria-invalid')).toBe('true')
+      expect(button.attributes('disabled')).toBeDefined()
+      expect(wrapper.get('[data-topup-total]').text()).toBe('—')
+      await button.trigger('click')
+      expect(createWalletTopup).not.toHaveBeenCalled()
+    }
+    await wrapper.get('.amount-grid button:nth-child(3)').trigger('click')
+    expect(input.element).toHaveProperty('value', '')
+    expect(wrapper.get('.amount-grid button:nth-child(3)').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('[data-topup-total]').text()).toContain('300.00')
+    expect(wrapper.get('.summary-card').text()).toContain('425.00')
+    expect(button.attributes('disabled')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('rejects unsupported and oversized slips and lets the user remove and reselect an image', async () => {
+    vi.mocked(createWalletTopup).mockResolvedValue(pendingInvoice)
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    await wrapper.get('.continue-button').trigger('click')
+    await flushPromises()
+    const input = wrapper.get('input[type="file"]')
+    const pick = async (file: File) => {
+      Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
+      await input.trigger('change')
+    }
+    await pick(new File(['text'], 'slip.txt', { type: 'text/plain' }))
+    expect(wrapper.get('#topup-slip-error').text()).toContain('Choose a JPG')
+    expect(wrapper.get('.slip-panel .app-button').attributes('disabled')).toBeDefined()
+    await pick(new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'large.png', { type: 'image/png' }))
+    expect(wrapper.get('#topup-slip-error').text()).toContain('too large')
+    const image = new File(['image'], 'slip.png', { type: 'image/png' })
+    await pick(image)
+    expect(wrapper.find('#topup-slip-error').exists()).toBe(false)
+    expect(wrapper.get('.slip-selected').text()).toContain('slip.png')
+    await wrapper.get('.slip-remove').trigger('click')
+    expect(wrapper.find('.slip-selected').exists()).toBe(false)
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:test-slip')
+    await pick(image)
+    expect(wrapper.get('.slip-drop img').attributes('src')).toBe('blob:test-slip')
+    wrapper.unmount()
+  })
+
+  it('retains the slip after verification fails and updates the receipt after retry', async () => {
+    const auth = useAuthStore()
+    vi.spyOn(auth, 'reloadCurrentUser').mockResolvedValue()
+    vi.mocked(createWalletTopup).mockResolvedValue(pendingInvoice)
+    vi.mocked(fetchWalletTopup).mockResolvedValue(pendingInvoice)
+    vi.mocked(verifyWalletTopupSlip)
+      .mockRejectedValueOnce(new Error('Slip not found'))
+      .mockResolvedValueOnce({ ...pendingInvoice, status: 'SUCCESS', balanceSatang: 42500 })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    await wrapper.get('.continue-button').trigger('click')
+    await flushPromises()
+    const file = new File(['image'], 'slip.png', { type: 'image/png' })
+    const input = wrapper.get('input[type="file"]')
+    Object.defineProperty(input.element, 'files', { value: [file] })
+    await input.trigger('change')
+    await wrapper.get('.slip-panel > .app-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#topup-slip-error').text()).toBe('Slip not found')
+    expect(wrapper.get('.slip-selected').text()).toContain('slip.png')
+    vi.mocked(listWalletTopups).mockResolvedValue({
+      items: [{ ...pendingInvoice, status: 'SUCCESS' }],
+      nextCursor: null,
+      hasMore: false,
+    })
+    await wrapper.get('.slip-panel > .app-button').trigger('click')
+    await flushPromises()
+    expect(verifyWalletTopupSlip).toHaveBeenLastCalledWith(
+      pendingInvoice.invoiceId,
+      file,
+      auth.session,
+    )
+    expect(auth.reloadCurrentUser).toHaveBeenCalledOnce()
+    expect(wrapper.get('.success-balance').text()).toContain('425.00')
+    expect(wrapper.get('.topup-steps [aria-current="step"]').text()).toContain('Complete')
+    expect(wrapper.get('.history-status').attributes('data-status')).toBe('SUCCESS')
+    wrapper.unmount()
+  })
+
+  it('disables expired payments and returns to amount selection', async () => {
+    vi.mocked(createWalletTopup).mockResolvedValue({ ...pendingInvoice, status: 'EXPIRED' })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    await wrapper.get('.continue-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('input[type="file"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.slip-panel > .app-button').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('.qr-expired').text()).toContain('expired')
+    await wrapper.get('.qr-panel .app-button').trigger('click')
+    expect(wrapper.find('.amount-grid').exists()).toBe(true)
+    expect(wrapper.find('.qr-frame').exists()).toBe(false)
     wrapper.unmount()
   })
 })

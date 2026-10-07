@@ -16,6 +16,9 @@ const { t } = useI18n()
 
 export interface GroupBlock {
   id: string
+  source: Record<string, unknown>
+  credentials: Record<string, unknown>
+  expanded: boolean
   key: string
   name: string
   groupId: number | ''
@@ -34,6 +37,7 @@ const props = defineProps<{
   showMembershipLookup?: boolean
   showRate?: boolean
   defaultRate?: number
+  standalone?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -48,6 +52,9 @@ function createEmptyGroup(index: number): GroupBlock {
   const key = index === 1 ? 'main' : `group-${index}`
   return {
     id: `group-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    source: {},
+    credentials: {},
+    expanded: true,
     key,
     name: `Group ${index}`,
     groupId: '',
@@ -94,6 +101,9 @@ function parseInitialData() {
       const cred = parsedCreds[key] ?? {}
       return {
         id: `group-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+        source: { ...g },
+        credentials: { ...cred },
+        expanded: idx === 0,
         key,
         name: String(g.name ?? `Group ${idx + 1}`),
         groupId: typeof g.groupId === 'number' ? g.groupId : Number(g.groupId) || '',
@@ -120,6 +130,7 @@ function emitChanges() {
   if (!initialized.value) return
 
   const groupsPayload = groups.value.map((g, idx) => ({
+    ...g.source,
     key: (g.key || `group-${idx + 1}`).trim(),
     name: (g.name || `Group ${idx + 1}`).trim(),
     groupId: typeof g.groupId === 'number' ? g.groupId : Number(g.groupId) || 0,
@@ -133,7 +144,9 @@ function emitChanges() {
   for (const g of groups.value) {
     const key = (g.key || 'group').trim()
     if (!key) continue
-    const cred: { cookie?: string; totpSecret?: string; openCloudApiKey?: string } = {}
+    const cred: { cookie?: string; totpSecret?: string; openCloudApiKey?: string } = {
+      ...g.credentials,
+    }
     if (g.cookie.trim()) cred.cookie = g.cookie.trim()
     if (g.totpSecret.trim()) cred.totpSecret = g.totpSecret.trim()
     if (g.openCloudApiKey.trim()) cred.openCloudApiKey = g.openCloudApiKey.trim()
@@ -187,7 +200,7 @@ function groupReady(group: GroupBlock) {
 </script>
 
 <template>
-  <section class="roblox-groups">
+  <section class="roblox-groups" :class="{ 'roblox-groups--standalone': standalone }">
     <header class="roblox-groups__header">
       <div class="roblox-groups__title">
         <span class="roblox-groups__icon"><Gamepad2 /></span>
@@ -211,7 +224,12 @@ function groupReady(group: GroupBlock) {
     </div>
 
     <div class="roblox-groups__list">
-      <details v-for="(group, index) in groups" :key="group.id" class="roblox-group" open>
+      <details
+        v-for="(group, index) in groups"
+        :key="group.id"
+        class="roblox-group"
+        :open="group.expanded"
+      >
         <summary class="roblox-group__summary">
           <ChevronDown class="roblox-group__chevron" />
           <span class="roblox-group__number">{{ index + 1 }}</span>
@@ -260,6 +278,8 @@ function groupReady(group: GroupBlock) {
                 label="Roblox Group ID"
                 placeholder="34777878"
                 input-type="number"
+                :min="1"
+                :step="1"
                 :support-text="t('botSettings.findItInTheRobloxCommunityUrl')"
                 required
                 @update:model-value="(value) => updateGroupId(group, value)"
@@ -270,6 +290,7 @@ function groupReady(group: GroupBlock) {
                 :label="t('botSettings.robuxRate')"
                 placeholder="3.5"
                 input-type="number"
+                step="any"
                 :support-text="t('botSettings.robuxRatePerBahtForThisGroup')"
                 required
                 @update:model-value="(value) => updateRate(group, value)"
@@ -277,14 +298,19 @@ function groupReady(group: GroupBlock) {
             </div>
           </div>
 
-          <div class="roblox-group__section roblox-group__section--security">
-            <div class="roblox-group__section-title">
+          <details class="roblox-group__section--security" :open="!credentialsConfigured">
+            <summary class="roblox-group__section-title roblox-group__credentials-heading">
               <ShieldCheck class="size-4" />
-              <div>
+              <div class="min-w-0 flex-1">
                 <strong>{{ t('botSettings.securityCredentials') }}</strong
                 ><small>{{ t('botSettings.storedSecurelyAndNeverShownAgainAfter') }}</small>
               </div>
-            </div>
+              <ChevronDown
+                class="roblox-group__security-chevron shrink-0"
+                :size="18"
+                aria-hidden="true"
+              />
+            </summary>
             <div class="roblox-group__grid">
               <AppTextField
                 v-model="group.cookie"
@@ -322,7 +348,7 @@ function groupReady(group: GroupBlock) {
                 autocomplete="new-password"
               />
             </div>
-          </div>
+          </details>
 
           <div class="roblox-group__footer">
             <span
@@ -358,6 +384,23 @@ function groupReady(group: GroupBlock) {
   gap: var(--space-md);
   padding-top: var(--space-lg);
   border-top: 1px solid var(--semantic-color-border-border-subtle);
+}
+.roblox-groups--standalone {
+  padding-top: 0;
+  border-top: 0;
+}
+.roblox-group__credentials-heading {
+  cursor: pointer;
+}
+.roblox-group__section--security .roblox-group__grid {
+  margin-top: var(--space-md);
+}
+.roblox-group__credentials-heading:focus-visible {
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: 2px;
+}
+.roblox-group__section--security[open] .roblox-group__security-chevron {
+  transform: rotate(180deg);
 }
 .roblox-groups__header,
 .roblox-group__footer {
@@ -448,6 +491,7 @@ function groupReady(group: GroupBlock) {
   place-items: center;
   border-radius: var(--radius-full);
   background: var(--semantic-color-action-backgrounds-bg-secondary);
+  color: var(--semantic-color-action-text-text-on-secondary);
   font-weight: var(--typography-font-weight-bold);
 }
 .roblox-group__identity {

@@ -12,6 +12,7 @@ const { locale, t } = useI18n()
 const text = (english: string, thai: string) => (locale.value === 'th' ? thai : english)
 
 const amounts = ref<string[]>([])
+const sourceRows = ref<Record<string, unknown>[]>([])
 let committing = false
 
 watch(
@@ -23,6 +24,15 @@ watch(
     }
     try {
       const parsed = JSON.parse(value) as unknown
+      sourceRows.value = Array.isArray(parsed)
+        ? parsed.filter(
+            (item) =>
+              item &&
+              typeof item === 'object' &&
+              Number.isInteger(Number(item.robux)) &&
+              Number(item.robux) > 0,
+          )
+        : []
       amounts.value = Array.isArray(parsed)
         ? parsed.flatMap((item) => {
             const robux = item && typeof item === 'object' ? Number(Reflect.get(item, 'robux')) : 0
@@ -31,6 +41,7 @@ watch(
         : []
     } catch {
       amounts.value = []
+      sourceRows.value = []
     }
   },
   { immediate: true },
@@ -56,9 +67,9 @@ const priceLabel = (amount: string) => {
     : `฿${format(values[0] ?? 0)}`
 }
 function commit() {
-  const packages = amounts.value.flatMap((amount) => {
+  const packages = amounts.value.flatMap((amount, index) => {
     const robux = Number(amount)
-    return Number.isInteger(robux) && robux > 0 ? [{ robux }] : []
+    return Number.isInteger(robux) && robux > 0 ? [{ ...sourceRows.value[index], robux }] : []
   })
   committing = true
   emit('update:modelValue', JSON.stringify(packages, null, 2))
@@ -69,37 +80,38 @@ function update(index: number, value: string) {
 }
 function add() {
   amounts.value.push('')
+  sourceRows.value.push({})
 }
 function remove(index: number) {
   amounts.value.splice(index, 1)
+  sourceRows.value.splice(index, 1)
   commit()
 }
 </script>
 
 <template>
   <div class="packages-editor">
-    <div class="packages-editor__header">
-      <span>{{ t('botSettings.robuxAmount') }}</span
-      ><span>{{ t('botSettings.calculatedPrice') }}</span
-      ><span />
-    </div>
     <div v-for="(amount, index) in amounts" :key="index" class="packages-editor__row">
       <AppTextField
         :model-value="amount"
-        label=""
+        :label="text(`Package ${index + 1} (Robux)`, `แพ็กเกจที่ ${index + 1} (Robux)`)"
+        :min="1"
+        :step="1"
         input-type="number"
         placeholder="200"
         @update:model-value="(value) => update(index, value)"
       />
-      <output>{{ priceLabel(amount) }}</output>
-      <button
-        type="button"
+      <div class="packages-editor__price">
+        <span class="text-xs text-text-secondary">{{ t('botSettings.calculatedPrice') }}</span>
+        <output>{{ priceLabel(amount) }}</output>
+      </div>
+      <AppButton
         class="packages-editor__delete"
         :aria-label="text(`Delete package ${index + 1}`, `ลบแพ็กเกจที่ ${index + 1}`)"
         @click="remove(index)"
       >
         <Trash2 :size="18" />
-      </button>
+      </AppButton>
     </div>
     <p v-if="!amounts.length" class="packages-editor__empty">
       {{ t('botSettings.noRobuxPackagesYet') }}
@@ -128,17 +140,20 @@ function remove(index: number) {
   gap: var(--space-xs);
   margin-top: var(--space-xs);
 }
-.packages-editor__header,
 .packages-editor__row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr) var(--icon-size-40);
-  align-items: center;
-  gap: var(--space-xs);
+  grid-template-columns: minmax(0, 1fr) minmax(8rem, 0.6fr) calc(
+      var(--icon-size-32) + var(--space-xs)
+    );
+  align-items: end;
+  gap: var(--space-sm);
+  padding-block: var(--space-sm);
+  border-bottom: 1px solid var(--semantic-color-border-border-subtle);
 }
-.packages-editor__header {
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-label-small);
-  font-weight: var(--typography-font-weight-medium);
+.packages-editor__price {
+  display: grid;
+  gap: var(--space-xs);
+  align-self: center;
 }
 .packages-editor__row output {
   font-size: var(--font-size-body-large);
@@ -146,8 +161,9 @@ function remove(index: number) {
 }
 .packages-editor__delete {
   display: grid;
-  width: var(--icon-size-40);
-  height: var(--icon-size-40);
+  width: calc(var(--icon-size-32) + var(--space-xs));
+  height: calc(var(--icon-size-32) + var(--space-xs));
+  padding: 0;
   cursor: pointer;
   place-items: center;
   border: 1px solid var(--semantic-color-border-border-default);
@@ -169,11 +185,14 @@ function remove(index: number) {
   font-size: var(--font-size-label-small);
 }
 @media (max-width: 47.99rem) {
-  .packages-editor__header {
-    display: none;
-  }
   .packages-editor__row {
-    grid-template-columns: minmax(0, 1fr) auto var(--icon-size-40);
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .packages-editor__row > :first-child {
+    grid-column: 1 / -1;
+  }
+  .packages-editor__price {
+    align-self: start;
   }
 }
 </style>
