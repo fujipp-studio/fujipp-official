@@ -8,6 +8,7 @@ import DiscordPreviewButton from './DiscordPreviewButton.vue'
 import DiscordPreviewImage from './DiscordPreviewImage.vue'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import twemoji from '@twemoji/api'
+import { renderDiscordMarkdown } from './discord-markdown'
 import { walletActionDefaults } from '../config/feature-editor'
 
 const props = defineProps<{
@@ -332,38 +333,25 @@ function renderEmojiHtml(html: string) {
     })
     .join('')
 }
-function renderInlineMarkdown(value: string) {
+function renderMarkdown(value: unknown) {
   return renderEmojiHtml(
-    escapeHtml(render(value))
-      .replace(/`([^`\n]+)`/g, '<code>$1</code>')
-      .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/__([^_\n]+)__/g, '<u>$1</u>')
-      .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
-      .replace(/\*([^*\n]+)\*/g, '<em>$1</em>'),
+    renderDiscordMarkdown(render(value), text('Reveal spoiler', 'เปิดข้อความสปอยล์')),
   )
 }
-function renderMarkdown(value: unknown) {
-  return render(value)
-    .trimEnd()
-    .split('\n')
-    .map((line) => {
-      const subtext = line.match(/^-#\s+(.+)$/)
-      if (subtext)
-        return `<div class="discord-subtext">${renderInlineMarkdown(subtext[1] ?? '')}</div>`
-      const heading = line.match(/^(#{1,3})\s+(.+)$/)
-      if (heading) {
-        const level = heading[1]?.length ?? 1
-        return `<h${level}>${renderInlineMarkdown(heading[2] ?? '')}</h${level}>`
-      }
-      const quote = line.match(/^>\s?(.*)$/)
-      if (quote) return `<blockquote>${renderInlineMarkdown(quote[1] ?? '')}</blockquote>`
-      const listItem = line.match(/^[-*]\s+(.+)$/)
-      if (listItem)
-        return `<div class="discord-list-item">${renderInlineMarkdown(listItem[1] ?? '')}</div>`
-      if (!line.trim()) return '<div class="discord-line-break"></div>'
-      return `<div>${renderInlineMarkdown(line)}</div>`
-    })
-    .join('')
+function toggleTextSpoiler(event: MouseEvent) {
+  const target = event.target
+  if (!(target instanceof Element)) return
+  const button = target.closest<HTMLButtonElement>('button.discord-text-spoiler')
+  if (!button) return
+  const revealed = button.getAttribute('aria-expanded') !== 'true'
+  button.setAttribute('aria-expanded', String(revealed))
+  button.querySelector('span')?.setAttribute('aria-hidden', String(!revealed))
+  button.setAttribute(
+    'aria-label',
+    revealed
+      ? `${text('Hide spoiler', 'ซ่อนข้อความสปอยล์')}: ${button.textContent}`
+      : text('Reveal spoiler', 'เปิดข้อความสปอยล์'),
+  )
 }
 function sampleValue(key: string) {
   if (props.sampleValues?.[key] !== undefined) return props.sampleValues[key]
@@ -431,6 +419,7 @@ function actionButtonClass(style: string) {
   <div
     :class="['preview-shell', { 'preview-shell--compact': compact }]"
     :style="previewThemeStyles"
+    @click="toggleTextSpoiler"
   >
     <div v-if="!compact" class="preview-toolbar">
       <span class="preview-dot" /><strong>Live preview</strong
@@ -976,6 +965,46 @@ h4 {
   background: var(--discord-code);
   font-family: Consolas, 'Andale Mono WT', 'Andale Mono', 'Lucida Console', monospace;
   font-size: 0.85em;
+}
+/* Code tables retain their spacing and scroll within narrow previews. */
+:deep(.discord-markdown .discord-code-block) {
+  max-width: 100%;
+  margin: var(--space-xs) 0;
+  padding: var(--space-xs);
+  overflow-x: auto;
+  border: 1px solid var(--discord-border);
+  border-radius: var(--radius-sm);
+  background: var(--discord-code);
+  white-space: pre;
+  overflow-wrap: normal;
+}
+:deep(.discord-markdown .discord-code-block code) {
+  display: block;
+  padding: 0;
+  background: transparent;
+  white-space: pre;
+}
+:deep(.discord-text-spoiler) {
+  border: 0;
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-xxs);
+  background: var(--discord-spoiler-overlay);
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+:deep(.discord-text-spoiler[aria-expanded='false'] > span) {
+  visibility: hidden;
+}
+:deep(.discord-text-spoiler[aria-expanded='true']) {
+  background: var(--discord-code);
+}
+:deep(.discord-text-spoiler:focus-visible) {
+  outline: 2px solid var(--discord-mention-text);
+  outline-offset: 2px;
 }
 :deep(.discord-mention) {
   padding: 0 0.125rem;

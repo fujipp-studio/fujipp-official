@@ -8,6 +8,83 @@ describe('DiscordPresentationPreview', () => {
   const global = {
     plugins: [createI18n({ legacy: false, locale: 'en', messages: { en: {}, th: {} } })],
   }
+  function markdownDefinition(mode: string, content: string) {
+    return mode === 'EMBED'
+      ? { mode, embed: { description: content, fields: [{ name: 'Field', value: content }] } }
+      : { mode, components: [{ type: 17, components: [{ type: 10, content }] }] }
+  }
+  it.each(['EMBED', 'COMPONENTS_V2'])(
+    'preserves code table spacing and literal Markdown in %s',
+    (mode) => {
+      const table = 'ราคาตามป้าย   ราคาที่รับ\n209          55\n459          165'
+      const literal = '**bold** ||secret|| <@1234> <:test:1234> 🦋 <script>alert(1)</script>'
+      const content = `**Price**\n\`\`\`\n${table}\n\`\`\`\nAfter\n\`\`\`text\n${literal}\n\`\`\``
+      const wrapper = mount(DiscordPresentationPreview, {
+        props: { definition: markdownDefinition(mode, content), variables: [] },
+        global,
+      })
+      const blocks = wrapper.findAll('.preview-copy pre code')
+      expect(blocks.map((block) => block.text())).toEqual([table, literal])
+      expect(blocks[1]!.findAll('strong, button, img, script, .discord-mention')).toHaveLength(0)
+      expect(wrapper.findAll('script')).toHaveLength(0)
+      expect(wrapper.get('.preview-copy strong').text()).toBe('Price')
+      expect(wrapper.get('.preview-copy').text()).toContain('After')
+      expect(wrapper.findAll('.preview-field pre code')).toHaveLength(mode === 'EMBED' ? 2 : 0)
+    },
+  )
+  it.each(['EMBED', 'COMPONENTS_V2'])(
+    'keeps inline code and escaped delimiters literal in %s',
+    (mode) => {
+      const content =
+        '`**bold** ||secret|| 🦋` · ``a`b`` · \\`plain\\` · \\|\\|visible\\|\\| · ***both*** · __**underlined**__'
+      const wrapper = mount(DiscordPresentationPreview, {
+        props: { definition: markdownDefinition(mode, content), variables: [] },
+        global,
+      })
+      expect(wrapper.findAll('.preview-copy code').map((code) => code.text())).toEqual([
+        '**bold** ||secret|| 🦋',
+        'a`b',
+      ])
+      expect(wrapper.get('.preview-copy code').findAll('strong, button, img')).toHaveLength(0)
+      expect(wrapper.find('.discord-text-spoiler').exists()).toBe(false)
+      expect(wrapper.get('.preview-copy').text()).toContain('`plain` · ||visible||')
+      expect(wrapper.get('.preview-copy strong em').text()).toBe('both')
+      expect(wrapper.get('.preview-copy u strong').text()).toBe('underlined')
+    },
+  )
+  it.each(['EMBED', 'COMPONENTS_V2'])(
+    'hides multiline spoilers and reveals their formatted content in %s',
+    async (mode) => {
+      const wrapper = mount(DiscordPresentationPreview, {
+        props: {
+          definition: markdownDefinition(
+            mode,
+            'Before ||**Secret**\n`literal` <img src=x onerror=alert(1)>|| after',
+          ),
+          variables: [],
+        },
+        global,
+      })
+      const spoiler = wrapper.get('.preview-copy .discord-text-spoiler')
+      expect(spoiler.attributes('aria-label')).toBe('Reveal spoiler')
+      expect(spoiler.attributes('aria-expanded')).toBe('false')
+      expect(spoiler.get('span').attributes('aria-hidden')).toBe('true')
+      expect(spoiler.get('strong').text()).toBe('Secret')
+      expect(spoiler.get('code').text()).toBe('literal')
+      expect(spoiler.findAll('img')).toHaveLength(0)
+      expect(spoiler.find('br').exists()).toBe(true)
+      await spoiler.trigger('click')
+      expect(spoiler.attributes('aria-expanded')).toBe('true')
+      expect(spoiler.get('span').attributes('aria-hidden')).toBe('false')
+      expect(spoiler.attributes('aria-label')).toContain('Hide spoiler: Secret')
+      await spoiler.trigger('click')
+      expect(spoiler.attributes('aria-expanded')).toBe('false')
+      await wrapper.setProps({ definition: markdownDefinition(mode, '||New secret||') })
+      expect(wrapper.get('.preview-copy .discord-text-spoiler').attributes('aria-expanded')).toBe(
+        'false',
+      )
+    },
+  )
   it.each(['EMBED', 'COMPONENTS_V2'])(
     'explains a broken image in %s and loads a replacement URL',
     async (mode) => {
