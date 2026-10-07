@@ -1,4 +1,4 @@
-import { BotManager } from "./bot-manager.js";
+import { BotManager, makeFingerprint } from "./bot-manager.js";
 import { writeFileSync } from "node:fs";
 import type { RuntimeApi } from "./api-client.js";
 import type { SupervisorRpcResponse, SupervisorToWorker, WorkerToSupervisor } from "./worker-protocol.js";
@@ -25,6 +25,7 @@ const api = new Proxy({}, {
 
 const manager = new BotManager(api);
 let started = false;
+let reconciles = Promise.resolve();
 
 process.on("message", (message: SupervisorToWorker | SupervisorRpcResponse) => {
   if (message.type === "rpc-result" || message.type === "rpc-error") {
@@ -37,13 +38,21 @@ process.on("message", (message: SupervisorToWorker | SupervisorRpcResponse) => {
   }
   if (message.type === "start" && !started) {
     started = true;
-    void manager.reconcile([message.bot]).then(() => send({ type: "ready" }));
+    reconciles = reconciles.then(async () => {
+      await manager.reconcile([message.bot]);
+      send({ type: "ready" });
+    });
   }
-  if (message.type === "shutdown") void manager.shutdown().finally(() => process.exit(0));
+  if (message.type === "update" && started) {
+    reconciles = reconciles.then(async () => {
+      if (await manager.reconcile([message.bot])) send({ type: "updated", fingerprint: makeFingerprint(message.bot) });
+    });
+  }
+  if (message.type === "shutdown") void reconciles.then(() => manager.shutdown()).finally(() => process.exit(0));
 });
 
-process.on("disconnect", () => void manager.shutdown().finally(() => process.exit(0)));
-process.on("SIGTERM", () => void manager.shutdown().finally(() => process.exit(0)));
+process.on("disconnect", () => void reconciles.then(() => manager.shutdown()).finally(() => process.exit(0)));
+process.on("SIGTERM", () => void reconciles.then(() => manager.shutdown()).finally(() => process.exit(0)));
 
 function send(message: WorkerToSupervisor): void {
   if (process.connected) process.send?.(message);

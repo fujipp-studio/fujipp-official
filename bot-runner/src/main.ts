@@ -14,6 +14,7 @@ async function sync(): Promise<void> {
   try {
     const bootstrap = await api.bootstrap();
     if (bootstrap) await manager.reconcile(bootstrap.bots);
+    else manager.retryUpdates();
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
   } finally {

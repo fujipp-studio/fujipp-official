@@ -1,6 +1,6 @@
 import { fork, type ChildProcess } from "node:child_process";
 import type { RuntimeApi } from "./api-client.js";
-import { makeFingerprint } from "./bot-manager.js";
+import { makeFingerprint, makeRestartFingerprint } from "./bot-manager.js";
 import type { RuntimeBot } from "./types.js";
 import type { SupervisorRpcResponse, SupervisorToWorker, WorkerToSupervisor } from "./worker-protocol.js";
 
@@ -12,7 +12,7 @@ const ALLOWED_RPC_METHODS = new Set<keyof RuntimeApi>([
   "removeMemberSpending", "memberSpendingLeaderboard", "memberSpendingTotals",
 ]);
 
-interface WorkerState { child: ChildProcess; fingerprint: string; stopping: boolean; crashes: number[]; }
+interface WorkerState { child: ChildProcess; fingerprint: string; restartFingerprint: string; stopping: boolean; crashes: number[]; }
 
 export class ProcessBotManager {
   private readonly workers = new Map<string, WorkerState>();
@@ -20,7 +20,7 @@ export class ProcessBotManager {
 
   private readonly workerMemoryMb: number;
 
-  public constructor(private readonly api: RuntimeApi, env: NodeJS.ProcessEnv = process.env) {
+  public constructor(private readonly api: RuntimeApi, env: NodeJS.ProcessEnv = process.env, private readonly childFactory: typeof fork = fork) {
     const configured = Number(env.BOT_WORKER_MAX_OLD_SPACE_MB ?? "256");
     if (!Number.isInteger(configured) || configured < 128 || configured > 1024) {
       throw new Error("BOT_WORKER_MAX_OLD_SPACE_MB must be an integer between 128 and 1024");
@@ -35,8 +35,22 @@ export class ProcessBotManager {
       const fingerprint = makeFingerprint(bot);
       const current = this.workers.get(bot.id);
       if (current?.fingerprint === fingerprint) continue;
+      if (current && current.restartFingerprint === makeRestartFingerprint(bot) && current.child.connected) {
+        current.child.send({ type: "update", bot } satisfies SupervisorToWorker);
+        continue;
+      }
       if (current) await this.stop(bot.id);
       this.start(bot, fingerprint, current?.crashes ?? []);
+    }
+  }
+
+  public retryUpdates(): void {
+    for (const [botId, state] of this.workers) {
+      const bot = this.desired.get(botId);
+      if (bot && state.child.connected && state.fingerprint !== makeFingerprint(bot)
+        && state.restartFingerprint === makeRestartFingerprint(bot)) {
+        state.child.send({ type: "update", bot } satisfies SupervisorToWorker);
+      }
     }
   }
 
@@ -46,12 +60,12 @@ export class ProcessBotManager {
   }
 
   private start(bot: RuntimeBot, fingerprint: string, crashes: number[]): void {
-    const child = fork(new URL("./worker-entry.js", import.meta.url), [], {
+    const child = this.childFactory(new URL("./worker-entry.js", import.meta.url), [], {
       stdio: ["ignore", "inherit", "inherit", "ipc"],
       env: workerEnvironment(process.env, bot.id),
       execArgv: [`--max-old-space-size=${this.workerMemoryMb}`],
     });
-    const state: WorkerState = { child, fingerprint, stopping: false, crashes };
+    const state: WorkerState = { child, fingerprint, restartFingerprint: makeRestartFingerprint(bot), stopping: false, crashes };
     this.workers.set(bot.id, state);
     child.on("message", (message: WorkerToSupervisor) => void this.handleMessage(bot.id, message));
     child.once("exit", (code, signal) => void this.handleExit(bot.id, state, code, signal));
@@ -59,6 +73,12 @@ export class ProcessBotManager {
   }
 
   private async handleMessage(botId: string, message: WorkerToSupervisor): Promise<void> {
+    if (message.type === "updated") {
+      const state = this.workers.get(botId);
+      const desired = this.desired.get(botId);
+      if (state && desired && message.fingerprint === makeFingerprint(desired)) state.fingerprint = message.fingerprint;
+      return;
+    }
     if (message.type !== "rpc") return;
     const state = this.workers.get(botId);
     if (!state || !ALLOWED_RPC_METHODS.has(message.method as keyof RuntimeApi)) {
