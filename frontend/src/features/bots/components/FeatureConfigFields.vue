@@ -14,6 +14,8 @@ import BotPermissionsConfig from './BotPermissionsConfig.vue'
 import ReviewCreditConfig from './ReviewCreditConfig.vue'
 import ChannelMessageTriggersConfig from './ChannelMessageTriggersConfig.vue'
 import PaymentTriggerConfig from './PaymentTriggerConfig.vue'
+import MessageSetsConfig from './MessageSetsConfig.vue'
+import { messageSetsConfigKeys } from '../config/message-sets'
 import PriceReaderConfig from './PriceReaderConfig.vue'
 import { priceReaderConfigKeys } from '../config/price-reader'
 import { paymentTriggerConfigKeys } from '../config/payment-trigger'
@@ -62,6 +64,7 @@ const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topu
 const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
 const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
 const isPriceReader = computed(() => license.value?.featureCode === 'price-reader')
+const isMessageSets = computed(() => license.value?.featureCode === 'message-sets')
 const hasCustomConfig = computed(
   () =>
     isMemberSpending.value ||
@@ -74,7 +77,8 @@ const hasCustomConfig = computed(
     isRobloxPayoutFeature.value ||
     isMessageTriggers.value ||
     isPaymentTrigger.value ||
-    isPriceReader.value,
+    isPriceReader.value ||
+    isMessageSets.value,
 )
 const genericFields = computed(
   () =>
@@ -90,7 +94,8 @@ const genericFields = computed(
         (!isRobloxPayoutFeature.value || !robloxPayoutConfigKeys.has(field.key)) &&
         (!isMessageTriggers.value || !channelMessageTriggerConfigKeys.has(field.key)) &&
         (!isPaymentTrigger.value || !paymentTriggerConfigKeys.has(field.key)) &&
-        (!isPriceReader.value || !priceReaderConfigKeys.has(field.key)),
+        (!isPriceReader.value || !priceReaderConfigKeys.has(field.key)) &&
+        (!isMessageSets.value || !messageSetsConfigKeys.has(field.key)),
     ) ?? [],
 )
 
@@ -130,6 +135,7 @@ function robuxGroupRates() {
     <ChannelMessageTriggersConfig v-else-if="isMessageTriggers" />
     <PaymentTriggerConfig v-else-if="isPaymentTrigger" />
     <PriceReaderConfig v-else-if="isPriceReader" />
+    <MessageSetsConfig v-else-if="isMessageSets" />
     <div
       v-if="genericFields.length"
       class="grid gap-md desktop:grid-cols-2"

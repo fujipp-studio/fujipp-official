@@ -26,6 +26,7 @@ const {
 } = useFeatureEditor()
 const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topup')
 const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
+const isMessageSets = computed(() => license.value?.featureCode === 'message-sets')
 const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
 </script>
 <template>
@@ -37,7 +38,8 @@ const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-
         isRobloxPayoutFeature ||
         isMessageTriggers ||
         isPaymentTrigger ||
-        isPriceReaderFeature) &&
+        isPriceReaderFeature ||
+        isMessageSets) &&
       configuration
     "
     :description="

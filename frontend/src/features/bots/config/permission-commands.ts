@@ -19,6 +19,7 @@ export interface PermissionCommandFeature {
 
 // Keep suggestions aligned with command registration and permission gates in bot-runner/src/features.
 const versions: Record<string, string[]> = {
+  'message-sets': ['1.0.0'],
   'member-spending': ['1.0.0'],
   'wallet-topup': ['1.0.0', '2.0.0', '2.1.0'],
   'admin-message-tools': ['1.0.0'],
@@ -30,9 +31,13 @@ export function hasPermissionCommandSuggestions(license: FeatureLicense) {
   return versions[license.featureCode]?.includes(license.version) ?? false
 }
 export function needsCommandConfiguration(license: FeatureLicense) {
-  return ['wallet-topup', 'voice-keeper', 'review-credit', 'roblox-robux-payout'].includes(
-    license.featureCode,
-  )
+  return [
+    'wallet-topup',
+    'voice-keeper',
+    'review-credit',
+    'roblox-robux-payout',
+    'message-sets',
+  ].includes(license.featureCode)
 }
 export function permissionCommands(
   license: FeatureLicense,
@@ -53,6 +58,15 @@ export function permissionCommands(
     command(name, `All subcommands of /${name}`, `ทุกคำสั่งย่อยของ /${name}`)
   let commands: PermissionCommand[] = []
   switch (license.featureCode) {
+    case 'message-sets':
+      commands = [
+        command(
+          name('MESSAGE_SETS_COMMAND_NAME', 'ec'),
+          'Send a designed SET',
+          'ส่งข้อความจาก SET ที่ออกแบบไว้',
+        ),
+      ]
+      break
     case 'member-spending':
       commands = [
         all('spending'),
