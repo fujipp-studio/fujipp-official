@@ -22,6 +22,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend
@@ -39,8 +40,21 @@ jobs:
       - run: bun run build
       - run: bun run performance:bundle
       - run: bun run check:tokens
+      - name: Configure bounded HTTPS downloads for browser dependencies
+        run: |
+          # Avoid the Azure HTTP mirror that can stall during apt updates.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' \
+              | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+          fi
+          printf '%s\n' \
+            'Acquire::http::Timeout "30";' \
+            'Acquire::https::Timeout "30";' \
+            'Acquire::Retries "2";' \
+            | sudo tee /etc/apt/apt.conf.d/99-ci-network >/dev/null
       - name: Install browser for isolated UI smoke tests
-        run: bunx playwright install --with-deps chromium
+        timeout-minutes: 10
+        run: bunx --no-install playwright install --with-deps chromium
       - run: bun run test:smoke
 
   deploy:
