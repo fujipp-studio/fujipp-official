@@ -122,6 +122,8 @@ The bundled `message-sets@1.0.0` feature sends named messages designed with the
 website's existing Embed and Components V2 editors. `MESSAGE_SETS_COMMAND_NAME`
 defaults to `ec` and accepts 1–32 lowercase letters, digits, underscores, or
 hyphens. Use `/<command> set:<SET name>` to send a message in the current channel.
+The SET is posted as an ordinary bot message without a public command attribution
+header. Only the command caller receives the private success or failure response.
 Administrators can post by default; Bot Permissions can allow additional roles
 or users.
 

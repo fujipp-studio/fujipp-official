@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-08 | Documented ordinary channel delivery and private command confirmations for Message Sets. |
 | 2026-10-08 | Documented Message Sets commands, live updates, permissions, and first-deployment requirements. |
 | 2026-09-30 | Clarified blocked-session results and safe retry guidance for the private Roblox payout test Feature. |
 | 2026-09-30 | Clarified how to find, grant, install, and configure the private Roblox payout test Feature in Admin and My Bots. |

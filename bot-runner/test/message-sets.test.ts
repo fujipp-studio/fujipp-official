@@ -120,14 +120,32 @@ function interaction(
     name?: string;
     set?: string;
     guild?: string;
+    sendError?: boolean;
+    unavailableChannel?: boolean;
+    confirmationError?: boolean;
   } = {},
 ) {
   const replies: Record<string, unknown>[] = [];
   const suggestions: unknown[] = [];
+  const sent: Record<string, unknown>[] = [];
+  const edits: Record<string, unknown>[] = [];
+  const deferrals: Record<string, unknown>[] = [];
+  const events: string[] = [];
   const value = {
     commandName: options.name ?? "info",
     guildId: options.guild ?? "guild",
     channelId: "channel",
+    channel: options.unavailableChannel
+      ? null
+      : {
+          isSendable: () => true,
+          send: async (payload: Record<string, unknown>) => {
+            events.push("send");
+            if (options.sendError)
+              throw new Error("Missing Send Messages permission");
+            sent.push(payload);
+          },
+        },
     guild: { name: "Server" },
     user: { id: "user", displayName: "Alice" },
     replied: false,
@@ -143,10 +161,31 @@ function interaction(
       suggestions.push(...choices);
     },
     reply: async (payload: Record<string, unknown>) => {
+      value.replied = true;
       replies.push(payload);
     },
+    deferReply: async (payload: Record<string, unknown>) => {
+      value.deferred = true;
+      events.push("defer");
+      deferrals.push(payload);
+    },
+    editReply: async (payload: Record<string, unknown>) => {
+      if (options.confirmationError)
+        throw new Error("Confirmation unavailable");
+      value.replied = true;
+      events.push("edit");
+      edits.push(payload);
+    },
   };
-  return { value: value as unknown as Interaction, replies, suggestions };
+  return {
+    value: value as unknown as Interaction,
+    replies,
+    suggestions,
+    sent,
+    edits,
+    deferrals,
+    events,
+  };
 }
 test("enforces 20 SETs and unique names/slots", () => {
   assert.equal(
@@ -180,9 +219,15 @@ test("autocomplete and sends follow live edits, deletion and command rename with
   const initial = interaction();
   client.emit("interactionCreate", initial.value);
   await settle();
-  assert.deepEqual(initial.replies[0]?.embeds, [
+  assert.deepEqual(initial.sent[0]?.embeds, [
     { title: "Rules", description: "Original" },
   ]);
+  assert.deepEqual(initial.deferrals, [{ flags: MessageFlags.Ephemeral }]);
+  assert.equal(initial.replies.length, 0);
+  assert.deepEqual(initial.edits, [
+    { content: "ส่ง SET แล้ว", allowedMentions: { parse: [] } },
+  ]);
+  assert.deepEqual(initial.events, ["defer", "send", "edit"]);
   const next = feature([{ name: "Prices", presentationSlot: "set_1" }]);
   next.presentations = {
     set_1: {
@@ -206,9 +251,13 @@ test("autocomplete and sends follow live edits, deletion and command rename with
   const send = interaction({ set: "Prices" });
   client.emit("interactionCreate", send.value);
   await settle();
-  assert.equal(send.replies[0]?.flags, MessageFlags.IsComponentsV2);
-  assert.equal(send.replies[0]?.embeds, undefined);
-  assert.deepEqual(send.replies[0]?.allowedMentions, { parse: [] });
+  assert.equal(send.sent[0]?.flags, MessageFlags.IsComponentsV2);
+  assert.deepEqual(send.deferrals, [{ flags: MessageFlags.Ephemeral }]);
+  assert.equal(send.replies.length, 0);
+  assert.equal(send.edits[0]?.embeds, undefined);
+  assert.equal(send.edits[0]?.components, undefined);
+  assert.equal(send.sent[0]?.embeds, undefined);
+  assert.deepEqual(send.sent[0]?.allowedMentions, { parse: [] });
   const stale = interaction();
   client.emit("interactionCreate", stale.value);
   await settle();
@@ -236,10 +285,12 @@ test("permission and guild checks prevent unauthorized posting", async () => {
   client.emit("interactionCreate", denied.value);
   await settle();
   assert.equal(denied.replies[0]?.flags, MessageFlags.Ephemeral);
+  assert.equal(denied.sent.length, 0);
   const otherGuild = interaction({ guild: "other" });
   client.emit("interactionCreate", otherGuild.value);
   await settle();
   assert.equal(otherGuild.replies.length, 0);
+  assert.equal(otherGuild.sent.length, 0);
   await dispose();
 });
 test("BotManager preserves the Discord client for SET updates and restarts for explicit restart", async () => {
@@ -327,7 +378,7 @@ test("cannot overwrite another feature's command and preserves the last working 
   const original = interaction();
   client.emit("interactionCreate", original.value);
   await settle();
-  assert.deepEqual(original.replies[0]?.embeds, [
+  assert.deepEqual(original.sent[0]?.embeds, [
     { title: "Rules", description: "Original" },
   ]);
   assert.deepEqual(client.deleted, []);
@@ -347,5 +398,56 @@ test("a saved command ID permits startup and removes the previous name after an 
   const dispose = await messageSetsFeature.activate(c);
   assert.deepEqual(client.deleted, ["old-name"]);
   assert.deepEqual(states[0], { commandId: "info", commandName: "info" });
+  await dispose();
+});
+
+test("channel send failures produce only a private error after deferring", async () => {
+  const client = new FakeClient();
+  const errors: string[] = [];
+  const c = context(client);
+  c.reportFeatureError = async (code) => {
+    errors.push(code);
+  };
+  const dispose = await messageSetsFeature.activate(c);
+  const failed = interaction({ sendError: true });
+  client.emit("interactionCreate", failed.value);
+  await settle();
+  assert.deepEqual(failed.deferrals, [{ flags: MessageFlags.Ephemeral }]);
+  assert.equal(failed.sent.length, 0);
+  assert.equal(failed.replies.length, 0);
+  assert.equal(
+    failed.edits[0]?.content,
+    "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท",
+  );
+  assert.deepEqual(errors, ["MESSAGE_SET_SEND_FAILED"]);
+  await dispose();
+});
+
+test("unavailable channels produce a private error without posting", async () => {
+  const client = new FakeClient();
+  const dispose = await messageSetsFeature.activate(context(client));
+  const unavailable = interaction({ unavailableChannel: true });
+  client.emit("interactionCreate", unavailable.value);
+  await settle();
+  assert.equal(unavailable.sent.length, 0);
+  assert.equal(unavailable.deferrals.length, 0);
+  assert.equal(unavailable.replies[0]?.flags, MessageFlags.Ephemeral);
+  await dispose();
+});
+
+test("a private confirmation failure never retries or reports a successful SET as failed", async () => {
+  const client = new FakeClient();
+  const errors: string[] = [];
+  const c = context(client);
+  c.reportFeatureError = async (code) => {
+    errors.push(code);
+  };
+  const dispose = await messageSetsFeature.activate(c);
+  const failedConfirmation = interaction({ confirmationError: true });
+  client.emit("interactionCreate", failedConfirmation.value);
+  await settle();
+  assert.equal(failedConfirmation.sent.length, 1);
+  assert.equal(failedConfirmation.replies.length, 0);
+  assert.deepEqual(errors, ["MESSAGE_SET_ACK_FAILED"]);
   await dispose();
 });
