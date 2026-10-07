@@ -1,19 +1,39 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { CheckCircle2, Clock3, ImagePlus, Upload } from 'lucide-vue-next'
+import {
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Clock3,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  ImagePlus,
+  QrCode,
+  ShieldCheck,
+  Upload,
+  Wallet,
+  X,
+} from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import {
   createWalletTopup,
   fetchWalletTopup,
-  listWalletTopups,
   verifyWalletTopupSlip,
   type WalletTopupInvoice,
   type WalletTopupSummary,
 } from '@/features/topup/api'
 import { useAuthStore } from '../../../stores'
-import { AppButton, AppToast } from '../../../shared/ui'
+import { AppButton, AppTextField, AppToast } from '../../../shared/ui'
+import WalletBalanceCard from '../components/WalletBalanceCard.vue'
+
+import {
+  useTopupHistory,
+  topupStatuses,
+  topupHistoryPageSize,
+} from '../composables/useTopupHistory'
 
 const presets = [50, 100, 300, 500, 1000]
 const authStore = useAuthStore()
@@ -22,8 +42,11 @@ const { locale, t } = useI18n()
 const selectedAmount = ref(100)
 const customAmount = ref<string | number>('')
 const invoice = ref<WalletTopupInvoice | null>(null)
+const invoiceHeading = ref<HTMLElement>()
+const historyHeading = ref<HTMLElement>()
 const slip = ref<File | null>(null)
 const slipPreview = ref('')
+const slipError = ref('')
 const draggingSlip = ref(false)
 const creating = ref(false)
 const verifying = ref(false)
@@ -31,16 +54,47 @@ const now = ref(Date.now())
 const toastOpen = ref(false)
 const toastMessage = ref('')
 const toastVariant = ref<'info' | 'success' | 'error'>('info')
-const history = ref<WalletTopupSummary[]>([])
-const historyCursor = ref<string | null>(null)
-const historyHasMore = ref(false)
-const historyLoading = ref(false)
+const {
+  status: historyStatus,
+  period: historyPeriod,
+  history,
+  currentPage: historyPage,
+  loading: historyLoading,
+  error: historyError,
+  hasPrevious: historyHasPrevious,
+  hasNext: historyHasNext,
+  pageNumbers: historyPages,
+  filtered: historyFiltered,
+  reload: reloadHistory,
+  goToPage: goToHistoryPage,
+  retry: retryHistory,
+  clearFilters: clearHistoryFilters,
+} = useTopupHistory(session)
+const historyStatusOptions = computed(() => [
+  { value: 'ALL', label: t('topup.historyFilters.allStatuses') },
+  ...topupStatuses.map((value) => ({
+    value,
+    label:
+      value === 'FAILED'
+        ? t('topup.historyFilters.failed')
+        : t(`topup.status.${value.toLowerCase()}`),
+  })),
+])
+const historyPeriodOptions = computed(() => [
+  { value: 'ALL', label: t('topup.historyFilters.allTime') },
+  ...[7, 30, 90].map((days) => ({
+    value: String(days),
+    label: t('topup.historyFilters.lastDays', { days }),
+  })),
+])
 const resumingId = ref<string | null>(null)
 let timer: number | undefined
 
 const amountBaht = computed(() => {
   const custom = Number(customAmount.value)
-  return String(customAmount.value).trim() && Number.isFinite(custom) ? custom : selectedAmount.value
+  return String(customAmount.value).trim() && Number.isFinite(custom)
+    ? custom
+    : selectedAmount.value
 })
 const validAmount = computed(
   () => Number.isInteger(amountBaht.value) && amountBaht.value >= 10 && amountBaht.value <= 100000,
@@ -55,9 +109,20 @@ const remainingTime = computed(() => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`
 })
 const expired = computed(
-  () => Boolean(invoice.value) && (remainingSeconds.value === 0 || invoice.value?.status === 'EXPIRED'),
+  () =>
+    Boolean(invoice.value) && (remainingSeconds.value === 0 || invoice.value?.status === 'EXPIRED'),
 )
 const balance = computed(() => currentUser.value?.walletBalanceSatang ?? 0)
+const completed = computed(() => invoice.value?.status === 'SUCCESS')
+const currentStep = computed(() => (completed.value ? 2 : invoice.value ? 1 : 0))
+const steps = computed(() => [
+  t('topup.steps.amount'),
+  t('topup.steps.payment'),
+  t('topup.steps.complete'),
+])
+const slipSize = computed(() =>
+  slip.value ? `${(slip.value.size / 1024 / 1024).toFixed(2)} MiB` : '',
+)
 
 function money(satang: number) {
   return new Intl.NumberFormat(locale.value === 'th' ? 'th-TH' : 'en-US', {
@@ -74,40 +139,31 @@ function dateTime(value: string) {
   }).format(new Date(value))
 }
 
+async function changeHistoryPage(page: number) {
+  if (historyLoading.value || page === historyPage.value) return
+  await goToHistoryPage(page)
+  if (historyError.value || historyLoading.value || historyPage.value !== page) return
+  await nextTick()
+  historyHeading.value?.focus({ preventScroll: true })
+  historyHeading.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
+}
+
 function canResume(item: WalletTopupSummary) {
-  return ['PENDING', 'FAILED'].includes(item.status) && new Date(item.expiresAt).getTime() > Date.now()
-}
-
-function replaceHistoryItem(item: WalletTopupInvoice) {
-  const index = history.value.findIndex((entry) => entry.invoiceId === item.invoiceId)
-  if (index >= 0) history.value[index] = item
-  else history.value.unshift(item)
-}
-
-async function loadHistory(reset = false) {
-  if (!session.value || historyLoading.value) return
-  historyLoading.value = true
-  try {
-    const page = await listWalletTopups(session.value, reset ? null : historyCursor.value)
-    history.value = reset ? page.items : [...history.value, ...page.items]
-    historyCursor.value = page.nextCursor
-    historyHasMore.value = page.hasMore
-  } catch (cause) {
-    notify(cause instanceof Error ? cause.message : t('topup.historyLoadError'), 'error')
-  } finally {
-    historyLoading.value = false
-  }
+  return (
+    ['PENDING', 'FAILED'].includes(item.status) && new Date(item.expiresAt).getTime() > Date.now()
+  )
 }
 
 async function resumeInvoice(item: WalletTopupSummary) {
-  if (!session.value || resumingId.value) return
+  if (!session.value || resumingId.value || creating.value || verifying.value) return
   resumingId.value = item.invoiceId
   try {
     invoice.value = await fetchWalletTopup(item.invoiceId, session.value)
-    replaceHistoryItem(invoice.value)
+    void reloadHistory()
     slip.value = null
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    slipError.value = ''
     startTimer()
+    await focusInvoiceStep()
   } catch (cause) {
     notify(cause instanceof Error ? cause.message : t('topup.historyLoadError'), 'error')
   } finally {
@@ -128,11 +184,22 @@ function updateCustomAmount(event: Event) {
 }
 
 function setSlip(file: File | null) {
+  slipError.value = ''
+  if (file && !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    slipError.value = t('topup.invalidFileType')
+    return
+  }
+  if (file && file.size > 5 * 1024 * 1024) {
+    slipError.value = t('topup.fileTooLarge')
+    return
+  }
   slip.value = file
 }
 
 function pickSlip(event: Event) {
-  setSlip((event.target as HTMLInputElement).files?.[0] ?? null)
+  const input = event.target as HTMLInputElement
+  if (input.files?.[0]) setSlip(input.files[0])
+  input.value = ''
 }
 
 function dropSlip(event: DragEvent) {
@@ -156,9 +223,11 @@ async function createInvoice() {
       session.value,
       `web-topup:${crypto.randomUUID()}`,
     )
-    replaceHistoryItem(invoice.value)
+    void reloadHistory()
     slip.value = null
+    slipError.value = ''
     startTimer()
+    await focusInvoiceStep()
   } catch (cause) {
     notify(cause instanceof Error ? cause.message : t('topup.createError'), 'error')
   } finally {
@@ -169,24 +238,34 @@ async function createInvoice() {
 async function submitSlip() {
   if (!session.value || !invoice.value || !slip.value || verifying.value || expired.value) return
   verifying.value = true
+  slipError.value = ''
   try {
     invoice.value = await verifyWalletTopupSlip(invoice.value.invoiceId, slip.value, session.value)
-    replaceHistoryItem(invoice.value)
+    void reloadHistory()
     await authStore.reloadCurrentUser()
     stopTimer()
     notify(t('topup.successToast'), 'success')
+    if (completed.value) await focusInvoiceStep()
   } catch (cause) {
-    notify(cause instanceof Error ? cause.message : t('topup.verifyError'), 'error')
+    slipError.value = cause instanceof Error ? cause.message : t('topup.verifyError')
     await refreshInvoice()
   } finally {
     verifying.value = false
   }
 }
 
+async function focusInvoiceStep() {
+  await nextTick()
+  invoiceHeading.value?.focus({ preventScroll: true })
+  invoiceHeading.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
+}
+
 async function refreshInvoice() {
   if (!session.value || !invoice.value) return
   try {
+    const previousStatus = invoice.value.status
     invoice.value = await fetchWalletTopup(invoice.value.invoiceId, session.value)
+    if (invoice.value.status !== previousStatus) void reloadHistory()
   } catch {
     // Keep the last known state; the next explicit action will surface an actionable error.
   }
@@ -196,6 +275,7 @@ function startOver() {
   stopTimer()
   invoice.value = null
   slip.value = null
+  slipError.value = ''
   now.value = Date.now()
 }
 
@@ -226,254 +306,748 @@ onBeforeUnmount(() => {
   if (slipPreview.value) URL.revokeObjectURL(slipPreview.value)
 })
 
-onMounted(() => void loadHistory(true))
+onMounted(() => void reloadHistory())
 </script>
 
 <template>
   <main class="topup-page min-h-screen bg-bg-default pt-24 text-text-primary desktop:pt-28">
-    <div class="page-container pb-5xl">
-      <section class="topup-desk">
-      <header class="topup-header">
-        <div>
-          <p class="topup-eyebrow">{{ t('topup.design.wallet') }}</p>
-          <h1>{{ t('topup.title') }}</h1>
+    <div class="page-container grid gap-xl pb-3xl">
+      <header
+        class="topup-header flex flex-col gap-lg desktop:flex-row desktop:items-center desktop:justify-between"
+      >
+        <div class="min-w-0">
+          <p class="mb-xs flex items-center gap-xs text-label-medium text-text-secondary">
+            <Wallet :size="18" aria-hidden="true" />{{ t('topup.design.wallet') }}
+          </p>
+          <h1 class="text-heading-h1 font-bold">{{ t('topup.title') }}</h1>
+          <p class="mt-xs text-body-medium text-text-secondary">{{ t('topup.description') }}</p>
         </div>
-        <div class="balance-card">
-          <span>{{ t('topup.currentBalance') }}</span>
-          <strong>{{ money(balance) }}</strong>
-        </div>
+        <WalletBalanceCard
+          :balance-satang="balance"
+          :formatted-balance="money(balance)"
+          :holder-name="currentUser?.displayName || currentUser?.username"
+        />
       </header>
 
-      <section v-if="!invoice" class="topup-panel" aria-labelledby="amount-heading">
-        <h2 id="amount-heading" class="section-label"><span>01</span>{{ t('topup.design.amountStep') }}</h2>
-
-        <div class="amount-grid" role="group" :aria-label="t('topup.presetAmounts')">
-          <button
-            v-for="amount in presets"
-            :key="amount"
-            type="button"
-            :class="{ 'amount-option--active': !customAmount && selectedAmount === amount }"
-            @click="choosePreset(amount)"
+      <ol class="topup-steps" :aria-label="t('topup.steps.label')">
+        <li
+          v-for="(step, index) in steps"
+          :key="index"
+          :data-state="
+            index < currentStep ? 'done' : index === currentStep ? 'current' : 'upcoming'
+          "
+          :aria-current="index === currentStep ? 'step' : undefined"
+        >
+          <span class="step-number" aria-hidden="true"
+            ><Check v-if="index < currentStep || completed" :size="18" /><template v-else>{{
+              index + 1
+            }}</template></span
           >
-            <span>฿</span>{{ amount.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US') }}
-          </button>
+          <span>{{ step }}</span>
+        </li>
+      </ol>
+
+      <div
+        v-if="!invoice"
+        class="amount-layout grid items-start gap-lg desktop:grid-cols-[minmax(0,1fr)_20rem]"
+      >
+        <section class="topup-panel topup-card" aria-labelledby="amount-heading">
+          <div>
+            <h2 id="amount-heading" class="text-heading-h3 font-semibold">
+              {{ t('topup.chooseAmount') }}
+            </h2>
+            <p class="mt-xs text-body-small text-text-secondary">{{ t('topup.amountHint') }}</p>
+          </div>
+          <div class="amount-grid" role="group" :aria-label="t('topup.presetAmounts')">
+            <button
+              v-for="amount in presets"
+              :key="amount"
+              type="button"
+              :aria-pressed="!customAmount && selectedAmount === amount"
+              :disabled="creating"
+              :class="{ 'amount-option--active': !customAmount && selectedAmount === amount }"
+              @click="choosePreset(amount)"
+            >
+              <span aria-hidden="true">฿</span
+              >{{ amount.toLocaleString(locale === 'th' ? 'th-TH' : 'en-US') }}
+            </button>
+          </div>
+          <div class="custom-amount grid gap-xs">
+            <label for="topup-custom-amount" class="text-label-medium font-medium">{{
+              t('topup.customAmount')
+            }}</label>
+            <div
+              class="custom-amount__control"
+              :class="{ 'custom-amount__control--error': customAmount && !validAmount }"
+            >
+              <span class="text-text-muted" aria-hidden="true">฿</span>
+              <input
+                id="topup-custom-amount"
+                :value="customAmount"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                :disabled="creating"
+                :placeholder="t('topup.customPlaceholder')"
+                :aria-invalid="Boolean(customAmount && !validAmount)"
+                aria-describedby="topup-amount-hint"
+                @input="updateCustomAmount"
+              />
+              <span class="text-label-small text-text-muted" aria-hidden="true">THB</span>
+            </div>
+            <p
+              id="topup-amount-hint"
+              class="text-body-small"
+              :class="customAmount && !validAmount ? 'text-error-text' : 'text-text-muted'"
+            >
+              {{ t('topup.amountRange') }}
+            </p>
+          </div>
+        </section>
+        <aside
+          class="topup-card summary-card grid content-start gap-lg"
+          aria-labelledby="summary-heading"
+        >
+          <h2 id="summary-heading" class="text-heading-h3 font-semibold">
+            {{ t('topup.summary') }}
+          </h2>
+          <div class="grid gap-xs">
+            <span class="text-body-small text-text-secondary">{{ t('topup.amount') }}</span>
+            <strong class="text-heading-h1 tabular-nums" data-topup-total>{{
+              validAmount ? money(amountBaht * 100) : '—'
+            }}</strong>
+          </div>
+          <dl class="grid gap-md text-body-small">
+            <div class="flex justify-between gap-md">
+              <dt class="text-text-secondary">{{ t('topup.balanceAfter') }}</dt>
+              <dd class="font-medium tabular-nums">
+                {{ validAmount ? money(balance + amountBaht * 100) : '—' }}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-md">
+              <dt class="text-text-secondary">{{ t('topup.paymentMethod') }}</dt>
+              <dd class="flex items-center gap-xs font-medium">
+                <QrCode :size="16" aria-hidden="true" />PromptPay
+              </dd>
+            </div>
+          </dl>
+          <p
+            class="summary-note flex items-start gap-sm border-t border-border-subtle pt-lg text-body-small text-text-secondary"
+          >
+            <ShieldCheck :size="20" class="shrink-0" aria-hidden="true" /><span>{{
+              t('topup.creditAfterVerification')
+            }}</span>
+          </p>
+          <AppButton
+            class="continue-button"
+            variant="secondary"
+            :disabled="!validAmount"
+            :loading="creating"
+            @click="createInvoice"
+          >
+            {{ creating ? t('topup.creating') : t('topup.continue')
+            }}<ArrowRight :size="18" aria-hidden="true" />
+          </AppButton>
+        </aside>
+      </div>
+
+      <section
+        v-else-if="completed"
+        class="topup-card success-panel grid justify-items-center gap-lg text-center"
+        aria-live="polite"
+        aria-labelledby="success-heading"
+      >
+        <span class="success-icon"><CheckCircle2 :size="40" aria-hidden="true" /></span>
+        <div class="grid gap-xs">
+          <h2
+            id="success-heading"
+            ref="invoiceHeading"
+            tabindex="-1"
+            class="scroll-mt-24 text-heading-h2 font-bold"
+          >
+            {{ t('topup.successTitle') }}
+          </h2>
+          <p class="text-body-medium text-text-secondary">
+            {{ t('topup.successDescription', { amount: money(invoice.amountSatang) }) }}
+          </p>
         </div>
-
-        <label class="custom-amount">
-          <span>{{ t('topup.design.customAmount') }}</span>
-          <span class="custom-amount__control">
-            <span aria-hidden="true">฿</span>
-            <input
-              :value="customAmount"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              :placeholder="t('topup.customPlaceholder')"
-              @input="updateCustomAmount"
-            />
-          </span>
-          <small :class="{ 'text-error-text': customAmount && !validAmount }">{{ t('topup.amountRange') }}</small>
-        </label>
-
-        <AppButton :disabled="!validAmount" :loading="creating" @click="createInvoice">
-          {{ creating ? t('topup.creating') : t('topup.continue') }}
-        </AppButton>
+        <div class="success-balance grid w-full gap-xs rounded-lg bg-bg-elevated p-lg">
+          <span class="text-body-small text-text-secondary">{{ t('topup.newBalance') }}</span>
+          <strong class="text-heading-h1 tabular-nums">{{ money(invoice.balanceSatang) }}</strong>
+        </div>
+        <p class="text-body-small text-text-muted">
+          {{ t('topup.reference') }} · {{ invoice.invoiceNumber }}
+        </p>
+        <AppButton variant="secondary" class="tablet:!w-auto" @click="startOver">{{
+          t('topup.topupAgain')
+        }}</AppButton>
       </section>
 
-      <section v-else-if="invoice.status === 'SUCCESS'" class="topup-panel success-panel" aria-live="polite">
-        <CheckCircle2 :size="64" aria-hidden="true" />
-        <p class="topup-eyebrow">{{ invoice.invoiceNumber }}</p>
-        <h2>{{ t('topup.successTitle') }}</h2>
-        <p>{{ t('topup.successDescription', { amount: money(invoice.amountSatang) }) }}</p>
-        <div class="success-balance">
-          <span>{{ t('topup.newBalance') }}</span>
-          <strong>{{ money(invoice.balanceSatang) }}</strong>
-        </div>
-        <AppButton class="tablet:!w-auto" @click="startOver">{{ t('topup.topupAgain') }}</AppButton>
-      </section>
-
-      <div v-else class="payment-layout">
-        <section class="topup-panel qr-panel" aria-labelledby="qr-heading">
-          <h2 id="qr-heading" class="section-label"><span>02</span>{{ t('topup.design.scanStep') }}</h2>
-
+      <div v-else class="payment-layout grid items-start gap-lg desktop:grid-cols-2">
+        <section class="topup-panel topup-card qr-panel" aria-labelledby="qr-heading">
+          <div class="flex items-start justify-between gap-md">
+            <div>
+              <h2
+                id="qr-heading"
+                ref="invoiceHeading"
+                tabindex="-1"
+                class="scroll-mt-24 text-heading-h3 font-semibold"
+              >
+                {{ t('topup.scanQr') }}
+              </h2>
+              <p class="mt-xs text-body-small text-text-secondary">{{ t('topup.scanHint') }}</p>
+            </div>
+            <QrCode :size="24" class="shrink-0 text-text-muted" aria-hidden="true" />
+          </div>
           <div class="qr-frame" :class="{ 'qr-frame--expired': expired }">
             <img :src="invoice.qrImageUrl" :alt="t('topup.qrAlt')" />
             <div v-if="expired" class="qr-expired">
-              <Clock3 :size="32" aria-hidden="true" />
-              <strong>{{ t('topup.expired') }}</strong>
+              <Clock3 :size="32" aria-hidden="true" /><strong>{{ t('topup.expired') }}</strong>
             </div>
           </div>
-
-          <dl class="payment-details">
-            <div><dt>{{ t('topup.amount') }}</dt><dd>{{ money(invoice.amountSatang) }}</dd></div>
-            <div><dt>{{ t('topup.receiver') }}</dt><dd>{{ invoice.promptPayAccountName }}</dd></div>
-          </dl>
-
           <div class="expiry" :class="{ 'expiry--expired': expired }">
-            <Clock3 :size="18" aria-hidden="true" />
-            <span>{{ expired ? t('topup.expired') : t('topup.expiresIn', { time: remainingTime }) }}</span>
+            <Clock3 :size="16" aria-hidden="true" /><span>{{
+              expired ? t('topup.expired') : t('topup.expiresIn', { time: remainingTime })
+            }}</span>
           </div>
+          <dl class="payment-details grid gap-md">
+            <div>
+              <dt>{{ t('topup.amount') }}</dt>
+              <dd class="text-heading-h2 tabular-nums">{{ money(invoice.amountSatang) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('topup.receiver') }}</dt>
+              <dd>{{ invoice.promptPayAccountName }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('topup.reference') }}</dt>
+              <dd class="text-body-small">{{ invoice.invoiceNumber }}</dd>
+            </div>
+          </dl>
+          <AppButton v-if="expired" variant="secondary" @click="startOver">{{
+            t('topup.createNew')
+          }}</AppButton>
         </section>
-
-        <section class="topup-panel slip-panel" aria-labelledby="slip-heading">
-          <h2 id="slip-heading" class="section-label"><span>03</span>{{ t('topup.design.slipStep') }}</h2>
-
+        <section class="topup-panel topup-card slip-panel" aria-labelledby="slip-heading">
+          <div>
+            <h2 id="slip-heading" class="text-heading-h3 font-semibold">
+              {{ t('topup.uploadSlip') }}
+            </h2>
+            <p id="topup-slip-hint" class="mt-xs text-body-small text-text-secondary">
+              {{ t('topup.uploadHint') }}
+            </p>
+          </div>
           <label
             class="slip-drop"
-            :class="{ 'slip-drop--filled': slipPreview, 'slip-drop--dragging': draggingSlip }"
+            :class="{
+              'slip-drop--filled': slipPreview,
+              'slip-drop--dragging': draggingSlip && !expired && !verifying,
+              'slip-drop--disabled': expired || verifying,
+              'slip-drop--error': slipError,
+            }"
             @dragenter.prevent="draggingSlip = true"
             @dragover.prevent="draggingSlip = true"
             @dragleave.prevent="draggingSlip = false"
             @drop.prevent="dropSlip"
           >
             <input
+              class="sr-only"
               type="file"
               accept="image/jpeg,image/png,image/webp,.jfif"
+              :aria-label="t('topup.chooseSlip')"
+              :aria-invalid="Boolean(slipError)"
+              :aria-describedby="
+                slipError ? 'topup-slip-hint topup-slip-error' : 'topup-slip-hint topup-file-hint'
+              "
               :disabled="expired || verifying"
               @change="pickSlip"
             />
             <img v-if="slipPreview" :src="slipPreview" :alt="t('topup.design.slipPreviewAlt')" />
-            <span v-else>
-              <ImagePlus :size="30" aria-hidden="true" />
-              <strong>{{ t('topup.design.dropSlip') }}</strong>
-              <small>{{ t('topup.fileHint') }}</small>
+            <span v-else class="grid justify-items-center gap-sm p-lg text-center">
+              <span class="upload-icon"><ImagePlus :size="28" aria-hidden="true" /></span>
+              <strong class="text-body-medium font-medium">{{ t('topup.chooseSlip') }}</strong>
+              <span class="text-body-small text-text-muted">{{ t('topup.orDropSlip') }}</span>
             </span>
           </label>
-          <p v-if="slip" class="slip-name">{{ slip.name }}</p>
-
-          <AppButton :disabled="!slip || expired" :loading="verifying" @click="submitSlip">
-            <Upload :size="18" aria-hidden="true" />
-            {{ verifying ? t('topup.verifying') : t('topup.verifySlip') }}
-          </AppButton>
-          <AppButton v-if="expired" variant="secondary" @click="startOver">{{ t('topup.createNew') }}</AppButton>
+          <div
+            v-if="slip"
+            class="slip-selected flex items-center gap-sm rounded-md bg-bg-elevated p-sm"
+          >
+            <CheckCircle2 :size="20" class="shrink-0 text-success-text" aria-hidden="true" />
+            <div class="grid min-w-0 flex-1 gap-xxs">
+              <p class="truncate text-body-small font-medium">{{ slip.name }}</p>
+              <span class="text-label-small text-text-muted">{{ slipSize }}</span>
+            </div>
+            <AppButton
+              class="slip-remove !w-10 shrink-0"
+              :aria-label="t('topup.removeSlip')"
+              :disabled="verifying || expired"
+              @click="setSlip(null)"
+              ><X :size="18" aria-hidden="true"
+            /></AppButton>
+          </div>
+          <p id="topup-file-hint" class="text-body-small text-text-muted">
+            {{ t('topup.fileHint') }}
+          </p>
+          <p
+            v-if="slipError"
+            id="topup-slip-error"
+            role="alert"
+            class="rounded-md bg-error-bg p-sm text-body-small text-error-text"
+          >
+            {{ slipError }}
+          </p>
+          <AppButton
+            variant="secondary"
+            :disabled="!slip || expired"
+            :loading="verifying"
+            @click="submitSlip"
+            ><Upload :size="18" aria-hidden="true" />{{
+              verifying ? t('topup.verifying') : t('topup.verifySlip')
+            }}</AppButton
+          >
+          <p class="flex items-start gap-xs text-body-small text-text-secondary">
+            <ShieldCheck :size="18" class="shrink-0" aria-hidden="true" /><span>{{
+              t('topup.secureDescription')
+            }}</span>
+          </p>
         </section>
       </div>
-      <footer v-if="invoice && invoice.status !== 'SUCCESS'" class="desk-footer">
-        <code>{{ invoice.invoiceNumber }}</code>
-        <span>PromptPay · SlipOK</span>
-      </footer>
-      </section>
 
-      <section class="history-section" aria-labelledby="topup-history-heading">
-        <header class="history-header">
-          <div>
-            <p class="topup-eyebrow">{{ t('topup.historyEyebrow') }}</p>
-            <h2 id="topup-history-heading">{{ t('topup.historyTitle') }}</h2>
-          </div>
+      <section
+        class="history-section topup-card grid gap-lg"
+        aria-labelledby="topup-history-heading"
+        :aria-busy="historyLoading"
+      >
+        <header class="flex items-center gap-sm">
+          <History :size="22" class="text-text-secondary" aria-hidden="true" />
+          <h2
+            id="topup-history-heading"
+            ref="historyHeading"
+            tabindex="-1"
+            class="scroll-mt-24 text-heading-h3 font-semibold"
+          >
+            {{ t('topup.historyTitle') }}
+          </h2>
         </header>
-
+        <div
+          class="history-filters grid items-end gap-md tablet:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+        >
+          <AppTextField
+            v-model="historyStatus"
+            variant="dropdown"
+            :label="t('topup.historyFilters.status')"
+            :options="historyStatusOptions"
+          />
+          <AppTextField
+            v-model="historyPeriod"
+            variant="dropdown"
+            :label="t('topup.historyFilters.period')"
+            :options="historyPeriodOptions"
+          />
+          <AppButton v-if="historyFiltered" class="tablet:!w-auto" @click="clearHistoryFilters">{{
+            t('topup.historyFilters.clear')
+          }}</AppButton>
+        </div>
         <div v-if="history.length" class="history-list">
           <article v-for="item in history" :key="item.invoiceId" class="history-item">
-            <div class="history-reference">
-              <code>{{ item.invoiceNumber }}</code>
-              <span>{{ dateTime(item.createdAt) }}</span>
+            <div class="history-reference grid min-w-0 gap-xs">
+              <strong class="truncate text-body-small font-medium">{{ item.invoiceNumber }}</strong
+              ><time :datetime="item.createdAt" class="text-label-small text-text-muted">{{
+                dateTime(item.createdAt)
+              }}</time>
             </div>
-            <strong class="history-amount">{{ money(item.amountSatang) }}</strong>
-            <span class="history-status" :data-status="item.status">
-              {{ t(`topup.status.${item.status.toLowerCase()}`) }}
-            </span>
-            <button
+            <strong class="history-amount text-body-medium tabular-nums">{{
+              money(item.amountSatang)
+            }}</strong>
+            <span class="history-status" :data-status="item.status">{{
+              t(`topup.status.${item.status.toLowerCase()}`)
+            }}</span>
+            <AppButton
               v-if="canResume(item)"
-              type="button"
               class="resume-button"
-              :disabled="Boolean(resumingId)"
+              :disabled="Boolean(resumingId) || creating || verifying"
+              :loading="resumingId === item.invoiceId"
               @click="resumeInvoice(item)"
-            >
-              {{ resumingId === item.invoiceId ? t('topup.loading') : t('topup.resume') }}
-            </button>
+              >{{ resumingId === item.invoiceId ? t('topup.loading') : t('topup.resume')
+              }}<ArrowRight :size="16" aria-hidden="true"
+            /></AppButton>
           </article>
         </div>
-        <p v-else-if="!historyLoading" class="history-empty">{{ t('topup.historyEmpty') }}</p>
-        <AppButton
-          v-if="historyHasMore"
-          class="history-more"
-          variant="secondary"
-          :loading="historyLoading"
-          @click="loadHistory()"
+        <p v-else-if="historyLoading" role="status" class="history-empty">
+          {{ t('topup.historyLoading') }}
+        </p>
+        <p v-else-if="!historyError" class="history-empty">
+          {{ t(historyFiltered ? 'topup.historyNoResults' : 'topup.historyEmpty') }}
+        </p>
+        <div v-if="historyError" class="flex flex-col items-start gap-sm text-body-small">
+          <p role="alert" class="text-error-text">{{ t('topup.historyLoadError') }}</p>
+          <AppButton class="tablet:!w-auto" :loading="historyLoading" @click="retryHistory">{{
+            t('topup.retry')
+          }}</AppButton>
+        </div>
+        <nav
+          v-if="historyPages.length"
+          class="history-pagination flex flex-col gap-md border-t border-border-subtle pt-md tablet:flex-row tablet:items-center tablet:justify-between"
+          :aria-label="t('topup.historyPagination')"
         >
-          {{ t('topup.loadMore') }}
-        </AppButton>
+          <p class="text-body-small text-text-secondary" role="status">
+            {{ t('topup.historyPageInfo', { page: historyPage, count: topupHistoryPageSize }) }}
+          </p>
+          <div class="flex items-center justify-center gap-xs">
+            <AppButton
+              class="history-previous !w-10 tablet:!w-auto"
+              :aria-label="t('topup.historyPrevious')"
+              :disabled="!historyHasPrevious || historyLoading"
+              @click="changeHistoryPage(historyPage - 1)"
+              ><ChevronLeft :size="18" aria-hidden="true" /><span class="hidden tablet:inline">{{
+                t('topup.historyPrevious')
+              }}</span></AppButton
+            >
+            <AppButton
+              v-for="page in historyPages"
+              :key="page"
+              class="history-page !w-10"
+              :variant="page === historyPage ? 'secondary' : 'primary'"
+              :aria-label="t('topup.historyPage', { page })"
+              :aria-current="page === historyPage ? 'page' : undefined"
+              :disabled="historyLoading"
+              @click="changeHistoryPage(page)"
+              >{{ page }}</AppButton
+            >
+            <AppButton
+              class="history-next !w-10 tablet:!w-auto"
+              :aria-label="t('topup.historyNext')"
+              :disabled="!historyHasNext || historyLoading"
+              @click="changeHistoryPage(historyPage + 1)"
+              ><span class="hidden tablet:inline">{{ t('topup.historyNext') }}</span
+              ><ChevronRight :size="18" aria-hidden="true"
+            /></AppButton>
+          </div>
+        </nav>
       </section>
     </div>
-
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
   </main>
 </template>
 
 <style scoped>
-.topup-page { min-height: calc(100vh - 4.25rem); }
-.topup-desk { overflow:hidden; border:1px solid var(--color-border-default); border-radius:1.5rem; background:var(--color-bg-surface); box-shadow:var(--effect-shadow-sm); }
-.topup-header { display:flex; align-items:end; justify-content:space-between; gap:2rem; padding:clamp(1.5rem,4vw,3.5rem); border-bottom:1px solid var(--color-border-default); }
-.topup-header h1 { margin-top:.35rem; font-size:clamp(2.7rem,7vw,5.75rem); font-weight:800; line-height:.88; letter-spacing:-.06em; }
-.topup-eyebrow,.section-label { color:var(--color-text-muted); font-size:.72rem; font-weight:700; letter-spacing:.13em; text-transform:uppercase; }
-.balance-card { display:grid; flex:none; gap:.25rem; text-align:right; }
-.balance-card span { color:var(--color-text-muted); font-size:.75rem; }
-.balance-card strong { font-size:clamp(1.2rem,3vw,2rem); }
-.topup-panel { display:grid; width:100%; gap:1.5rem; padding:clamp(1.5rem,3vw,2.5rem); background:transparent; }
-.topup-desk > .topup-panel:not(.success-panel) { max-width:42rem; }
-.section-label { display:flex; gap:.6rem; margin:0; }.section-label span { color:var(--color-text-primary); }
-.amount-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; }
-.amount-grid button { display:flex; height:3.6rem; align-items:baseline; justify-content:center; gap:.15rem; padding-inline:.35rem; border:1px solid var(--color-border-default); border-radius:.7rem; background:transparent; color:var(--color-text-primary); cursor:pointer; font:800 clamp(.95rem,1.4vw,1.15rem)/1 inherit; transition:150ms ease; }
-.amount-grid button > span { color:var(--color-text-muted); font-size:.7rem; }
-.amount-grid button:hover { border-color: var(--color-border-strong); transform: translateY(-1px); }
-.amount-grid .amount-option--active { border-color:var(--color-text-primary); background:var(--color-text-primary); color:var(--color-bg-surface); }
-.amount-grid .amount-option--active > span { color:inherit; opacity:.65; }
-.amount-grid button:focus-visible { outline:2px solid var(--color-border-accent); outline-offset:2px; }
-.custom-amount { display:grid; gap:.45rem; color:var(--color-text-muted); font-size:.75rem; }
-.custom-amount__control { display:flex; min-height:3.6rem; align-items:center; gap:.5rem; padding:0 1rem; border:1px solid var(--color-border-default); border-radius:.7rem; color:var(--color-text-primary); font-size:var(--font-size-lg); transition:border-color 150ms ease,box-shadow 150ms ease; }
-.custom-amount__control:focus-within { border-color:var(--color-text-primary); box-shadow:0 0 0 1px var(--color-text-primary); }
-.custom-amount input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: inherit; font: inherit; }
-.custom-amount small { color: var(--color-text-muted); font-weight: 400; }
-.payment-layout { display:grid; grid-template-columns:1.1fr 1fr; }
-.qr-panel,.slip-panel { min-width:0; }
-.slip-panel { border-left:1px solid var(--color-border-default); }
-.qr-frame { position: relative; width: min(100%,18rem); aspect-ratio: 1; justify-self: center; overflow: hidden; padding: var(--spacing-sm); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-lg); background: white; }
-.qr-frame img { width: 100%; height: 100%; object-fit: contain; }
-.qr-frame--expired img { opacity: .18; filter: grayscale(1); }
-.qr-expired { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: var(--spacing-xs); color: #111827; }
-.payment-details { display:grid; gap:var(--spacing-xs); }
-.payment-details div { display: flex; justify-content: space-between; gap: var(--spacing-md); padding-bottom: var(--spacing-xs); border-bottom: 1px solid var(--color-border-subtle); }
-.payment-details dt { color: var(--color-text-secondary); }
-.payment-details dd { overflow-wrap: anywhere; text-align: right; font-weight: 700; }
-.expiry { display:flex; align-items:center; justify-content:center; gap:var(--spacing-xs); color:var(--color-text-secondary); font-size:var(--font-size-sm); font-weight:600; }
-.expiry--expired { color: var(--color-error-text); }
-.slip-drop { position:relative; display:grid; min-height:20rem; place-items:center; overflow:hidden; border:1px dashed var(--color-border-default); border-radius:.8rem; cursor:pointer; transition:border-color 150ms ease,background 150ms ease; }
-.slip-drop:hover,.slip-drop--dragging { border-color:var(--color-text-primary); background:var(--color-bg-elevated); }
-.slip-drop input { position:absolute; width:1px; height:1px; opacity:0; }
-.slip-drop > span { display:grid; justify-items:center; gap:.7rem; padding:1.5rem; color:var(--color-text-muted); text-align:center; }
-.slip-drop > span strong { color:var(--color-text-secondary); font-size:var(--font-size-sm); }
-.slip-drop > span small { max-width:18rem; font-size:var(--font-size-xs); font-weight:400; }
-.slip-drop img { width:100%; height:100%; max-height:28rem; object-fit:contain; background:var(--color-bg-default); }
-.slip-name { overflow:hidden; margin-top:-.75rem; color:var(--color-text-muted); font-size:var(--font-size-xs); text-overflow:ellipsis; white-space:nowrap; }
-.success-panel { max-width:38rem; justify-items:center; margin-inline:auto; text-align:center; }
-.success-panel h2 { font-size:var(--font-size-heading-h3); font-weight:800; }
-.success-panel > p { color:var(--color-text-secondary); font-size:var(--font-size-sm); }
-.success-panel > svg { color: var(--color-success-text); }
-.success-balance { display: grid; width: 100%; gap: var(--spacing-xxs); padding: var(--spacing-md); border-radius: var(--radius-lg); background: var(--color-bg-elevated); }
-.success-balance span { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
-.success-balance strong { font-size: var(--font-size-heading-h2); }
-.desk-footer { display:flex; justify-content:space-between; gap:1rem; padding:1rem clamp(1.5rem,3vw,2.5rem); border-top:1px solid var(--color-border-default); color:var(--color-text-muted); font-size:.68rem; letter-spacing:.04em; }
-.history-section { display:grid; gap:1rem; margin-top:clamp(2rem,5vw,4rem); }
-.history-header h2 { margin-top:.25rem; font-size:clamp(1.7rem,4vw,2.5rem); font-weight:800; letter-spacing:-.04em; }
-.history-list { border-top:1px solid var(--color-border-default); }
-.history-item { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(7rem,.7fr) minmax(6rem,.55fr) auto; align-items:center; gap:1rem; min-height:5.5rem; padding:1rem 0; border-bottom:1px solid var(--color-border-default); }
-.history-reference { display:grid; min-width:0; gap:.3rem; }.history-reference code { overflow:hidden; color:var(--color-text-primary); font-size:.75rem; text-overflow:ellipsis; white-space:nowrap; }.history-reference span { color:var(--color-text-muted); font-size:var(--font-size-xs); }
-.history-amount { font-size:1.1rem; }
-.history-status { width:fit-content; padding:.35rem .55rem; border-radius:999px; background:var(--color-bg-elevated); color:var(--color-text-secondary); font-size:.68rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
-.history-status[data-status="SUCCESS"] { color:var(--color-success-text); }
-.history-status[data-status="FAILED"] { color:var(--color-error-text); }
-.resume-button { min-height:2.5rem; padding:0 .9rem; border:1px solid var(--color-border-default); border-radius:.6rem; background:transparent; color:var(--color-text-primary); cursor:pointer; font:700 .78rem/1 inherit; }
-.resume-button:hover { border-color:var(--color-text-primary); }
-.history-empty { padding:2rem 0; border-block:1px solid var(--color-border-default); color:var(--color-text-muted); }
-.history-more { justify-self:start; width:auto; }
-@media (max-width: 48rem) {
-  .topup-header { align-items:start; }
-  .balance-card span { display:none; }.balance-card strong { font-size:1rem; }
-  .payment-layout { grid-template-columns:1fr; }.slip-panel { border-top:1px solid var(--color-border-default); border-left:0; }
-  .amount-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .desk-footer { flex-direction:column; }
-  .history-item { grid-template-columns:minmax(0,1fr) auto; gap:.65rem 1rem; }
-  .history-amount { text-align:right; }.history-status { grid-column:1; }.resume-button { grid-column:2; grid-row:2; }
+.topup-card {
+  min-width: 0;
+  padding: var(--space-lg);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
 }
-@media (prefers-reduced-motion: reduce) { .amount-grid button { transition: none; } }
+.topup-panel {
+  display: grid;
+  align-content: start;
+  gap: var(--space-lg);
+}
+.upload-icon,
+.success-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+}
+.topup-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+}
+.topup-steps li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-label-small);
+  text-align: center;
+}
+.step-number {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-label-medium);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.topup-steps li[data-state='current'] {
+  color: var(--color-text-primary);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.topup-steps li[data-state='current'] .step-number {
+  border-color: var(--color-action-bg-secondary);
+  background: var(--color-action-bg-secondary);
+  color: var(--color-action-text-on-secondary);
+}
+.topup-steps li[data-state='done'] .step-number {
+  border-color: var(--color-success-border);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+.amount-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+.amount-grid button {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xxs);
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-default);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  font-size: var(--font-size-body-large);
+  font-weight: var(--typography-font-weight-semibold);
+}
+.amount-grid button > span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-label-medium);
+}
+.amount-grid button:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-surface-hover);
+}
+.amount-grid .amount-option--active,
+.amount-grid .amount-option--active:hover:not(:disabled) {
+  border-color: var(--color-action-bg-secondary);
+  background: var(--color-action-bg-secondary);
+  color: var(--color-action-text-on-secondary);
+}
+.amount-grid .amount-option--active > span {
+  color: inherit;
+}
+.amount-grid button:focus-visible,
+.slip-drop:focus-within {
+  outline: 2px solid var(--color-action-border-focus);
+  outline-offset: 3px;
+}
+.amount-grid button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.custom-amount__control {
+  display: flex;
+  min-height: 3rem;
+  align-items: center;
+  gap: var(--space-xs);
+  padding-inline: var(--space-md);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-default);
+}
+.custom-amount__control:focus-within {
+  border-color: var(--color-action-border-focus);
+  box-shadow: 0 0 0 1px var(--color-action-border-focus);
+}
+.custom-amount__control--error {
+  border-color: var(--color-error-border);
+}
+.custom-amount input {
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  padding-block: var(--space-sm);
+  background: transparent;
+  color: inherit;
+  font-size: var(--font-size-body-medium);
+}
+.custom-amount input::placeholder {
+  color: var(--color-text-muted);
+}
+.summary-card {
+  background: var(--color-bg-elevated);
+}
+.qr-frame {
+  position: relative;
+  width: min(100%, 18rem);
+  aspect-ratio: 1;
+  justify-self: center;
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+.qr-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.qr-frame--expired img {
+  opacity: 0.12;
+  filter: grayscale(1);
+}
+.qr-expired {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: color-mix(in srgb, var(--color-bg-surface) 90%, transparent);
+  text-align: center;
+  font-size: var(--font-size-body-medium);
+}
+.payment-details div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.payment-details dt {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-small);
+}
+.payment-details dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-weight: var(--typography-font-weight-medium);
+}
+.expiry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-body-small);
+  font-variant-numeric: tabular-nums;
+}
+.expiry--expired {
+  color: var(--color-error-text);
+}
+.slip-drop {
+  position: relative;
+  display: grid;
+  min-height: 16rem;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-default);
+  cursor: pointer;
+}
+.slip-drop:hover:not(.slip-drop--disabled),
+.slip-drop--dragging {
+  border-color: var(--color-action-border-focus);
+  background: var(--color-bg-surface-hover);
+}
+.slip-drop--error {
+  border-color: var(--color-error-border);
+}
+.slip-drop--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.slip-drop img {
+  width: 100%;
+  height: 16rem;
+  object-fit: contain;
+  padding: var(--space-sm);
+}
+.success-panel {
+  width: 100%;
+  max-width: var(--layout-reading-max-width);
+  justify-self: center;
+  padding-block: var(--space-xl);
+}
+.success-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: var(--radius-full);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+.history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  padding-block: var(--space-md);
+  border-top: 1px solid var(--color-border-subtle);
+}
+.history-amount {
+  text-align: right;
+}
+.history-status {
+  width: fit-content;
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-label-small);
+}
+.history-status[data-status='SUCCESS'] {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+}
+.history-status[data-status='FAILED'] {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+.history-status[data-status='PENDING'],
+.history-status[data-status='VERIFYING'] {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+.resume-button {
+  width: auto;
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+.history-empty {
+  padding-block: var(--space-lg);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-body-small);
+  text-align: center;
+}
+@media (min-width: 48rem) {
+  .topup-steps {
+    padding: var(--space-lg);
+  }
+  .topup-steps li {
+    flex-direction: row;
+    justify-content: center;
+    font-size: var(--font-size-label-medium);
+  }
+  .amount-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .history-item {
+    grid-template-columns: minmax(0, 1fr) 8rem 7rem 8rem;
+    gap: var(--space-md);
+  }
+  .resume-button {
+    grid-column: 4;
+    grid-row: auto;
+  }
+}
+@media (min-width: 64rem) {
+  .topup-card {
+    padding: var(--space-xl);
+  }
+}
 </style>

@@ -2,12 +2,14 @@ package com.fujipp.backend.topup;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 @RestController
 @RequestMapping("/api/v1/wallet/topups")
@@ -31,8 +33,10 @@ class TopupController {
     com.fujipp.backend.pagination.CursorPage<TopupResponses.Summary> list(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(defaultValue="20") int limit,
-            @RequestParam(required=false) String cursor) {
-        return service.list(jwt.getSubject(),limit,cursor);
+            @RequestParam(required=false) String cursor,
+            @RequestParam(required=false) TopupRequests.Status status,
+            @RequestParam(required=false) @DateTimeFormat(iso=DateTimeFormat.ISO.DATE_TIME) OffsetDateTime createdFrom) {
+        return service.list(jwt.getSubject(),limit,cursor,status,createdFrom);
     }
 
     @PostMapping(path="/{invoiceId}/slip",consumes="multipart/form-data")

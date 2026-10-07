@@ -7,6 +7,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -71,13 +73,33 @@ class TopupServiceTests {
     void listsOnlyTheAuthenticatedUsersTopupsWithCursorPagination() {
         TopupRepository.Invoice invoice=invoice("PENDING",5000,0);
         when(cursors.decode(null,"website-topups",userId.toString(),2)).thenReturn(List.of());
-        when(repository.list(userId,null,null,3)).thenReturn(List.of(invoice));
+        when(repository.list(userId,null,null,3,null,null)).thenReturn(List.of(invoice));
 
-        var page=service.list(userId.toString(),2,null);
+        var page=service.list(userId.toString(),2,null,null,null);
 
         assertEquals(1,page.items().size());
         assertEquals(invoice.id(),page.items().getFirst().invoiceId());
-        verify(repository).list(userId,null,null,3);
+        verify(repository).list(userId,null,null,3,null,null);
+    }
+
+    @Test
+    void filteredPagesBindCursorsToOwnerStatusAndPeriod() {
+        var codec=new CursorCodec(JsonMapper.builder().build());
+        var filteredService=new TopupService(repository,slipOk,promptPayQr,codec,"0812345678","FUJIPP",1000,10000000,5242880,15);
+        OffsetDateTime from=OffsetDateTime.parse("2026-10-01T00:00:00Z");
+        var first=invoice("SUCCESS",5000,5000);
+        var second=invoice("SUCCESS",10000,15000);
+        when(repository.list(userId,null,null,2,TopupRequests.Status.SUCCESS,from)).thenReturn(List.of(first,second));
+
+        var page=filteredService.list(userId.toString(),1,null,TopupRequests.Status.SUCCESS,from);
+        assertEquals(1,page.items().size());
+        assertEquals(true,page.hasMore());
+        when(repository.list(userId,first.createdAt(),first.id(),2,TopupRequests.Status.SUCCESS,from)).thenReturn(List.of(second));
+        var next=filteredService.list(userId.toString(),1,page.nextCursor(),TopupRequests.Status.SUCCESS,from);
+        assertEquals(second.id(),next.items().getFirst().invoiceId());
+        assertThrows(ResponseStatusException.class,()->filteredService.list(userId.toString(),1,page.nextCursor(),TopupRequests.Status.FAILED,from));
+        assertThrows(ResponseStatusException.class,()->filteredService.list(userId.toString(),1,page.nextCursor(),TopupRequests.Status.SUCCESS,from.minusDays(1)));
+        assertThrows(ResponseStatusException.class,()->filteredService.list(UUID.randomUUID().toString(),1,page.nextCursor(),TopupRequests.Status.SUCCESS,from));
     }
 
     @Test

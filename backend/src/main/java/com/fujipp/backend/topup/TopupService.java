@@ -62,15 +62,21 @@ class TopupService {
                 "TOPUP_NOT_FOUND", "Top-up invoice was not found", TopupException.Kind.NOT_FOUND)));
     }
 
-    CursorPage<TopupResponses.Summary> list(String subject, int requestedLimit, String cursor) {
+    CursorPage<TopupResponses.Summary> list(String subject, int requestedLimit, String cursor,
+            TopupRequests.Status status, OffsetDateTime createdFrom) {
         requireConfigured();
         UUID userId=userId(subject);
         int limit=Math.max(1,Math.min(50,requestedLimit));
-        var values=cursors.decode(cursor,"website-topups",userId.toString(),2);
+        String filter=userId.toString();
+        if (status!=null || createdFrom!=null) {
+            filter+="|status="+(status==null?"":status.name())+"|from="+(createdFrom==null?"":createdFrom.toInstant());
+        }
+        String cursorFilter=filter;
+        var values=cursors.decode(cursor,"website-topups",cursorFilter,2);
         OffsetDateTime createdAt=values.isEmpty()?null:cursors.dateTime(values.get(0));
         UUID invoiceId=values.isEmpty()?null:cursors.uuid(values.get(1));
-        List<TopupRepository.Invoice> rows=repository.list(userId,createdAt,invoiceId,limit+1);
-        var page=CursorPage.of(rows,limit,row->cursors.encode("website-topups",userId.toString(),
+        List<TopupRepository.Invoice> rows=repository.list(userId,createdAt,invoiceId,limit+1,status,createdFrom);
+        var page=CursorPage.of(rows,limit,row->cursors.encode("website-topups",cursorFilter,
                 List.of(row.createdAt().toString(),row.id().toString())));
         return new CursorPage<>(page.items().stream().map(this::summary).toList(),page.nextCursor(),page.hasMore());
     }

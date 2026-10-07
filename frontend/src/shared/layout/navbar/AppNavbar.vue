@@ -15,6 +15,7 @@ import {
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { Wallet } from 'lucide-vue-next'
 
 import { authenticatedNavbarLinks, guestNavbarLinks, icons } from '../../../config'
 import type { NavbarLink } from '../../../config'
@@ -92,10 +93,9 @@ const resolvedEmail = computed(() => props.email ?? currentUser.value?.email ?? 
 const resolvedWalletBalance = computed(
   () =>
     props.walletBalance ??
-    currentUser.value?.walletBalance ??
     (currentUser.value?.walletBalanceSatang !== undefined
       ? currentUser.value.walletBalanceSatang / 100
-      : 0),
+      : (currentUser.value?.walletBalance ?? 0)),
 )
 const themeStore = useThemeStore()
 const { currentTheme, selectedTheme } = storeToRefs(themeStore)
@@ -532,6 +532,7 @@ function closeProfileMenu() {
         <button
           v-else
           class="profile-navbar"
+          :title="formattedWalletBalance"
           type="button"
           aria-label="Open profile"
           aria-controls="profile-dialog"
@@ -539,8 +540,8 @@ function closeProfileMenu() {
           @click.stop="toggleProfileMenu"
         >
           <span class="profile-navbar__wallet">
-            <AppIcon class="profile-navbar__wallet-icon" :source="icons.common.wallet" />
-            <span>{{ formattedWalletBalance }}</span>
+            <Wallet class="profile-navbar__wallet-icon" :size="16" aria-hidden="true" />
+            <span class="profile-navbar__amount">{{ formattedWalletBalance }}</span>
           </span>
           <span class="profile-navbar__avatar-frame">
             <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
@@ -979,45 +980,62 @@ function closeProfileMenu() {
 }
 
 .profile-navbar {
+  position: relative;
+  isolation: isolate;
   display: flex;
   width: auto;
-  max-width: var(--icon-size-32);
-  height: var(--icon-size-32);
+  max-width: 2.5rem;
+  height: 2.5rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: flex-end;
+  gap: var(--space-xs);
   overflow: hidden;
   cursor: pointer;
-  border: 0;
-  border-radius: var(--corner-radius-full);
-  padding: 0;
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-lg);
+  padding: calc(var(--space-xxs) - 1px);
   background: var(--semantic-color-action-backgrounds-bg-secondary);
   color: var(--semantic-color-action-text-text-on-secondary);
+  box-shadow: var(--effect-shadow-sm);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-label-large);
+  font-size: var(--font-size-label-medium);
   line-height: var(--line-height-label);
   transition: max-width 200ms ease;
 }
 
 .profile-navbar:hover,
-.profile-navbar:focus-visible {
-  max-width: 15rem;
+.profile-navbar:focus-visible,
+.profile-navbar[aria-expanded='true'] {
+  max-width: 13rem;
 }
 
 .profile-navbar__wallet {
   display: flex;
+  min-width: 0;
   align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-xxs);
-  padding: 0 var(--space-xxs) 0 var(--space-xs);
-  font-weight: var(--typography-font-weight-medium);
+  gap: var(--space-xs);
+  padding-left: var(--space-xs);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  font-weight: var(--typography-font-weight-semibold);
   white-space: nowrap;
 }
-
+.profile-navbar:hover .profile-navbar__wallet,
+.profile-navbar:focus-visible .profile-navbar__wallet,
+.profile-navbar[aria-expanded='true'] .profile-navbar__wallet {
+  opacity: 1;
+}
+.profile-navbar__amount {
+  min-width: 0;
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+}
 .profile-navbar__wallet-icon {
   display: block;
-  width: var(--icon-size-24);
-  height: var(--icon-size-24);
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
   flex-shrink: 0;
 }
 
@@ -1029,7 +1047,7 @@ function closeProfileMenu() {
   flex-shrink: 0;
   overflow: hidden;
   place-items: center;
-  border: 1px solid var(--semantic-color-background-bg-inverse);
+  border: 1px solid var(--semantic-color-border-border-default);
   border-radius: var(--corner-radius-full);
   background: var(--semantic-color-background-bg-surface-active);
 }
@@ -1271,15 +1289,18 @@ function closeProfileMenu() {
   }
 
   .mobile-profile {
+    display: grid;
     width: var(--icon-size-32);
     height: var(--icon-size-32);
     flex-shrink: 0;
+    place-items: center;
     overflow: hidden;
     cursor: pointer;
-    border: 0;
-    border-radius: var(--corner-radius-full);
-    padding: 0;
+    border: 1px solid var(--semantic-color-border-border-default);
+    border-radius: var(--corner-radius-lg);
+    padding: 2px;
     background: var(--semantic-color-action-backgrounds-bg-secondary);
+    color: var(--semantic-color-action-text-text-on-secondary);
   }
 
   .mobile-profile .profile-navbar__avatar-frame {
@@ -1295,6 +1316,7 @@ function closeProfileMenu() {
   .navigation__link,
   .navigation__liquid-pill,
   .profile-navbar,
+  .profile-navbar__wallet,
   .action-button--outline,
   .action-button--outline::before,
   .action-button--text::after,

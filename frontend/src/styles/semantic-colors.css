@@ -36,6 +36,77 @@
 
 :root {
   animation: brand-secondary-rgb 12s linear infinite;
+
+  /* Matte wallet-card finishes and their fixed, contrasting ink colors. */
+  --semantic-color-wallet-card-classic: color-mix(
+    in srgb,
+    var(--global-color-brand-secondary-green) 18%,
+    var(--global-color-gray-800)
+  );
+  --semantic-color-wallet-card-green: color-mix(
+    in srgb,
+    var(--global-color-brand-secondary-green) 30%,
+    var(--global-color-gray-900)
+  );
+  --semantic-color-wallet-card-forest: color-mix(
+    in srgb,
+    var(--global-color-brand-secondary-green) 38%,
+    var(--global-color-gray-900)
+  );
+  --semantic-color-wallet-card-emerald: color-mix(
+    in srgb,
+    var(--global-color-brand-secondary-green) 26%,
+    var(--global-color-gray-800)
+  );
+  --semantic-color-wallet-card-silver: var(--global-color-gray-300);
+  --semantic-color-wallet-card-steel: var(--global-color-gray-400);
+  --semantic-color-wallet-card-titanium: var(--global-color-gray-600);
+  --semantic-color-wallet-card-pearl: var(--global-color-gray-200);
+  --semantic-color-wallet-card-bronze: color-mix(
+    in srgb,
+    var(--global-color-warning-800) 70%,
+    var(--global-color-gray-700)
+  );
+  --semantic-color-wallet-card-gold: color-mix(
+    in srgb,
+    var(--global-color-warning-600) 50%,
+    var(--global-color-gray-300)
+  );
+  --semantic-color-wallet-card-amber: color-mix(
+    in srgb,
+    var(--global-color-warning-800) 50%,
+    var(--global-color-gray-900)
+  );
+  --semantic-color-wallet-card-champagne: color-mix(
+    in srgb,
+    var(--global-color-warning-600) 30%,
+    var(--global-color-gray-200)
+  );
+  --semantic-color-wallet-card-platinum: var(--global-color-gray-200);
+  --semantic-color-wallet-card-graphite: var(--global-color-gray-500);
+  --semantic-color-wallet-card-moonstone: var(--global-color-gray-100);
+  --semantic-color-wallet-card-palladium: color-mix(
+    in srgb,
+    var(--global-color-gray-300) 80%,
+    var(--global-color-gray-500)
+  );
+  --semantic-color-wallet-card-navy: var(--global-color-info-950);
+  --semantic-color-wallet-card-charcoal: var(--global-color-gray-900);
+  --semantic-color-wallet-card-obsidian: color-mix(
+    in srgb,
+    var(--global-color-gray-900) 75%,
+    var(--global-color-success-950)
+  );
+  --semantic-color-wallet-card-carbon: var(--global-color-brand-primary-800);
+  --semantic-color-wallet-card-onyx: var(--global-color-brand-primary-900);
+  --semantic-color-wallet-card-black: var(--global-color-black-100);
+  --semantic-color-wallet-card-ink-light: var(--global-color-white-100);
+  --semantic-color-wallet-card-ink-dark: var(--global-color-gray-900);
+  --semantic-color-wallet-card-accent-gold: color-mix(
+    in srgb,
+    var(--global-color-warning-600) 50%,
+    var(--global-color-gray-300)
+  );
 }
 
 :root,

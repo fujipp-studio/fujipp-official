@@ -28,6 +28,11 @@ export type WalletTopupSummary = Pick<
   | 'createdAt'
 >
 
+export interface WalletTopupHistoryFilters {
+  status?: WalletTopupInvoice['status']
+  createdFrom?: string
+}
+
 export async function createWalletTopup(
   amountSatang: number,
   session: Session,
@@ -57,10 +62,13 @@ export async function listWalletTopups(
   session: Session,
   cursor?: string | null,
   limit = 10,
+  filters: WalletTopupHistoryFilters = {},
 ): Promise<CursorPage<WalletTopupSummary>> {
   const url = new URL(`${backendUrl}/api/v1/wallet/topups`)
   url.searchParams.set('limit', String(limit))
   if (cursor) url.searchParams.set('cursor', cursor)
+  if (filters.status) url.searchParams.set('status', filters.status)
+  if (filters.createdFrom) url.searchParams.set('createdFrom', filters.createdFrom)
   const response = await apiFetch(url, { headers: authenticatedHeaders(session) })
   return readJson<CursorPage<WalletTopupSummary>>(response, 'Unable to load top-up history.')
 }
