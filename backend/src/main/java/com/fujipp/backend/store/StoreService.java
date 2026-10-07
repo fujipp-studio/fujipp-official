@@ -293,6 +293,8 @@ public class StoreService {
         ensureLicenseActive(license);
         validateConfigurationSize(request);
 
+        MessageSetsConfigurationValidator.validate(request.values());
+
         Map<String, StoreRepository.ConfigDefinition> definitions = new LinkedHashMap<>();
         for (StoreRepository.ConfigDefinition definition
                 : repository.findConfigDefinitions(license.versionId())) {
