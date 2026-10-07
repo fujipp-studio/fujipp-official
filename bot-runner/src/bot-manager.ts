@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { RuntimeApi } from "./api-client.js";
 import { getFeature } from "./feature-registry.js";
 import { createCommandPermissionGate } from "./command-permissions.js";
-import type { FeatureModule, RuntimeBot } from "./types.js";
+import type { FeatureDisposer, FeatureModule, RuntimeBot } from "./types.js";
 
 type ClientFactory = (options: ConstructorParameters<typeof Client>[0]) => Client;
 type FeatureResolver = (runtimeKey: string, version: string) => FeatureModule | undefined;
@@ -11,7 +11,9 @@ type FeatureResolver = (runtimeKey: string, version: string) => FeatureModule | 
 interface RunningBot {
   client: Client;
   fingerprint: string;
-  disposers: Array<() => void | Promise<void>>;
+  disposers: FeatureDisposer[];
+  bot: RuntimeBot;
+  updates: Map<string, NonNullable<FeatureDisposer["update"]>>;
 }
 
 export class BotManager {
@@ -23,7 +25,8 @@ export class BotManager {
     private readonly featureResolver: FeatureResolver = getFeature,
   ) {}
 
-  public async reconcile(desired: RuntimeBot[]): Promise<void> {
+  public async reconcile(desired: RuntimeBot[]): Promise<boolean> {
+    let successful = true;
     const desiredIds = new Set(desired.map((bot) => bot.id));
     for (const id of this.running.keys()) {
       if (!desiredIds.has(id)) await this.stop(id, "STOPPED");
@@ -38,12 +41,34 @@ export class BotManager {
           });
           continue;
         }
+        if (current && !current.fingerprint.startsWith("invalidated:") && makeRestartFingerprint(current.bot, this.featureResolver) === makeRestartFingerprint(bot, this.featureResolver)
+          && bot.features.every((feature) => !this.featureResolver(feature.runtimeKey, feature.version)?.supportsHotReload || current.updates.has(feature.installationId))) {
+          for (const feature of bot.features) {
+            const previous = current.bot.features.find((item) => item.installationId === feature.installationId);
+            if (JSON.stringify(previous) !== JSON.stringify(feature)) {
+              try {
+                await current.updates.get(feature.installationId)?.(feature);
+                await this.api.reportStatus({ botId: bot.id, installationId: feature.installationId, status: "ACTIVE" }).catch(() => undefined);
+              }
+              catch (error) {
+                await this.api.reportStatus({ botId: bot.id, installationId: feature.installationId, status: "ERROR",
+                  errorCode: "FEATURE_UPDATE_FAILED", errorMessage: errorMessage(error) }).catch(() => undefined);
+                throw error;
+              }
+            }
+          }
+          current.bot = bot;
+          current.fingerprint = fingerprint;
+          continue;
+        }
         if (current) await this.stop(bot.id, "STOPPED");
         await this.start(bot, fingerprint);
       } catch (error) {
+        successful = false;
         console.error(`Bot reconcile failed: ${bot.name} (${bot.id}): ${errorMessage(error)}`);
       }
     }
+    return successful;
   }
 
   public async shutdown(): Promise<void> {
@@ -70,7 +95,8 @@ export class BotManager {
     const permissionFeature = bot.features.find((feature) => feature.code === "bot-permissions");
     const permissions = createCommandPermissionGate(permissionFeature?.config);
     const activatedFeatures: RuntimeBot["features"] = [];
-    this.running.set(bot.id, { client, fingerprint, disposers });
+    const updates = new Map<string, NonNullable<FeatureDisposer["update"]>>();
+    this.running.set(bot.id, { client, fingerprint, disposers, bot, updates });
     this.attachClientSafety(bot, client);
 
     try {
@@ -122,6 +148,7 @@ export class BotManager {
             },
           });
           disposers.push(dispose);
+          if (dispose.update) updates.set(feature.installationId, dispose.update);
           activatedFeatures.push(feature);
         } catch (error) {
           console.error(`Feature activation failed: ${feature.code} on bot ${bot.id}: ${errorMessage(error)}`);
@@ -196,6 +223,12 @@ export class BotManager {
     }
     client.destroy();
   }
+}
+
+export function makeRestartFingerprint(bot: RuntimeBot, resolver: FeatureResolver = getFeature): string {
+  return makeFingerprint({ ...bot, features: bot.features.map((feature) => resolver(feature.runtimeKey, feature.version)?.supportsHotReload
+    ? { ...feature, configRevision: 0, config: {}, secrets: {}, presentations: {}, runtimeState: {} }
+    : feature) });
 }
 
 export function makeFingerprint(bot: RuntimeBot): string {

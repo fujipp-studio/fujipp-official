@@ -20,7 +20,8 @@ duplicate supervision without improving availability.
 5. The Backend keeps the assembled snapshot in memory for 60 seconds by
    default, avoiding repeated Supabase reads while the runtime is unchanged.
 6. The Runner starts, stops, or reloads only bots whose runtime fingerprint
-   changed.
+   changed. Message Sets configuration and design changes update the existing
+   worker and Discord client without restarting them.
 7. Runtime status is reported to `POST /internal/v1/runtime/status`.
 
 Feature modules can persist a small non-secret operational state with
@@ -114,6 +115,37 @@ its own automated replies. Administrators can replace the persisted count with
 `/<REVIEW_COMMAND_NAME> set-count count:<number>`. The channel name is updated
 immediately after a manual change. `REVIEW_COUNT_WEBHOOKS` defaults to `true`
 and can disable webhook counting when required.
+
+## Message Sets
+
+The bundled `message-sets@1.0.0` feature sends named messages designed with the
+website's existing Embed and Components V2 editors. `MESSAGE_SETS_COMMAND_NAME`
+defaults to `ec` and accepts 1–32 lowercase letters, digits, underscores, or
+hyphens. Use `/<command> set:<SET name>` to send a message in the current channel.
+Administrators can post by default; Bot Permissions can allow additional roles
+or users.
+
+`MESSAGE_SETS` stores up to 20 unique names and stable `set_1` through `set_20`
+presentation slots. The website, Backend, and Runner validate the limit and
+uniqueness. SET names support spaces and Thai text, with at most 100 characters.
+Autocomplete reads the current SET list; stale or deleted names receive a
+private error instead of posting a message. Message variables are `set_name`,
+`user`, `user_name`, `channel`, and `guild_name`; mentions do not notify users.
+
+Saving SET additions, deletions, names, formats, or message designs normally
+reaches the Runner on its next 30-second poll. The supervisor sends an IPC update
+to the running bot worker. The worker updates the SET snapshot and acknowledges
+success. Failed updates are retried on later polls, including unchanged bootstrap
+responses. Renaming the command registers its replacement and removes the old
+command owned by the feature; Discord may take time to display the renamed global
+command. A name already owned by another feature is rejected without replacing
+that feature’s command. Existing posted messages keep their original design.
+
+The first deployment requires the migration, Backend, and updated Runner image.
+The migration creates a draft catalog entry; publish its version and activate
+the product through the admin tools before granting/installing it. Installing or
+uninstalling the feature, changing other features, credentials, or explicitly
+restarting a bot still follows the usual bot restart flow.
 
 ## Local build
 

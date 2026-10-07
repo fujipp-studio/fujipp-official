@@ -12,6 +12,7 @@ import {
 } from '../config/feature-editor'
 import { priceReaderPresentationPreview } from '../models/price-reader-presentation-preview'
 import { priceReaderSampleValues } from '../config/price-reader'
+import { parseMessageSets, validateMessageSets } from '../config/message-sets'
 import { clone } from '../models/presentation'
 import { walletPresentationPreview } from '../models/wallet-presentation-preview'
 import { paymentTriggerPresentationPreview } from '../models/payment-trigger-presentation-preview'
@@ -85,6 +86,8 @@ export function useFeatureSettings() {
   const isMessageTriggersFeature = computed(
     () => license.value?.featureCode === 'channel-message-triggers',
   )
+  const isMessageSetsFeature = computed(() => license.value?.featureCode === 'message-sets')
+  const messageSets = computed(() => parseMessageSets(String(values.value.MESSAGE_SETS ?? '[]')))
   const isPaymentTriggerFeature = computed(() => license.value?.featureCode === 'payment-trigger')
   const usesPresentationDesigner = computed(
     () =>
@@ -92,7 +95,8 @@ export function useFeatureSettings() {
       isRobloxPayoutFeature.value ||
       isPriceReaderFeature.value ||
       isMessageTriggersFeature.value ||
-      isPaymentTriggerFeature.value,
+      isPaymentTriggerFeature.value ||
+      isMessageSetsFeature.value,
   )
   const isWalletPanelCommand = (key: string) =>
     isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
@@ -126,6 +130,8 @@ export function useFeatureSettings() {
   }
 
   function presentationSlotLabel(slot: FeatureConfiguration['presentations'][number]) {
+    if (isMessageSetsFeature.value)
+      return messageSets.value.find((set) => set.presentationSlot === slot.key)?.name ?? slot.label
     if (isMessageTriggersFeature.value && /^template_(?:[1-9]|10)$/.test(slot.key)) {
       const number = slot.key.slice('template_'.length)
       return text(`Message template ${number}`, `Template ข้อความ ${number}`)
@@ -151,6 +157,8 @@ export function useFeatureSettings() {
     return copy ? text(...copy.label) : slot.label
   }
   function presentationSlotDescription(slot: FeatureConfiguration['presentations'][number]) {
+    if (isMessageSetsFeature.value)
+      return text('Message sent by the selected SET.', 'ข้อความที่ส่งเมื่อเลือก SET นี้')
     if (isMessageTriggersFeature.value) {
       return text(
         'Reusable message for channel creation and administrator triggers.',
@@ -468,6 +476,14 @@ export function useFeatureSettings() {
   }
 
   function presentationSampleValues(slotKey: string): Record<string, string> {
+    if (isMessageSetsFeature.value)
+      return {
+        set_name: messageSets.value.find((set) => set.presentationSlot === slotKey)?.name ?? 'SET',
+        user: '@Fujipp',
+        user_name: 'Fujipp',
+        channel: '#general',
+        guild_name: 'Example server',
+      }
     if (isWalletTopupFeature.value) {
       return {
         // Wallet runtime currently supplies no member avatar. Do not invent a thumbnail.
@@ -623,6 +639,11 @@ export function useFeatureSettings() {
   const visiblePresentationSlots = computed(() => {
     const panelSlots = new Set(robuxPanelRows().map((panel) => panel.presentationSlot))
     return (configuration.value?.presentations ?? []).filter((slot) => {
+      if (
+        isMessageSetsFeature.value &&
+        !messageSets.value.some((set) => set.presentationSlot === slot.key)
+      )
+        return false
       if (isRobloxPayoutV3.value) {
         if (slot.key === 'panel') return false
         const panelIndex = robuxPanelSlotIndex(slot.key)
@@ -785,6 +806,17 @@ export function useFeatureSettings() {
     saving.value = true
     error.value = ''
     try {
+      if (
+        isMessageSetsFeature.value &&
+        (!validateMessageSets(messageSets.value) ||
+          !/^[a-z0-9_-]{1,32}$/.test(String(values.value.MESSAGE_SETS_COMMAND_NAME ?? '')))
+      )
+        throw new Error(
+          text(
+            'Check the command name and SET names (maximum 20).',
+            'ตรวจสอบชื่อคำสั่งและชื่อ SET (สูงสุด 20 รายการ)',
+          ),
+        )
       const normalValues: Record<string, FeatureConfigValue> = {}
       const changedSecrets: Record<string, string> = {}
       for (const field of configuration.value.fields) {
@@ -851,6 +883,7 @@ export function useFeatureSettings() {
     isRobloxGroupField,
     configFieldDescription,
     values,
+    presentations,
     isDropdownField,
     configFieldLabel,
     fieldOptions,

@@ -14,6 +14,7 @@ export default defineConfig({
     'channel-message-triggers.smoke.spec.ts',
     'payment-trigger.smoke.spec.ts',
     'price-reader.smoke.spec.ts',
+    'message-sets.smoke.spec.ts',
     'account-topup.smoke.spec.ts',
   ],
   forbidOnly: Boolean(process.env.CI),

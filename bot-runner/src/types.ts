@@ -94,9 +94,14 @@ export interface RobuxPayoutJob extends RobuxPayoutInput { jobId:string; status:
 export interface RobuxPayoutOutcome { status:"SUCCEEDED"|"REVIEW_REQUIRED"; result:Record<string,unknown>; errorCode?:string; errorMessage?:string; }
 export interface RobuxPayoutRefund { jobId:string; balanceSatang:number; created:boolean; status:string; }
 
+export type FeatureDisposer = (() => void | Promise<void>) & {
+  update?: (feature: RuntimeFeature) => Promise<void>;
+};
+
 export interface FeatureModule {
   runtimeKey: string;
   version: string;
   intents: GatewayIntentsString[];
-  activate(context: FeatureContext): Promise<() => void | Promise<void>>;
+  supportsHotReload?: boolean;
+  activate(context: FeatureContext): Promise<FeatureDisposer>;
 }
