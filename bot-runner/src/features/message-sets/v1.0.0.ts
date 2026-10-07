@@ -163,8 +163,22 @@ export const messageSetsFeature: FeatureModule = {
           guild_name: interaction.guild?.name ?? "",
         },
       );
-      // Reply directly so Components V2 flags are set on message creation.
-      await interaction.reply(payload);
+      const channel = interaction.channel;
+      if (!channel?.isSendable()) {
+        throw new Error(
+          "The command channel is unavailable or cannot receive messages",
+        );
+      }
+      // Keep interaction attribution private; the SET is an ordinary bot message.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await channel.send(payload);
+      await interaction
+        .editReply({ content: "ส่ง SET แล้ว", allowedMentions: { parse: [] } })
+        .catch((error) =>
+          context
+            .reportFeatureError("MESSAGE_SET_ACK_FAILED", error)
+            .catch(() => undefined),
+        );
     };
     const onInteraction = (interaction: Interaction) => {
       void handle(interaction)
@@ -174,16 +188,17 @@ export const messageSetsFeature: FeatureModule = {
             .catch(() => undefined);
           if (
             interaction.isChatInputCommand() &&
-            interaction.commandName === name &&
-            !interaction.replied &&
-            !interaction.deferred
+            interaction.commandName === name
           ) {
-            await interaction
-              .reply({
-                content: "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท",
-                flags: MessageFlags.Ephemeral,
-              })
-              .catch(() => undefined);
+            const content =
+              "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท";
+            if (interaction.deferred) {
+              await interaction.editReply({ content }).catch(() => undefined);
+            } else if (!interaction.replied) {
+              await interaction
+                .reply({ content, flags: MessageFlags.Ephemeral })
+                .catch(() => undefined);
+            }
           }
         })
         .catch(() => undefined);
