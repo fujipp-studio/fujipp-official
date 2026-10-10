@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
+import ComponentButtonRowEditor from './ComponentButtonRowEditor.vue'
 import PresentationSystemComponentsEditor from './PresentationSystemComponentsEditor.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import type { FeatureConfiguration } from '../api'
@@ -39,6 +40,7 @@ const {
   updateActionRowButton,
   addActionRowButton,
   removeActionRowButton,
+  moveActionRowButton,
   updateSeparator,
   updateContainerBlock,
   containerChildren,
@@ -394,78 +396,21 @@ function dropBlock(event: DragEvent, index: number) {
             />{{ t('botSettings.dividerLine') }}</label
           >
         </div>
-        <div v-if="block.type === 1" class="mt-xs grid gap-xs">
-          <div
-            v-for="(button, buttonIndex) in actionRowButtons(block)"
-            :key="buttonIndex"
-            class="builder-subitem"
-          >
-            <div class="builder-subitem-heading">
-              <strong>{{ t('botSettings.linkButton') }} {{ buttonIndex + 1 }}</strong>
-              <button
-                type="button"
-                class="builder-delete"
-                @click="removeActionRowButton(messageSlot.key, blockIndex, buttonIndex)"
-              >
-                {{ t('botSettings.delete') }}
-              </button>
-            </div>
-            <div class="grid gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]">
-              <input
-                :value="String(button.label ?? '')"
-                maxlength="80"
-                class="field-control h-10"
-                :placeholder="t('botSettings.buttonLabel')"
-                @input="
-                  updateActionRowButton(
-                    messageSlot.key,
-                    blockIndex,
-                    buttonIndex,
-                    'label',
-                    ($event.target as HTMLInputElement).value,
-                  )
-                "
-              />
-              <input
-                :value="componentEmoji(button.emoji)"
-                class="field-control h-10"
-                placeholder="Emoji"
-                @input="
-                  updateActionRowButton(
-                    messageSlot.key,
-                    blockIndex,
-                    buttonIndex,
-                    'emoji',
-                    ($event.target as HTMLInputElement).value,
-                  )
-                "
-              />
-              <input
-                :value="String(button.url ?? '')"
-                type="url"
-                class="field-control h-10"
-                placeholder="https://"
-                @input="
-                  updateActionRowButton(
-                    messageSlot.key,
-                    blockIndex,
-                    buttonIndex,
-                    'url',
-                    ($event.target as HTMLInputElement).value,
-                  )
-                "
-              />
-            </div>
-          </div>
-          <button
-            type="button"
-            class="builder-add"
-            :disabled="actionRowButtons(block).length >= 5 || componentCount(messageSlot.key) >= 40"
-            @click="addActionRowButton(messageSlot.key, blockIndex)"
-          >
-            + {{ t('botSettings.addLink') }}
-          </button>
-        </div>
+        <ComponentButtonRowEditor
+          v-if="block.type === 1"
+          :buttons="actionRowButtons(block)"
+          :component-count="componentCount(messageSlot.key)"
+          :component-emoji="componentEmoji"
+          @add="addActionRowButton(messageSlot.key, blockIndex)"
+          @update="
+            (index, key, value) =>
+              updateActionRowButton(messageSlot.key, blockIndex, index, key, value)
+          "
+          @remove="(index) => removeActionRowButton(messageSlot.key, blockIndex, index)"
+          @move="
+            (index, direction) => moveActionRowButton(messageSlot.key, blockIndex, index, direction)
+          "
+        />
         <div v-if="block.type === 17" class="mt-sm grid gap-sm">
           <div class="grid gap-sm tablet:grid-cols-[auto_minmax(0,1fr)] tablet:items-end">
             <label class="flex items-center gap-xs text-sm font-medium">
@@ -634,55 +579,31 @@ function dropBlock(event: DragEvent, index: number) {
                   {{ t('botSettings.dividerLine') }}
                 </label>
               </div>
-              <div
+              <ComponentButtonRowEditor
                 v-if="child.type === 1"
-                class="mt-xs grid gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]"
-              >
-                <input
-                  :value="componentBlockValue(child, 'label')"
-                  maxlength="80"
-                  class="field-control h-10"
-                  :placeholder="t('botSettings.buttonLabel')"
-                  @input="
-                    updateContainerChild(
+                :buttons="actionRowButtons(child)"
+                :component-count="componentCount(messageSlot.key)"
+                :component-emoji="componentEmoji"
+                @add="addActionRowButton(messageSlot.key, blockIndex, childIndex)"
+                @update="
+                  (index, key, value) =>
+                    updateActionRowButton(
                       messageSlot.key,
                       blockIndex,
+                      index,
+                      key,
+                      value,
                       childIndex,
-                      'label',
-                      ($event.target as HTMLInputElement).value,
                     )
-                  "
-                />
-                <input
-                  :value="componentBlockValue(child, 'emoji')"
-                  class="field-control h-10"
-                  placeholder="Emoji"
-                  @input="
-                    updateContainerChild(
-                      messageSlot.key,
-                      blockIndex,
-                      childIndex,
-                      'emoji',
-                      ($event.target as HTMLInputElement).value,
-                    )
-                  "
-                />
-                <input
-                  :value="componentBlockValue(child, 'url')"
-                  type="url"
-                  class="field-control h-10"
-                  placeholder="https://"
-                  @input="
-                    updateContainerChild(
-                      messageSlot.key,
-                      blockIndex,
-                      childIndex,
-                      'url',
-                      ($event.target as HTMLInputElement).value,
-                    )
-                  "
-                />
-              </div>
+                "
+                @remove="
+                  (index) => removeActionRowButton(messageSlot.key, blockIndex, index, childIndex)
+                "
+                @move="
+                  (index, direction) =>
+                    moveActionRowButton(messageSlot.key, blockIndex, index, direction, childIndex)
+                "
+              />
               <p
                 v-if="![1, 9, 10, 12, 14].includes(Number(child.type))"
                 class="mt-xs text-xs text-text-muted"
@@ -724,7 +645,7 @@ function dropBlock(event: DragEvent, index: number) {
                 class="builder-add"
                 @click="addContainerChild(messageSlot.key, blockIndex, 'link')"
               >
-                + Link Button
+                + {{ t('botSettings.addButtonRow') }}
               </button>
             </div>
           </div>
@@ -766,7 +687,7 @@ function dropBlock(event: DragEvent, index: number) {
           class="builder-add"
           @click="addComponentBlock(messageSlot.key, 'link')"
         >
-          + Link Button
+          + {{ t('botSettings.addButtonRow') }}
         </button>
       </div>
     </template>

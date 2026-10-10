@@ -241,6 +241,115 @@ describe('usePresentationEditor presentation storage', () => {
     ])
   })
 
+  describe.each([false, true])('button rows (inside Container: %s)', (nested) => {
+    const first = { type: 2, style: 5, label: 'Website', url: 'https://example.com', id: 7 }
+    const second = { type: 2, style: 5, label: 'Shop', url: 'https://example.com/shop' }
+    function rowSetup(extra: Record<string, unknown>[] = []) {
+      const row = { type: 1, id: 12, components: [first, second] }
+      const definition = {
+        mode: 'COMPONENTS_V2',
+        components_v2: {
+          components: [nested ? { type: 17, components: [row] } : row, ...extra],
+        },
+        embed: { title: 'Preserve alternate design' },
+      }
+      const result = setup(definition, 'COMPONENTS_V2')
+      const childIndex = nested ? 0 : undefined
+      const readRow = () => {
+        const block = result.editor.componentBlocks('slot')[0]!
+        return nested ? result.editor.containerChildren(block)[0]! : block
+      }
+      return { ...result, childIndex, readRow }
+    }
+
+    it('edits and reorders individual buttons without losing siblings or metadata', () => {
+      const { editor, presentations, childIndex, readRow } = rowSetup()
+      editor.updateActionRowButton('slot', 0, 1, 'label', 'Updated shop', childIndex)
+      editor.updateActionRowButton('slot', 0, 1, 'emoji', '<a:wave:123456789012345678>', childIndex)
+      editor.updateActionRowButton('slot', 0, 1, 'url', 'https://example.com/new', childIndex)
+      const updated = {
+        ...second,
+        label: 'Updated shop',
+        emoji: { animated: true, name: 'wave', id: '123456789012345678' },
+        url: 'https://example.com/new',
+      }
+      expect(readRow()).toEqual({ type: 1, id: 12, components: [first, updated] })
+      editor.moveActionRowButton('slot', 0, 1, -1, childIndex)
+      expect(readRow().components).toEqual([updated, first])
+      editor.moveActionRowButton('slot', 0, 0, -1, childIndex)
+      expect(readRow().components).toEqual([updated, first])
+      editor.moveActionRowButton('slot', 0, 0, 1, childIndex)
+      expect(readRow().components).toEqual([first, updated])
+      expect(presentations.value.slot.embed).toEqual({ title: 'Preserve alternate design' })
+    })
+
+    it('limits a row to five buttons and removes an empty row', () => {
+      const { editor, childIndex, readRow } = rowSetup()
+      for (let i = 0; i < 5; i++) editor.addActionRowButton('slot', 0, childIndex)
+      expect(editor.actionRowButtons(readRow())).toHaveLength(5)
+      editor.removeActionRowButton('slot', 0, 1, childIndex)
+      expect(editor.actionRowButtons(readRow())[0]).toEqual(first)
+      expect(editor.actionRowButtons(readRow())).toHaveLength(4)
+      for (let i = 0; i < 4; i++) editor.removeActionRowButton('slot', 0, 0, childIndex)
+      const remainingRows = nested
+        ? editor.containerChildren(editor.componentBlocks('slot')[0]!)
+        : editor.componentBlocks('slot')
+      expect(remainingRows).toEqual([])
+    })
+
+    it('allows the fortieth component and blocks further additions', () => {
+      const baseCount = nested ? 4 : 3
+      const { editor, childIndex, readRow } = rowSetup(
+        Array.from({ length: 39 - baseCount }, () => ({ type: 10, content: 'Text' })),
+      )
+      expect(editor.componentCount('slot')).toBe(39)
+      editor.addActionRowButton('slot', 0, childIndex)
+      expect(editor.componentCount('slot')).toBe(40)
+      editor.addActionRowButton('slot', 0, childIndex)
+      expect(editor.actionRowButtons(readRow())).toHaveLength(3)
+      editor.addComponentBlock('slot', 'link')
+      if (nested) editor.addContainerChild('slot', 0, 'link')
+      expect(editor.componentCount('slot')).toBe(40)
+    })
+
+    it('preserves select rows when button operations are requested', () => {
+      const select = { type: 1, components: [{ type: 3, custom_id: 'choose', options: [] }] }
+      const { editor, presentations } = setup(
+        {
+          mode: 'COMPONENTS_V2',
+          components: [nested ? { type: 17, components: [select] } : select],
+        },
+        'COMPONENTS_V2',
+      )
+      const original = JSON.stringify(presentations.value)
+      const childIndex = nested ? 0 : undefined
+      editor.addActionRowButton('slot', 0, childIndex)
+      editor.removeActionRowButton('slot', 0, 0, childIndex)
+      editor.updateActionRowButton('slot', 0, 0, 'label', 'Wrong', childIndex)
+      editor.moveActionRowButton('slot', 0, 0, 1, childIndex)
+      expect(JSON.stringify(presentations.value)).toBe(original)
+    })
+  })
+
+  it('preserves remaining Container buttons when updating the legacy first-button fields', () => {
+    const buttons = [
+      { type: 2, style: 5, label: 'First', url: 'https://example.com/first' },
+      { type: 2, style: 5, label: 'Second', url: 'https://example.com/second', disabled: true },
+    ]
+    const { editor } = setup(
+      {
+        mode: 'COMPONENTS_V2',
+        components: [{ type: 17, components: [{ type: 1, components: buttons }] }],
+      },
+      'COMPONENTS_V2',
+    )
+    editor.updateContainerChild('slot', 0, 0, 'label', 'Updated')
+    expect(editor.containerChildren(editor.componentBlocks('slot')[0]!)[0]!.components).toEqual([
+      { ...buttons[0], label: 'Updated' },
+      buttons[1],
+    ])
+  })
+
   it('preserves multi-part Sections and stores button emoji in Discord format', () => {
     const { editor, presentations } = setup(
       {
