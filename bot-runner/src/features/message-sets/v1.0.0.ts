@@ -8,7 +8,7 @@ import type {
   FeatureDisposer,
   FeatureModule,
 } from "../../types.js";
-import { renderTemplate } from "../presentation.js";
+import { PresentationValidationError, renderTemplate } from "../presentation.js";
 
 export interface MessageSet {
   name: string;
@@ -176,22 +176,20 @@ export const messageSetsFeature: FeatureModule = {
         .editReply({ content: "ส่ง SET แล้ว", allowedMentions: { parse: [] } })
         .catch((error) =>
           context
-            .reportFeatureError("MESSAGE_SET_ACK_FAILED", error)
+            .reportFeatureError("MESSAGE_SET_ACK_FAILED", error, { recoverable: true })
             .catch(() => undefined),
         );
     };
     const onInteraction = (interaction: Interaction) => {
       void handle(interaction)
         .catch(async (error) => {
-          await context
-            .reportFeatureError("MESSAGE_SET_SEND_FAILED", error)
-            .catch(() => undefined);
           if (
             interaction.isChatInputCommand() &&
             interaction.commandName === name
           ) {
-            const content =
-              "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท";
+            const content = error instanceof PresentationValidationError
+              ? `ส่ง SET ไม่สำเร็จ: ${error.message}`
+              : "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท";
             if (interaction.deferred) {
               await interaction.editReply({ content }).catch(() => undefined);
             } else if (!interaction.replied) {
@@ -200,6 +198,11 @@ export const messageSetsFeature: FeatureModule = {
                 .catch(() => undefined);
             }
           }
+          // A failed message must not remove the command listener on the next bootstrap.
+          // Acknowledge the user before waiting for the diagnostic API.
+          await context
+            .reportFeatureError("MESSAGE_SET_SEND_FAILED", error, { recoverable: true })
+            .catch(() => undefined);
         })
         .catch(() => undefined);
     };

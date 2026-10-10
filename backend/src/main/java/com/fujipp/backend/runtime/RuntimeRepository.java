@@ -85,7 +85,9 @@ public class RuntimeRepository {
                   LEFT JOIN private.feature_runtime_states AS state ON state.installation_id = installation.id
                  WHERE installation.bot_id = ANY (?)
                    AND installation.removed_at IS NULL
-                   AND installation.status IN ('INSTALLING', 'ACTIVE')
+                   AND (installation.status IN ('INSTALLING', 'ACTIVE')
+                        OR (installation.status = 'ERROR' AND product.code = 'message-sets'
+                            AND installation.last_error_code IN ('MESSAGE_SET_SEND_FAILED', 'MESSAGE_SET_ACK_FAILED')))
                    AND license.status = 'ACTIVE'
                    AND (license.expires_at IS NULL OR license.expires_at > now())
                  ORDER BY installation.bot_id, product.code
@@ -195,10 +197,13 @@ public class RuntimeRepository {
                 INSERT INTO private.feature_runtime_states (installation_id, bot_id, state)
                 SELECT installation.id, installation.bot_id, ?::jsonb
                   FROM private.bot_feature_installations AS installation
+                  JOIN shop.feature_products AS product ON product.id = installation.feature_product_id
                  WHERE installation.id = ?
                    AND installation.bot_id = ?
                    AND installation.removed_at IS NULL
-                   AND installation.status IN ('INSTALLING', 'ACTIVE')
+                   AND (installation.status IN ('INSTALLING', 'ACTIVE')
+                        OR (installation.status = 'ERROR' AND product.code = 'message-sets'
+                            AND installation.last_error_code IN ('MESSAGE_SET_SEND_FAILED', 'MESSAGE_SET_ACK_FAILED')))
                 ON CONFLICT (installation_id) DO UPDATE
                     SET state = EXCLUDED.state,
                         updated_at = now()

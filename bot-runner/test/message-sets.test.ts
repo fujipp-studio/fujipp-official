@@ -123,6 +123,7 @@ function interaction(
     sendError?: boolean;
     unavailableChannel?: boolean;
     confirmationError?: boolean;
+    admin?: boolean;
   } = {},
 ) {
   const replies: Record<string, unknown>[] = [];
@@ -148,6 +149,7 @@ function interaction(
         },
     guild: { name: "Server" },
     user: { id: "user", displayName: "Alice" },
+    memberPermissions: { has: () => options.admin ?? false },
     replied: false,
     deferred: false,
     inGuild: () => true,
@@ -420,6 +422,63 @@ test("channel send failures produce only a private error after deferring", async
     "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท",
   );
   assert.deepEqual(errors, ["MESSAGE_SET_SEND_FAILED"]);
+  await dispose();
+});
+
+test("an invalid SET stays active across bootstrap and does not break autocomplete or healthy SETs", async () => {
+  const client = new FakeClient();
+  const statuses: Array<{ status: string; errorCode?: string }> = [];
+  const api = {
+    reportStatus: async (status: { status: string; errorCode?: string }) => { statuses.push(status); },
+    saveFeatureState: async () => undefined,
+  } as unknown as RuntimeApi;
+  const manager = new BotManager(api, () => client as unknown as Client);
+  const original = bot();
+  original.features[0]!.config.MESSAGE_SETS = [
+    { name: "Rules", presentationSlot: "set_1" },
+    { name: "Broken", presentationSlot: "set_2" },
+  ];
+  original.features[0]!.presentations.set_2 = {
+    mode: "COMPONENTS_V2", components: [{ type: 10, content: "Body" }, { type: 1, components: [] }],
+  };
+  await manager.reconcile([original]);
+  await settle();
+  const failed = interaction({ set: "Broken", admin: true });
+  client.emit("interactionCreate", failed.value);
+  await settle();
+  assert.equal(failed.sent.length, 0);
+  assert.match(String(failed.replies[0]?.content), /components\[1\]\.components.*1–5/);
+  assert.equal(failed.replies[0]?.flags, MessageFlags.Ephemeral);
+  assert.equal(statuses.findLast((status) => status.errorCode === "MESSAGE_SET_SEND_FAILED")?.status, "ACTIVE");
+  await manager.reconcile([original]);
+  const auto = interaction({ autocomplete: true });
+  client.emit("interactionCreate", auto.value);
+  await settle();
+  assert.equal(auto.suggestions.length, 2);
+  const healthy = interaction({ admin: true });
+  client.emit("interactionCreate", healthy.value);
+  await settle();
+  assert.equal(healthy.sent.length, 1);
+  assert.equal(client.destroyed, false);
+  assert.equal(client.listenerCount("interactionCreate"), 1);
+  await manager.shutdown();
+});
+
+test("send errors acknowledge the user before a slow diagnostic API finishes", async () => {
+  const client = new FakeClient();
+  const c = context(client);
+  let release!: () => void;
+  c.reportFeatureError = async (_code, _error, options) => {
+    assert.equal(options?.recoverable, true);
+    await new Promise<void>((resolve) => { release = resolve; });
+  };
+  const dispose = await messageSetsFeature.activate(c);
+  const failed = interaction({ unavailableChannel: true });
+  client.emit("interactionCreate", failed.value);
+  await settle();
+  assert.equal(failed.replies.length, 1);
+  release();
+  await settle();
   await dispose();
 });
 

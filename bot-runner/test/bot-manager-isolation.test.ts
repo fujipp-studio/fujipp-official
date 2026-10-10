@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 import type { Client } from "discord.js";
 import { BotManager } from "../src/bot-manager.js";
 import type { RuntimeApiClient } from "../src/api-client.js";
-import type { RuntimeBot } from "../src/types.js";
+import type { FeatureContext, RuntimeBot } from "../src/types.js";
 
 class FakeClient extends EventEmitter {
   public user = undefined;
@@ -48,5 +48,23 @@ test("a feature activation failure does not stop its bot or the next bot", async
   assert.equal(clients.every((client) => client.loggedIn && !client.destroyed), true);
   assert.equal(statuses.filter((status) => status.status === "ERROR").length, 2);
   assert.equal(statuses.filter((status) => status.status === "RUNNING").length, 2);
+  await manager.shutdown();
+});
+
+test("recoverable errors retain diagnostics without disabling the feature; fatal errors still disable it", async () => {
+  const statuses: Array<Record<string, unknown>> = [];
+  let context!: FeatureContext;
+  const manager = new BotManager(
+    { reportStatus: async (status: Record<string, unknown>) => { statuses.push(status); } } as unknown as RuntimeApiClient,
+    () => new FakeClient() as unknown as Client,
+    () => ({ runtimeKey: "broken-feature", version: "1.0.0", intents: [], async activate(c) { context = c; return () => undefined; } }),
+  );
+  await manager.reconcile([bot("a")]);
+  await context.reportFeatureError("MESSAGE_SET_SEND_FAILED", new Error("Invalid row"), { recoverable: true });
+  assert.deepEqual(statuses.at(-1), {
+    botId: "a", installationId: "install-a", status: "ACTIVE", errorCode: "MESSAGE_SET_SEND_FAILED", errorMessage: "Invalid row",
+  });
+  await context.reportFeatureError("FATAL_ERROR", new Error("Fatal"));
+  assert.equal(statuses.at(-1)?.status, "ERROR");
   await manager.shutdown();
 });
