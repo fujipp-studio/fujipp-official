@@ -1,6 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } from "discord.js";
 import type { FeatureContext } from "../types.js";
 
+export class PresentationValidationError extends Error {}
+
 export function renderTemplate(context: FeatureContext, template: string, values: Record<string, string>): Record<string, unknown> {
   const definition = isRecord(context.presentations[template]) ? context.presentations[template] : null;
   if (!definition) throw new Error(`Presentation ${template} is not configured`);
@@ -10,7 +12,7 @@ export function renderTemplate(context: FeatureContext, template: string, values
     if (!Array.isArray(source.components)) throw new Error(`Presentation ${template} must contain Components V2 blocks`);
     return {
       flags: MessageFlags.IsComponentsV2,
-      components: normalizeComponentColors(deepRender(source.components, values)),
+      components: normalizeComponents(deepRender(source.components, values)),
       allowedMentions: { parse: [] },
     };
   }
@@ -75,15 +77,19 @@ function deepRender(value: unknown, variables: Record<string, string>): unknown 
   if (isRecord(value)) return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, deepRender(item, variables)]));
   return value;
 }
-function normalizeComponentColors(value: unknown): unknown[] {
+function normalizeComponents(value: unknown, path = "components"): unknown[] {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => {
+  return value.map((item, index) => {
     if (!isRecord(item)) return item;
     const next = { ...item };
+    const childPath = `${path}[${index}].components`;
+    if (next.type === 1 && (!Array.isArray(next.components) || next.components.length < 1 || next.components.length > 5)) {
+      throw new PresentationValidationError(`${childPath}: แถวปุ่มต้องมี 1–5 ปุ่ม กรุณาลบแถวว่างหรือแยกปุ่มที่เกินไปอีกแถว`);
+    }
     if (next.type === 17 && typeof next.accent_color === "string" && /^#[0-9a-f]{6}$/i.test(next.accent_color)) {
       next.accent_color = Number.parseInt(next.accent_color.slice(1), 16);
     }
-    if (Array.isArray(next.components)) next.components = normalizeComponentColors(next.components);
+    if (Array.isArray(next.components)) next.components = normalizeComponents(next.components, childPath);
     return next;
   });
 }

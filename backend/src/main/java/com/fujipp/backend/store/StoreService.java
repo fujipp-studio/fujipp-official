@@ -294,6 +294,7 @@ public class StoreService {
         validateConfigurationSize(request);
 
         MessageSetsConfigurationValidator.validate(request.values());
+        PresentationConfigurationValidator.validate(request.presentations());
 
         Map<String, StoreRepository.ConfigDefinition> definitions = new LinkedHashMap<>();
         for (StoreRepository.ConfigDefinition definition

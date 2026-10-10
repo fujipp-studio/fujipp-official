@@ -124,9 +124,9 @@ export class BotManager {
             runtimeSubscription: Object.freeze(bot.runtimeSubscription),
             installedFeatureCodes: new Set(bot.features.map((item) => item.code)),
             permissions,
-            reportFeatureError: async (errorCode, error) => {
+            reportFeatureError: async (errorCode, error, options) => {
               await this.api.reportStatus({
-                botId: bot.id, installationId: feature.installationId, status: "ERROR",
+                botId: bot.id, installationId: feature.installationId, status: options?.recoverable ? "ACTIVE" : "ERROR",
                 errorCode, errorMessage: errorMessage(error),
               }).catch(() => undefined);
             },

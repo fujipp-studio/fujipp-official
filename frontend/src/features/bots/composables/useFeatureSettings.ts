@@ -13,7 +13,7 @@ import {
 import { priceReaderPresentationPreview } from '../models/price-reader-presentation-preview'
 import { priceReaderSampleValues } from '../config/price-reader'
 import { parseMessageSets, validateMessageSets } from '../config/message-sets'
-import { clone } from '../models/presentation'
+import { clone, invalidActionRowPath } from '../models/presentation'
 import { walletPresentationPreview } from '../models/wallet-presentation-preview'
 import { paymentTriggerPresentationPreview } from '../models/payment-trigger-presentation-preview'
 import {
@@ -832,6 +832,19 @@ export function useFeatureSettings() {
         if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object')
           throw new Error(`${slot.label}: ${t('botSettings.jsonMustBeAnObject')}`)
         presentations.value[slot.key] = parsed as Record<string, unknown>
+      }
+      for (const slot of configuration.value.presentations) {
+        const invalid = invalidActionRowPath(presentations.value[slot.key] ?? {})
+        if (invalid) {
+          // The native modal's backdrop otherwise hides the validation toast.
+          saveConfirmationOpen.value = false
+          throw new Error(
+            text(
+              `${presentationSlotLabel(slot)}: ${invalid} must contain 1–5 buttons. Remove an empty row or split extra buttons into another row.`,
+              `${presentationSlotLabel(slot)}: ${invalid} ต้องมี 1–5 ปุ่ม กรุณาลบแถวว่างหรือแยกปุ่มที่เกินไปอีกแถว`,
+            ),
+          )
+        }
       }
       const input = {
         values: normalValues,

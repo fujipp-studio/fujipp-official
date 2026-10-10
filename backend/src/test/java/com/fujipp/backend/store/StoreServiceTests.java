@@ -198,6 +198,22 @@ class StoreServiceTests {
         );
     }
 
+    @Test
+    void invalidPresentationIsRejectedBeforeAnyConfigurationWrites() throws Exception {
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        authorize(userId);
+        var license = new StoreRepository.LicenseContext(
+                licenseId, UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+                UUID.randomUUID(), 0, null);
+        when(repository.findLicense(licenseId, userId)).thenReturn(Optional.of(license));
+        var invalid = new ObjectMapper().readTree("{\"mode\":\"COMPONENTS_V2\",\"components\":[{\"type\":1,\"components\":[]}]}");
+        assertThatThrownBy(() -> service.updateConfiguration(userId.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(Map.of("CHANNEL_ID", new ObjectMapper().valueToTree("123")), Map.of(), Map.of("set_1", invalid))))
+                .isInstanceOf(StoreValidationException.class).hasMessageContaining("1–5");
+        verify(repository, never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).upsertPresentation(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
     private void authorize(UUID userId) {
         when(currentUserService.getActiveAccount(userId.toString()))
                 .thenReturn(new CurrentUserRepository.AccountProfile(

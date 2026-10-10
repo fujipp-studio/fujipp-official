@@ -48,7 +48,7 @@ export interface FeatureContext {
   permissions: {
     canUse(interaction: ChatInputCommandInteraction | ModalSubmitInteraction, commandKey?: string, defaultAllowed?: boolean): boolean;
   };
-  reportFeatureError(errorCode: string, error: unknown): Promise<void>;
+  reportFeatureError(errorCode: string, error: unknown, options?: { recoverable: boolean }): Promise<void>;
   saveRuntimeState(state: Record<string, unknown>): Promise<void>;
   wallet: {
     balance(memberDiscordId: string): Promise<{ balanceSatang: number; currency: string }>;

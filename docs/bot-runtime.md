@@ -134,6 +134,23 @@ Autocomplete reads the current SET list; stale or deleted names receive a
 private error instead of posting a message. Message variables are `set_name`,
 `user`, `user_name`, `channel`, and `guild_name`; mentions do not notify users.
 
+Components V2 Action Rows must have 1–5 children (up to five buttons or a single
+select). The website and Backend reject missing, empty, or oversized rows before
+saving, including rows inside Containers and designs edited as JSON. The Runner
+checks saved designs again before sending and returns a private error identifying
+the invalid row. Repair previously saved invalid rows by deleting empty rows or
+moving extra buttons into another row; no buttons are silently removed.
+
+Individual SET send and private confirmation failures retain the installation's
+`ACTIVE` status while recording `last_error_code` and `last_error_message`.
+Autocomplete and other SETs remain available. The caller receives the failure
+response before the Runner waits for the diagnostic API. The Backend also loads
+legacy Message Sets installations left in `ERROR` by `MESSAGE_SET_SEND_FAILED` or
+`MESSAGE_SET_ACK_FAILED` and permits their runtime state to be saved during
+recovery. Disabled installations and other feature errors remain excluded.
+Deploy the updated Frontend, Backend, and Runner for these guards and recovery;
+this fix requires no database migration.
+
 Saving SET additions, deletions, names, formats, or message designs normally
 reaches the Runner on its next 30-second poll. The supervisor sends an IPC update
 to the running bot worker. The worker updates the SET snapshot and acknowledges

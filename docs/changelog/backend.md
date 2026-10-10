@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-10 | Rejected empty and oversized Components V2 button rows before saving or sending, and kept Message Sets commands available after individual send failures, including recovery of affected installations. |
 | 2026-10-08 | Changed Message Sets to post ordinary bot messages without public slash-command attribution and confirm success or failure privately to the caller. |
 | 2026-10-08 | Added named Message Sets with live configuration updates without restarting bots, command ownership protection, and server-side validation of twenty unique SETs. |
 | 2026-10-07 | Fixed Member Spending external database connections to prefer IPv4, fall back across validated addresses, and explain IPv6-only connection failures. |
