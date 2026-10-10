@@ -239,3 +239,70 @@ for (const theme of ['LIGHT', 'DARK']) {
     expect(errors).toEqual([])
   })
 }
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`rejects an empty saved button row and saves its repair in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+    const { setsLicense, config } = messageSetsFixture()
+    config.presentations[0]!.overrideDefinition = {
+      mode: 'COMPONENTS_V2',
+      components_v2: {
+        components: [
+          { type: 10, content: 'Original body' },
+          { type: 1, components: [] },
+        ],
+      },
+    }
+    await page.route('**/api/v2/feature-licenses*', (route) =>
+      route.fulfill({ json: { items: [setsLicense], nextCursor: null, hasMore: false } }),
+    )
+    let writes = 0
+    await page.route('**/configuration', async (route) => {
+      if (route.request().method() === 'PUT') {
+        writes++
+        const input = route.request().postDataJSON() as {
+          presentations: Record<string, Record<string, unknown>>
+        }
+        config.presentations[0]!.overrideDefinition = input.presentations.set_1!
+        config.revision++
+      }
+      await route.fulfill({ json: config })
+    })
+    await page.goto(
+      '/my-bot/fixture-bot/settings/packages/fixture-license/components-v2?locale=en&message=set_1',
+    )
+    await page.addStyleTag({ content: '#__vue-devtools-container__ { display: none !important; }' })
+    const editor = page.locator('#feature-presentation-editor')
+    await editor.locator('textarea').first().fill('Updated body')
+    await page.getByRole('button', { name: 'Save all', exact: true }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Confirm save', exact: true })
+      .click()
+    const error = page.locator('.app-toast--error')
+    await expect(error).toContainText('components[1].components must contain 1–5 buttons')
+    await expect(page.getByRole('dialog')).toBeHidden()
+    expect(writes).toBe(0)
+    await error.screenshot({
+      path: testInfo.outputPath(`invalid-row-${theme.toLowerCase()}.png`),
+      animations: 'disabled',
+    })
+    expect(await error.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+    await editor
+      .locator('.component-button-row-editor')
+      .getByRole('button', { name: '+ Add link button to this row', exact: true })
+      .click()
+    await page.getByRole('button', { name: 'Save all', exact: true }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Confirm save', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).toBeHidden()
+    expect(writes).toBe(1)
+    await page.reload()
+    await expect(editor.locator('.component-button-row-editor .builder-subitem')).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Save all', exact: true })).toBeDisabled()
+  })
+}

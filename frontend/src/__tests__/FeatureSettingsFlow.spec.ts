@@ -81,6 +81,40 @@ async function setup() {
   return { editor, wrapper, router }
 }
 describe('feature settings save flow', () => {
+  it.each([0, 6])(
+    'blocks a row of %i buttons from advanced JSON, then saves a repaired row',
+    async (count) => {
+      const { editor, wrapper } = await setup()
+      editor.toggleAdvanced('panel')
+      const row = {
+        type: 1,
+        components: Array.from({ length: count }, () => ({
+          type: 2,
+          style: 5,
+          label: 'Open link',
+          url: 'https://example.com',
+        })),
+      }
+      const definition = {
+        mode: 'COMPONENTS_V2',
+        components_v2: { components: [{ type: 17, components: [row] }] },
+      }
+      editor.presentationJson.value.panel = JSON.stringify(definition)
+      editor.requestSave()
+      expect(editor.saveConfirmationOpen.value).toBe(true)
+      await editor.confirmSave()
+      expect(editor.saveConfirmationOpen.value).toBe(false)
+      expect(updateFeatureConfiguration).not.toHaveBeenCalled()
+      expect(editor.toastMessage.value).toContain('components[0].components[0].components')
+      expect(editor.toastMessage.value).toContain('1–5')
+
+      row.components = [{ type: 2, style: 5, label: 'Open link', url: 'https://example.com' }]
+      editor.presentationJson.value.panel = JSON.stringify(definition)
+      expect(await editor.save()).toBe(true)
+      expect(updateFeatureConfiguration).toHaveBeenCalledOnce()
+      wrapper.unmount()
+    },
+  )
   it('normalizes Wallet previews without changing saved presentation definitions', async () => {
     const config = structuredClone(configuration)
     config.presentations[0]!.defaultDefinition = {
