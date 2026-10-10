@@ -378,7 +378,7 @@ test('guards private routes for guests and normal users', async ({ page }) => {
 
 test('navigates nested admin pages and closes account dialog after saving', async ({ page }) => {
   await page.goto('/admin')
-  await page.getByRole('link', { name: 'Users', exact: true }).click()
+  await page.locator('#admin-main-menu').getByRole('link', { name: 'Users', exact: true }).click()
   await expect(page).toHaveURL(/\/admin\/users$/)
   await page.getByRole('button', { name: 'Account settings', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -386,6 +386,69 @@ test('navigates nested admin pages and closes account dialog after saving', asyn
   await dialog.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(dialog).toBeHidden()
 })
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`navigates the responsive Admin menu in ${theme}`, async ({ page, isMobile }, testInfo) => {
+    const errors: string[] = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.addInitScript(value => localStorage.setItem('fujipp-theme-mode', value), theme)
+    await page.goto('/admin?locale=th')
+    const menu = page.getByRole('navigation', { name: 'เมนูจัดการระบบ', exact: true })
+    const toggle = page.getByRole('button', { name: 'เมนูจัดการระบบ', exact: true })
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('ภาพรวม')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme.toLowerCase())
+    await expect(page.locator('#admin-main-menu a')).toHaveCount(5)
+    await page.evaluate(() => document.fonts.ready)
+    await page.screenshot({ path: testInfo.outputPath('overview.png'), fullPage: !isMobile })
+    if (isMobile) {
+      await expect(menu).toBeHidden()
+      await toggle.press('Enter')
+      await expect(menu).toBeVisible()
+      await menu.getByRole('link', { name: 'ผู้ใช้', exact: true }).press('Escape')
+      await expect(menu).toBeHidden()
+      await expect(toggle).toBeFocused()
+      await toggle.click()
+      await page.screenshot({ path: testInfo.outputPath('menu-open.png') })
+    } else {
+      await expect(toggle).toBeHidden()
+      await expect(menu).toBeVisible()
+    }
+    for (const [path, label] of [
+      ['users', 'ผู้ใช้'],
+      ['packages', 'แพ็กเกจ'],
+      ['runtime', 'Runtime'],
+      ['bots', 'บอท'],
+      ['donations', 'Donate'],
+    ]) {
+      if (isMobile && !(await menu.isVisible())) await toggle.click()
+      await menu.getByRole('link', { name: label, exact: true }).click()
+      await expect(page).toHaveURL(new RegExp(`/admin/${path}\\?locale=th$`))
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(label!)
+      if (isMobile) {
+        await expect(menu).toBeHidden()
+        await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+        await expect(page.getByRole('heading', { level: 1 })).toBeFocused()
+      } else {
+        await expect(menu.locator('[aria-current="page"]')).toHaveText(label!)
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      if (path === 'users') {
+        await expect(page.locator('#admin-toolbar-actions')).toContainText('รีเฟรช')
+        await expect(page.locator('tbody tr')).toHaveCount(1)
+        await expect(page.locator('.admin-page-enter-active, .admin-page-leave-active')).toHaveCount(0)
+        await page.screenshot({ path: testInfo.outputPath('users.png'), fullPage: true })
+      }
+    }
+    await page.goBack()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('บอท')
+    if (isMobile) await toggle.click()
+    await menu.getByRole('link', { name: 'ภาพรวม', exact: true }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('ภาพรวม')
+    await expect(page.locator('#admin-main-menu a')).toHaveCount(5)
+    await expect(page.locator('#admin-toolbar-actions')).toBeEmpty()
+    expect(errors).toEqual([])
+  })
+}
 
 test('preserves the purchase attempt key when retrying a failed checkout', async ({ page }) => {
   const keys: string[] = []

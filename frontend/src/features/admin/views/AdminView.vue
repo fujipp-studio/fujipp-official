@@ -1,197 +1,128 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref } from 'vue'
+import { RouterLink, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-
-import { AppButton } from '../../../shared/ui'
+import { ChevronRight } from 'lucide-vue-next'
+import AdminNavigation from '../components/AdminNavigation.vue'
+import { useAdminNavigation } from '../composables/useAdminNavigation'
 
 const route = useRoute()
-const router = useRouter()
 const { t } = useI18n()
+const { items, destination } = useAdminNavigation()
+const title = ref<HTMLHeadingElement>()
 provide('admin-view-shell', true)
 
 onMounted(() => document.documentElement.classList.add('admin-section-scroll'))
 onBeforeUnmount(() => document.documentElement.classList.remove('admin-section-scroll'))
 const section = computed(() => route.meta.adminSection ?? 'main')
-const transitionName = ref('admin-forward')
-const sectionScrollY = ref(0)
+const currentItem = computed(() => items.value.find((item) => item.id === section.value)!)
 
-const sectionLabel = computed(() => {
-  if (section.value === 'users') return t('admin.dashboard.usersMenu')
-  if (section.value === 'packages') return t('admin.dashboard.packagesMenu')
-  if (section.value === 'runtime') return t('admin.dashboard.runtimeMenu')
-  if (section.value === 'bots') return t('admin.dashboard.botsMenu')
-  if (section.value === 'donations') return t('admin.dashboard.donationsMenu')
-  return ''
-})
-
-watch(section, (nextSection, previous) => {
-  if (nextSection === previous) return
-  sectionScrollY.value = window.scrollY
-  transitionName.value = nextSection === 'main' ? 'admin-backward' : 'admin-forward'
-  void nextTick(restoreSectionPosition)
-})
-
-function restoreSectionPosition() {
-  window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      window.scrollTo({ top: sectionScrollY.value, behavior: 'instant' })
-    })
-  })
+async function focusPageTitle() {
+  await nextTick()
+  title.value?.focus({ preventScroll: true })
 }
 </script>
 
 <template>
-  <main class="admin-view-shell min-h-screen bg-bg-default pt-24 text-text-primary desktop:pt-28">
-    <div class="page-container pb-5xl">
-      <header class="admin-shell-header">
-        <div class="admin-shell-title-row">
-          <h1 class="text-4xl font-extrabold tracking-tight text-text-primary desktop:text-5xl">
-            {{ t('admin.dashboard.mainTitle') }}
-          </h1>
-          <AppButton
-            v-if="section !== 'main'"
-            class="tablet:!w-auto"
-            @click="router.push('/admin')"
+  <main class="min-h-screen bg-bg-default pt-24 text-text-primary desktop:pt-28">
+    <div class="page-container admin-shell-grid pb-5xl">
+      <AdminNavigation @navigated="focusPageTitle" />
+      <div class="min-w-0">
+        <header class="admin-shell-header">
+          <nav
+            :aria-label="t('admin.breadcrumb.label')"
+            class="flex flex-wrap items-center gap-xs text-label-medium text-text-secondary"
           >
-            {{ t('admin.breadcrumb.back') }}
-          </AppButton>
-        </div>
-        <div class="admin-shell-toolbar">
-          <nav :aria-label="t('admin.breadcrumb.label')" class="admin-shell-breadcrumb">
-            <button
+            <RouterLink
               v-if="section !== 'main'"
-              type="button"
-              class="admin-shell-breadcrumb-link"
-              @click="router.push('/admin')"
+              :to="destination('/admin')"
+              class="rounded-sm hover:underline"
             >
-              {{ t('admin.breadcrumb.main') }}
-            </button>
-            <span v-else>{{ t('admin.breadcrumb.main') }}</span>
-            <span v-if="section !== 'main'" class="admin-shell-breadcrumb-tail">
-              <span aria-hidden="true">&gt;</span>
-              <span aria-current="page">{{ sectionLabel }}</span>
-            </span>
+              {{ t('admin.dashboard.mainTitle') }}
+            </RouterLink>
+            <span v-else>{{ t('admin.dashboard.mainTitle') }}</span>
+            <ChevronRight class="size-icon-16" aria-hidden="true" />
+            <span aria-current="page" class="font-medium text-text-primary">{{
+              currentItem.title
+            }}</span>
           </nav>
-          <div id="admin-toolbar-actions" class="flex flex-wrap items-center gap-xs"></div>
-        </div>
-      </header>
+          <div
+            class="flex flex-col gap-md tablet:flex-row tablet:items-start tablet:justify-between"
+          >
+            <div class="min-w-0 space-y-xs">
+              <h1 ref="title" tabindex="-1" class="admin-shell-title text-heading-h1">
+                {{ currentItem.title }}
+              </h1>
+              <p class="text-body-small text-text-secondary">{{ currentItem.description }}</p>
+            </div>
+            <div id="admin-toolbar-actions" class="admin-shell-actions"></div>
+          </div>
+        </header>
 
-      <div class="admin-shell-content">
-        <RouterView v-slot="{ Component, route: childRoute }">
-          <Transition :name="transitionName" mode="out-in" @after-enter="restoreSectionPosition">
-            <component :is="Component" :key="childRoute.path" />
-          </Transition>
-        </RouterView>
+        <div class="admin-shell-content mt-xl">
+          <RouterView v-slot="{ Component, route: childRoute }">
+            <Transition name="admin-page" mode="out-in">
+              <component :is="Component" :key="childRoute.path" />
+            </Transition>
+          </RouterView>
+        </div>
       </div>
     </div>
   </main>
 </template>
 
 <style scoped>
-.admin-view-shell {
-  overflow: hidden;
+.admin-shell-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
 }
 
 .admin-shell-header {
   display: grid;
-  gap: var(--spacing-xl);
+  gap: var(--space-md);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
-.admin-shell-title-row,
-.admin-shell-toolbar {
+.admin-shell-title {
+  border-radius: var(--radius-sm);
+}
+
+.admin-shell-actions {
   display: flex;
-  min-height: 3.5rem;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-
-.admin-shell-toolbar {
-  min-height: 2.75rem;
-}
-
-.admin-shell-breadcrumb {
-  display: flex;
-  min-height: 2.75rem;
   align-items: center;
-  gap: var(--spacing-xs);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
 }
 
-.admin-shell-breadcrumb-link {
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-decoration: none;
+.admin-shell-actions:empty {
+  display: none;
 }
 
-.admin-shell-breadcrumb-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.admin-shell-breadcrumb-tail {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  animation: breadcrumb-slide 220ms ease-out both;
-}
-
-.admin-shell-content {
-  margin-top: var(--spacing-xl);
-}
-
-@keyframes breadcrumb-slide {
-  from {
-    opacity: 0;
-    transform: translateX(-0.4rem);
+@media (min-width: 64rem) {
+  .admin-shell-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 4fr);
+    gap: var(--space-xl);
   }
 }
 
-@media (min-width: 48rem) {
-  .admin-shell-title-row,
-  .admin-shell-toolbar {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
+.admin-page-enter-active,
+.admin-page-leave-active {
+  transition: opacity 160ms ease;
 }
 
-.admin-forward-enter-active,
-.admin-forward-leave-active,
-.admin-backward-enter-active,
-.admin-backward-leave-active {
-  transition:
-    opacity 240ms ease,
-    transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.admin-forward-enter-from,
-.admin-backward-leave-to {
+.admin-page-enter-from,
+.admin-page-leave-to {
   opacity: 0;
-  transform: translateX(2rem);
-}
-
-.admin-forward-leave-to,
-.admin-backward-enter-from {
-  opacity: 0;
-  transform: translateX(-2rem);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .admin-forward-enter-active,
-  .admin-forward-leave-active,
-  .admin-backward-enter-active,
-  .admin-backward-leave-active {
+  .admin-page-enter-active,
+  .admin-page-leave-active {
     transition: none;
-  }
-
-  .admin-shell-breadcrumb-tail {
-    animation: none;
   }
 }
 </style>

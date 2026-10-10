@@ -8,6 +8,7 @@ import {
 } from '../../src/__tests__/fixtures/domain'
 import type { AdminUserSummary } from '../../src/features/admin/api/users'
 import type { WorkSummary } from '../../src/features/work/api'
+import { adminWork, adminWorkCatalog } from './adminWorks'
 const page = (items: unknown[]) => ({ items, nextCursor: null, hasMore: false })
 const customer: AdminUserSummary = {
   customerId: 'fixture-customer',
@@ -95,6 +96,9 @@ const donationCampaign = {
   updatedAt: bot.createdAt,
 }
 export function fixtureResponse(path: string, method: string, input: Record<string, unknown>, query = new URLSearchParams()) {
+  if (path === '/api/v1/admin/works' && method === 'GET') return [adminWork]
+  if (path === '/api/v1/admin/works/catalog' && method === 'GET') return adminWorkCatalog
+  if (path === `/api/v1/admin/works/${adminWork.id}` && method === 'GET') return adminWork
   if (path === '/api/v2/works/overview') return {
     total: works.length,
     categories: [{code: 'bot', name: 'Bot', total: 4}, {code: 'web', name: 'Web', total: 4}],

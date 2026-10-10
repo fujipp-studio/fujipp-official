@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   testMatch: [
+    'admin-tools.smoke.spec.ts',
     'frontend.smoke.spec.ts',
     'member-spending.smoke.spec.ts',
     'bot-presence.smoke.spec.ts',
