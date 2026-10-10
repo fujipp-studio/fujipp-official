@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-10 | Documented Components V2 row validation and Message Sets recovery after individual message failures. |
 | 2026-10-10 | Added a PostgreSQL and Supabase reference for basic SQL commands. |
 | 2026-10-08 | Documented ordinary channel delivery and private command confirmations for Message Sets. |
 | 2026-10-08 | Documented Message Sets commands, live updates, permissions, and first-deployment requirements. |
