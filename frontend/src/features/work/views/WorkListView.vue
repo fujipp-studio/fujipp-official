@@ -6,7 +6,7 @@ import { useI18n } from 'vue-i18n'
 import { type WorkLocale, type WorkSummary } from '@/features/work/api'
 import { useWorkListing } from '../composables/useWorkListing'
 import { AppFooter } from '../../../shared/layout'
-import { AppButton, AppSectionIndicator, AppToast } from '../../../shared/ui'
+import { AppButton, AppSectionIndicator, AppTextLink, AppToast } from '../../../shared/ui'
 import GithubActivitySection from '../components/GithubActivitySection.vue'
 import WorkCategoryFilter from '../components/WorkCategoryFilter.vue'
 
@@ -249,7 +249,7 @@ onBeforeUnmount(() => {
                     {{ technology.name }}
                   </li>
                 </ul>
-                <RouterLink
+                <AppTextLink
                   class="work-card__link"
                   :to="{
                     name: 'work-detail',
@@ -258,7 +258,7 @@ onBeforeUnmount(() => {
                   }"
                 >
                   {{ copy.view }}
-                </RouterLink>
+                </AppTextLink>
               </div>
             </article>
           </section>
@@ -525,44 +525,7 @@ button:focus-visible {
 }
 
 .work-card__link {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.5rem;
   margin-top: auto;
-  padding: var(--space-xs) var(--space-md);
-  border: 1px solid color-mix(in srgb, var(--semantic-color-border-border-default) 60%, transparent);
-  border-radius: 0.75rem;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--semantic-color-background-bg-glass) 80%, transparent),
-      color-mix(in srgb, var(--semantic-color-background-bg-glass) 60%, transparent)
-    ),
-    transparent;
-  box-shadow: var(--effect-glass-highlight), var(--effect-shadow-button);
-  gap: var(--space-xs);
-  font-family: var(--font-family-sans);
-  font-size: var(--font-size-label-large);
-  color: var(--semantic-color-text-text-primary);
-  font-weight: var(--typography-font-weight-medium);
-  line-height: var(--line-height-label);
-  text-decoration: none;
-  backdrop-filter: blur(0) saturate(1.5);
-  transition:
-    background-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 100ms ease-out;
-}
-
-.work-card__link:hover {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--semantic-color-background-bg-glass) 95%, transparent),
-      color-mix(in srgb, var(--semantic-color-background-bg-glass) 70%, transparent)
-    ),
-    transparent;
-  transform: translateY(1px) scale(0.99);
 }
 
 .work-pagination {
@@ -675,8 +638,7 @@ button:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .work-card__media,
-  .work-card__link {
+  .work-card__media {
     transition: none;
   }
   .work-content-enter-active,

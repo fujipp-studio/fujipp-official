@@ -210,15 +210,15 @@ onMounted(load)
         :icon="Users"
         ><template #actions
           ><form
-            class="flex w-full flex-col gap-xs tablet:w-auto tablet:flex-row"
+            class="flex w-full items-center gap-xs tablet:w-auto"
             @submit.prevent="load"
           >
-            <div class="w-full tablet:w-80">
+            <div class="min-w-0 flex-1 tablet:w-80">
               <AppTextField v-model="query" label="" :placeholder="t('admin.page.usersSearch')" />
             </div>
             <AppButton
               type="submit"
-              class="!w-auto self-start tablet:self-auto"
+              class="!w-auto"
               :aria-label="t('admin.common.search')"
               ><Search class="size-4"
             /></AppButton>

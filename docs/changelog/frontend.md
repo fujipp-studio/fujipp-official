@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-10 | Added shared Admin navigation and tools, refined Navbar scrolling and portfolio links, and enabled editable multi-button Components V2 rows. |
 | 2026-10-08 | Fixed Discord Embed and Components V2 previews to preserve fenced and inline code, table spacing, escaped formatting, and keyboard-accessible text spoilers. |
 | 2026-10-08 | Added responsive Message Sets settings with a configurable slash command, up to twenty named SETs, and independent Embed or Components V2 designs. |
 | 2026-09-26 | Added bilingual per-panel action mode controls for Roblox Robux Payout 3.0. |

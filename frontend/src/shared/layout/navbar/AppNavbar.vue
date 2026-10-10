@@ -49,6 +49,8 @@ const selectedItem = ref(props.activeItem)
 const route = useRoute()
 const router = useRouter()
 const { locale, t } = useI18n()
+const brandCollapseScrollY = 100
+const brandExpandScrollY = 40
 const isAtPageTop = ref(true)
 const showScrolledBackground = computed(() => !isAtPageTop.value)
 const isMobileMenuOpen = ref(false)
@@ -279,11 +281,19 @@ function resetNavigationPreview() {
 
 function handleNavigationResize() {
   moveNavigationPill()
+  updateNavbarScrollState()
 }
 
 function updateNavbarScrollState() {
   navbarScrollFrame = undefined
-  isAtPageTop.value = window.scrollY <= 16
+  const scrollY = window.scrollY
+  if (window.innerWidth < 1024) {
+    isAtPageTop.value = scrollY <= 16
+  } else if (isAtPageTop.value && scrollY >= brandCollapseScrollY) {
+    isAtPageTop.value = false
+  } else if (!isAtPageTop.value && scrollY <= brandExpandScrollY) {
+    isAtPageTop.value = true
+  }
 }
 
 function requestNavbarScrollUpdate() {
@@ -443,10 +453,14 @@ function closeProfileMenu() {
         @focus="prefetchNavigationImages('/')"
         @click="navigateHome"
       >
-        <span class="brand__lockup" aria-hidden="true">
-          <AppIcon class="brand__mark" :source="icons.brand.mark" />
-          <span class="brand__wordmark">FUJIPP</span>
-        </span>
+        <svg class="brand__lockup brand__lockup--desktop" viewBox="0 0 140 32" aria-hidden="true">
+          <path
+            d="M203 338L338 203H283C238.817 203 203 238.817 203 283V338ZM0 189V540L135 405V270C135 195.442 195.442 135 270 135H405L540 0H189C84.6182 0 0 84.6182 0 189ZM0 540H337C411.558 540 472 479.558 472 405H135L0 540ZM203 338H404.5C479.058 338 539.5 277.558 539.5 203H338L203 338ZM405 135H473C547.558 135 608 74.5584 608 0H540L405 135Z"
+            transform="translate(0 1.79) scale(0.05263158)"
+            fill="currentColor"
+          />
+          <text x="40" y="23" fill="currentColor">FUJIPP</text>
+        </svg>
       </button>
 
       <nav
@@ -673,23 +687,20 @@ function closeProfileMenu() {
   left: 50%;
   width: 100vw;
   height: 100%;
-  border-bottom: 1px solid transparent;
-  background: transparent;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--semantic-color-border-border-default) 65%, transparent);
+  background: var(--semantic-color-background-bg-default);
+  box-shadow: var(--effect-shadow-sm);
   content: '';
+  opacity: 0;
   pointer-events: none;
   transform: translateX(-50%);
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    backdrop-filter 180ms ease;
+  transition: opacity 180ms ease;
 }
 
 .navbar--scrolled::before {
-  border-color: color-mix(in srgb, var(--semantic-color-border-border-default) 65%, transparent);
-  background: color-mix(in srgb, var(--semantic-color-background-bg-default) 86%, transparent);
-  box-shadow: var(--effect-shadow-sm);
-  backdrop-filter: blur(var(--effect-backdrop-blur-sm)) saturate(1.25);
+  opacity: 1;
+  transition: opacity 250ms cubic-bezier(0.22, 1, 0.36, 1) 350ms;
 }
 
 .desktop-navbar {
@@ -702,6 +713,8 @@ function closeProfileMenu() {
 }
 
 .desktop-navbar > .brand {
+  --brand-expanded-lockup-width: 24.0625rem;
+
   align-self: flex-start;
   margin-top: var(--space-md);
 }
@@ -722,18 +735,26 @@ function closeProfileMenu() {
   height: var(--brand-lockup-height);
   align-items: center;
   gap: var(--space-xs);
-  transition:
-    height 520ms cubic-bezier(0.16, 1, 0.3, 1),
-    gap 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.desktop-navbar > .brand .brand__lockup--desktop {
+  display: block;
+  width: 8.75rem;
+  height: auto;
+  overflow: visible;
+  transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.brand__lockup--desktop text {
+  font-family: var(--font-family-brand);
+  font-size: 20px;
+  letter-spacing: 0.8px;
 }
 
 .brand__mark {
   width: var(--brand-logo-size);
   height: var(--brand-logo-size);
   color: var(--semantic-color-text-text-primary);
-  transition:
-    width 520ms cubic-bezier(0.16, 1, 0.3, 1),
-    height 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .brand__wordmark {
@@ -742,39 +763,15 @@ function closeProfileMenu() {
   font-weight: 400;
   line-height: 1;
   letter-spacing: 0.04em;
-  transition:
-    font-size 520ms cubic-bezier(0.16, 1, 0.3, 1),
-    letter-spacing 520ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.navbar--at-top .desktop-navbar > .brand .brand__lockup {
-  height: 5.5rem;
-  gap: var(--space-md);
-}
-
-.navbar--at-top .desktop-navbar > .brand .brand__mark {
-  width: 5.5rem;
-  height: 5.5rem;
-}
-
-.navbar--at-top .desktop-navbar > .brand .brand__wordmark {
-  font-size: 3.4375rem;
-  letter-spacing: 0.04em;
+.navbar--at-top .desktop-navbar > .brand .brand__lockup--desktop {
+  width: var(--brand-expanded-lockup-width);
 }
 
 @media (min-width: 64rem) and (max-width: 79.99rem) {
-  .navbar--at-top .desktop-navbar > .brand .brand__lockup,
-  .navbar--at-top .desktop-navbar > .brand .brand__mark {
-    width: auto;
-    height: 4.5rem;
-  }
-
-  .navbar--at-top .desktop-navbar > .brand .brand__mark {
-    width: 4.5rem;
-  }
-
-  .navbar--at-top .desktop-navbar > .brand .brand__wordmark {
-    font-size: 2.75rem;
+  .desktop-navbar > .brand {
+    --brand-expanded-lockup-width: 19.6875rem;
   }
 }
 
@@ -1193,6 +1190,10 @@ function closeProfileMenu() {
 }
 
 @media (max-width: 63.99rem) {
+  .navbar--scrolled::before {
+    transition-delay: 0ms;
+  }
+
   .desktop-navbar {
     display: none;
   }

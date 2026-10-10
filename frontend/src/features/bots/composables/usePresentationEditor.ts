@@ -625,42 +625,82 @@ export function usePresentationEditor({
     return { name: normalized }
   }
 
+  function editActionRow(
+    slotKey: string,
+    blockIndex: number,
+    childIndex: number | undefined,
+    edit: (row: Record<string, unknown>) => void,
+  ) {
+    const blocks = componentBlocks(slotKey).map((block) => clone(block))
+    const block = blocks[blockIndex]
+    const row =
+      childIndex === undefined
+        ? block
+        : block?.type === 17
+          ? containerChildren(block)[childIndex]
+          : undefined
+    if (!row || row.type !== 1 || actionRowButtons(row).some((button) => button.type !== 2)) return
+    edit(row)
+    if (actionRowButtons(row).length === 0) {
+      if (childIndex === undefined) blocks.splice(blockIndex, 1)
+      else block!.components = containerChildren(block!).filter((_, index) => index !== childIndex)
+    }
+    setComponentBlocks(slotKey, blocks)
+  }
+
   function updateActionRowButton(
     slotKey: string,
     blockIndex: number,
     buttonIndex: number,
     key: 'label' | 'emoji' | 'url',
     value: string,
+    childIndex?: number,
   ) {
-    const blocks = componentBlocks(slotKey).map((block) => clone(block))
-    const block = blocks[blockIndex]
-    if (!block || block.type !== 1) return
-    const buttons = actionRowButtons(block).map((button) => clone(button))
-    if (!buttons[buttonIndex]) return
-    buttons[buttonIndex][key] = key === 'emoji' ? discordEmoji(value) : value
-    block.components = buttons
-    setComponentBlocks(slotKey, blocks)
+    editActionRow(slotKey, blockIndex, childIndex, (row) => {
+      const buttons = actionRowButtons(row)
+      if (!buttons[buttonIndex]) return
+      buttons[buttonIndex][key] = key === 'emoji' ? discordEmoji(value) : value
+      row.components = buttons
+    })
   }
 
-  function addActionRowButton(slotKey: string, blockIndex: number) {
-    const blocks = componentBlocks(slotKey).map((block) => clone(block))
-    const block = blocks[blockIndex]
-    if (!block || block.type !== 1) return
-    const buttons = actionRowButtons(block)
-    if (buttons.length >= 5 || componentCount(slotKey) >= 40) return
-    block.components = [
-      ...buttons,
-      { type: 2, style: 5, label: t('botSettings.openLink'), url: 'https://example.com' },
-    ]
-    setComponentBlocks(slotKey, blocks)
+  function addActionRowButton(slotKey: string, blockIndex: number, childIndex?: number) {
+    if (componentCount(slotKey) >= 40) return
+    editActionRow(slotKey, blockIndex, childIndex, (row) => {
+      const buttons = actionRowButtons(row)
+      if (buttons.length >= 5) return
+      row.components = [
+        ...buttons,
+        { type: 2, style: 5, label: t('botSettings.openLink'), url: 'https://example.com' },
+      ]
+    })
   }
 
-  function removeActionRowButton(slotKey: string, blockIndex: number, buttonIndex: number) {
-    const blocks = componentBlocks(slotKey).map((block) => clone(block))
-    const block = blocks[blockIndex]
-    if (!block || block.type !== 1) return
-    block.components = actionRowButtons(block).filter((_, index) => index !== buttonIndex)
-    setComponentBlocks(slotKey, blocks)
+  function removeActionRowButton(
+    slotKey: string,
+    blockIndex: number,
+    buttonIndex: number,
+    childIndex?: number,
+  ) {
+    editActionRow(slotKey, blockIndex, childIndex, (row) => {
+      row.components = actionRowButtons(row).filter((_, index) => index !== buttonIndex)
+    })
+  }
+
+  function moveActionRowButton(
+    slotKey: string,
+    blockIndex: number,
+    buttonIndex: number,
+    direction: -1 | 1,
+    childIndex?: number,
+  ) {
+    editActionRow(slotKey, blockIndex, childIndex, (row) => {
+      const buttons = actionRowButtons(row)
+      const target = buttonIndex + direction
+      if (!buttons[buttonIndex] || target < 0 || target >= buttons.length) return
+      ;[buttons[buttonIndex], buttons[target]] = [buttons[target]!, buttons[buttonIndex]!]
+      row.components = buttons
+    })
   }
 
   function updateSeparator(
@@ -774,7 +814,7 @@ export function usePresentationEditor({
       const row = Array.isArray(child.components) ? child.components : []
       const button = isRecord(row[0]) ? row[0] : { type: 2, style: 5 }
       button[key] = key === 'emoji' ? discordEmoji(String(value)) : value
-      child.components = [button]
+      child.components = [button, ...row.slice(1)]
     }
     container.components = children
     setComponentBlocks(slotKey, blocks)
@@ -887,7 +927,7 @@ export function usePresentationEditor({
     if (block.type === 9) return 'Section with accessory'
     if (block.type === 12) return 'Media gallery'
     if (block.type === 14) return 'Separator'
-    if (block.type === 1) return 'Link button row'
+    if (block.type === 1) return t('botSettings.buttonRow')
     if (block.type === 17) return `Container · ${containerChildren(block).length} components`
     return `Component type ${String(block.type ?? '?')}`
   }
@@ -981,6 +1021,7 @@ export function usePresentationEditor({
     updateActionRowButton,
     addActionRowButton,
     removeActionRowButton,
+    moveActionRowButton,
     updateSeparator,
     addComponentBlock,
     addContainerChild,
