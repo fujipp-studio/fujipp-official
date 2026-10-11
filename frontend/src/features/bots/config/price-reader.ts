@@ -1,16 +1,27 @@
+import {
+  buildResultValues,
+  readImageResult,
+  imageError,
+  defaultItemTemplate,
+} from '@price-reader/results'
+
 export const priceReaderConfigKeys = new Set([
   'PRICE_READER_CHANNEL_ID',
   'PRICE_READER_ORDER_CHANNEL_ID',
   'PRICE_READER_PRICE_MAP',
   'PRICE_READER_NO_NITRO_MARKUP_SATANG',
   'PRICE_READER_RESULTS_ITEM_TEMPLATE',
+  'PRICE_READER_RESULT_BLOCKS',
+  'PRICE_READER_RESULT_MODE',
+  'PRICE_READER_MATCH_TOLERANCE_SATANG',
+  'PRICE_READER_NOT_FOUND_TEXT',
+  'PRICE_READER_OCR_ERROR_TEXT',
+  'PRICE_READER_UNMATCHED_PRICE_TEXT',
+  'PRICE_READER_ERROR_ITEM_TEMPLATE',
+  'PRICE_READER_RESULTS_SEPARATOR',
 ])
 
-export const priceReaderItemTemplate = (withMarkup: boolean) =>
-  '### รูปที่ {{result_index}}\n💙 **ราคาดิสคอร์ด**\n`{{discord_price}} บาท`' +
-  (withMarkup ? '{{discount_text}}' : '') +
-  '\n💗 **ราคาร้านขาย**\n`{{shop_price_text}}`' +
-  (withMarkup ? '\n💛 **ราคาไม่มีไนโตร บวกชิ้นละ**\n`{{no_nitro_markup}} บาท`' : '')
+export const priceReaderItemTemplate = defaultItemTemplate
 
 export function priceReaderPricePairs(value: unknown) {
   let parsed: unknown = value
@@ -36,63 +47,115 @@ export function priceReaderPricePairs(value: unknown) {
   })
 }
 
+/** Convert editable form values without changing the draft. */
+export function priceReaderRuntimeConfig(values: Record<string, unknown>): Record<string, unknown> {
+  const config = { ...values }
+  for (const key of ['PRICE_READER_PRICE_MAP', 'PRICE_READER_RESULT_BLOCKS']) {
+    if (typeof config[key] === 'string') {
+      try {
+        config[key] = JSON.parse(config[key])
+      } catch {
+        config[key] = []
+      }
+    }
+  }
+  for (const key of [
+    'PRICE_READER_MATCH_TOLERANCE_SATANG',
+    'PRICE_READER_NO_NITRO_MARKUP_SATANG',
+  ]) {
+    if (config[key] !== undefined && config[key] !== '') config[key] = Number(config[key])
+  }
+  return config
+}
+
+export function validatePriceReaderDraft(values: Record<string, unknown>): boolean {
+  const mode = values.PRICE_READER_RESULT_MODE
+  if (mode !== undefined && mode !== 'TEMPLATE' && mode !== 'BLOCKS') return false
+  const tolerance = values.PRICE_READER_MATCH_TOLERANCE_SATANG
+  if (
+    tolerance !== undefined &&
+    (tolerance === '' ||
+      !Number.isSafeInteger(Number(tolerance)) ||
+      Number(tolerance) < 0 ||
+      Number(tolerance) > 5000)
+  )
+    return false
+  for (const key of [
+    'PRICE_READER_NOT_FOUND_TEXT',
+    'PRICE_READER_OCR_ERROR_TEXT',
+    'PRICE_READER_UNMATCHED_PRICE_TEXT',
+    'PRICE_READER_ERROR_ITEM_TEMPLATE',
+    'PRICE_READER_RESULTS_ITEM_TEMPLATE',
+    'PRICE_READER_RESULTS_SEPARATOR',
+  ]) {
+    if (values[key] === undefined) continue
+    const value = values[key]
+    const max = key.endsWith('SEPARATOR') ? 100 : key.endsWith('TEMPLATE') ? 4000 : 1000
+    if (
+      typeof value !== 'string' ||
+      value.length > max ||
+      (!key.endsWith('SEPARATOR') && !value.trim())
+    )
+      return false
+  }
+  if (values.PRICE_READER_RESULT_BLOCKS === undefined) return true
+  let blocks: unknown
+  try {
+    blocks =
+      typeof values.PRICE_READER_RESULT_BLOCKS === 'string'
+        ? JSON.parse(values.PRICE_READER_RESULT_BLOCKS)
+        : values.PRICE_READER_RESULT_BLOCKS
+  } catch {
+    return false
+  }
+  if (!Array.isArray(blocks) || blocks.length > 12) return false
+  const ids = new Set<string>()
+  let activeLength = 0
+  for (const block of blocks) {
+    if (
+      !block ||
+      typeof block !== 'object' ||
+      typeof block.id !== 'string' ||
+      !block.id.trim() ||
+      block.id.length > 64 ||
+      ids.has(block.id) ||
+      typeof block.enabled !== 'boolean' ||
+      typeof block.text !== 'string' ||
+      block.text.length > 1000 ||
+      (block.enabled && !block.text.trim())
+    )
+      return false
+    ids.add(block.id)
+    if (block.enabled) activeLength += block.text.length + 1
+  }
+  return (
+    mode === 'TEMPLATE' ||
+    (blocks.length === 0 && mode !== 'BLOCKS') ||
+    (activeLength > 0 && activeLength <= 4001)
+  )
+}
+
 export function priceReaderSampleValues(
   values: Record<string, unknown>,
   version: string,
   guildId?: string | null,
+  scenario: 'success' | 'mixed' | 'error' | 'ocr_error' | 'unmatched' = 'success',
 ): Record<string, string> {
-  const withMarkup = version.startsWith('1.')
-  const pairs = priceReaderPricePairs(values.PRICE_READER_PRICE_MAP)
+  const config = priceReaderRuntimeConfig(values)
+  const pairs = priceReaderPricePairs(config.PRICE_READER_PRICE_MAP)
   const prices = pairs.length ? pairs.slice(0, 2).map((pair) => pair.discord) : [25000, 29500]
-  const money = (satang: number) => (satang / 100).toFixed(2)
-  const markup = Number(values.PRICE_READER_NO_NITRO_MARKUP_SATANG)
-  const common: Record<string, string> = withMarkup
-    ? { no_nitro_markup: money(Number.isSafeInteger(markup) && markup >= 0 ? markup : 1000) }
-    : {}
-  const samples = prices.map((discord, index) => {
-    // The runtime chooses the nearest entry within 5 THB; ties keep the first entry.
-    const nearest = pairs.reduce<(typeof pairs)[number] | undefined>(
-      (best, pair) =>
-        !best || Math.abs(pair.discord - discord) < Math.abs(best.discord - discord) ? pair : best,
-      undefined,
-    )
-    const found = nearest && Math.abs(nearest.discord - discord) <= 500
-    return {
-      ...common,
-      status: 'success',
-      result_index: String(index + 1),
-      discord_price: money(discord),
-      shop_price: found ? money(nearest.shop) : '',
-      shop_price_found: found ? 'true' : 'false',
-      shop_price_text: found ? `${money(nearest.shop)} บาท` : 'ไม่พบราคาที่ตรงกัน',
-      item_name: `Discord Shop ${index + 1}`,
-      discount_text: '',
-      original_price: '',
-      nitro_price: '',
-      discount_percent: '',
-    }
-  })
-  const template =
-    typeof values.PRICE_READER_RESULTS_ITEM_TEMPLATE === 'string'
-      ? values.PRICE_READER_RESULTS_ITEM_TEMPLATE
-      : priceReaderItemTemplate(withMarkup)
-  const orderId = String(values.PRICE_READER_ORDER_CHANNEL_ID ?? '')
-  return {
-    ...common,
-    ...samples[0],
-    image_count: String(samples.length),
-    success_count: String(samples.length),
-    error_count: '0',
-    order_url:
-      guildId && /^\d{15,30}$/.test(orderId)
-        ? `https://discord.com/channels/${guildId}/${orderId}`
-        : '',
-    results_text: samples
-      .map((sample) =>
-        template.replace(/\{\{([a-z0-9_]+)}}/gi, (match, key: string) =>
-          String(Reflect.get(sample, key) ?? match),
-        ),
-      )
-      .join('\n\n---\n\n'),
-  }
+  const results =
+    scenario === 'error' || scenario === 'ocr_error'
+      ? [imageError(config, scenario === 'error' ? 'not_found' : 'ocr_error')]
+      : scenario === 'unmatched'
+        ? [readImageResult('Discord Shop\nTHB 999999.00', config, version)]
+        : prices.map((price, index) =>
+            readImageResult(
+              `Discord Shop ${index + 1}\nTHB ${(price / 100).toFixed(2)}`,
+              config,
+              version,
+            ),
+          )
+  if (scenario === 'mixed') results.push(imageError(config, 'not_found'))
+  return buildResultValues(results, config, version, guildId)
 }

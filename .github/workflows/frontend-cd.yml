@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - frontend/**
+      - bot-runner/src/features/price-reader/**
       - .github/workflows/frontend-cd.yml
   push:
     branches: [main]
     paths:
       - frontend/**
+      - bot-runner/src/features/price-reader/**
       - .github/workflows/frontend-cd.yml
   workflow_dispatch:
 

@@ -11,7 +11,7 @@ import {
   coFeatureCatalog,
 } from '../config/feature-editor'
 import { priceReaderPresentationPreview } from '../models/price-reader-presentation-preview'
-import { priceReaderSampleValues } from '../config/price-reader'
+import { priceReaderSampleValues, validatePriceReaderDraft } from '../config/price-reader'
 import { parseMessageSets, validateMessageSets } from '../config/message-sets'
 import { clone, invalidActionRowPath } from '../models/presentation'
 import { walletPresentationPreview } from '../models/wallet-presentation-preview'
@@ -529,6 +529,7 @@ export function useFeatureSettings() {
         values.value,
         license.value?.version ?? '',
         previewBot.value?.discordGuildId,
+        slotKey === 'error' ? 'error' : 'success',
       )
     return {}
   }
@@ -819,6 +820,13 @@ export function useFeatureSettings() {
           ),
         )
       const normalValues: Record<string, FeatureConfigValue> = {}
+      if (isPriceReaderFeature.value && !validatePriceReaderDraft(values.value)) {
+        saveConfirmationOpen.value = false
+        throw new Error(text(
+          'Check Price Reader text, price tolerance (0–5000 satang) and result blocks. Enable at least one block with text; combined text must be at most 4000 characters.',
+          'ตรวจสอบข้อความและความคลาดเคลื่อนราคา (0–5000 สตางค์) เปิดอย่างน้อยหนึ่งบล็อกที่มีข้อความ โดยข้อความรวมไม่เกิน 4000 ตัวอักษร',
+        ))
+      }
       const changedSecrets: Record<string, string> = {}
       for (const field of configuration.value.fields) {
         if (field.secret) {

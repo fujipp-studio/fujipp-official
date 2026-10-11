@@ -214,6 +214,21 @@ class StoreServiceTests {
         verify(repository, never()).upsertPresentation(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void invalidPriceReaderSettingsAreRejectedBeforeAnyConfigurationWrites() {
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        authorize(userId);
+        var license = new StoreRepository.LicenseContext(
+                licenseId, UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+                UUID.randomUUID(), 0, null);
+        when(repository.findLicense(licenseId, userId)).thenReturn(Optional.of(license));
+        assertThatThrownBy(() -> service.updateConfiguration(userId.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(Map.of("PRICE_READER_MATCH_TOLERANCE_SATANG", new ObjectMapper().valueToTree(5001)), Map.of(), Map.of())))
+                .isInstanceOf(StoreValidationException.class).hasMessageContaining("0–5000");
+        verify(repository, never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).bumpConfigRevision(org.mockito.ArgumentMatchers.any());
+    }
+
     private void authorize(UUID userId) {
         when(currentUserService.getActiveAccount(userId.toString()))
                 .thenReturn(new CurrentUserRepository.AccountProfile(

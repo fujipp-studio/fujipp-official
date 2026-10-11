@@ -113,7 +113,7 @@ for (const theme of ['LIGHT', 'DARK']) {
           .fill(
             '### สินค้า {{result_index}}\nDiscord {{discord_price}} / ร้าน {{shop_price_text}}\nเพิ่ม {{no_nitro_markup}} บาท',
           )
-      } else await expect(categories.getByText('ข้อความผลลัพธ์', { exact: true })).toHaveCount(0)
+      }
       await category('ช่อง Discord')
       const channel = form.getByRole('textbox', { name: /ช่องอ่านราคา/ })
       await channel.fill('bad-id')
@@ -147,7 +147,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       await expect(preview).toContainText('2 รูป')
       await pick('ผลการอ่านราคา')
       const initialViewport = page.viewportSize()!
-      const names = ['ช่อง Discord', 'ตารางราคา', ...(legacy ? ['ข้อความผลลัพธ์'] : [])]
+      const names = ['ช่อง Discord', 'ตารางราคา', 'ข้อความผลลัพธ์', 'ข้อความแต่ละสถานะ', 'ทดสอบ']
       for (const width of [1366, 768, 320]) {
         await page.setViewportSize({ width, height: 1000 })
         for (const name of names) {
