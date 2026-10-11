@@ -343,6 +343,13 @@ export const priceReaderPresentationCopy: Record<
   string,
   { label: [string, string]; description: [string, string] }
 > = {
+  error: {
+    label: ['Unable to read prices', 'อ่านราคาไม่สำเร็จ'],
+    description: [
+      'Shown when none of the images contain a supported price.',
+      'แสดงเมื่ออ่านราคาไม่สำเร็จทุกรูป',
+    ],
+  },
   processing: {
     label: ['Reading images', 'กำลังอ่านรูป'],
     description: [
@@ -434,6 +441,15 @@ export const variableDescriptions: Record<string, [english: string, thai: string
   discount_percent: ['Detected discount percentage', 'เปอร์เซ็นต์ส่วนลดที่ตรวจพบ'],
   shop_price: ['Matched selling price from the shop table', 'ราคาขายที่ตรงจากตารางร้าน'],
   shop_price_found: ['Whether a matching shop price was found', 'พบราคาที่ตรงในตารางร้านหรือไม่'],
+  matched_discord_price: [
+    'Discord price selected from the price map',
+    'ราคา Discord ในแถวที่ถูกเลือกจากตาราง',
+  ],
+  match_distance: [
+    'Difference between detected and matched prices, in THB',
+    'ส่วนต่างระหว่างราคาที่อ่านได้กับคู่ราคา หน่วยบาท',
+  ],
+  error_message: ['Reason an image could not be read', 'ข้อความสาเหตุที่อ่านรูปไม่สำเร็จ'],
   no_nitro_markup: [
     'Additional price when Nitro is unavailable',
     'ราคาที่บวกเพิ่มเมื่อไม่มี Nitro',

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-11 | Included shared Price Reader logic changes in Frontend verification and deployment triggers. |
 | 2026-10-08 | Bounded Frontend CI verification and browser installation, using the HTTPS Ubuntu mirror to prevent stalled dependency downloads. |
 | 2026-09-30 | Updated the Bot Runner dependency lockfile to clear the high-severity npm audit gate. |
 | 2026-09-08 | Enforced initial and route-specific JavaScript/CSS bundle budgets in Frontend CI. |

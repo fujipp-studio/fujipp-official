@@ -90,7 +90,17 @@ const MATCH_TOLERANCE_SATANG = 500;
 export function lookupShopPrice(
   discordPriceSatang: number,
   priceMap: PriceEntry[],
+  toleranceSatang = MATCH_TOLERANCE_SATANG,
 ): number | null {
+  return lookupPriceEntry(discordPriceSatang, priceMap, toleranceSatang)?.shopPriceSatang ?? null;
+}
+
+export function lookupPriceEntry(
+  discordPriceSatang: number,
+  priceMap: PriceEntry[],
+  toleranceSatang = MATCH_TOLERANCE_SATANG,
+): PriceEntry | null {
+  if (!Number.isSafeInteger(toleranceSatang) || toleranceSatang < 0) return null;
   let bestMatch: PriceEntry | null = null;
   let bestDistance = Infinity;
 
@@ -102,8 +112,8 @@ export function lookupShopPrice(
     }
   }
 
-  if (bestMatch && bestDistance <= MATCH_TOLERANCE_SATANG) {
-    return bestMatch.shopPriceSatang;
+  if (bestMatch && bestDistance <= toleranceSatang) {
+    return bestMatch;
   }
   return null;
 }
