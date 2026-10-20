@@ -30,7 +30,12 @@ function fixture(config: Record<string, unknown> = {}) {
     states: any[] = [],
     errors: any[] = [],
     edits: any[] = [],
-    messages: any[] = [];
+    messages: any[] = [],
+    messageEdits: any[] = [],
+    messageDeletes: string[] = [];
+  const storedMessages = new Map<string, any>();
+  let messageFailure: { operation: string; code: number } | undefined;
+  let failAnnouncementSave = false;
   let failEdit = 0,
     failSend = false,
     failSave = false,
@@ -59,9 +64,44 @@ function fixture(config: Record<string, unknown> = {}) {
     isVoiceBased: () => voice,
     isSendable: () => true,
     permissionsFor: () => permissions,
-    send: async (payload: unknown) => {
+    messages: {
+      fetch: async ({ message: id }: { message: string }) => {
+        if (messageFailure?.operation === "fetch")
+          throw { code: messageFailure.code };
+        const message = storedMessages.get(id);
+        if (!message) throw { code: 10008 };
+        return message;
+      },
+    },
+    send: async (payload: any) => {
       if (failSend) throw new Error("Cannot send");
       messages.push(payload);
+      const id = String(900000000000000000n + BigInt(messages.length));
+      const message = {
+        id,
+        author: { id: "bot" },
+        webhookId: null,
+        flags: {
+          has: (flag: number) =>
+            Boolean(Number(message.payload.flags ?? 0) & flag),
+        },
+        payload,
+        edit: async (next: any) => {
+          if (messageFailure?.operation === "edit")
+            throw { code: messageFailure.code };
+          messageEdits.push(next);
+          message.payload = { ...message.payload, ...next };
+          return message;
+        },
+        delete: async () => {
+          if (messageFailure?.operation === "delete")
+            throw { code: messageFailure.code };
+          messageDeletes.push(id);
+          storedMessages.delete(id);
+        },
+      };
+      storedMessages.set(id, message);
+      return message;
     },
     permissionOverwrites: {
       cache: overwrites,
@@ -122,7 +162,9 @@ function fixture(config: Record<string, unknown> = {}) {
       },
     },
     permissions: createCommandPermissionGate(undefined),
-    saveRuntimeState: async (state: unknown) => {
+    saveRuntimeState: async (state: any) => {
+      if (failAnnouncementSave && state.announcement)
+        throw new Error("Announcement state failed");
       if (failSave) throw new Error("State write failed");
       states.push(state);
     },
@@ -180,13 +222,22 @@ function fixture(config: Record<string, unknown> = {}) {
     errors,
     edits,
     messages,
+    messageEdits,
+    messageDeletes,
+    storedMessages,
+    setMessageFailure: (operation: string, code = 50013) => {
+      messageFailure = { operation, code };
+    },
+    setFailAnnouncementSave: () => {
+      failAnnouncementSave = true;
+    },
     overwrites,
     interaction,
     setFailEdit: (n: number) => {
       failEdit = n;
     },
-    setFailSend: () => {
-      failSend = true;
+    setFailSend: (value = true) => {
+      failSend = value;
     },
     setFailSave: () => {
       failSave = true;
@@ -213,6 +264,8 @@ const rules = [
 test("validates commands, unique rules, permission allowlist and text", () => {
   assert.equal(readShopConfig({}).command, "shop");
   for (const invalid of [
+    { SHOP_OPEN_DELIVERY_MODE: "invalid" },
+    { SHOP_CLOSE_DELIVERY_MODE: ["UPDATE"] },
     { SHOP_COMMAND_NAME: "/shop" },
     { SHOP_OPEN_MESSAGE_TYPE: ["TEXT"] },
     {
@@ -504,5 +557,188 @@ test("a private confirmation failure never repeats a successful status change or
     f.errors.map((e) => e[0]),
     ["SHOP_ACK_FAILED"],
   );
+  await dispose();
+});
+
+test("updates the latest announcement across open/close and restart, clearing old content", async () => {
+  const f = fixture({
+    SHOP_OPEN_DELIVERY_MODE: "UPDATE",
+    SHOP_CLOSE_DELIVERY_MODE: "UPDATE",
+  });
+  let dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction().value);
+  await settle();
+  const reference = f.states.at(-1).announcement;
+  assert.equal(f.messages.length, 1);
+  await dispose();
+  f.context.runtimeState = f.states.at(-1);
+  dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.equal(f.messages.length, 1);
+  assert.deepEqual(f.messageEdits[0], {
+    content: null,
+    embeds: [],
+    components: [{ type: 10, content: "ปิดร้าน" }],
+    attachments: [],
+    flags: MessageFlags.IsComponentsV2,
+    allowedMentions: { parse: [] },
+  });
+  assert.deepEqual(f.states.at(-1).announcement, reference);
+  // A V2 message cannot return to Embed: replace it instead.
+  f.client.emit("interactionCreate", f.interaction().value);
+  await settle();
+  assert.deepEqual(f.messageDeletes, [reference.messageId]);
+  assert.equal(f.messages.length, 2);
+  assert.notEqual(f.states.at(-1).announcement.messageId, reference.messageId);
+  await dispose();
+});
+
+test("replacement deletes only the tracked shop announcement then records the new message", async () => {
+  const f = fixture({ SHOP_CLOSE_DELIVERY_MODE: "REPLACE" });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction().value);
+  await settle();
+  const previous = f.states.at(-1).announcement.messageId;
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.deepEqual(f.messageDeletes, [previous]);
+  assert.equal(f.messages.length, 2);
+  assert.notEqual(f.states.at(-1).announcement.messageId, previous);
+  await dispose();
+});
+
+test("missing announcements and a changed destination create a new message", async () => {
+  for (const changedChannel of [false, true]) {
+    const f = fixture({ SHOP_OPEN_DELIVERY_MODE: "UPDATE" });
+    f.context.runtimeState = {
+      announcement: {
+        channelId: changedChannel ? "other" : channelId,
+        messageId: "missing",
+      },
+    };
+    if (changedChannel) f.setMessageFailure("fetch"); // Never fetch in another channel.
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    f.client.emit("interactionCreate", f.interaction().value);
+    await settle();
+    assert.equal(f.messages.length, 1);
+    assert.equal(f.errors.length, 0);
+    await dispose();
+  }
+});
+
+test("fetch, edit and delete failures do not send duplicate announcements", async () => {
+  for (const operation of ["fetch", "edit", "delete"]) {
+    const f = fixture({
+      SHOP_OPEN_DELIVERY_MODE: operation === "delete" ? "REPLACE" : "UPDATE",
+    });
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    f.client.emit("interactionCreate", f.interaction().value);
+    await settle();
+    f.setMessageFailure(operation);
+    const next = f.interaction();
+    f.client.emit("interactionCreate", next.value);
+    await settle();
+    assert.equal(f.messages.length, 1);
+    assert.match(next.replies.at(-1).content, /ส่งประกาศไม่สำเร็จ/);
+    assert.equal(f.errors.at(-1)[0], "SHOP_ANNOUNCEMENT_FAILED");
+    await dispose();
+  }
+});
+
+test("announcement tracking failure reports partial success without re-sending", async () => {
+  const f = fixture({ SHOP_OPEN_DELIVERY_MODE: "UPDATE" });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.setFailAnnouncementSave();
+  const next = f.interaction();
+  f.client.emit("interactionCreate", next.value);
+  await settle();
+  assert.equal(f.messages.length, 1);
+  assert.equal(f.errors.at(-1)[0], "SHOP_ANNOUNCEMENT_STATE_FAILED");
+  assert.match(
+    next.replies.at(-1).content,
+    /ส่งประกาศแล้ว.*บันทึกตำแหน่งข้อความไม่สำเร็จ/,
+  );
+  await dispose();
+});
+
+test("updates replace obsolete Embed content when changing to plain text", async () => {
+  const f = fixture({
+    SHOP_CLOSE_DELIVERY_MODE: "UPDATE",
+    SHOP_CLOSE_MESSAGE_TYPE: "TEXT",
+    SHOP_CLOSE_TEXT: "Closed",
+  });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction().value);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.equal(f.messages.length, 1);
+  assert.deepEqual(f.messageEdits[0], {
+    content: "Closed",
+    embeds: [],
+    components: [],
+    attachments: [],
+    allowedMentions: { parse: [] },
+  });
+  await dispose();
+});
+
+test("never edits or deletes a message owned by another author", async () => {
+  for (const mode of ["UPDATE", "REPLACE"]) {
+    const f = fixture({ SHOP_CLOSE_DELIVERY_MODE: mode });
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    f.client.emit("interactionCreate", f.interaction().value);
+    await settle();
+    f.storedMessages.values().next().value.author.id = "someone-else";
+    f.client.emit("interactionCreate", f.interaction("close").value);
+    await settle();
+    assert.equal(f.messages.length, 1);
+    assert.equal(f.messageEdits.length, 0);
+    assert.equal(f.messageDeletes.length, 0);
+    assert.equal(f.errors.at(-1)[0], "SHOP_ANNOUNCEMENT_FAILED");
+    await dispose();
+  }
+});
+
+test("a message removed during editing is recreated; missing access is never treated as deletion", async () => {
+  const f = fixture({ SHOP_CLOSE_DELIVERY_MODE: "UPDATE" });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction().value);
+  await settle();
+  f.setMessageFailure("edit", 10008);
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.equal(f.messages.length, 2);
+  assert.equal(f.errors.length, 0);
+  await dispose();
+});
+
+test("replacement send failure can recover on the next action after deleting the old announcement", async () => {
+  const f = fixture({ SHOP_CLOSE_DELIVERY_MODE: "REPLACE" });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  f.client.emit("interactionCreate", f.interaction().value);
+  await settle();
+  f.setFailSend(true);
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.equal(f.messageDeletes.length, 1);
+  assert.equal(f.messages.length, 1);
+  assert.equal(f.states.at(-1).status, "close");
+  f.setFailSend(false);
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.equal(f.messages.length, 2);
+  assert.equal(f.messageDeletes.length, 1);
   await dispose();
 });

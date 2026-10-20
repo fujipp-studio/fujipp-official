@@ -12,6 +12,8 @@ class ShopStatusConfigurationValidatorTests {
     @Test void acceptsCustomNamesAndOptionalPermissions() {
         assertThatCode(() -> ShopStatusConfigurationValidator.validate(Map.of())).doesNotThrowAnyException();
         assertThatCode(() -> ShopStatusConfigurationValidator.validate(Map.of(
+            "SHOP_OPEN_DELIVERY_MODE", mapper.valueToTree("UPDATE"),
+            "SHOP_CLOSE_DELIVERY_MODE", mapper.valueToTree("REPLACE"),
             "SHOP_COMMAND_NAME", mapper.valueToTree("store"),
             "SHOP_OPEN_COMMAND", mapper.valueToTree("start"),
             "SHOP_CLOSE_COMMAND", mapper.valueToTree("stop"),
@@ -47,6 +49,8 @@ class ShopStatusConfigurationValidatorTests {
     }
     @Test void rejectsInvalidAnnouncementTypesTextAndChannel() {
         for (Map<String, JsonNode> values : java.util.List.<Map<String, JsonNode>>of(
+                Map.of("SHOP_OPEN_DELIVERY_MODE", mapper.valueToTree("invalid")),
+                Map.of("SHOP_CLOSE_DELIVERY_MODE", mapper.readTree("[\"UPDATE\"]")),
                 Map.of("SHOP_OPEN_MESSAGE_TYPE", mapper.valueToTree("HTML")),
                 Map.of("SHOP_OPEN_MESSAGE_TYPE", mapper.valueToTree("TEXT"), "SHOP_OPEN_TEXT", mapper.valueToTree(" ")),
                 Map.of("SHOP_CLOSE_TEXT", mapper.valueToTree("x".repeat(2001))),
