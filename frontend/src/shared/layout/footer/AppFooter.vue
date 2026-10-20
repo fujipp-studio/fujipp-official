@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 
 import { icons } from '../../../config'
 import AppIcon from '../../ui/icons/AppIcon.vue'
@@ -22,23 +23,23 @@ withDefaults(
       {
         label: 'Instagram',
         icon: icons.social.instagram,
-        href: 'https://www.instagram.com/f.janw/',
+        href: 'https://www.instagram.com/fujipp.official/',
       },
       {
         label: 'Discord',
         icon: icons.social.discord,
-        href: 'https://discord.com/users/1108816021915176962',
+        href: 'https://discord.gg/nRn7YDwGSH',
       },
       {
-        label: 'Email',
-        icon: icons.social.email,
-        href: 'mailto:anawat.boripakhirun@gmail.com',
+        label: 'Privacy',
+        to: '/privacy',
       },
     ],
   },
 )
 
 const { t } = useI18n()
+const route = useRoute()
 </script>
 
 <template>
@@ -55,14 +56,20 @@ const { t } = useI18n()
         <nav
           v-if="socialLinks.length"
           class="footer__link-list"
-          :aria-label="t('footer.socialLabel')"
+          :aria-label="t('footer.linksLabel')"
         >
           <template v-for="link in socialLinks" :key="link.label">
+            <RouterLink
+              v-if="link.to"
+              :to="{ path: link.to, query: route.query.locale === 'th' ? { locale: 'th' } : {} }"
+            >
+              {{ link.label }}
+            </RouterLink>
             <a
-              v-if="link.href"
+              v-else-if="link.href"
               :href="link.href"
               :target="link.href.startsWith('http') ? '_blank' : undefined"
-              :rel="link.href.startsWith('http') ? 'noreferrer' : undefined"
+              :rel="link.href.startsWith('http') ? 'noopener noreferrer' : undefined"
             >
               {{ link.label }}
             </a>

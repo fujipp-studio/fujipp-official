@@ -5,4 +5,5 @@ export default {
   changelog: 'รายการเปลี่ยนแปลง',
   legalLabel: 'ข้อมูลทางกฎหมาย',
   socialLabel: 'โซเชียลมีเดีย',
+  linksLabel: 'ลิงก์ท้ายเว็บไซต์',
 } as const
