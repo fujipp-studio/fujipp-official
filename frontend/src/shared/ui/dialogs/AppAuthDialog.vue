@@ -517,12 +517,19 @@ onBeforeUnmount(() => {
 .auth-dialog__title span {
   display: inline-block;
   padding-right: 0.18em;
-  background: linear-gradient(180deg, #00e5ff, #2979ff);
+  background-image: var(--semantic-gradient-brand-text);
   background-clip: text;
   color: transparent;
   font-family: var(--font-family-handwriting);
   font-size: 3rem;
   line-height: 1.2;
+}
+
+@media (forced-colors: active) {
+  .auth-dialog__title span {
+    background-image: none;
+    color: CanvasText;
+  }
 }
 
 .auth-dialog__form {

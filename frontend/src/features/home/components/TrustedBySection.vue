@@ -4,9 +4,11 @@ import { useI18n } from 'vue-i18n'
 
 import { trustedCommunities } from '../config'
 import { AppProgressiveImage } from '../../../shared/ui'
+import { useAnimationVisibility } from '../../../shared/ui/useAnimationVisibility'
 const { t } = useI18n()
 
 const trackElement = ref<HTMLElement>()
+const sectionElement = ref<HTMLElement>()
 
 const baseSpeed = 100
 let animationFrameId: number | undefined
@@ -17,15 +19,12 @@ let targetSpeed = -baseSpeed
 let lastPointerX = 0
 let lastPointerTime = 0
 let isDragging = false
-let reducedMotionQuery: MediaQueryList | undefined
-
-function getPanelWidth() {
-  return (trackElement.value?.firstElementChild as HTMLElement | undefined)?.offsetWidth ?? 0
-}
+let panelWidth = 0
+let resizeObserver: ResizeObserver | undefined
+let animationVisible = false
 
 function renderMarquee(frameTime: number) {
   const track = trackElement.value
-  const panelWidth = getPanelWidth()
   if (!track || !panelWidth) {
     animationFrameId = requestAnimationFrame(renderMarquee)
     return
@@ -47,8 +46,8 @@ function renderMarquee(frameTime: number) {
 }
 
 function startMarquee() {
-  if (animationFrameId !== undefined || reducedMotionQuery?.matches) return
-  trackElement.value?.classList.add('trusted-by-section__track--enhanced')
+  if (animationFrameId !== undefined || !animationVisible) return
+  trackElement.value?.classList.add('trusted-by-section__track--running')
   previousFrameTime = 0
   animationFrameId = requestAnimationFrame(renderMarquee)
 }
@@ -57,10 +56,15 @@ function stopMarquee() {
   if (animationFrameId !== undefined) cancelAnimationFrame(animationFrameId)
   animationFrameId = undefined
   previousFrameTime = 0
+  trackElement.value?.classList.remove('trusted-by-section__track--running')
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    offset = 0
+    trackElement.value?.style.removeProperty('transform')
+  }
 }
 
 function handlePointerDown(event: PointerEvent) {
-  if (reducedMotionQuery?.matches || event.button !== 0) return
+  if (!animationVisible || event.button !== 0) return
 
   isDragging = true
   lastPointerX = event.clientX
@@ -70,7 +74,7 @@ function handlePointerDown(event: PointerEvent) {
 }
 
 function handlePointerMove(event: PointerEvent) {
-  if (!isDragging || reducedMotionQuery?.matches) return
+  if (!isDragging || !animationVisible) return
   if (event.pointerType === 'mouse' && (event.buttons & 1) === 0) {
     resetDragState()
     return
@@ -103,34 +107,32 @@ function resetDragState() {
   lastPointerTime = 0
 }
 
-function handleMotionPreferenceChange() {
-  const track = trackElement.value
-  if (!track) return
-
-  if (reducedMotionQuery?.matches) {
+useAnimationVisibility(sectionElement, (active) => {
+  animationVisible = active
+  if (active) startMarquee()
+  else {
     stopMarquee()
-    track.classList.remove('trusted-by-section__track--enhanced')
-    track.style.removeProperty('transform')
-    return
+    resetDragState()
   }
-
-  startMarquee()
-}
+})
 
 onMounted(() => {
-  reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
-  reducedMotionQuery.addEventListener('change', handleMotionPreferenceChange)
-  handleMotionPreferenceChange()
+  const panel = trackElement.value?.firstElementChild
+  if (!panel) return
+  resizeObserver = new ResizeObserver(([entry]) => {
+    panelWidth = entry?.borderBoxSize?.[0]?.inlineSize ?? entry?.contentRect.width ?? 0
+  })
+  resizeObserver.observe(panel)
 })
 
 onBeforeUnmount(() => {
   stopMarquee()
-  reducedMotionQuery?.removeEventListener('change', handleMotionPreferenceChange)
+  resizeObserver?.disconnect()
 })
 </script>
 
 <template>
-  <section id="trusted-by" class="trusted-by-section" aria-labelledby="trusted-by-title">
+  <section id="trusted-by" ref="sectionElement" class="trusted-by-section" aria-labelledby="trusted-by-title">
     <div class="trusted-by-section__container">
       <div class="trusted-by-section__copy">
         <h2 id="trusted-by-title">{{ t('home.trusted.title') }}</h2>
@@ -153,7 +155,7 @@ onBeforeUnmount(() => {
             :aria-label="groupIndex === 1 ? t('home.trusted.listLabel') : undefined"
             :aria-hidden="groupIndex === 2 ? 'true' : undefined"
           >
-            <template v-for="repeatIndex in 5" :key="repeatIndex">
+            <template v-for="repeatIndex in 2" :key="repeatIndex">
               <li
                 v-for="community in trustedCommunities"
                 :key="`${repeatIndex}-${community.name}`"
@@ -251,12 +253,10 @@ onBeforeUnmount(() => {
   display: flex;
   width: max-content;
   align-items: center;
-  animation: trusted-community-marquee 50s linear infinite;
-  will-change: transform;
 }
 
-.trusted-by-section__track--enhanced {
-  animation: none;
+.trusted-by-section__track--running {
+  will-change: transform;
 }
 
 .trusted-by-section__communities {
@@ -292,12 +292,6 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
-@keyframes trusted-community-marquee {
-  to {
-    transform: translateX(-50%);
-  }
-}
-
 @media (max-width: 47.99rem) {
   .trusted-by-section {
     padding-block: var(--space-lg) 0;
@@ -310,10 +304,6 @@ onBeforeUnmount(() => {
   .trusted-by-section__community-image {
     transform: scale(1.3);
   }
-
-  .trusted-by-section__track {
-    animation-duration: 19s;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -324,10 +314,6 @@ onBeforeUnmount(() => {
 
   .trusted-by-section__viewport::-webkit-scrollbar {
     display: none;
-  }
-
-  .trusted-by-section__track {
-    animation: none;
   }
 
   .trusted-by-section__communities:nth-child(2) {

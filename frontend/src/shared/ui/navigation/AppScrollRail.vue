@@ -54,9 +54,12 @@ onBeforeUnmount(() => {
   <div
     class="app-scroll-rail"
     :class="{ 'app-scroll-rail--full-height': route.meta.hideGlobalNavbar }"
-    :style="{ '--scroll-progress': `${scrollProgress}%` }"
   >
-    <span class="app-scroll-rail__progress" aria-hidden="true" />
+    <span
+      class="app-scroll-rail__progress"
+      :style="{ transform: `scaleY(${scrollProgress / 100})` }"
+      aria-hidden="true"
+    />
     <input
       class="app-scroll-rail__control"
       type="range"
@@ -90,10 +93,11 @@ onBeforeUnmount(() => {
   top: 0;
   right: 0;
   width: 1px;
-  height: var(--scroll-progress);
+  height: 100%;
   background: var(--semantic-color-text-text-primary);
   pointer-events: none;
-  transition: height 80ms linear;
+  transform-origin: top;
+  transition: transform 80ms linear;
 }
 
 .app-scroll-rail__control {

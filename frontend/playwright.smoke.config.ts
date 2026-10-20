@@ -4,6 +4,7 @@ export default defineConfig({
   testMatch: [
     'admin-tools.smoke.spec.ts',
     'frontend.smoke.spec.ts',
+    'desktop-scroll.smoke.spec.ts',
     'member-spending.smoke.spec.ts',
     'bot-presence.smoke.spec.ts',
     'runtime-expiry-alert.smoke.spec.ts',

@@ -6,36 +6,9 @@
  * enable Dark mode.
  */
 
-@property --semantic-color-brand-rgb {
-  syntax: '<color>';
-  inherits: true;
-  initial-value: #ff1744;
-}
-
-@keyframes brand-secondary-rgb {
-  0%,
-  100% {
-    --semantic-color-brand-rgb: var(--global-color-brand-secondary-red);
-  }
-  16.67% {
-    --semantic-color-brand-rgb: var(--global-color-brand-secondary-yellow);
-  }
-  33.33% {
-    --semantic-color-brand-rgb: var(--global-color-brand-secondary-green);
-  }
-  50% {
-    --semantic-color-brand-rgb: var(--global-color-brand-secondary-cyan);
-  }
-  66.67% {
-    --semantic-color-brand-rgb: var(--global-color-brand-secondary-blue);
-  }
-  83.33% {
-    --semantic-color-brand-rgb: var(--global-color-brand-secondary-purple);
-  }
-}
-
 :root {
-  animation: brand-secondary-rgb 12s linear infinite;
+  /* Keep the inherited accent stable instead of restyling the page every frame. */
+  --semantic-color-brand-rgb: var(--global-color-brand-secondary-blue);
 
   /* Matte wallet-card finishes and their fixed, contrasting ink colors. */
   --semantic-color-wallet-card-classic: color-mix(
@@ -136,10 +109,20 @@
   --semantic-color-text-text-disabled: var(--global-color-gray-300);
   --semantic-color-text-text-inverse: var(--global-color-white-100);
   --semantic-color-text-text-blend-source: var(--global-color-white-100);
+  --semantic-color-text-text-blend-cutout: var(--global-color-black-100);
   --semantic-color-text-text-accent: color-mix(
     in srgb,
-    var(--semantic-color-brand-rgb) 50%,
+    var(--semantic-color-brand-rgb) 80%,
     var(--global-color-black-100)
+  );
+  --semantic-gradient-brand-text: linear-gradient(
+    180deg,
+    color-mix(
+      in srgb,
+      var(--global-color-brand-secondary-cyan) 55%,
+      var(--global-color-black-100)
+    ),
+    var(--semantic-color-text-text-accent)
   );
 
   --semantic-color-action-backgrounds-bg-primary: var(--global-color-white-100);
@@ -176,64 +159,71 @@
 .dark {
   color-scheme: dark;
 
-  --semantic-color-background-bg-default: var(--global-color-black-100);
-  --semantic-color-background-bg-surface: var(--global-color-gray-900);
-  --semantic-color-background-bg-surface-hover: var(--global-color-gray-800);
-  --semantic-color-background-bg-surface-active: var(--global-color-gray-700);
-  --semantic-color-background-bg-surface-selected: var(--global-color-gray-800);
-  --semantic-color-background-bg-elevated: var(--global-color-gray-800);
+  --semantic-color-background-bg-default: var(--global-color-graphite-950);
+  --semantic-color-background-bg-surface: var(--global-color-graphite-900);
+  --semantic-color-background-bg-surface-hover: var(--global-color-graphite-850);
+  --semantic-color-background-bg-surface-active: var(--global-color-graphite-800);
+  --semantic-color-background-bg-surface-selected: var(--global-color-graphite-850);
+  --semantic-color-background-bg-elevated: var(--global-color-graphite-850);
   --semantic-color-background-bg-accent: var(--semantic-color-brand-rgb);
-  --semantic-color-background-bg-inverse: var(--global-color-white-100);
+  --semantic-color-background-bg-inverse: var(--global-color-graphite-50);
   --semantic-color-background-bg-overlay: var(--global-color-black-80);
-  --semantic-color-background-bg-glass: var(--global-color-black-70);
+  --semantic-color-background-bg-glass: color-mix(
+    in srgb,
+    var(--global-color-graphite-850) 88%,
+    transparent
+  );
 
-  --semantic-color-border-border-subtle: var(--global-color-gray-800);
-  --semantic-color-border-border-default: var(--global-color-gray-700);
-  --semantic-color-border-border-strong: var(--global-color-white-100);
-  --semantic-color-border-border-disabled: var(--global-color-gray-800);
-  --semantic-color-border-border-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-border-border-subtle: var(--global-color-graphite-850);
+  --semantic-color-border-border-default: var(--global-color-graphite-700);
+  --semantic-color-border-border-strong: var(--global-color-graphite-400);
+  --semantic-color-border-border-disabled: var(--global-color-graphite-800);
+  --semantic-color-border-border-accent: var(--semantic-color-text-text-accent);
 
-  --semantic-color-text-text-primary: var(--global-color-white-100);
-  --semantic-color-text-text-secondary: var(--global-color-gray-300);
-  --semantic-color-text-text-muted: var(--global-color-gray-500);
-  --semantic-color-text-text-disabled: var(--global-color-gray-600);
-  --semantic-color-text-text-inverse: var(--global-color-black-100);
-  --semantic-color-text-text-accent: var(--semantic-color-brand-rgb);
+  --semantic-color-text-text-primary: var(--global-color-graphite-50);
+  --semantic-color-text-text-secondary: var(--global-color-graphite-200);
+  --semantic-color-text-text-muted: var(--global-color-graphite-400);
+  --semantic-color-text-text-disabled: var(--global-color-graphite-600);
+  --semantic-color-text-text-inverse: var(--global-color-graphite-950);
+  --semantic-color-text-text-accent: color-mix(
+    in srgb,
+    var(--global-color-brand-secondary-cyan) 40%,
+    var(--global-color-brand-secondary-blue)
+  );
+  --semantic-gradient-brand-text: linear-gradient(
+    180deg,
+    var(--global-color-brand-secondary-cyan),
+    var(--global-color-brand-secondary-blue)
+  );
 
-  --semantic-color-action-backgrounds-bg-primary: var(--global-color-white-100);
-  --semantic-color-action-backgrounds-bg-primary-hover: var(--global-color-white-100);
-  --semantic-color-action-backgrounds-bg-secondary: var(--global-color-white-100);
-  --semantic-color-action-backgrounds-bg-secondary-hover: var(--global-color-gray-200);
+  --semantic-color-action-backgrounds-bg-primary: var(--global-color-graphite-50);
+  --semantic-color-action-backgrounds-bg-primary-hover: var(--global-color-graphite-100);
+  --semantic-color-action-backgrounds-bg-secondary: var(--global-color-graphite-800);
+  --semantic-color-action-backgrounds-bg-secondary-hover: var(--global-color-graphite-700);
   --semantic-color-action-backgrounds-bg-accent: var(--semantic-color-brand-rgb);
-  --semantic-color-action-backgrounds-bg-disabled: var(--global-color-gray-800);
+  --semantic-color-action-backgrounds-bg-disabled: var(--global-color-graphite-900);
 
-  --semantic-color-action-text-text-on-primary: var(--global-color-white-100);
-  --semantic-color-action-text-text-on-secondary: var(--global-color-black-100);
-  --semantic-color-action-text-text-disabled: var(--global-color-gray-500);
-  --semantic-color-action-text-text-link: var(--global-color-white-100);
-  --semantic-color-action-text-text-link-hover: var(--global-color-gray-300);
+  --semantic-color-action-text-text-on-primary: var(--global-color-graphite-950);
+  --semantic-color-action-text-text-on-secondary: var(--global-color-graphite-50);
+  --semantic-color-action-text-text-disabled: var(--global-color-graphite-600);
+  --semantic-color-action-text-text-link: var(--global-color-graphite-50);
+  --semantic-color-action-text-text-link-hover: var(--semantic-color-text-text-accent);
 
-  --semantic-color-action-borders-border-outline: var(--global-color-gray-600);
-  --semantic-color-action-borders-border-focus: var(--semantic-color-brand-rgb);
+  --semantic-color-action-borders-border-outline: var(--global-color-graphite-500);
+  --semantic-color-action-borders-border-focus: var(--semantic-color-text-text-accent);
 
-  --semantic-color-success-success-bg: var(--global-color-success-900);
-  --semantic-color-success-success-text: var(--global-color-success-400);
-  --semantic-color-success-success-border: var(--global-color-success-700);
-  --semantic-color-error-error-bg: var(--global-color-error-900);
-  --semantic-color-error-error-text: var(--global-color-error-400);
-  --semantic-color-error-error-border: var(--global-color-error-700);
-  --semantic-color-warning-warning-bg: var(--global-color-warning-900);
-  --semantic-color-warning-warning-text: var(--global-color-warning-400);
-  --semantic-color-warning-warning-border: var(--global-color-warning-700);
-  --semantic-color-info-info-bg: var(--global-color-info-900);
-  --semantic-color-info-info-text: var(--global-color-info-400);
-  --semantic-color-info-info-border: var(--global-color-info-700);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    animation: none;
-  }
+  --semantic-color-success-success-bg: var(--global-color-jade-950);
+  --semantic-color-success-success-text: var(--global-color-jade-300);
+  --semantic-color-success-success-border: var(--global-color-jade-800);
+  --semantic-color-error-error-bg: var(--global-color-rose-950);
+  --semantic-color-error-error-text: var(--global-color-rose-300);
+  --semantic-color-error-error-border: var(--global-color-rose-800);
+  --semantic-color-warning-warning-bg: var(--global-color-amber-950);
+  --semantic-color-warning-warning-text: var(--global-color-amber-300);
+  --semantic-color-warning-warning-border: var(--global-color-amber-800);
+  --semantic-color-info-info-bg: var(--global-color-azure-950);
+  --semantic-color-info-info-text: var(--global-color-azure-300);
+  --semantic-color-info-info-border: var(--global-color-azure-800);
 }
 
 /**

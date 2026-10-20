@@ -9,11 +9,12 @@ function clamp(value: number) {
 export function useScrollFade(element: Ref<HTMLElement | undefined>, mode: ScrollFadeMode) {
   const progress = ref(mode === 'exit' ? 1 : 0)
   let animationFrame: number | undefined
+  let motionPreference: MediaQueryList | undefined
 
   function update() {
     animationFrame = undefined
     const target = element.value
-    if (!target || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (!target || motionPreference?.matches) {
       progress.value = 1
       return
     }
@@ -40,6 +41,8 @@ export function useScrollFade(element: Ref<HTMLElement | undefined>, mode: Scrol
   }))
 
   onMounted(() => {
+    motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    motionPreference.addEventListener('change', requestUpdate)
     update()
     window.addEventListener('scroll', requestUpdate, { passive: true })
     window.addEventListener('resize', requestUpdate)
@@ -48,6 +51,7 @@ export function useScrollFade(element: Ref<HTMLElement | undefined>, mode: Scrol
   onBeforeUnmount(() => {
     window.removeEventListener('scroll', requestUpdate)
     window.removeEventListener('resize', requestUpdate)
+    motionPreference?.removeEventListener('change', requestUpdate)
     if (animationFrame !== undefined) window.cancelAnimationFrame(animationFrame)
   })
 

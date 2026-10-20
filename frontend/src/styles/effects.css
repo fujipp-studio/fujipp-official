@@ -34,6 +34,14 @@
   --z-tooltip: 700;
 }
 
+[data-theme='dark'],
+.dark {
+  --effect-glass-highlight: inset 0 1px 0 0 var(--global-color-white-10);
+  --effect-shadow-button: 0 2px 8px 0 var(--global-color-black-20);
+  --effect-shadow-md: 0 8px 20px -8px var(--global-color-black-30);
+  --effect-shadow-lg: 0 16px 36px -12px var(--global-color-black-40);
+}
+
 @theme inline {
   --shadow-sm: var(--effect-shadow-sm);
   --shadow-button: var(--effect-shadow-button);

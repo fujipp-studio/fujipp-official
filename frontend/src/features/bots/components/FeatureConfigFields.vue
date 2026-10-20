@@ -2,39 +2,40 @@
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
-import PriceMapEditor from '@/features/bots/components/PriceMapEditor.vue'
-import RobuxPackagesEditor from '@/features/bots/components/RobuxPackagesEditor.vue'
-import StringListEditor from '@/features/bots/components/StringListEditor.vue'
-import ThresholdRoleEditor from '@/features/bots/components/ThresholdRoleEditor.vue'
-import CommandPermissionsEditor from '@/features/bots/components/CommandPermissionsEditor.vue'
-import MessageTriggerRulesEditor from '@/features/bots/components/MessageTriggerRulesEditor.vue'
-import MemberSpendingConfig from '@/features/bots/components/MemberSpendingConfig.vue'
-import BotPresenceConfig from '@/features/bots/components/BotPresenceConfig.vue'
-import BotPermissionsConfig from './BotPermissionsConfig.vue'
-import ReviewCreditConfig from './ReviewCreditConfig.vue'
-import ChannelMessageTriggersConfig from './ChannelMessageTriggersConfig.vue'
-import PaymentTriggerConfig from './PaymentTriggerConfig.vue'
-import MessageSetsConfig from './MessageSetsConfig.vue'
 import { messageSetsConfigKeys } from '../config/message-sets'
-import PriceReaderConfig from './PriceReaderConfig.vue'
 import { priceReaderConfigKeys } from '../config/price-reader'
 import { paymentTriggerConfigKeys } from '../config/payment-trigger'
 import { channelMessageTriggerConfigKeys } from '../config/channel-message-triggers'
 import { reviewCreditConfigKeys } from '../config/review-credit'
-import VoiceKeeperConfig from './VoiceKeeperConfig.vue'
-import WalletTopupConfig from './WalletTopupConfig.vue'
-import RobloxPayoutConfig from './RobloxPayoutConfig.vue'
 import { robloxPayoutConfigKeys } from '../config/roblox-payout'
 import { walletTopupConfigKeys } from '../config/wallet-topup'
 import { voiceKeeperConfigKeys } from '../config/voice-keeper'
 import { botPermissionsConfigKeys } from '../config/bot-permissions'
-import RuntimeExpiryAlertConfig from './RuntimeExpiryAlertConfig.vue'
 import { runtimeAlertConfigKeys } from '../config/runtime-expiry-alert'
 import { botPresenceConfigKeys } from '../config/bot-presence'
 import { memberSpendingConfigKeys } from '../config/member-spending'
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { Settings2 } from 'lucide-vue-next'
 import { useFeatureEditor } from '../composables/featureEditorContext'
+
+const PriceMapEditor = defineAsyncComponent(() => import('./PriceMapEditor.vue'))
+const RobuxPackagesEditor = defineAsyncComponent(() => import('./RobuxPackagesEditor.vue'))
+const StringListEditor = defineAsyncComponent(() => import('./StringListEditor.vue'))
+const ThresholdRoleEditor = defineAsyncComponent(() => import('./ThresholdRoleEditor.vue'))
+const CommandPermissionsEditor = defineAsyncComponent(() => import('./CommandPermissionsEditor.vue'))
+const MessageTriggerRulesEditor = defineAsyncComponent(() => import('./MessageTriggerRulesEditor.vue'))
+const MemberSpendingConfig = defineAsyncComponent(() => import('./MemberSpendingConfig.vue'))
+const BotPresenceConfig = defineAsyncComponent(() => import('./BotPresenceConfig.vue'))
+const BotPermissionsConfig = defineAsyncComponent(() => import('./BotPermissionsConfig.vue'))
+const ReviewCreditConfig = defineAsyncComponent(() => import('./ReviewCreditConfig.vue'))
+const ChannelMessageTriggersConfig = defineAsyncComponent(() => import('./ChannelMessageTriggersConfig.vue'))
+const PaymentTriggerConfig = defineAsyncComponent(() => import('./PaymentTriggerConfig.vue'))
+const MessageSetsConfig = defineAsyncComponent(() => import('./MessageSetsConfig.vue'))
+const PriceReaderConfig = defineAsyncComponent(() => import('./PriceReaderConfig.vue'))
+const VoiceKeeperConfig = defineAsyncComponent(() => import('./VoiceKeeperConfig.vue'))
+const WalletTopupConfig = defineAsyncComponent(() => import('./WalletTopupConfig.vue'))
+const RobloxPayoutConfig = defineAsyncComponent(() => import('./RobloxPayoutConfig.vue'))
+const RuntimeExpiryAlertConfig = defineAsyncComponent(() => import('./RuntimeExpiryAlertConfig.vue'))
 
 const { t } = useI18n()
 const {
