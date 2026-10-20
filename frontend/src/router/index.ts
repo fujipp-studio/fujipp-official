@@ -15,6 +15,11 @@ const pageSeo = {
     description:
       'Learn about Anawat Boripakhirun, his experience, technical skills, and approach to building practical software.',
   },
+  privacy: {
+    title: 'Privacy',
+    description:
+      'How Fujipp handles account, payment, and bot service data, and how to contact us about your privacy.',
+  },
   account: {
     title: 'Account settings',
     description: 'Manage your Fujipp profile, password, and account access.',
@@ -100,6 +105,12 @@ export function createAppRouter(
         name: 'account',
         component: () => import('../features/account/views/AccountView.vue'),
         meta: { requiresAuth: true, seo: pageSeo.account },
+      },
+      {
+        path: '/privacy',
+        name: 'privacy',
+        component: () => import('../features/privacy/views/PrivacyView.vue'),
+        meta: { seo: pageSeo.privacy },
       },
       {
         path: '/donate',

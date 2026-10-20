@@ -10,6 +10,7 @@ import common from './common'
 import myBots from './myBots'
 import donation from './donation'
 import account from './account'
+import privacy from './privacy'
 export default {
   navigation,
   home,
@@ -17,6 +18,7 @@ export default {
   topup,
   donation,
   account,
+  privacy,
   footer,
   about,
   admin,

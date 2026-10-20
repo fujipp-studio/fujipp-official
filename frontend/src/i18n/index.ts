@@ -14,6 +14,7 @@ export const messageNamespaces = [
   'myBots',
   'donation',
   'account',
+  'privacy',
 ] as const
 export type MessageNamespace = (typeof messageNamespaces)[number]
 const loaders = import.meta.glob<{ default: Record<string, unknown> }>([
@@ -77,6 +78,7 @@ function namespacesForPath(path: string): MessageNamespace[] {
   if (path.startsWith('/store')) return ['store']
   if (path.startsWith('/add-credit')) return ['topup', 'donation']
   if (path.startsWith('/account')) return ['account']
+  if (path === '/privacy') return ['privacy']
   if (path === '/about' || path === '/donate') return ['about', 'donation']
   if (path === '/') return ['home']
   return []

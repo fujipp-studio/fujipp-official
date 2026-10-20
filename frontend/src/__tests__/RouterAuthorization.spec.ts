@@ -10,6 +10,13 @@ beforeEach(() => {
   vi.stubGlobal('scrollTo', vi.fn())
 })
 describe('route authorization and admin layout', () => {
+  it('allows guests to read the Privacy page directly', async () => {
+    const router = createAppRouter(createMemoryHistory())
+    await router.push('/privacy?locale=th')
+    expect(router.currentRoute.value.name).toBe('privacy')
+    expect(router.currentRoute.value.meta.requiresAuth).toBeUndefined()
+    expect(document.title).toBe('Privacy | Fujipp')
+  })
   it('redirects guests away from private routes while preserving Thai locale', async () => {
     const router = createAppRouter(createMemoryHistory())
     await router.push('/admin/users?locale=th')

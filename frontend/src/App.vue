@@ -28,6 +28,7 @@ const themeFaviconUrls = new Map([
 ])
 const { visible: adminToolsVisible, initialize: initializeAdminToolsVisibility } = useAdminToolsVisibility()
 const activeNavigationItem = computed(() => {
+  if (route.path === '/privacy') return ''
   if (route.path === '/about') return 'About'
   if (route.path === '/account') return 'Account'
   if (route.path.startsWith('/work')) return 'Portfolio'
