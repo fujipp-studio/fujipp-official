@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-20 | Added the draft Shop Status catalog feature with customizable commands, permission rules, and independent open/close message designs. |
 | 2026-10-11 | Added customization settings and error presentation slots to both Price Reader versions while preserving existing configuration and message designs. |
 | 2026-10-08 | Added the draft Message Sets catalog feature with a configurable command and twenty independent message presentation slots. |
 | 2026-09-30 | Restored missing configuration sets for previously granted Feature licenses. |

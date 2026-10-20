@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-20 | Added configurable Shop Status controls and refreshed portfolio styling, navigation, donation identity, and responsive scroll performance. |
 | 2026-10-11 | Added customizable Price Reader result blocks, status messages, matching tolerance, and unsaved image OCR previews for both versions. |
 | 2026-10-10 | Blocked invalid Components V2 button rows from saving and showed a visible error so users can repair empty or oversized rows. |
 | 2026-10-10 | Added shared Admin navigation and tools, refined Navbar scrolling and portfolio links, and enabled editable multi-button Components V2 rows. |
