@@ -6,6 +6,7 @@ export const permissionKeys = [
 export type ShopPermission = (typeof permissionKeys)[number];
 export type PermissionSetting = "ALLOW" | "DENY" | "INHERIT" | "KEEP";
 export type ShopState = "open" | "close";
+export type ShopDeliveryMode = "NEW" | "UPDATE" | "REPLACE";
 export interface ShopRule {
   channelId: string;
   roleId: string;
@@ -63,6 +64,12 @@ export function readShopConfig(config: Readonly<Record<string, unknown>>) {
     };
   });
   for (const state of ["OPEN", "CLOSE"]) {
+    const delivery = config[`SHOP_${state}_DELIVERY_MODE`] ?? "NEW";
+    if (
+      typeof delivery !== "string" ||
+      !["NEW", "UPDATE", "REPLACE"].includes(delivery)
+    )
+      throw new Error("Invalid shop delivery mode");
     const mode = config[`SHOP_${state}_MESSAGE_TYPE`] ?? "DESIGNED";
     if (typeof mode !== "string" || !["TEXT", "DESIGNED"].includes(mode))
       throw new Error("Invalid shop message type");

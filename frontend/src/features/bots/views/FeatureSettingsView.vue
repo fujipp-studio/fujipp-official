@@ -60,6 +60,7 @@ const hasCustomConfig = computed(
     editor.isRobloxPayoutFeature.value ||
     isMessageTriggers.value ||
     isPaymentTrigger.value ||
+    license.value?.featureCode === 'shop-status' ||
     editor.isPriceReaderFeature.value,
 )
 watch(

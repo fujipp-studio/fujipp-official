@@ -880,13 +880,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
       await expect(page).toHaveURL(/components-v2/)
       expect(new URL(page.url()).searchParams.get('message')).toBe('leaderboard')
-      expect(saves).toHaveLength(1)
-      expect(saves[0]?.values.SPENDING_FIRST_ROLE_ID).toBe('987654321098765432')
-      expect(saves[0]?.presentations).toMatchObject({
-        first_card: { mode: 'EMBED' },
-        returning_card: { mode: 'COMPONENTS_V2' },
-        leaderboard: { mode: 'COMPONENTS_V2' },
-      })
+      expect(saves).toHaveLength(0)
       const editor = page.locator('#feature-presentation-editor')
       await expect(editor.locator('article')).toHaveCount(1)
       await expect(
@@ -896,6 +890,10 @@ for (const theme of ['LIGHT', 'DARK']) {
       await expect(
         design.getByRole('heading', { name: 'ออกแบบข้อความ', exact: true }),
       ).toBeVisible()
+      await expect(
+        page.locator('#feature-config').getByLabel('ยศเมื่อเพิ่มยอดครั้งแรก (ไม่บังคับ)'),
+      ).toHaveValue('987654321098765432')
+      expect(saves).toHaveLength(0)
       await selectMessage('เพิ่มยอดครั้งแรก')
       await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
       await expect(page).toHaveURL(/\/embed\?/)
@@ -912,13 +910,23 @@ for (const theme of ['LIGHT', 'DARK']) {
         .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
         .click()
       await expect(page.getByRole('dialog')).toBeHidden()
-      expect(saves).toHaveLength(3)
-      expect(saves[2]?.presentations.first_card).toMatchObject({
+      expect(saves).toHaveLength(1)
+      expect(saves[0]?.values.SPENDING_FIRST_ROLE_ID).toBe('987654321098765432')
+      expect(saves[0]?.presentations).toMatchObject({
+        first_card: { mode: 'EMBED' },
+        returning_card: { mode: 'COMPONENTS_V2' },
+        leaderboard: { mode: 'COMPONENTS_V2' },
+      })
+      expect(saves[0]?.presentations.first_card).toMatchObject({
         mode: 'EMBED',
         embeds: [{ title: 'บัตรสมาชิก {{member}}' }],
       })
-      expect(saves[2]?.presentations.leaderboard).toEqual(saves[0]?.presentations.leaderboard)
-      expect(saves[2]?.presentations.returning_card).toEqual(saves[0]?.presentations.returning_card)
+      for (const key of ['leaderboard', 'returning_card']) {
+        const original = memberSpendingConfiguration.presentations.find((slot) => slot.key === key)!
+        expect(saves[0]?.presentations[key]).toEqual(
+          original.overrideDefinition ?? original.defaultDefinition,
+        )
+      }
       await expect(
         editor.getByRole('heading', { name: 'เพิ่มยอดครั้งถัดไป', exact: true }),
       ).toHaveCount(0)

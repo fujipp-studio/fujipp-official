@@ -14,11 +14,13 @@ for (const theme of ['LIGHT', 'DARK']) {
     await page.route('**/api/v2/feature-licenses*', (route) =>
       route.fulfill({ json: { items: [shopLicense], nextCursor: null, hasMore: false } }),
     )
+    let saves = 0
     let saved:
       | { values: Record<string, unknown>; presentations: Record<string, Record<string, unknown>> }
       | undefined
     await page.route('**/configuration', async (route) => {
       if (route.request().method() === 'PUT') {
+        saves++
         saved = route.request().postDataJSON()
         for (const field of config.fields)
           field.value = saved!.values[field.key] as typeof field.value
@@ -38,6 +40,27 @@ for (const theme of ['LIGHT', 'DARK']) {
       await menu.getByRole('option', { name: option, exact: true }).click()
       await expect(menu).toHaveCount(0)
     }
+    const category = async (name: string) => {
+      const mobile = form.getByRole('combobox', { name: 'หมวดการตั้งค่า', exact: true })
+      if (await mobile.isVisible()) await choose(mobile, name)
+      else await form.getByRole('tab', { name, exact: true }).click()
+    }
+    const capture = async (name: string) =>
+      form.screenshot({
+        path: testInfo.outputPath(`shop-${name}-${theme.toLowerCase()}.png`),
+        animations: 'disabled',
+        style:
+          '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+      })
+    const save = page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true })
+    const design = page.locator('#feature-presentations')
+    await expect(save).toBeDisabled()
+    // Opening an unchanged Embed is navigation only: no config revision or restart.
+    await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
+    await expect(page).toHaveURL(/embed/)
+    await expect(save).toBeDisabled()
+    expect(saves).toBe(0)
+    await page.goBack()
     await form.getByRole('textbox', { name: 'ชื่อคำสั่ง', exact: true }).fill('store')
     await form.getByRole('textbox', { name: /^คำสั่งย่อยเปิดร้าน\*/ }).fill('start')
     await form.getByRole('textbox', { name: /^คำสั่งย่อยปิดร้าน\*/ }).fill('start')
@@ -45,6 +68,16 @@ for (const theme of ['LIGHT', 'DARK']) {
     await form.getByRole('textbox', { name: /^คำสั่งย่อยปิดร้าน\*/ }).fill('stop')
     await expect(form.getByRole('alert')).toHaveCount(0)
     await expect(form).toContainText('/store start')
+    await capture('commands')
+    await category('ประกาศ')
+    await choose(
+      form.getByRole('combobox', { name: 'การส่งประกาศเปิดร้าน', exact: true }),
+      'อัปเดตข้อความเดิม',
+    )
+    await choose(
+      form.getByRole('combobox', { name: 'การส่งประกาศปิดร้าน', exact: true }),
+      'ลบข้อความเดิมแล้วส่งใหม่',
+    )
     await choose(
       form.getByRole('combobox', { name: 'ข้อความเปิดร้าน', exact: true }),
       'ข้อความธรรมดา',
@@ -52,12 +85,13 @@ for (const theme of ['LIGHT', 'DARK']) {
     await form
       .getByRole('textbox', { name: 'ข้อความประกาศ', exact: true })
       .fill('เปิดร้านแล้ว {{guild_name}}')
-    const design = page.locator('#feature-presentations')
+    await capture('announcements')
     await expect(design).toContainText('ปิดร้าน')
     await choose(
       design.getByRole('combobox', { name: 'รูปแบบข้อความ', exact: true }),
       'Components V2',
     )
+    await category('สิทธิ์ห้อง')
     await form.getByRole('button', { name: 'เพิ่มกฎสิทธิ์', exact: true }).click()
     await form.getByRole('textbox', { name: /^ID ห้อง\*/ }).fill('111111111111111111')
     await form.getByRole('textbox', { name: /^ID Role\*/ }).fill('222222222222222222')
@@ -67,7 +101,23 @@ for (const theme of ['LIGHT', 'DARK']) {
     await choose(opened.getByRole('combobox', { name: 'เห็นห้อง', exact: true }), 'อนุญาต')
     await choose(closed.getByRole('combobox', { name: 'เข้าห้องเสียง', exact: true }), 'ปฏิเสธ')
     await expect(form.getByRole('alert')).toHaveCount(0)
-    await page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true }).click()
+    await capture('permissions')
+    // Unsaved command/permission/message drafts survive the editor round trip.
+    await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
+    await expect(page).toHaveURL(/components/)
+    expect(saves).toBe(0)
+    await page.getByRole('textbox', { name: 'ข้อความ', exact: true }).fill('## Updated {{status}}')
+    await page.goBack()
+    await category('คำสั่ง')
+    await expect(form.getByRole('textbox', { name: 'ชื่อคำสั่ง', exact: true })).toHaveValue(
+      'store',
+    )
+    await category('สิทธิ์ห้อง')
+    await expect(form.getByRole('textbox', { name: /^ID ห้อง\*/ })).toHaveValue(
+      '111111111111111111',
+    )
+    expect(saves).toBe(0)
+    await save.click()
     await page
       .getByRole('dialog')
       .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
@@ -75,6 +125,9 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect.poll(() => saved?.values.SHOP_COMMAND_NAME).toBe('store')
     expect(saved!.values.SHOP_OPEN_COMMAND).toBe('start')
     expect(saved!.values.SHOP_CLOSE_COMMAND).toBe('stop')
+    expect(saves).toBe(1)
+    expect(saved!.values.SHOP_OPEN_DELIVERY_MODE).toBe('UPDATE')
+    expect(saved!.values.SHOP_CLOSE_DELIVERY_MODE).toBe('REPLACE')
     expect(saved!.values.SHOP_OPEN_MESSAGE_TYPE).toBe('TEXT')
     expect(saved!.values.SHOP_OPEN_TEXT).toBe('เปิดร้านแล้ว {{guild_name}}')
     expect(saved!.values.SHOP_PERMISSION_RULES).toEqual([
@@ -101,9 +154,11 @@ for (const theme of ['LIGHT', 'DARK']) {
     await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
     await expect(page).toHaveURL(/components/)
     await expect(page.getByRole('textbox', { name: 'ข้อความ', exact: true })).toHaveValue(
-      '## {{status}}\n{{guild_name}}',
+      '## Updated {{status}}',
     )
+    expect(saves).toBe(1)
     await page.goBack()
+    await category('สิทธิ์ห้อง')
     await form.getByRole('button', { name: 'ลบกฎที่ 1', exact: true }).click()
     await expect(form.getByRole('textbox', { name: /^ID ห้อง\*/ })).toHaveCount(0)
     expect(errors).toEqual([])
