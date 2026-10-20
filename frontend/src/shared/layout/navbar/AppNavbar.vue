@@ -52,18 +52,27 @@ const { locale, t } = useI18n()
 const brandCollapseScrollY = 100
 const brandExpandScrollY = 40
 const isAtPageTop = ref(true)
-const showScrolledBackground = computed(() => !isAtPageTop.value)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
 const openNavigationMenu = ref<string>()
+const requestedLanguage = ref<'th' | 'en'>()
+const activeLanguage = computed(
+  () => requestedLanguage.value ?? (locale.value === 'th' ? 'th' : 'en'),
+)
+let languageVersion = 0
+const navigationMenuPosition = ref({ top: 0, left: 0 })
 const isAuthDialogOpen = ref(false)
 const authDialogComponent = shallowRef<Component>()
 const authLoadingOverlayComponent = shallowRef<Component>()
 const authDialogMode = ref<AuthDialogMode>('login')
 const profileMenuPosition = ref({ top: 0, right: 12 })
 const navigationElement = ref<HTMLElement>()
+const desktopAvatarFrame = ref<HTMLElement>()
+const mobileAvatarFrame = ref<HTMLElement>()
+const avatarPosition = ref<{ top: number; left: number; width: number; height: number }>()
+let avatarResizeObserver: ResizeObserver | undefined
+const navigationMenuElement = ref<HTMLElement>()
 const navigationButtons = ref<HTMLButtonElement[]>([])
-const navigationPill = ref({ left: 0, width: 0 })
 const isNavigationDragging = ref(false)
 const draggedNavigationItem = ref<string>()
 let navigationDragStartItem: string | undefined
@@ -102,35 +111,20 @@ const resolvedWalletBalance = computed(
 const themeStore = useThemeStore()
 const { currentTheme, selectedTheme } = storeToRefs(themeStore)
 const { initialize: initializeAdminToolsVisibility } = useAdminToolsVisibility()
-const formattedWalletBalance = computed(
-  () =>
-    `${resolvedWalletBalance.value.toLocaleString('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })} THB`,
+const walletAmount = computed(() =>
+  resolvedWalletBalance.value.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
 )
+const formattedWalletBalance = computed(() => `${walletAmount.value} THB`)
 
 function setNavigationButtonRef(element: unknown, index: number) {
   if (element instanceof HTMLButtonElement) navigationButtons.value[index] = element
 }
 
-function moveNavigationPill(label = selectedItem.value) {
-  const index = navbarLinks.value.findIndex((item) => item.label === label)
-  const button = navigationButtons.value[index]
-  const navigation = navigationElement.value
-  if (!button || !navigation) return
-
-  const buttonRect = button.getBoundingClientRect()
-  const navigationRect = navigation.getBoundingClientRect()
-  navigationPill.value = {
-    left: buttonRect.left - navigationRect.left,
-    width: buttonRect.width,
-  }
-}
-
 function previewNavigationItem(label: string) {
   if (isNavigationDragging.value) return
-  moveNavigationPill(label)
   const item = navbarLinks.value.find((link) => link.label === label)
   if (item) prefetchNavigationImages(item.path)
 }
@@ -168,7 +162,6 @@ function startNavigationDrag(event: PointerEvent, label: string) {
   navigationDragStartItem = label
   draggedNavigationItem.value = label
   ;(event.currentTarget as HTMLButtonElement).setPointerCapture(event.pointerId)
-  moveNavigationPill(label)
 }
 
 function moveNavigationDrag(event: PointerEvent) {
@@ -181,7 +174,6 @@ function moveNavigationDrag(event: PointerEvent) {
   const label = button.dataset.navigationLabel
   if (!label || label === draggedNavigationItem.value) return
   draggedNavigationItem.value = label
-  moveNavigationPill(label)
 }
 
 function finishNavigationDrag() {
@@ -191,7 +183,6 @@ function finishNavigationDrag() {
   isNavigationDragging.value = false
   draggedNavigationItem.value = undefined
   navigationDragStartItem = undefined
-  moveNavigationPill()
 }
 
 function selectNavigationItem(label: string) {
@@ -275,13 +266,70 @@ function scrollToPageTop() {
   })
 }
 
-function resetNavigationPreview() {
-  if (!isNavigationDragging.value) moveNavigationPill()
+function handleNavigationResize() {
+  updateNavbarScrollState()
 }
 
-function handleNavigationResize() {
-  moveNavigationPill()
-  updateNavbarScrollState()
+function updateAvatarPosition() {
+  const bounds = [desktopAvatarFrame.value, mobileAvatarFrame.value]
+    .map((frame) => frame?.getBoundingClientRect())
+    .find((rect) => rect && rect.width > 0 && rect.height > 0)
+  if (!bounds) {
+    avatarPosition.value = undefined
+    return
+  }
+  const previous = avatarPosition.value
+  if (previous && previous.top === bounds.top && previous.left === bounds.left
+    && previous.width === bounds.width && previous.height === bounds.height) return
+  avatarPosition.value = {
+    top: bounds.top, left: bounds.left, width: bounds.width, height: bounds.height,
+  }
+}
+
+function observeAvatarFrames() {
+  avatarResizeObserver?.disconnect()
+  for (const frame of [desktopAvatarFrame.value, mobileAvatarFrame.value]) {
+    if (frame?.parentElement) avatarResizeObserver?.observe(frame.parentElement)
+  }
+  updateAvatarPosition()
+}
+
+function updateNavigationMenuPosition() {
+  if (!openNavigationMenu.value) return
+  const index = navbarLinks.value.findIndex((item) => item.label === openNavigationMenu.value)
+  const button = navigationButtons.value[index]
+  if (!button) return
+  const rect = button.getBoundingClientRect()
+  navigationMenuPosition.value = { top: rect.bottom, left: rect.left + rect.width / 2 }
+}
+
+function enterNavigationMenu(event: KeyboardEvent, label: string) {
+  if (event.shiftKey || openNavigationMenu.value !== label) return
+  const firstItem = navigationMenuElement.value?.querySelector<HTMLButtonElement>('button')
+  if (!firstItem) return
+  event.preventDefault()
+  firstItem.focus()
+}
+
+function leaveNavigationMenu(event: KeyboardEvent) {
+  const items = navigationMenuElement.value?.querySelectorAll<HTMLButtonElement>('button')
+  if (!items?.length) return
+  const index = navbarLinks.value.findIndex((item) => item.label === openNavigationMenu.value)
+  const trigger = navigationButtons.value[index]
+  if (event.shiftKey && event.target === items[0]) {
+    event.preventDefault()
+    trigger?.focus()
+  } else if (!event.shiftKey && event.target === items[items.length - 1]) {
+    const nextControl =
+      navigationElement.value?.nextElementSibling?.querySelector<HTMLElement>(
+        'button:not([disabled])',
+      )
+    if (nextControl) {
+      event.preventDefault()
+      openNavigationMenu.value = undefined
+      nextControl.focus()
+    }
+  }
 }
 
 function updateNavbarScrollState() {
@@ -294,6 +342,8 @@ function updateNavbarScrollState() {
   } else if (!isAtPageTop.value && scrollY <= brandExpandScrollY) {
     isAtPageTop.value = true
   }
+  updateNavigationMenuPosition()
+  updateAvatarPosition()
 }
 
 function requestNavbarScrollUpdate() {
@@ -310,6 +360,22 @@ function toggleQuickTheme(event: MouseEvent) {
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2,
   })
+}
+
+async function toggleQuickLanguage() {
+  const next = activeLanguage.value === 'th' ? 'en' : 'th'
+  const version = ++languageVersion
+  requestedLanguage.value = next
+  try {
+    await setAppLocale(next)
+    if (version !== languageVersion || locale.value !== next) return
+    const query = { ...route.query }
+    if (next === 'th') query.locale = 'th'
+    else delete query.locale
+    await router.replace({ query, hash: route.hash })
+  } finally {
+    if (version === languageVersion) requestedLanguage.value = undefined
+  }
 }
 
 function closeMobileMenu() {
@@ -373,6 +439,10 @@ function selectNavigationChild(item: NavbarLink, parentLabel: string) {
 
 function handleEscape(event: KeyboardEvent) {
   if (event.key === 'Escape') {
+    if (navigationMenuElement.value?.contains(document.activeElement)) {
+      const index = navbarLinks.value.findIndex((item) => item.label === openNavigationMenu.value)
+      navigationButtons.value[index]?.focus()
+    }
     closeMobileMenu()
     closeProfileMenu()
     openNavigationMenu.value = undefined
@@ -383,8 +453,8 @@ watch([isMobileMenuOpen, isProfileMenuOpen], ([isNavigationOpen, isProfileOpen])
   document.body.style.overflow = isNavigationOpen || isProfileOpen ? 'hidden' : ''
 })
 
-watch([selectedItem, navbarLinks], () => {
-  void nextTick(() => moveNavigationPill())
+watch(openNavigationMenu, () => {
+  void nextTick(updateNavigationMenuPosition)
 })
 
 watch(
@@ -412,14 +482,23 @@ watch(
   { immediate: true },
 )
 
+watch([resolvedAuthenticated, authStateReady, walletAmount, activeLanguage], () => {
+  void nextTick(updateAvatarPosition)
+})
+
+watch([desktopAvatarFrame, mobileAvatarFrame], observeAvatarFrames, { flush: 'post' })
+
 onMounted(() => {
   initializeAdminToolsVisibility()
   document.addEventListener('keydown', handleEscape)
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('resize', handleNavigationResize)
   window.addEventListener('scroll', requestNavbarScrollUpdate, { passive: true })
+  if (typeof ResizeObserver !== 'undefined') {
+    avatarResizeObserver = new ResizeObserver(updateAvatarPosition)
+  }
+  observeAvatarFrames()
   updateNavbarScrollState()
-  void nextTick(() => moveNavigationPill())
 })
 
 onBeforeUnmount(() => {
@@ -428,6 +507,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleNavigationResize)
   window.removeEventListener('scroll', requestNavbarScrollUpdate)
   if (navbarScrollFrame !== undefined) window.cancelAnimationFrame(navbarScrollFrame)
+  avatarResizeObserver?.disconnect()
   document.body.style.overflow = ''
 })
 
@@ -437,13 +517,7 @@ function closeProfileMenu() {
 }
 </script>
 <template>
-  <header
-    class="navbar"
-    :class="{
-      'navbar--at-top': isAtPageTop,
-      'navbar--scrolled': showScrolledBackground,
-    }"
-  >
+  <header class="navbar" :class="{ 'navbar--at-top': isAtPageTop }">
     <div class="desktop-navbar">
       <button
         class="brand"
@@ -453,14 +527,16 @@ function closeProfileMenu() {
         @focus="prefetchNavigationImages('/')"
         @click="navigateHome"
       >
-        <svg class="brand__lockup brand__lockup--desktop" viewBox="0 0 140 32" aria-hidden="true">
-          <path
-            d="M203 338L338 203H283C238.817 203 203 238.817 203 283V338ZM0 189V540L135 405V270C135 195.442 195.442 135 270 135H405L540 0H189C84.6182 0 0 84.6182 0 189ZM0 540H337C411.558 540 472 479.558 472 405H135L0 540ZM203 338H404.5C479.058 338 539.5 277.558 539.5 203H338L203 338ZM405 135H473C547.558 135 608 74.5584 608 0H540L405 135Z"
-            transform="translate(0 1.79) scale(0.05263158)"
-            fill="currentColor"
-          />
-          <text x="40" y="23" fill="currentColor">FUJIPP</text>
-        </svg>
+        <span class="brand__desktop-visual">
+          <svg class="brand__lockup brand__lockup--desktop" viewBox="0 0 140 32" aria-hidden="true">
+            <path
+              d="M203 338L338 203H283C238.817 203 203 238.817 203 283V338ZM0 189V540L135 405V270C135 195.442 195.442 135 270 135H405L540 0H189C84.6182 0 0 84.6182 0 189ZM0 540H337C411.558 540 472 479.558 472 405H135L0 540ZM203 338H404.5C479.058 338 539.5 277.558 539.5 203H338L203 338ZM405 135H473C547.558 135 608 74.5584 608 0H540L405 135Z"
+              transform="translate(0 1.79) scale(0.05263158)"
+              fill="currentColor"
+            />
+            <text x="40" y="23" fill="currentColor">FUJIPP</text>
+          </svg>
+        </span>
       </button>
 
       <nav
@@ -471,27 +547,18 @@ function closeProfileMenu() {
         @pointermove="moveNavigationDrag"
         @pointerup="finishNavigationDrag"
         @pointercancel="finishNavigationDrag"
-        @pointerleave="resetNavigationPreview"
       >
-        <span
-          class="navigation__liquid-pill"
-          :style="{
-            '--navigation-pill-left': `${navigationPill.left}px`,
-            '--navigation-pill-width': `${navigationPill.width}px`,
-          }"
-          aria-hidden="true"
-        />
         <div v-for="(item, index) in navbarLinks" :key="item.path" class="navigation__item">
           <button
             :ref="(element) => setNavigationButtonRef(element, index)"
             type="button"
             class="navigation__link"
-            :class="{ 'navigation__link--active': item.label === selectedItem }"
             :data-navigation-label="item.label"
             :aria-current="item.label === selectedItem ? 'page' : undefined"
             :aria-expanded="item.children?.length ? openNavigationMenu === item.label : undefined"
             :aria-haspopup="item.children?.length ? 'menu' : undefined"
             @click="selectNavigationItem(item.label)"
+            @keydown.tab="enterNavigationMenu($event, item.label)"
             @pointerenter="previewNavigationItem(item.label)"
             @pointerdown="!item.children?.length && startNavigationDrag($event, item.label)"
           >
@@ -503,28 +570,37 @@ function closeProfileMenu() {
               :source="icons.base.arrowDown"
             />
           </button>
-          <Transition name="navigation-menu">
-            <div
-              v-if="item.children?.length && openNavigationMenu === item.label"
-              class="navigation__dropdown"
-              role="menu"
-            >
-              <button
-                v-for="child in item.children"
-                :key="child.path"
-                type="button"
-                role="menuitem"
-                @click.stop="selectNavigationChild(child, item.label)"
+          <Teleport to="body">
+            <Transition name="navigation-menu">
+              <div
+                v-if="item.children?.length && openNavigationMenu === item.label"
+                :ref="(element) => (navigationMenuElement = element as HTMLElement | undefined)"
+                class="navigation__dropdown"
+                :style="{
+                  top: `${navigationMenuPosition.top}px`,
+                  left: `${navigationMenuPosition.left}px`,
+                }"
+                role="menu"
+                @click.stop
+                @keydown.tab="leaveNavigationMenu"
               >
-                <AppIcon v-if="child.icon" :source="child.icon" />
-                <span>{{ navigationLabel(child) }}</span>
-              </button>
-            </div>
-          </Transition>
+                <button
+                  v-for="child in item.children"
+                  :key="child.path"
+                  type="button"
+                  role="menuitem"
+                  @click.stop="selectNavigationChild(child, item.label)"
+                >
+                  <AppIcon v-if="child.icon" :source="child.icon" />
+                  <span>{{ navigationLabel(child) }}</span>
+                </button>
+              </div>
+            </Transition>
+          </Teleport>
         </div>
       </nav>
 
-      <div class="actions" :class="{ 'actions--authenticated': resolvedAuthenticated }">
+      <div class="actions">
         <div v-if="!authStateReady" class="auth-loading-placeholder" aria-label="Loading account" />
         <template v-else-if="!resolvedAuthenticated">
           <button
@@ -535,7 +611,7 @@ function closeProfileMenu() {
             {{ t('navigation.signIn') }}
           </button>
           <button
-            class="action-button action-button--outline"
+            class="action-button action-button--filled"
             type="button"
             @click="openAuthDialog('register')"
           >
@@ -553,13 +629,22 @@ function closeProfileMenu() {
           :aria-expanded="isProfileMenuOpen"
           @click.stop="toggleProfileMenu"
         >
+          <span ref="desktopAvatarFrame" class="profile-navbar__avatar-frame" aria-hidden="true" />
           <span class="profile-navbar__wallet">
             <Wallet class="profile-navbar__wallet-icon" :size="16" aria-hidden="true" />
             <span class="profile-navbar__amount">{{ formattedWalletBalance }}</span>
           </span>
-          <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
-          </span>
+        </button>
+
+        <button
+          class="theme-toggle language-toggle"
+          type="button"
+          :aria-label="
+            activeLanguage === 'th' ? 'Switch language to English' : 'Switch language to Thai'
+          "
+          @click="toggleQuickLanguage"
+        >
+          {{ activeLanguage.toUpperCase() }}
         </button>
 
         <button
@@ -606,16 +691,29 @@ function closeProfileMenu() {
         </button>
         <button
           v-else
-          class="mobile-profile"
+          class="profile-navbar mobile-profile"
           type="button"
+          :title="formattedWalletBalance"
           aria-label="Open profile"
           aria-controls="profile-dialog"
           :aria-expanded="isProfileMenuOpen"
           @click.stop="toggleProfileMenu"
         >
-          <span class="profile-navbar__avatar-frame">
-            <img class="profile-navbar__avatar" :src="resolvedProfileSrc" alt="" />
+          <span ref="mobileAvatarFrame" class="profile-navbar__avatar-frame" aria-hidden="true" />
+          <span class="profile-navbar__wallet">
+            <span class="profile-navbar__amount">฿{{ walletAmount }}</span>
           </span>
+        </button>
+
+        <button
+          class="theme-toggle language-toggle"
+          type="button"
+          :aria-label="
+            activeLanguage === 'th' ? 'Switch language to English' : 'Switch language to Thai'
+          "
+          @click="toggleQuickLanguage"
+        >
+          {{ activeLanguage.toUpperCase() }}
         </button>
 
         <button
@@ -628,6 +726,23 @@ function closeProfileMenu() {
         </button>
       </div>
     </div>
+
+    <!-- A normal blend mode cannot undo an ancestor's difference compositing. -->
+    <Teleport to="body">
+      <img
+        v-if="authStateReady && resolvedAuthenticated && avatarPosition"
+        class="profile-navbar__avatar"
+        :src="resolvedProfileSrc"
+        :style="{
+          top: `${avatarPosition.top}px`,
+          left: `${avatarPosition.left}px`,
+          width: `${avatarPosition.width}px`,
+          height: `${avatarPosition.height}px`,
+        }"
+        alt=""
+        aria-hidden="true"
+      />
+    </Teleport>
 
     <AppUserMenu
       v-model:open="isProfileMenuOpen"
@@ -670,37 +785,15 @@ function closeProfileMenu() {
 .navbar {
   position: sticky;
   z-index: var(--z-sticky);
-  isolation: isolate;
+  /* Blend the whole bar with the page, just like the section indicator. */
+  mix-blend-mode: difference;
   top: 0;
   box-sizing: border-box;
   width: 100%;
   max-width: 80rem;
   margin-inline: auto;
   background: transparent;
-  color: var(--semantic-color-text-text-primary);
-}
-
-.navbar::before {
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  left: 50%;
-  width: 100vw;
-  height: 100%;
-  border-bottom: 1px solid
-    color-mix(in srgb, var(--semantic-color-border-border-default) 65%, transparent);
-  background: var(--semantic-color-background-bg-default);
-  box-shadow: var(--effect-shadow-sm);
-  content: '';
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-50%);
-  transition: opacity 180ms ease;
-}
-
-.navbar--scrolled::before {
-  opacity: 1;
-  transition: opacity 250ms cubic-bezier(0.22, 1, 0.36, 1) 350ms;
+  color: var(--semantic-color-text-text-blend-source);
 }
 
 .desktop-navbar {
@@ -712,10 +805,18 @@ function closeProfileMenu() {
   padding-inline: var(--space-md);
 }
 
+.navbar :focus-visible {
+  outline-color: var(--semantic-color-text-text-blend-source);
+}
+
 .desktop-navbar > .brand {
   --brand-expanded-lockup-width: 24.0625rem;
+  --brand-expanded-scale: 2.75;
 
   align-self: flex-start;
+  align-items: flex-start;
+  width: 8.75rem;
+  height: var(--brand-lockup-height);
   margin-top: var(--space-md);
 }
 
@@ -727,6 +828,7 @@ function closeProfileMenu() {
   cursor: pointer;
   border: 0;
   background: transparent;
+  color: inherit;
 }
 
 .brand__lockup {
@@ -737,12 +839,20 @@ function closeProfileMenu() {
   gap: var(--space-xs);
 }
 
+.brand__desktop-visual {
+  display: block;
+  flex-shrink: 0;
+  width: 8.75rem;
+  height: var(--brand-lockup-height);
+  transform-origin: top left;
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .desktop-navbar > .brand .brand__lockup--desktop {
   display: block;
-  width: 8.75rem;
-  height: auto;
+  width: 100%;
+  height: 100%;
   overflow: visible;
-  transition: width 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .brand__lockup--desktop text {
@@ -754,7 +864,7 @@ function closeProfileMenu() {
 .brand__mark {
   width: var(--brand-logo-size);
   height: var(--brand-logo-size);
-  color: var(--semantic-color-text-text-primary);
+  color: inherit;
 }
 
 .brand__wordmark {
@@ -765,19 +875,32 @@ function closeProfileMenu() {
   letter-spacing: 0.04em;
 }
 
-.navbar--at-top .desktop-navbar > .brand .brand__lockup--desktop {
+.navbar--at-top .desktop-navbar > .brand {
   width: var(--brand-expanded-lockup-width);
+  height: calc(var(--brand-lockup-height) * var(--brand-expanded-scale));
+}
+
+.navbar--at-top .brand__desktop-visual {
+  transform: scale(var(--brand-expanded-scale));
 }
 
 @media (min-width: 64rem) and (max-width: 79.99rem) {
+  .desktop-navbar {
+    gap: var(--space-sm);
+  }
+
+  .desktop-navbar .navigation {
+    gap: var(--space-xs);
+    margin-right: var(--space-xs);
+  }
+
+  .desktop-navbar .navigation__link {
+    padding-inline: var(--space-xs);
+  }
+
   .desktop-navbar > .brand {
     --brand-expanded-lockup-width: 19.6875rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .navbar::before {
-    transition: none;
+    --brand-expanded-scale: 2.25;
   }
 }
 
@@ -791,47 +914,14 @@ function closeProfileMenu() {
   align-items: center;
   gap: var(--space-md);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-heading-h4);
+  font-size: var(--font-size-label-large);
   line-height: var(--line-height-body);
   text-align: center;
-}
-
-.navigation__liquid-pill {
-  position: absolute;
-  z-index: -1;
-  top: 0;
-  left: 0;
-  display: block;
-  width: var(--navigation-pill-width);
-  height: 100%;
-  border: 1px solid color-mix(in srgb, var(--semantic-color-border-border-default) 60%, transparent);
-  border-radius: var(--corner-radius-lg);
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in srgb, var(--semantic-color-background-bg-glass) 80%, transparent),
-      color-mix(in srgb, var(--semantic-color-background-bg-glass) 60%, transparent)
-    ),
-    transparent;
-  box-shadow: var(--effect-glass-highlight), var(--effect-shadow-button);
-  pointer-events: none;
-  transform: translateX(var(--navigation-pill-left)) scale(1);
-  transform-origin: center;
-  transition:
-    width 420ms cubic-bezier(0.22, 1.35, 0.36, 1),
-    transform 420ms cubic-bezier(0.22, 1.35, 0.36, 1);
 }
 
 .navigation--dragging {
   cursor: grabbing;
   user-select: none;
-}
-
-.navigation--dragging .navigation__liquid-pill {
-  transform: translateX(var(--navigation-pill-left)) scale(1.08, 0.92);
-  transition:
-    width 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .navigation__link {
@@ -884,10 +974,9 @@ function closeProfileMenu() {
 }
 
 .navigation__dropdown {
-  position: absolute;
+  position: fixed;
   z-index: var(--z-popover);
-  top: calc(100% + var(--space-xs));
-  left: 50%;
+  margin-top: var(--space-xs);
   display: grid;
   width: 12rem;
   gap: var(--space-xxs);
@@ -895,7 +984,9 @@ function closeProfileMenu() {
   border: 1px solid var(--semantic-color-border-border-default);
   border-radius: var(--corner-radius-md);
   background: var(--semantic-color-background-bg-elevated);
+  color: var(--semantic-color-text-text-primary);
   box-shadow: var(--effect-shadow-lg);
+  font-family: var(--font-family-sans);
   transform: translateX(-50%);
 }
 
@@ -926,25 +1017,16 @@ function closeProfileMenu() {
   height: var(--icon-size-20);
 }
 
-.navigation__link--active {
-  border-color: transparent;
-  background: transparent;
-}
-
 .actions {
   display: flex;
   height: 2.5rem;
   flex-shrink: 0;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--space-md);
+  gap: var(--space-xs);
   font-family: var(--font-family-sans);
-  font-size: var(--font-size-heading-h4);
+  font-size: var(--font-size-label-large);
   line-height: var(--line-height-body);
-}
-
-.actions--authenticated {
-  width: 16rem;
 }
 
 .auth-loading-placeholder,
@@ -981,30 +1063,32 @@ function closeProfileMenu() {
   isolation: isolate;
   display: flex;
   width: auto;
-  max-width: 2.5rem;
   height: 2.5rem;
   flex-shrink: 0;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;
   gap: var(--space-xs);
   overflow: hidden;
   cursor: pointer;
-  border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-lg);
-  padding: calc(var(--space-xxs) - 1px);
-  background: var(--semantic-color-action-backgrounds-bg-secondary);
-  color: var(--semantic-color-action-text-text-on-secondary);
-  box-shadow: var(--effect-shadow-sm);
+  border: 1px solid color-mix(in srgb, currentcolor 35%, transparent);
+  border-radius: var(--corner-radius-full);
+  padding: calc(var(--space-xxs) - 1px) var(--space-sm) calc(var(--space-xxs) - 1px)
+    calc(var(--space-xxs) - 1px);
+  background: color-mix(in srgb, currentcolor 5%, transparent);
+  color: inherit;
   font-family: var(--font-family-sans);
   font-size: var(--font-size-label-medium);
   line-height: var(--line-height-label);
-  transition: max-width 200ms ease;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
 }
 
 .profile-navbar:hover,
 .profile-navbar:focus-visible,
 .profile-navbar[aria-expanded='true'] {
-  max-width: 13rem;
+  border-color: color-mix(in srgb, currentcolor 65%, transparent);
+  background: color-mix(in srgb, currentcolor 12%, transparent);
 }
 
 .profile-navbar__wallet {
@@ -1012,22 +1096,12 @@ function closeProfileMenu() {
   min-width: 0;
   align-items: center;
   gap: var(--space-xs);
-  padding-left: var(--space-xs);
-  opacity: 0;
-  transition: opacity 120ms ease;
   font-weight: var(--typography-font-weight-semibold);
   white-space: nowrap;
 }
-.profile-navbar:hover .profile-navbar__wallet,
-.profile-navbar:focus-visible .profile-navbar__wallet,
-.profile-navbar[aria-expanded='true'] .profile-navbar__wallet {
-  opacity: 1;
-}
 .profile-navbar__amount {
   min-width: 0;
-  overflow: hidden;
   font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
 }
 .profile-navbar__wallet-icon {
   display: block;
@@ -1044,17 +1118,19 @@ function closeProfileMenu() {
   flex-shrink: 0;
   overflow: hidden;
   place-items: center;
-  border: 1px solid var(--semantic-color-border-border-default);
+  border: 0;
   border-radius: var(--corner-radius-full);
-  background: var(--semantic-color-background-bg-surface-active);
+  background: transparent;
 }
 
 .profile-navbar__avatar {
+  position: fixed;
+  z-index: var(--z-sticky);
   display: block;
-  width: 100%;
-  height: 100%;
+  border-radius: var(--corner-radius-full);
   object-fit: cover;
   object-position: center;
+  pointer-events: none;
 }
 
 .action-button {
@@ -1062,17 +1138,17 @@ function closeProfileMenu() {
   z-index: 2;
   isolation: isolate;
   display: inline-flex;
-  height: 2.5rem;
+  height: calc(var(--icon-size-32) + var(--space-xxs));
   align-items: center;
   justify-content: center;
-  border-radius: var(--corner-radius-lg);
+  border-radius: calc(var(--corner-radius-md) + var(--corner-radius-sm));
   cursor: pointer;
   border: 0;
   overflow: hidden;
   background: transparent;
   color: inherit;
   font: inherit;
-  font-weight: var(--typography-font-weight-regular);
+  font-weight: var(--typography-font-weight-medium);
   text-decoration: none;
 }
 
@@ -1098,39 +1174,17 @@ function closeProfileMenu() {
   transform: scaleX(1);
 }
 
-.action-button--outline {
+.action-button--filled {
   width: auto;
-  min-width: 6.875rem;
-  border: 1px solid var(--semantic-color-background-bg-inverse);
   padding-inline: var(--space-md);
-  background: transparent;
-  color: var(--semantic-color-text-text-primary);
+  background: var(--semantic-color-text-text-blend-source);
+  color: var(--semantic-color-text-text-blend-cutout);
   white-space: nowrap;
-  transition: color 220ms ease;
+  transition: opacity 160ms ease;
 }
 
-.action-button--outline::before {
-  position: absolute;
-  z-index: -1;
-  inset: 0;
-  border-radius: inherit;
-  background: var(--semantic-color-background-bg-inverse);
-  content: '';
-  transform: translateY(102%);
-  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.action-button--outline span {
-  position: relative;
-  z-index: 1;
-}
-
-.action-button--outline:hover {
-  color: var(--semantic-color-text-text-inverse);
-}
-
-.action-button--outline:hover::before {
-  transform: translateY(0);
+.action-button--filled:hover {
+  opacity: 0.88;
 }
 
 .theme-toggle {
@@ -1140,10 +1194,10 @@ function closeProfileMenu() {
   flex-shrink: 0;
   cursor: pointer;
   place-items: center;
-  border: 1px solid var(--semantic-color-border-border-strong);
+  border: 1px solid color-mix(in srgb, currentcolor 20%, transparent);
   border-radius: var(--corner-radius-full);
   background: transparent;
-  color: var(--semantic-color-text-text-primary);
+  color: inherit;
   transition:
     border-color 180ms ease,
     background-color 180ms ease;
@@ -1155,14 +1209,23 @@ function closeProfileMenu() {
   height: var(--icon-size-16);
 }
 
+.language-toggle {
+  margin-inline-start: var(--space-xs);
+  padding: 0;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-label-small);
+  font-weight: var(--typography-font-weight-medium);
+  line-height: var(--line-height-label);
+}
+
 .theme-toggle:hover,
 .theme-toggle:focus-visible {
-  border-color: var(--semantic-color-text-text-primary);
-  background: var(--semantic-color-background-bg-surface-hover);
+  border-color: color-mix(in srgb, currentcolor 40%, transparent);
+  background: color-mix(in srgb, currentcolor 8%, transparent);
 }
 
 .theme-toggle:active {
-  background: var(--semantic-color-background-bg-surface-active);
+  background: color-mix(in srgb, currentcolor 12%, transparent);
 }
 
 .profile-dialog {
@@ -1190,10 +1253,6 @@ function closeProfileMenu() {
 }
 
 @media (max-width: 63.99rem) {
-  .navbar--scrolled::before {
-    transition-delay: 0ms;
-  }
-
   .desktop-navbar {
     display: none;
   }
@@ -1205,7 +1264,7 @@ function closeProfileMenu() {
     min-height: 3rem;
     align-items: stretch;
     justify-content: space-between;
-    gap: 1.25rem;
+    gap: var(--space-xs);
     padding: var(--space-xs) var(--space-sm);
   }
 
@@ -1234,7 +1293,7 @@ function closeProfileMenu() {
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
   }
 
   .mobile-navbar__actions {
@@ -1260,7 +1319,7 @@ function closeProfileMenu() {
     border: 0;
     padding: 0;
     background: transparent;
-    color: var(--semantic-color-text-text-primary);
+    color: inherit;
   }
 
   .mobile-icon {
@@ -1278,48 +1337,46 @@ function closeProfileMenu() {
     height: var(--icon-size-32);
     align-items: center;
     justify-content: center;
-    border: 1px solid var(--semantic-color-border-border-strong);
-    border-radius: var(--corner-radius-lg);
+    border: 1px solid color-mix(in srgb, currentcolor 20%, transparent);
+    border-radius: calc(var(--corner-radius-md) + var(--corner-radius-sm));
     padding-inline: var(--space-md);
     background: transparent;
     color: inherit;
     font-family: var(--font-family-sans);
-    font-size: var(--font-size-label-large);
+    font-size: var(--font-size-label-medium);
     font-weight: var(--typography-font-weight-medium);
     line-height: var(--line-height-label);
   }
 
   .mobile-profile {
-    display: grid;
-    width: var(--icon-size-32);
     height: var(--icon-size-32);
-    flex-shrink: 0;
-    place-items: center;
-    overflow: hidden;
-    cursor: pointer;
-    border: 1px solid var(--semantic-color-border-border-default);
-    border-radius: var(--corner-radius-lg);
-    padding: 2px;
-    background: var(--semantic-color-action-backgrounds-bg-secondary);
-    color: var(--semantic-color-action-text-text-on-secondary);
+    gap: var(--space-xxs);
+    padding: calc(var(--space-xxs) - 1px) var(--space-xs) calc(var(--space-xxs) - 1px)
+      calc(var(--space-xxs) - 1px);
+    font-size: var(--font-size-label-small);
   }
 
   .mobile-profile .profile-navbar__avatar-frame {
-    width: 100%;
-    height: 100%;
+    width: var(--icon-size-24);
+    height: var(--icon-size-24);
+  }
+}
+
+@media (max-width: 39.99rem) {
+  .mobile-navbar .brand__wordmark {
+    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .brand__lockup,
+  .brand__desktop-visual,
   .brand__mark,
   .brand__wordmark,
   .navigation__link,
-  .navigation__liquid-pill,
   .profile-navbar,
   .profile-navbar__wallet,
-  .action-button--outline,
-  .action-button--outline::before,
+  .action-button--filled,
   .action-button--text::after,
   .theme-toggle,
   .theme-toggle__icon,

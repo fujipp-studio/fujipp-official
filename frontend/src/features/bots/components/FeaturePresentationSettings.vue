@@ -26,6 +26,7 @@ const {
 } = useFeatureEditor()
 const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topup')
 const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
+const isShopStatus = computed(() => license.value?.featureCode === 'shop-status')
 const isMessageSets = computed(() => license.value?.featureCode === 'message-sets')
 const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
 </script>
@@ -39,7 +40,8 @@ const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-
         isMessageTriggers ||
         isPaymentTrigger ||
         isPriceReaderFeature ||
-        isMessageSets) &&
+        isMessageSets ||
+        isShopStatus) &&
       configuration
     "
     :description="

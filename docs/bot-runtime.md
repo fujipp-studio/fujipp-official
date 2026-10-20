@@ -166,6 +166,61 @@ the product through the admin tools before granting/installing it. Installing or
 uninstalling the feature, changing other features, credentials, or explicitly
 restarting a bot still follows the usual bot restart flow.
 
+## Shop Status
+
+The bundled `shop-status@1.0.0` feature registers `/shop open` and `/shop close`.
+`SHOP_COMMAND_NAME`, `SHOP_OPEN_COMMAND`, and `SHOP_CLOSE_COMMAND` customize all
+three names (1–32 lowercase letters, digits, `_`, or `-`); subcommand names must
+be different. Administrators have access by default. Bot Permissions can grant
+access to the configured root command or each configured subcommand separately.
+A command owned by another feature is never replaced. Renaming removes the
+previous command recorded in this installation's runtime state.
+
+Each action has its own `SHOP_OPEN_MESSAGE_TYPE` / `SHOP_CLOSE_MESSAGE_TYPE`:
+`TEXT` uses the corresponding `SHOP_OPEN_TEXT` / `SHOP_CLOSE_TEXT` (up to 2000
+characters); `DESIGNED` uses `shop_open` / `shop_close` in the existing Embed or
+Components V2 designer. Supported variables are `status`, `user`, `user_name`,
+`channel`, and `guild_name`, written as `{{variable}}`. Mentions do not notify
+members. `SHOP_ANNOUNCEMENT_CHANNEL_ID` is optional; an empty value posts in the
+command channel. The command response and any errors are private.
+
+`SHOP_PERMISSION_RULES` optionally contains up to 25 unique channel/role pairs:
+
+```json
+[
+  {
+    "channelId": "111111111111111111",
+    "roleId": "222222222222222222",
+    "open": { "ViewChannel": "ALLOW", "SendMessages": "ALLOW" },
+    "close": { "SendMessages": "DENY" }
+  }
+]
+```
+
+The role ID can be the server ID for `@everyone`. Allowed permission keys are
+`ViewChannel`, `SendMessages`, and `Connect` (voice/stage channels only). Values
+are `ALLOW`, `DENY`, `INHERIT` (clear that permission's channel overwrite), and
+`KEEP` (leave unchanged, also the default for omitted keys). Opening applies
+its configured settings; it does not restore a historical snapshot. Discord's
+other role/member overwrites and Administrator bypass continue to apply.
+`Connect` denies new voice connections; it does not disconnect existing members.
+
+The bot needs Manage Roles in each affected channel and the appropriate
+announcement permissions. Rules target individual non-thread channels in the
+configured guild. Empty rules send announcements only. Before making changes,
+the Runner resolves every affected channel and role, checks permissions, and
+renders the announcement. Commands cannot run concurrently. A permission or
+state-save failure attempts to restore the affected permission bits; rollback
+failure explicitly asks the caller to inspect all affected channels. If sending
+the announcement fails after the status is saved, the private response explains
+that permissions changed but the announcement failed. A restart does not replay
+old permission changes or announcements. Configuration changes use the normal
+bot restart flow on the next runtime poll.
+
+Deploy the migration, Backend, Frontend, and Runner together. The migration
+creates a draft product/version; publish the version and activate the product
+through the existing admin tools before offering or installing the feature.
+
 ## Local build
 
 ```bash

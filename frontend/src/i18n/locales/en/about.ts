@@ -39,6 +39,9 @@ export default {
   },
   contact: {
     title: 'Let’s build something useful together.',
+    copyEmail: 'Copy email address',
+    copied: 'Email copied. Talk soon!',
+    copyError: 'Couldn’t copy. You can select the email address above.',
     description:
       "I'm open to software development opportunities where I can contribute, learn, and take ownership of work from idea to delivery.",
     rolesLabel: 'Roles of interest',

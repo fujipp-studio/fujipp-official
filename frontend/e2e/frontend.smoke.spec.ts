@@ -107,6 +107,52 @@ test('keeps the last language selection while translation chunks are loading', a
   await expect(page.locator('body')).not.toContainText('home.hero.title')
 })
 
+test('shows the wallet balance and switches language directly from the Navbar', async ({ page }) => {
+  await page.goto('/about?role=USER&keep=navbar#about-support')
+  const profile = page.getByRole('button', { name: 'Open profile', exact: true })
+  await expect(profile.locator('.profile-navbar__amount')).toContainText('1,000.00')
+  await expect(profile.locator('.profile-navbar__wallet')).toHaveCSS('opacity', '1')
+  const originalBounds = await profile.boundingBox()
+  await profile.hover()
+  await expect.poll(() => profile.boundingBox()).toEqual(originalBounds)
+  await page.getByRole('button', { name: 'Switch language to Thai', exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'th')
+  await expect(page).toHaveURL(/locale=th/)
+  expect(new URL(page.url()).searchParams.get('keep')).toBe('navbar')
+  expect(new URL(page.url()).hash).toBe('#about-support')
+  await page.reload()
+  await expect(page.getByRole('button', { name: 'Switch language to English', exact: true })).toHaveText('TH')
+  await page.getByRole('button', { name: 'Switch language to English', exact: true }).click()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page).not.toHaveURL(/locale=th/)
+  expect(new URL(page.url()).searchParams.has('locale')).toBe(false)
+  expect(new URL(page.url()).searchParams.get('keep')).toBe('navbar')
+  expect(new URL(page.url()).hash).toBe('#about-support')
+  expect(await page.evaluate(() => localStorage.getItem('fujipp-locale'))).toBe('en')
+  await profile.click()
+  await expect(page.locator('#profile-dialog')).toBeVisible()
+})
+
+test('keeps the latest quick language choice while translations load', async ({ page }) => {
+  let release!: () => void
+  const gate = new Promise<void>((resolve) => { release = resolve })
+  let requested = false
+  await page.route('**/i18n/locales/th/**', async (route) => {
+    requested = true
+    await gate
+    await route.continue()
+  })
+  await page.goto('/?role=GUEST')
+  await page.getByRole('button', { name: 'Switch language to Thai', exact: true }).click()
+  await expect.poll(() => requested).toBe(true)
+  await page.getByRole('button', { name: 'Switch language to English', exact: true }).click()
+  release()
+  await page.waitForLoadState('networkidle')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page.getByRole('button', { name: 'Switch language to Thai', exact: true })).toHaveText('EN')
+  expect(new URL(page.url()).searchParams.has('locale')).toBe(false)
+})
+
 test('loads more Admin users on scroll and resets the cursor for a new search', async ({
   page,
 }) => {

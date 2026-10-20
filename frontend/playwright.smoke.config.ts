@@ -4,6 +4,7 @@ export default defineConfig({
   testMatch: [
     'admin-tools.smoke.spec.ts',
     'frontend.smoke.spec.ts',
+    'desktop-scroll.smoke.spec.ts',
     'member-spending.smoke.spec.ts',
     'bot-presence.smoke.spec.ts',
     'runtime-expiry-alert.smoke.spec.ts',
@@ -17,6 +18,7 @@ export default defineConfig({
     'price-reader.smoke.spec.ts',
     'price-reader-customization.smoke.spec.ts',
     'message-sets.smoke.spec.ts',
+    'shop-status.smoke.spec.ts',
     'discord-markdown.smoke.spec.ts',
     'account-topup.smoke.spec.ts',
   ],

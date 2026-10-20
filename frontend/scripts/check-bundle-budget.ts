@@ -32,12 +32,22 @@ function collect(keys: string[]) {
 const translations = (...namespaces: string[]) => ['en', 'th'].flatMap(locale =>
   ['common', 'navigation', 'footer', ...namespaces].map(namespace => `src/i18n/locales/${locale}/${namespace}.ts`))
 const settings = ['src/features/bots/views/BotSettingsFlowView.vue', 'src/features/bots/views/FeatureSettingsView.vue']
+const featureConfigs = [
+  'MemberSpendingConfig', 'BotPresenceConfig', 'BotPermissionsConfig', 'ReviewCreditConfig',
+  'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
+  'VoiceKeeperConfig', 'WalletTopupConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig',
+]
 const profiles = [
   {name:'Initial shell', keys:[], js:180, css:50},
   {name:'Home', keys:['src/features/home/views/HomeView.vue', ...translations('home')], js:150, css:50},
   {name:'Work', keys:['src/features/work/views/WorkListView.vue', ...translations()], js:160, css:50},
   {name:'My Bot', keys:['src/features/bots/views/MyBotsView.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:230, css:50},
   {name:'Feature config', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
+  ...featureConfigs.map(component => ({
+    name: component,
+    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
+    js:250, css:50,
+  })),
   {name:'Presentation editor', keys:[...settings, 'src/features/bots/components/FeaturePresentationEditor.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:260, css:50},
 ]
 const sizes = new Map<string, number>()

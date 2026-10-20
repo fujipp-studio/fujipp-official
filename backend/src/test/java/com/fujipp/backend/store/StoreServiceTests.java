@@ -229,6 +229,26 @@ class StoreServiceTests {
         verify(repository, never()).bumpConfigRevision(org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void partialShopUpdateValidatesAgainstSavedSubcommandBeforeWriting() {
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        authorize(userId);
+        var license = new StoreRepository.LicenseContext(
+                licenseId, UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+                UUID.randomUUID(), 0, null);
+        when(repository.findLicense(licenseId, userId)).thenReturn(Optional.of(license));
+        var savedClose = new ObjectMapper().valueToTree("stop");
+        var saved = new FeatureConfigurationResponse(licenseId, 0, null, List.of(
+                new FeatureConfigurationResponse.FieldResponse("SHOP_CLOSE_COMMAND", "Close", "", "STRING",
+                        true, false, savedClose, savedClose, true, null, null)), List.of());
+        when(repository.findConfiguration(license)).thenReturn(saved);
+        assertThatThrownBy(() -> service.updateConfiguration(userId.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(Map.of("SHOP_OPEN_COMMAND", savedClose), Map.of(), Map.of())))
+                .isInstanceOf(StoreValidationException.class).hasMessageContaining("different");
+        verify(repository, never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).bumpConfigRevision(org.mockito.ArgumentMatchers.any());
+    }
+
     private void authorize(UUID userId) {
         when(currentUserService.getActiveAccount(userId.toString()))
                 .thenReturn(new CurrentUserRepository.AccountProfile(

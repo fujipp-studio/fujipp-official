@@ -7,6 +7,7 @@ import darkFaviconUrl from './assets/brand/fujipp-mark-tab-dark.svg?url'
 import lightFaviconUrl from './assets/brand/fujipp-mark-tab-light.svg?url'
 import { AppNavbar } from './shared/layout'
 import { AppScrollRail } from './shared/ui'
+import { useDesktopSmoothScroll } from './shared/ui/useDesktopSmoothScroll'
 import { useAuthStore, useThemeStore } from './stores'
 import { useAdminToolsVisibility } from './features/admin/composables/useAdminToolsVisibility'
 
@@ -16,6 +17,7 @@ const AdminTools = defineAsyncComponent(
 
 const route = useRoute()
 const router = useRouter()
+useDesktopSmoothScroll()
 const auth = useAuthStore()
 const theme = useThemeStore()
 const { currentUser, initialized, isAuthenticated } = storeToRefs(auth)

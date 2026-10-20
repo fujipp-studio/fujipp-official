@@ -22,13 +22,6 @@ const categoryIcons = {
 
 <template>
   <article class="skill-group-card" :class="`skill-group-card--${group.category}`">
-    <component
-      :is="categoryIcons[group.category]"
-      class="skill-group-card__art"
-      :size="160"
-      :stroke-width="0.75"
-      aria-hidden="true"
-    />
     <h3>
       <component
         :is="categoryIcons[group.category]"
@@ -58,16 +51,6 @@ const categoryIcons = {
   border-radius: var(--corner-radius-lg);
   padding: var(--space-xl);
   background: var(--semantic-color-background-bg-surface);
-}
-
-.skill-group-card__art {
-  position: absolute;
-  top: var(--space-lg);
-  right: var(--space-lg);
-  width: clamp(7rem, 13vw, 10rem);
-  height: auto;
-  opacity: 0.1;
-  pointer-events: none;
 }
 
 .skill-group-card--infra {

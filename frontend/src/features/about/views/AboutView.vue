@@ -8,7 +8,7 @@ import { AppButton, AppProgressiveImage } from '../../../shared/ui'
 import { icons } from '../../../config'
 import { useThemeStore } from '../../../stores'
 import { DonationSupportSection } from '../../donation/components'
-import { AboutSectionNavigation, SkillGroupCard } from '../components'
+import { AboutContactSection, AboutSectionNavigation, SkillGroupCard } from '../components'
 import { experienceHighlights, skillGroups } from '../config'
 
 const { isDarkTheme } = storeToRefs(useThemeStore())
@@ -164,34 +164,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section id="about-contact" class="about-section about-contact">
-        <div class="about-contact__container">
-          <div class="about-copy">
-            <p class="about-contact__eyebrow">{{ t('about.sections.contact') }}</p>
-            <h2>{{ t('about.contact.title') }}</h2>
-            <p>{{ t('about.contact.description') }}</p>
-            <ul class="about-contact__roles" :aria-label="t('about.contact.rolesLabel')">
-              <li>{{ t('about.contact.frontend') }}</li>
-              <li>{{ t('about.contact.backend') }}</li>
-              <li>{{ t('about.contact.fullStack') }}</li>
-              <li>{{ t('about.contact.automation') }}</li>
-            </ul>
-          </div>
-
-          <div class="about-contact__action">
-            <span class="about-contact__arrow" aria-hidden="true">↗</span>
-            <span class="about-contact__email-label">{{ t('about.contact.emailLabel') }}</span>
-            <a href="mailto:anawat.boripakhirun@gmail.com">anawat.boripakhirun@gmail.com</a>
-            <AppButton
-              variant="primary"
-              href="mailto:anawat.boripakhirun@gmail.com"
-              :left-icon="icons.social.email"
-            >
-              {{ t('about.contact.action') }}
-            </AppButton>
-          </div>
-        </div>
-      </section>
+      <AboutContactSection />
 
       <DonationSupportSection />
     </main>
@@ -225,6 +198,7 @@ onBeforeUnmount(() => {
   max-width: var(--layout-content-max-width);
   margin-inline: auto;
   padding: var(--space-5xl) var(--layout-page-gutter);
+  background: var(--semantic-color-background-bg-default);
 }
 
 .about-profile {
@@ -394,7 +368,7 @@ onBeforeUnmount(() => {
   line-height: var(--line-height-body);
 }
 
-.about-copy > p:not(.about-eyebrow):not(.about-profile__eyebrow):not(.about-contact__eyebrow),
+.about-copy > p:not(.about-eyebrow):not(.about-profile__eyebrow),
 .about-experience__heading > p:not(.about-eyebrow) {
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-large);
@@ -515,10 +489,6 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.about-skills__grid :deep(.skill-group-card__art) {
-  opacity: 0.12;
-}
-
 .about-skills__grid :deep(.skill-group-card ul) {
   position: relative;
   z-index: 1;
@@ -582,13 +552,6 @@ onBeforeUnmount(() => {
 
 .about-experience {
   max-width: none;
-  background:
-    radial-gradient(
-      circle at 85% 8%,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 10%, transparent),
-      transparent 32rem
-    ),
-    var(--semantic-color-background-bg-surface);
 }
 
 .about-experience__inner {
@@ -680,7 +643,7 @@ onBeforeUnmount(() => {
       color-mix(in srgb, var(--semantic-color-text-text-accent) 9%, transparent),
       transparent 65%
     ),
-    var(--semantic-color-background-bg-default);
+    var(--semantic-color-background-bg-surface);
   box-shadow: var(--effect-shadow-sm);
   transition: box-shadow 180ms ease;
 }
@@ -753,136 +716,7 @@ onBeforeUnmount(() => {
   opacity: 0.78;
 }
 
-.about-contact {
-  max-width: none;
-  background:
-    radial-gradient(
-      circle at 85% 10%,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 17%, transparent),
-      transparent 34rem
-    ),
-    var(--semantic-color-background-bg-inverse);
-  color: var(--semantic-color-text-text-inverse);
-}
-
-.about-contact__container {
-  display: grid;
-  width: min(100%, 72rem);
-  min-height: 34rem;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-  align-items: end;
-  gap: var(--space-3xl);
-  margin-inline: auto;
-}
-
-.about-contact__container .about-copy {
-  width: min(100%, 48rem);
-  gap: var(--space-lg);
-}
-
-.about-contact__eyebrow {
-  color: var(--semantic-color-text-text-accent);
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.about-contact__container .about-copy > p:not(.about-contact__eyebrow) {
-  max-width: 37rem;
-  color: var(--semantic-color-text-text-inverse);
-  opacity: 0.76;
-}
-
-.about-contact__container h2 {
-  max-width: 14ch;
-  font-size: clamp(3.5rem, 6vw, 6.5rem);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: -0.055em;
-  line-height: 1;
-}
-
-.about-contact__container h2:lang(th) {
-  letter-spacing: 0;
-  line-height: 1.2;
-}
-
-.about-contact__roles {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-xs);
-  margin: var(--space-md) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.about-contact__roles li {
-  border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
-  border-radius: var(--corner-radius-full);
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--font-size-label-medium);
-}
-
-.about-contact__action {
-  display: flex;
-  min-width: 0;
-  min-height: 20rem;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  border: 1px solid var(--semantic-color-border-border-subtle);
-  border-radius: var(--corner-radius-lg);
-  padding: var(--space-xl);
-  background: var(--semantic-color-background-bg-default);
-  color: var(--semantic-color-text-text-primary);
-  box-shadow: var(--effect-shadow-lg);
-}
-
-.about-contact__arrow {
-  align-self: flex-end;
-  font-size: clamp(3rem, 5vw, 4.5rem);
-  line-height: 0.8;
-}
-
-.about-contact__email-label {
-  margin-top: auto;
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-label-medium);
-}
-
-.about-contact__action > a {
-  color: inherit;
-  font-size: var(--font-size-body-medium);
-  font-weight: var(--typography-font-weight-semibold);
-  overflow-wrap: anywhere;
-  text-decoration: none;
-}
-
-.about-contact__action > a:hover {
-  text-decoration: underline;
-  text-underline-offset: 0.2em;
-}
-
-.about-contact__action :deep(.app-button) {
-  margin-top: var(--space-sm);
-  border-color: transparent;
-  background: var(--semantic-color-background-bg-inverse);
-  box-shadow: none;
-  color: var(--semantic-color-text-text-inverse);
-  backdrop-filter: none;
-}
-
-.about-contact__action :deep(.app-button:hover) {
-  background: var(--semantic-color-background-bg-inverse);
-  transform: none;
-}
-
 @media (max-width: 63.99rem) {
-  .about-contact__container {
-    grid-template-columns: 1fr;
-    gap: var(--space-2xl);
-  }
-
   .about-profile__grid {
     grid-template-columns: 1fr;
   }
@@ -908,10 +742,6 @@ onBeforeUnmount(() => {
     max-width: 28rem;
   }
 
-  .about-contact__action {
-    width: 100%;
-    min-height: 16rem;
-  }
 }
 
 @media (max-width: 47.99rem) {
@@ -949,14 +779,6 @@ onBeforeUnmount(() => {
 
   .about-experience__number {
     font-size: var(--font-size-heading-h1);
-  }
-
-  .about-contact__container {
-    min-height: 0;
-  }
-
-  .about-contact__container h2 {
-    font-size: clamp(2.75rem, 10vw, 4.5rem);
   }
 
   .about-skills {

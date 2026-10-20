@@ -14,7 +14,7 @@ for (const theme of ['LIGHT', 'DARK']) {
     )
     await page.goto('/add-credit?locale=th&role=USER')
     const card = page.locator('.balance-card')
-    const profile = page.locator(isMobile ? '.mobile-profile' : '.profile-navbar')
+    const profile = page.getByRole('button', { name: 'Open profile', exact: true })
     await expect(card).toBeVisible()
     const profileBackground = await profile.evaluate(
       (element) => getComputedStyle(element).backgroundColor,
@@ -29,11 +29,10 @@ for (const theme of ['LIGHT', 'DARK']) {
         useAuthStore().currentUser.walletBalanceSatang = balance
       }, amount)
     for (const tier of walletSkinTiers) {
+      await page.mouse.move(0, 0)
       await setBalance(tier.minimumBaht * 100)
       await expect(card).toHaveAttribute('data-wallet-skin', tier.key)
-      expect(await profile.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
-        profileBackground,
-      )
+      await expect(profile).toHaveCSS('background-color', profileBackground)
       await expect(card.getByText('ยอดเงินปัจจุบัน')).toBeVisible()
       await expect(card.locator('strong')).toContainText(
         tier.minimumBaht.toLocaleString('en-US', { minimumFractionDigits: 2 }),
@@ -118,16 +117,17 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect(card).toHaveAttribute('data-wallet-skin', 'black')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await page.emulateMedia({ reducedMotion: 'reduce' })
-    await page
-      .locator(isMobile ? '.mobile-navbar .theme-toggle' : '.desktop-navbar .theme-toggle')
-      .click()
+    await page.getByRole('button', { name: /^Theme:/ }).click()
     await expect(page.locator('html')).toHaveAttribute(
       'data-theme',
       theme === 'DARK' ? 'light' : 'dark',
     )
-    expect(await profile.evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe(
-      profileBackground,
-    )
+    // The Navbar now inverts its neutral surface through difference compositing.
+    // A theme switch must keep it neutral instead of inheriting the wallet skin.
+    await expect(profile).toHaveCSS('background-color', profileBackground)
+    await expect(page.locator('.navbar')).toHaveCSS('mix-blend-mode', 'difference')
+    await expect(profile.locator('.profile-navbar__amount')).toBeVisible()
+    await expect(card).toHaveAttribute('data-wallet-skin', 'black')
     expect(
       await card.evaluate((element) => getComputedStyle(element, '::after').animationName),
     ).toBe('none')

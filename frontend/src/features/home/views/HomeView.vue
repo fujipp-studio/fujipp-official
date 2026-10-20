@@ -5,10 +5,9 @@ import { useI18n } from 'vue-i18n'
 import { AppFooter } from '../../../shared/layout'
 import { AppTextLink } from '../../../shared/ui'
 import { AboutUsSection, ProblemSolutionSection, ScrollProgressIndicator } from '../components'
-import { useScrollFade } from '../composables/useScrollFade'
+import { useAnimationVisibility } from '../../../shared/ui/useAnimationVisibility'
 
 const heroSection = ref<HTMLElement>()
-const heroFadeStyle = useScrollFade(heroSection, 'exit')
 const { t } = useI18n()
 const heroPortraits = [
   {
@@ -33,6 +32,15 @@ const readyHeroPortraits = ref(new Set<number>())
 const heroStackReady = computed(() => readyHeroPortraits.value.size === heroPortraits.length)
 let heroCarouselTimer: number | undefined
 let heroPointerStartX: number | undefined
+let heroAnimationVisible = false
+const heroHovered = ref(false)
+const heroFocused = ref(false)
+
+useAnimationVisibility(heroSection, (active) => {
+  heroAnimationVisible = active
+  if (active) startHeroCarousel()
+  else stopHeroCarousel()
+})
 
 function heroPortraitPosition(index: number) {
   const offset = (index - activeHeroPortrait.value + heroPortraits.length) % heroPortraits.length
@@ -72,8 +80,7 @@ function stopHeroCarousel() {
 
 function startHeroCarousel() {
   stopHeroCarousel()
-  if (!heroStackReady.value) return
-  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (!heroStackReady.value || !heroAnimationVisible || heroHovered.value || heroFocused.value) return
   heroCarouselTimer = window.setInterval(showNextHeroPortrait, 3600)
 }
 
@@ -106,7 +113,7 @@ onBeforeUnmount(() => {
     <ScrollProgressIndicator />
     <main class="home-main">
       <section id="home-hero" ref="heroSection" class="home-hero">
-        <div class="home-hero__content" :style="heroFadeStyle">
+        <div class="home-hero__content">
           <div class="home-hero__copy">
             <h1>{{ t('home.hero.title') }}</h1>
             <p class="home-hero__accent">{{ t('home.hero.accent') }}</p>
@@ -124,10 +131,10 @@ onBeforeUnmount(() => {
             @pointerdown="startHeroSwipe"
             @pointerup="finishHeroSwipe"
             @pointercancel="heroPointerStartX = undefined"
-            @mouseenter="stopHeroCarousel"
-            @mouseleave="startHeroCarousel"
-            @focusin="stopHeroCarousel"
-            @focusout="startHeroCarousel"
+            @mouseenter="heroHovered = true; stopHeroCarousel()"
+            @mouseleave="heroHovered = false; startHeroCarousel()"
+            @focusin="heroFocused = true; stopHeroCarousel()"
+            @focusout="heroFocused = false; startHeroCarousel()"
           >
             <button
               v-for="(portrait, index) in heroPortraits"
@@ -146,7 +153,7 @@ onBeforeUnmount(() => {
               <img
                 :src="loadedHeroPortraits.has(index) ? portrait.src : undefined"
                 :srcset="loadedHeroPortraits.has(index) ? portrait.srcset : undefined"
-                sizes="(max-width: 767px) 64vw, 352px"
+                sizes="(max-width: 767px) min(64vw, 240px), 352px"
                 width="768"
                 height="768"
                 alt=""
@@ -228,10 +235,24 @@ onBeforeUnmount(() => {
 }
 
 .home-hero__accent {
-  color: var(--semantic-color-text-text-accent);
+  width: fit-content;
+  background-image: var(--semantic-gradient-brand-text);
+  background-clip: text;
+  color: transparent;
   font-family: var(--font-family-handwriting);
   font-size: clamp(3rem, 6vw, 5.25rem);
   line-height: 0.95;
+}
+
+.home-hero__accent:lang(th) {
+  line-height: var(--line-height-heading);
+}
+
+@media (forced-colors: active) {
+  .home-hero__accent {
+    background-image: none;
+    color: CanvasText;
+  }
 }
 
 .home-hero__summary {
@@ -274,8 +295,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition:
     opacity 520ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 520ms cubic-bezier(0.22, 1, 0.36, 1);
+    transform 520ms cubic-bezier(0.22, 1, 0.36, 1);
   will-change: transform;
 }
 

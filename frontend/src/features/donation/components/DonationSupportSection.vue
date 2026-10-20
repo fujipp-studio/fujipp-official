@@ -11,7 +11,7 @@ import {
   type Donation,
   type DonationCampaign,
 } from '@/features/donation/api'
-import { AppButton, AppModal, AppTextField, AppToast } from '@/shared/ui'
+import { AppButton, AppModal, AppToast } from '@/shared/ui'
 const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/AppAuthDialog.vue'))
 import { useAuthStore } from '@/stores'
 
@@ -34,7 +34,9 @@ const donationModalOpen = ref(false)
 const openAfterLogin = ref(false)
 const selectedAmount = ref(100)
 const customAmount = ref('')
-const donorName = ref('')
+const donorName = computed(
+  () => currentUser.value?.displayName?.trim() || currentUser.value?.username || 'Supporter',
+)
 const anonymous = ref(false)
 const creating = ref(false)
 const completedDonation = ref<Donation | null>(null)
@@ -52,13 +54,7 @@ const validAmount = computed(
   () => Number.isInteger(amountBaht.value) && amountBaht.value >= 10 && amountBaht.value <= 100000,
 )
 const walletEnough = computed(() => balanceSatang.value >= amountSatang.value)
-const canDonate = computed(
-  () =>
-    Boolean(session.value) &&
-    validAmount.value &&
-    (anonymous.value || donorName.value.trim().length > 0) &&
-    walletEnough.value,
-)
+const canDonate = computed(() => Boolean(session.value) && validAmount.value && walletEnough.value)
 const progress = computed(() => {
   if (!campaign.value?.goalSatang) return 0
   return Math.min(100, (campaign.value.raisedSatang / campaign.value.goalSatang) * 100)
@@ -163,14 +159,6 @@ function resetDonation() {
   selectedAmount.value = 100
   customAmount.value = ''
 }
-
-watch(
-  currentUser,
-  (user) => {
-    if (!donorName.value && user) donorName.value = user.displayName ?? user.username ?? ''
-  },
-  { immediate: true },
-)
 
 watch(session, (activeSession) => {
   if (!activeSession || !openAfterLogin.value) return
@@ -343,19 +331,19 @@ onMounted(() => void loadCampaign())
           </span>
         </label>
 
-        <AppTextField
-          v-model="donorName"
-          :label="t('donation.donorName')"
-          :placeholder="t('donation.donorNamePlaceholder')"
-          :maxlength="60"
-          :required="!anonymous"
-          :disabled="anonymous"
-        />
+        <div class="donor-account">
+          <dl>
+            <dt>{{ t('donation.donorAccount') }}</dt>
+            <dd>{{ donorName }}</dd>
+          </dl>
+          <p>{{ t('donation.memberRankingHint') }}</p>
+        </div>
 
         <label class="anonymous-option">
-          <input v-model="anonymous" type="checkbox" />
+          <input v-model="anonymous" type="checkbox" aria-describedby="donation-anonymous-hint" />
           <span>{{ t('donation.anonymous') }}</span>
         </label>
+        <p id="donation-anonymous-hint" class="anonymous-hint">{{ t('donation.anonymousHint') }}</p>
 
         <AppButton
           v-if="validAmount && !walletEnough"
@@ -388,13 +376,7 @@ onMounted(() => void loadCampaign())
   box-sizing: border-box;
   width: 100%;
   padding: var(--space-5xl) var(--layout-page-gutter);
-  background:
-    radial-gradient(
-      circle at 80% 5%,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 10%, transparent),
-      transparent 30rem
-    ),
-    var(--semantic-color-background-bg-surface);
+  background: var(--semantic-color-background-bg-default);
 }
 
 .support-shell {
@@ -436,7 +418,7 @@ onMounted(() => void loadCampaign())
   border: 1px solid var(--semantic-color-border-border-subtle);
   border-radius: var(--corner-radius-lg);
   padding: var(--space-2xl);
-  background: var(--semantic-color-background-bg-default);
+  background: var(--semantic-color-background-bg-surface);
   box-shadow: var(--effect-shadow-sm);
 }
 
@@ -592,6 +574,7 @@ onMounted(() => void loadCampaign())
 }
 
 .goal-panel {
+  container-type: inline-size;
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -620,11 +603,11 @@ onMounted(() => void loadCampaign())
 .goal-value {
   margin-top: var(--space-sm);
   font-family: var(--font-family-display);
-  font-size: clamp(2.5rem, 3.4vw, 3.5rem);
+  font-size: min(var(--font-size-display-medium), 16cqi);
   font-weight: var(--typography-font-weight-bold);
   letter-spacing: -0.055em;
   line-height: 1.05;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .goal-track {
@@ -829,6 +812,40 @@ onMounted(() => void loadCampaign())
 
 .anonymous-option input {
   accent-color: var(--color-bg-inverse);
+}
+
+.donor-account {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.donor-account dl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.donor-account dt {
+  color: var(--semantic-color-text-text-secondary);
+  font-size: var(--font-size-body-small);
+}
+
+.donor-account dd {
+  margin: 0;
+  color: var(--semantic-color-text-text-primary);
+  font-weight: var(--typography-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.anonymous-hint,
+.donor-account p {
+  margin: 0;
+  color: var(--semantic-color-text-text-muted);
+  font-size: var(--font-size-label-small);
+  line-height: var(--line-height-label);
 }
 
 .donation-success {

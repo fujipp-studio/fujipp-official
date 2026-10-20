@@ -132,12 +132,55 @@ describe('DonationSupportSection', () => {
       expect.objectContaining({
         amountSatang: 30_000,
         donorName: 'Supporter',
+        anonymous: false,
         fundingMethod: 'WALLET',
         idempotencyKey: expect.stringMatching(/^web-donation:/),
       }),
       expect.objectContaining({ access_token: 'test-token' }),
     )
     expect(wrapper.text()).toContain('Thank you for your support!')
+    wrapper.unmount()
+  })
+
+  it('uses the current profile instead of accepting a separate donor name', async () => {
+    const wrapper = mountSection()
+    await flushPromises()
+    await wrapper.get('.donate-button').trigger('click')
+    await flushPromises()
+
+    const accountName = wrapper.get('.donor-account dd')
+    expect(accountName.text()).toBe('Supporter')
+    expect(wrapper.find('.donor-account input').exists()).toBe(false)
+    expect(wrapper.get<HTMLInputElement>('.anonymous-option input').element.checked).toBe(false)
+
+    const auth = useAuthStore()
+    if (auth.currentUser) auth.currentUser.displayName = 'Updated profile'
+    await flushPromises()
+    expect(accountName.text()).toBe('Updated profile')
+
+    await wrapper.get('.modal-action').trigger('click')
+    await flushPromises()
+    expect(createDonation).toHaveBeenCalledWith(
+      expect.objectContaining({ donorName: 'Updated profile', anonymous: false }),
+      expect.anything(),
+    )
+    wrapper.unmount()
+  })
+
+  it('allows anonymous to be switched back off before donating', async () => {
+    const wrapper = mountSection()
+    await flushPromises()
+    await wrapper.get('.donate-button').trigger('click')
+    await flushPromises()
+    await wrapper.get('.anonymous-option input').setValue(true)
+    await wrapper.get('.anonymous-option input').setValue(false)
+    await wrapper.get('.modal-action').trigger('click')
+    await flushPromises()
+
+    expect(createDonation).toHaveBeenCalledWith(
+      expect.objectContaining({ donorName: 'Supporter', anonymous: false }),
+      expect.objectContaining({ access_token: 'test-token' }),
+    )
     wrapper.unmount()
   })
 
