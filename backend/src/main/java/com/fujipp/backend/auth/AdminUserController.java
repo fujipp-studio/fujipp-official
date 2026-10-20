@@ -6,6 +6,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -71,5 +72,11 @@ public class AdminUserController {
     public AdminUserResponses.FeatureLicense updateFeature(@PathVariable UUID userId,@PathVariable UUID licenseId,
             @Valid @RequestBody AdminUserRequests.UpdateFeatureLicenseRequest request) {
         return adminUserService.updateFeature(userId, licenseId, request);
+    }
+
+    @DeleteMapping("/{userId}/features/{licenseId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeFeature(@PathVariable UUID userId, @PathVariable UUID licenseId) {
+        adminUserService.removeFeature(userId, licenseId);
     }
 }

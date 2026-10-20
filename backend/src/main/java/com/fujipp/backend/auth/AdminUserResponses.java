@@ -45,6 +45,6 @@ public class AdminUserResponses {
     public record FeatureLicense(
             UUID id, UUID featureProductId, String featureCode, String featureName,
             String version, String status, int installationLimit,
-            OffsetDateTime acquiredAt, OffsetDateTime expiresAt
+            OffsetDateTime acquiredAt, OffsetDateTime expiresAt, int installationCount
     ) {}
 }

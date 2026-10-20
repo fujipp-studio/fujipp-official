@@ -104,6 +104,17 @@ export default {
     accountSaved: 'User account updated',
     walletSaved: 'Wallet balance updated',
     featureGranted: 'Feature granted',
+    removeUserFeature: 'Remove',
+    removeUserFeatureLabel: 'Remove {name} from user',
+    removeUserFeatureTitle: 'Remove user feature?',
+    removeUserFeatureWarning:
+      'Remove this license from {user}’s inventory and uninstall it from every bot using this license. Purchase history is retained.',
+    featureInstalledCount: 'Installed bots: {count}',
+    installedCoreProtected:
+      'Installed core features are required by the bot and cannot be removed.',
+    removeUserFeatureConfirm: 'Confirm removal',
+    userFeatureRemoved: 'Feature removed from user',
+    removeUserFeatureError: 'Unable to remove user feature',
     noNote: 'No note',
     botsTitle: 'Bots',
     botsDescription: 'Search, inspect, start, stop, transfer, and delete registered bots.',

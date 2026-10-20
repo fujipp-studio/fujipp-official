@@ -103,3 +103,126 @@ test('Admin tools are unavailable to guests and regular users', async ({ page })
     await expect(page.locator('.admin-tools')).toHaveCount(0)
   }
 })
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`admin removes a user feature with confirmation and retry in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    const th = theme === 'LIGHT'
+    const { adminUserFeatures, featureOwner } =
+      await import('../src/__tests__/fixtures/adminUserFeatures')
+    const { license, user } = await import('../src/__tests__/fixtures/domain')
+    const features = adminUserFeatures()
+    const inventory = () =>
+      features.map((feature) => ({
+        ...structuredClone(license),
+        ...feature,
+        installations:
+          feature.status === 'REVOKED' || !feature.installationCount
+            ? []
+            : structuredClone(license.installations),
+      }))
+    const errors: string[] = []
+    page.on('pageerror', (error) => errors.push(error.message))
+    await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+    await page.route('**/api/v2/admin/users*', (route) =>
+      route.fulfill({ json: { items: [featureOwner], nextCursor: null, hasMore: false } }),
+    )
+    await page.route('**/api/v1/feature-licenses', (route) => route.fulfill({ json: inventory() }))
+    await page.route('**/api/v2/feature-licenses*', (route) =>
+      route.fulfill({ json: { items: inventory(), nextCursor: null, hasMore: false } }),
+    )
+    await page.route(`**/api/v1/admin/users/${user.id}/features`, (route) =>
+      route.fulfill({ json: features }),
+    )
+    let deletes = 0
+    await page.route(`**/api/v1/admin/users/${user.id}/features/*`, async (route) => {
+      expect(route.request().method()).toBe('DELETE')
+      expect(route.request().headers().authorization).toMatch(/^Bearer /)
+      deletes++
+      expect(new URL(route.request().url()).pathname.endsWith('/review-license')).toBe(true)
+      if (deletes === 1)
+        return route.fulfill({
+          status: 503,
+          json: { detail: 'Feature removal temporarily unavailable' },
+        })
+      features[0]!.status = 'REVOKED'
+      features[0]!.installationCount = 0
+      await route.fulfill({ status: 204 })
+    })
+    await page.goto(`/my-bot?locale=${th ? 'th' : 'en'}`)
+    const purchases = page.locator('section[aria-labelledby="purchases-title"]')
+    await expect(purchases.getByRole('row').filter({ hasText: 'Review Credit' })).toBeVisible()
+    await page.goto(`/admin/users?locale=${th ? 'th' : 'en'}`)
+    await page
+      .getByRole('button', { name: th ? 'Feature ของผู้ใช้' : 'User features', exact: true })
+      .click()
+    const dialog = page.getByRole('dialog')
+    const review = dialog.locator('[data-license-id="review-license"]')
+    await expect(review).toBeVisible()
+    await expect(
+      dialog.getByRole('button', {
+        name: th ? 'ลบ Bot Permissions ออกจากผู้ใช้' : 'Remove Bot Permissions from user',
+        exact: true,
+      }),
+    ).toBeDisabled()
+    await expect(
+      dialog.getByRole('button', {
+        name: th ? 'ลบ Bot Presence ออกจากผู้ใช้' : 'Remove Bot Presence from user',
+        exact: true,
+      }),
+    ).toBeEnabled()
+    const screenshotOptions = {
+      animations: 'disabled' as const,
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast, #__vue-devtools-container__ { visibility: hidden !important; }',
+    }
+    await dialog.screenshot({
+      ...screenshotOptions,
+      path: testInfo.outputPath(`user-features-${theme.toLowerCase()}.png`),
+    })
+    await review.scrollIntoViewIfNeeded()
+    await review.screenshot({ ...screenshotOptions, path: testInfo.outputPath(`user-feature-actions-${theme.toLowerCase()}.png`) })
+    const remove = () =>
+      review
+        .getByRole('button', {
+          name: th ? 'ลบ Review Credit ออกจากผู้ใช้' : 'Remove Review Credit from user',
+          exact: true,
+        })
+        .click()
+    await remove()
+    await expect(dialog).toContainText('Feature owner')
+    await expect(dialog).toContainText(th ? 'บอทที่ติดตั้ง: 1 ตัว' : 'Installed bots: 1')
+    expect(deletes).toBe(0)
+    await dialog.getByRole('button', { name: th ? 'ยกเลิก' : 'Cancel', exact: true }).click()
+    expect(deletes).toBe(0)
+    await remove()
+    await dialog.screenshot({
+      ...screenshotOptions,
+      path: testInfo.outputPath(`remove-user-feature-${theme.toLowerCase()}.png`),
+    })
+    const confirm = dialog.getByRole('button', {
+      name: th ? 'ยืนยันการลบ' : 'Confirm removal',
+      exact: true,
+    })
+    await confirm.click()
+    await expect(dialog.getByRole('alert')).toHaveText('Feature removal temporarily unavailable')
+    expect(deletes).toBe(1)
+    await confirm.click()
+    await expect(review).toHaveCount(0)
+    expect(deletes).toBe(2)
+    await expect(dialog.locator('[data-license-id="unused-core-license"]')).toBeVisible()
+    await expect(dialog.locator('[data-license-id="installed-core-license"]')).toBeVisible()
+    await dialog.getByRole('button', { name: th ? 'ปิด' : 'Close', exact: true }).click()
+    await page
+      .getByRole('button', { name: th ? 'Feature ของผู้ใช้' : 'User features', exact: true })
+      .click()
+    await expect(review).toHaveCount(0)
+    await expect(dialog.locator('[data-license-id="unused-core-license"]')).toBeVisible()
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await page.goto(`/my-bot?locale=${th ? 'th' : 'en'}`)
+    await expect(purchases.getByRole('row').filter({ hasText: 'Review Credit' })).toHaveCount(0)
+    await expect(purchases.getByRole('row').filter({ hasText: 'Bot Presence' })).toBeVisible()
+    expect(errors).toEqual([])
+  })
+}

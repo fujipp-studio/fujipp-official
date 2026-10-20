@@ -3,6 +3,7 @@
 | Date | Change |
 | --- | --- |
 | 2026-10-20 | Documented Shop Status delivery policies, recovery, and explicit message-designer saves. |
+| 2026-10-20 | Documented user Feature removal, affected installations, preserved history, and core Feature restrictions. |
 | 2026-10-20 | Documented Shop Status commands, announcement formats, role permission behavior, failure recovery, and deployment requirements. |
 | 2026-10-10 | Documented Components V2 row validation and Message Sets recovery after individual message failures. |
 | 2026-10-10 | Added a PostgreSQL and Supabase reference for basic SQL commands. |
