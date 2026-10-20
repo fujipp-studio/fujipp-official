@@ -5,6 +5,7 @@
 | 2026-10-20 | Aligned Shop Status settings with other features, added delivery options, and kept Embed/Components V2 navigation from saving or restarting bots. |
 | 2026-10-20 | Added confirmed user Feature removal in Admin with installed-bot counts, retry feedback, and protection for installed core Features. |
 | 2026-10-20 | Updated footer social links and added a public bilingual Privacy page with data-use details, section navigation, and signup access. |
+| 2026-10-20 | Made the Sign in underline exit forward while keeping the original filled Sign up button and hover effect. |
 | 2026-10-20 | Added configurable Shop Status controls, refreshed portfolio styling, navigation, donation identity, and scroll performance, and stabilized responsive Navbar and dropdown browser checks. |
 | 2026-10-11 | Added customizable Price Reader result blocks, status messages, matching tolerance, and unsaved image OCR previews for both versions. |
 | 2026-10-10 | Blocked invalid Components V2 button rows from saving and showed a visible error so users can repair empty or oversized rows. |

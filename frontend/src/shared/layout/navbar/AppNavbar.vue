@@ -1165,13 +1165,14 @@ function closeProfileMenu() {
   background: currentcolor;
   content: '';
   transform: scaleX(0);
-  transform-origin: left;
+  transform-origin: right;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .action-button--text:hover::after,
 .action-button--text:focus-visible::after {
   transform: scaleX(1);
+  transform-origin: left;
 }
 
 .action-button--filled {
