@@ -1,6 +1,8 @@
 package com.fujipp.backend.store;
 
 import com.fujipp.backend.auth.AccountStatus;
+import com.fujipp.backend.auth.AdminUserController;
+import com.fujipp.backend.auth.AdminUserService;
 import com.fujipp.backend.auth.AppRole;
 import com.fujipp.backend.auth.CurrentUserRepository;
 import com.fujipp.backend.auth.CurrentUserService;
@@ -35,7 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         StoreOrderController.class,
         FeatureLicenseController.class,
         AdminFeatureController.class,
-        AdminBotController.class
+        AdminBotController.class,
+        AdminUserController.class
 })
 @Import({SecurityConfig.class, ApiExceptionHandler.class, StoreExceptionHandler.class})
 class StoreControllerTests {
@@ -51,6 +54,9 @@ class StoreControllerTests {
 
     @MockitoBean
     private AdminBotService adminBotService;
+
+    @MockitoBean
+    private AdminUserService adminUserService;
 
     @MockitoBean
     private CurrentUserService currentUserService;
@@ -202,6 +208,26 @@ class StoreControllerTests {
                 .andExpect(status().isNoContent());
 
         verify(adminBotService).delete(botId);
+    }
+
+    @Test
+    void onlyAdministratorsCanRemoveUserFeatureLicenses() throws Exception {
+        String path = "/api/v1/admin/users/11111111-1111-4111-8111-111111111111/features/22222222-2222-4222-8222-222222222222";
+        mockMvc.perform(delete(path)).andExpect(status().isUnauthorized());
+        for (AppRole role : new AppRole[]{AppRole.USER, AppRole.TESTER, AppRole.EDITOR}) {
+            authorizeAs(role);
+            mockMvc.perform(delete(path).with(jwt())).andExpect(status().isForbidden());
+        }
+        org.mockito.Mockito.verifyNoInteractions(adminUserService);
+    }
+
+    @Test
+    void administratorCanRemoveOneLicenseFromTheSpecifiedUser() throws Exception {
+        authorizeAs(AppRole.ADMIN);
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        mockMvc.perform(delete("/api/v1/admin/users/{userId}/features/{licenseId}", userId, licenseId).with(jwt()))
+                .andExpect(status().isNoContent());
+        verify(adminUserService).removeFeature(userId, licenseId);
     }
 
     private void authorizeUser() {

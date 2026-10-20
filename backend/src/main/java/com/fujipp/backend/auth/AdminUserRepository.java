@@ -97,24 +97,37 @@ public class AdminUserRepository {
 
     public List<AdminUserResponses.FeatureLicense> findFeatureLicenses(UUID userId){return jdbcTemplate.query("""
         SELECT license.id,license.feature_product_id,product.code,product.name,version.version,
-               license.status::text,license.installation_limit,license.acquired_at,license.expires_at
+               license.status::text,license.installation_limit,license.acquired_at,license.expires_at,
+               (SELECT count(*) FROM private.bot_feature_installations installation
+                 WHERE installation.license_id=license.id AND installation.removed_at IS NULL) AS installation_count
           FROM private.feature_licenses license JOIN shop.feature_products product ON product.id=license.feature_product_id
           JOIN shop.feature_versions version ON version.id=license.acquired_version_id
          WHERE license.owner_user_id=? ORDER BY license.acquired_at DESC
         """,(rs,n)->new AdminUserResponses.FeatureLicense(rs.getObject(1,UUID.class),rs.getObject(2,UUID.class),
             rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),rs.getInt(7),
-            rs.getObject(8,OffsetDateTime.class),rs.getObject(9,OffsetDateTime.class)),userId);}
+            rs.getObject(8,OffsetDateTime.class),rs.getObject(9,OffsetDateTime.class),rs.getInt("installation_count")),userId);}
 
     public Optional<AdminUserResponses.FeatureLicense> findFeatureLicense(UUID userId,UUID licenseId){
         return jdbcTemplate.query("""
             SELECT license.id,license.feature_product_id,product.code,product.name,version.version,
-                   license.status::text,license.installation_limit,license.acquired_at,license.expires_at
+                   license.status::text,license.installation_limit,license.acquired_at,license.expires_at,
+               (SELECT count(*) FROM private.bot_feature_installations installation
+                 WHERE installation.license_id=license.id AND installation.removed_at IS NULL) AS installation_count
               FROM private.feature_licenses license JOIN shop.feature_products product ON product.id=license.feature_product_id
               JOIN shop.feature_versions version ON version.id=license.acquired_version_id
              WHERE license.owner_user_id=? AND license.id=?
             """,(rs,n)->new AdminUserResponses.FeatureLicense(rs.getObject(1,UUID.class),rs.getObject(2,UUID.class),
                 rs.getString(3),rs.getString(4),rs.getString(5),rs.getString(6),rs.getInt(7),
-                rs.getObject(8,OffsetDateTime.class),rs.getObject(9,OffsetDateTime.class)),userId,licenseId).stream().findFirst();
+                rs.getObject(8,OffsetDateTime.class),rs.getObject(9,OffsetDateTime.class),rs.getInt("installation_count")),userId,licenseId).stream().findFirst();
+    }
+
+    public Optional<AdminUserResponses.FeatureLicense> lockFeatureLicense(UUID userId, UUID licenseId) {
+        var locked = jdbcTemplate.query("""
+                SELECT id FROM private.feature_licenses
+                 WHERE owner_user_id=? AND id=? FOR UPDATE
+                """, (rs, n) -> rs.getObject(1, UUID.class), userId, licenseId);
+        // Use a new statement snapshot after acquiring the lock to see any concurrent install that just committed.
+        return locked.isEmpty() ? Optional.empty() : findFeatureLicense(userId, licenseId);
     }
 
     public UUID grantFeature(UUID userId,AdminUserRequests.GrantFeatureRequest request,UUID adminId){
@@ -144,6 +157,23 @@ public class AdminUserRepository {
                 revoked_at=CASE WHEN ?='REVOKED' THEN ? ELSE NULL END,updated_at=now()
              WHERE id=? AND owner_user_id=?
             """,status,request.installationLimit(),request.expiresAt(),status,now,status,now,licenseId,userId)==1;
+    }
+
+    public boolean revokeFeatureLicense(UUID userId, UUID licenseId) {
+        return jdbcTemplate.update("""
+                UPDATE private.feature_licenses
+                   SET status='REVOKED', revoked_at=COALESCE(revoked_at,now()),
+                       suspended_at=NULL, updated_at=now()
+                 WHERE id=? AND owner_user_id=?
+                """, licenseId, userId) == 1;
+    }
+
+    public void removeFeatureInstallations(UUID userId, UUID licenseId) {
+        jdbcTemplate.update("""
+                UPDATE private.bot_feature_installations
+                   SET status='REMOVED', removed_at=now(), updated_at=now()
+                 WHERE license_id=? AND owner_user_id=? AND removed_at IS NULL
+                """, licenseId, userId);
     }
 
     private String normalize(String value){if(value==null)return null;String normalized=value.trim();return normalized.isEmpty()?null:normalized;}
