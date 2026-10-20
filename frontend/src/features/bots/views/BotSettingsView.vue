@@ -70,6 +70,10 @@ const runtimeAlertLicense = computed(() =>
 // be missing from the bot.
 const packageLicenses = computed(() => assignedLicenses.value)
 
+function installationStatus(license: FeatureLicense) {
+  return license.installations.find((installation) => installation.botId === botId.value)?.status ?? '—'
+}
+
 function showToast(message: string, variant: 'info' | 'success' | 'error' = 'info') {
   toastMessage.value = message
   toastVariant.value = variant
@@ -494,7 +498,7 @@ onMounted(async () => {
           <article v-for="license in packageLicenses" :key="license.id" class="setting-item">
             <div>
               <h3 class="font-bold">{{ license.featureName }}</h3>
-              <p class="text-sm text-text-muted">v{{ license.version }} · {{ license.status }}</p>
+              <p class="text-sm text-text-muted">v{{ license.version }} · {{ installationStatus(license) }}</p>
             </div>
             <div class="setting-item-actions">
               <AppButton

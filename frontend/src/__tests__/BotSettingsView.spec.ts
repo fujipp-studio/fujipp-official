@@ -114,6 +114,39 @@ describe('Bot package settings', () => {
     wrapper.unmount()
   })
 
+  it.each([
+    ['my-bot', 'bot-package-settings', 'ERROR'],
+    ['my-bot', 'bot-package-settings', 'DISABLED'],
+    ['admin/bots', 'admin-bot-package-settings', 'ERROR'],
+    ['admin/bots', 'admin-bot-package-settings', 'INSTALLING'],
+  ])('shows the selected bot installation status for %s instead of its active license (%s, %s)', async (prefix, name, status) => {
+    const current = structuredClone(license)
+    current.status = 'ACTIVE'
+    current.installations = [
+      { ...current.installations[0]!, botId: 'another-bot', status: 'ACTIVE' },
+      { ...current.installations[0]!, botId: bot.id, status },
+    ]
+    vi.mocked(fetchFeatureLicenses).mockResolvedValue([current])
+    vi.mocked(fetchAdminBotLicenses).mockResolvedValue([current])
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const auth = useAuthStore()
+    auth.session = { access_token: 'test-token' } as Session
+    auth.initialized = true
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: `/${prefix}/:botId/settings/packages`, name, component: BotSettingsView }],
+    })
+    await router.push(`/${prefix}/${bot.id}/settings/packages`)
+    const wrapper = mount(BotSettingsView, { global: { plugins: [pinia, router, i18n] } })
+    try {
+      await flushPromises()
+      const feature = wrapper.findAll('.setting-item').find(item => item.text().includes(current.featureName))!
+      expect(feature.text()).toContain(`v${current.version} · ${status}`)
+      expect(feature.text()).not.toContain('· ACTIVE')
+    } finally { wrapper.unmount() }
+  })
+
   it('confirms an active Runtime top-up and shows the extended period before charging', async () => {
     vi.mocked(fetchRuntimeSubscriptions).mockResolvedValue([runtimeSubscription])
     vi.mocked(renewRuntime).mockResolvedValue({
