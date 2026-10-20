@@ -32,7 +32,7 @@ import {
 } from '../config/permission-commands'
 import { usePresentationEditor } from './usePresentationEditor'
 import { useBotSettingsData } from '../composables/useBotSettingsData'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -293,6 +293,16 @@ export function useFeatureSettings() {
   const saveConfirmationOpen = ref(false)
   const walletPreviewScope = ref<'all' | 'current'>('current')
   const walletActiveSlotKey = ref('')
+  watch(
+    () => route.query.message,
+    (key) => {
+      if (
+        typeof key === 'string' &&
+        configuration.value?.presentations.some((slot) => slot.key === key)
+      )
+        walletActiveSlotKey.value = key
+    },
+  )
   const draggedComponent = ref<{ slotKey: string; index: number } | null>(null)
   const error = ref('')
   const toastOpen = ref(false)
@@ -577,7 +587,6 @@ export function useFeatureSettings() {
   }
 
   async function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2', slotKey?: string) {
-    if (!(await save())) return
     const name = adminMode.value
       ? mode === 'EMBED'
         ? 'admin-bot-feature-embed-settings'
