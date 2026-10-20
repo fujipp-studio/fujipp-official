@@ -1,3 +1,4 @@
+import { validateShopDraft } from '../config/shop-status'
 import {
   walletConfigCopy,
   robloxConfigCopy,
@@ -86,6 +87,7 @@ export function useFeatureSettings() {
   const isMessageTriggersFeature = computed(
     () => license.value?.featureCode === 'channel-message-triggers',
   )
+  const isShopStatusFeature = computed(() => license.value?.featureCode === 'shop-status')
   const isMessageSetsFeature = computed(() => license.value?.featureCode === 'message-sets')
   const messageSets = computed(() => parseMessageSets(String(values.value.MESSAGE_SETS ?? '[]')))
   const isPaymentTriggerFeature = computed(() => license.value?.featureCode === 'payment-trigger')
@@ -96,7 +98,8 @@ export function useFeatureSettings() {
       isPriceReaderFeature.value ||
       isMessageTriggersFeature.value ||
       isPaymentTriggerFeature.value ||
-      isMessageSetsFeature.value,
+      isMessageSetsFeature.value ||
+      isShopStatusFeature.value,
   )
   const isWalletPanelCommand = (key: string) =>
     isWalletTopupFeature.value && key === 'PANEL_COMMAND_NAME'
@@ -130,6 +133,10 @@ export function useFeatureSettings() {
   }
 
   function presentationSlotLabel(slot: FeatureConfiguration['presentations'][number]) {
+    if (isShopStatusFeature.value)
+      return slot.key === 'shop_open'
+        ? text('Shop open', 'เปิดร้าน')
+        : text('Shop closed', 'ปิดร้าน')
     if (isMessageSetsFeature.value)
       return messageSets.value.find((set) => set.presentationSlot === slot.key)?.name ?? slot.label
     if (isMessageTriggersFeature.value && /^template_(?:[1-9]|10)$/.test(slot.key)) {
@@ -157,6 +164,11 @@ export function useFeatureSettings() {
     return copy ? text(...copy.label) : slot.label
   }
   function presentationSlotDescription(slot: FeatureConfiguration['presentations'][number]) {
+    if (isShopStatusFeature.value)
+      return text(
+        'Announcement sent after changing shop permissions.',
+        'ประกาศที่ส่งหลังปรับสิทธิ์ห้องตามสถานะร้าน',
+      )
     if (isMessageSetsFeature.value)
       return text('Message sent by the selected SET.', 'ข้อความที่ส่งเมื่อเลือก SET นี้')
     if (isMessageTriggersFeature.value) {
@@ -477,6 +489,14 @@ export function useFeatureSettings() {
   }
 
   function presentationSampleValues(slotKey: string): Record<string, string> {
+    if (isShopStatusFeature.value)
+      return {
+        status: slotKey === 'shop_open' ? text('Open', 'เปิดร้าน') : text('Closed', 'ปิดร้าน'),
+        user: '@Fujipp',
+        user_name: 'Fujipp',
+        channel: '#shop',
+        guild_name: 'Example server',
+      }
     if (isMessageSetsFeature.value)
       return {
         set_name: messageSets.value.find((set) => set.presentationSlot === slotKey)?.name ?? 'SET',
@@ -641,6 +661,13 @@ export function useFeatureSettings() {
   const visiblePresentationSlots = computed(() => {
     const panelSlots = new Set(robuxPanelRows().map((panel) => panel.presentationSlot))
     return (configuration.value?.presentations ?? []).filter((slot) => {
+      if (
+        isShopStatusFeature.value &&
+        values.value[
+          slot.key === 'shop_open' ? 'SHOP_OPEN_MESSAGE_TYPE' : 'SHOP_CLOSE_MESSAGE_TYPE'
+        ] === 'TEXT'
+      )
+        return false
       if (
         isMessageSetsFeature.value &&
         !messageSets.value.some((set) => set.presentationSlot === slot.key)
@@ -819,13 +846,22 @@ export function useFeatureSettings() {
             'ตรวจสอบชื่อคำสั่งและชื่อ SET (สูงสุด 20 รายการ)',
           ),
         )
+      if (isShopStatusFeature.value && !validateShopDraft(values.value))
+        throw new Error(
+          text(
+            'Check shop command names, announcement text and permission rules.',
+            'ตรวจสอบชื่อคำสั่งร้าน ข้อความประกาศ และกฎสิทธิ์ห้อง',
+          ),
+        )
       const normalValues: Record<string, FeatureConfigValue> = {}
       if (isPriceReaderFeature.value && !validatePriceReaderDraft(values.value)) {
         saveConfirmationOpen.value = false
-        throw new Error(text(
-          'Check Price Reader text, price tolerance (0–5000 satang) and result blocks. Enable at least one block with text; combined text must be at most 4000 characters.',
-          'ตรวจสอบข้อความและความคลาดเคลื่อนราคา (0–5000 สตางค์) เปิดอย่างน้อยหนึ่งบล็อกที่มีข้อความ โดยข้อความรวมไม่เกิน 4000 ตัวอักษร',
-        ))
+        throw new Error(
+          text(
+            'Check Price Reader text, price tolerance (0–5000 satang) and result blocks. Enable at least one block with text; combined text must be at most 4000 characters.',
+            'ตรวจสอบข้อความและความคลาดเคลื่อนราคา (0–5000 สตางค์) เปิดอย่างน้อยหนึ่งบล็อกที่มีข้อความ โดยข้อความรวมไม่เกิน 4000 ตัวอักษร',
+          ),
+        )
       }
       const changedSecrets: Record<string, string> = {}
       for (const field of configuration.value.fields) {

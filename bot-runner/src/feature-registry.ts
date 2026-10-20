@@ -15,8 +15,10 @@ import { robloxPayoutTestFeature } from "./features/roblox-payout-test/index.js"
 import type { FeatureModule } from "./types.js";
 
 import { messageSetsFeature } from "./features/message-sets/v1.0.0.js";
+import { shopStatusFeature } from "./features/shop-status/v1.0.0.js";
 
 const modules = new Map<string, FeatureModule>([
+  [moduleKey(shopStatusFeature.runtimeKey, shopStatusFeature.version), shopStatusFeature],
   [moduleKey(messageSetsFeature.runtimeKey, messageSetsFeature.version), messageSetsFeature],
   [moduleKey(welcomeMessageFeature.runtimeKey, welcomeMessageFeature.version), welcomeMessageFeature],
   [moduleKey(voiceKeeperFeature.runtimeKey, voiceKeeperFeature.version), voiceKeeperFeature],

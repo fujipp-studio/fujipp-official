@@ -18,6 +18,7 @@ export default defineConfig({
     'price-reader.smoke.spec.ts',
     'price-reader-customization.smoke.spec.ts',
     'message-sets.smoke.spec.ts',
+    'shop-status.smoke.spec.ts',
     'discord-markdown.smoke.spec.ts',
     'account-topup.smoke.spec.ts',
   ],

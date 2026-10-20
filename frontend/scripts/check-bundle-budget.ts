@@ -34,7 +34,7 @@ const translations = (...namespaces: string[]) => ['en', 'th'].flatMap(locale =>
 const settings = ['src/features/bots/views/BotSettingsFlowView.vue', 'src/features/bots/views/FeatureSettingsView.vue']
 const featureConfigs = [
   'MemberSpendingConfig', 'BotPresenceConfig', 'BotPermissionsConfig', 'ReviewCreditConfig',
-  'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'PriceReaderConfig',
+  'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
   'VoiceKeeperConfig', 'WalletTopupConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig',
 ]
 const profiles = [

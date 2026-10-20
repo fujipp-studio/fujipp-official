@@ -293,6 +293,16 @@ public class StoreService {
         ensureLicenseActive(license);
         validateConfigurationSize(request);
 
+        if (request.values().keySet().stream().anyMatch(key -> key.startsWith("SHOP_"))) {
+            Map<String, JsonNode> shopValues = new LinkedHashMap<>();
+            for (var field : repository.findConfiguration(license).fields()) {
+                JsonNode value = field.value() == null ? field.defaultValue() : field.value();
+                if (value != null && !value.isNull()) shopValues.put(field.key(), value);
+            }
+            shopValues.putAll(request.values());
+            ShopStatusConfigurationValidator.validate(shopValues);
+        }
+
         MessageSetsConfigurationValidator.validate(request.values());
         PriceReaderConfigurationValidator.validate(request.values());
         PresentationConfigurationValidator.validate(request.presentations());

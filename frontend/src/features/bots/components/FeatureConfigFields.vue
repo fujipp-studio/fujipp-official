@@ -2,6 +2,7 @@
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
+import { shopStatusConfigKeys } from '../config/shop-status'
 import { messageSetsConfigKeys } from '../config/message-sets'
 import { priceReaderConfigKeys } from '../config/price-reader'
 import { paymentTriggerConfigKeys } from '../config/payment-trigger'
@@ -30,6 +31,7 @@ const BotPermissionsConfig = defineAsyncComponent(() => import('./BotPermissions
 const ReviewCreditConfig = defineAsyncComponent(() => import('./ReviewCreditConfig.vue'))
 const ChannelMessageTriggersConfig = defineAsyncComponent(() => import('./ChannelMessageTriggersConfig.vue'))
 const PaymentTriggerConfig = defineAsyncComponent(() => import('./PaymentTriggerConfig.vue'))
+const ShopStatusConfig = defineAsyncComponent(() => import('./ShopStatusConfig.vue'))
 const MessageSetsConfig = defineAsyncComponent(() => import('./MessageSetsConfig.vue'))
 const PriceReaderConfig = defineAsyncComponent(() => import('./PriceReaderConfig.vue'))
 const VoiceKeeperConfig = defineAsyncComponent(() => import('./VoiceKeeperConfig.vue'))
@@ -65,6 +67,7 @@ const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topu
 const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
 const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
 const isPriceReader = computed(() => license.value?.featureCode === 'price-reader')
+const isShopStatus = computed(() => license.value?.featureCode === 'shop-status')
 const isMessageSets = computed(() => license.value?.featureCode === 'message-sets')
 const hasCustomConfig = computed(
   () =>
@@ -79,7 +82,8 @@ const hasCustomConfig = computed(
     isMessageTriggers.value ||
     isPaymentTrigger.value ||
     isPriceReader.value ||
-    isMessageSets.value,
+    isMessageSets.value ||
+    isShopStatus.value,
 )
 const genericFields = computed(
   () =>
@@ -96,7 +100,8 @@ const genericFields = computed(
         (!isMessageTriggers.value || !channelMessageTriggerConfigKeys.has(field.key)) &&
         (!isPaymentTrigger.value || !paymentTriggerConfigKeys.has(field.key)) &&
         (!isPriceReader.value || !priceReaderConfigKeys.has(field.key)) &&
-        (!isMessageSets.value || !messageSetsConfigKeys.has(field.key)),
+        (!isMessageSets.value || !messageSetsConfigKeys.has(field.key)) &&
+        (!isShopStatus.value || !shopStatusConfigKeys.has(field.key)),
     ) ?? [],
 )
 
@@ -137,6 +142,7 @@ function robuxGroupRates() {
     <PaymentTriggerConfig v-else-if="isPaymentTrigger" />
     <PriceReaderConfig v-else-if="isPriceReader" />
     <MessageSetsConfig v-else-if="isMessageSets" />
+    <ShopStatusConfig v-else-if="isShopStatus" />
     <div
       v-if="genericFields.length"
       class="grid gap-md desktop:grid-cols-2"

@@ -19,6 +19,7 @@ export interface PermissionCommandFeature {
 
 // Keep suggestions aligned with command registration and permission gates in bot-runner/src/features.
 const versions: Record<string, string[]> = {
+  'shop-status': ['1.0.0'],
   'message-sets': ['1.0.0'],
   'member-spending': ['1.0.0'],
   'wallet-topup': ['1.0.0', '2.0.0', '2.1.0'],
@@ -37,6 +38,7 @@ export function needsCommandConfiguration(license: FeatureLicense) {
     'review-credit',
     'roblox-robux-payout',
     'message-sets',
+    'shop-status',
   ].includes(license.featureCode)
 }
 export function permissionCommands(
@@ -58,6 +60,15 @@ export function permissionCommands(
     command(name, `All subcommands of /${name}`, `ทุกคำสั่งย่อยของ /${name}`)
   let commands: PermissionCommand[] = []
   switch (license.featureCode) {
+    case 'shop-status': {
+      const root = name('SHOP_COMMAND_NAME', 'shop')
+      commands = [
+        all(root),
+        command(`${root}/${name('SHOP_OPEN_COMMAND', 'open')}`, 'Open the shop', 'เปิดร้าน'),
+        command(`${root}/${name('SHOP_CLOSE_COMMAND', 'close')}`, 'Close the shop', 'ปิดร้าน'),
+      ]
+      break
+    }
     case 'message-sets':
       commands = [
         command(
