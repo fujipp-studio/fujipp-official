@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { channelMessageTriggersFixture } from '../src/__tests__/fixtures/channelMessageTriggers'
 
 for (const theme of ['LIGHT', 'DARK']) {
@@ -36,10 +36,18 @@ for (const theme of ['LIGHT', 'DARK']) {
     await page.addStyleTag({ content: '#__vue-devtools-container__ { display: none !important; }' })
     const form = page.locator('#feature-config')
     const categories = form.locator('[data-channel-message-triggers-config]')
+    const choose = async (field: Locator, name: string) => {
+      await field.click()
+      const menu = page.locator('#' + (await field.getAttribute('aria-controls')))
+      await menu.getByRole('option', { name, exact: true }).click()
+      await expect(menu).toHaveCount(0)
+    }
     const category = async (name: string) => {
       if ((page.viewportSize()?.width ?? 0) < 768) {
-        await categories.getByRole('combobox', { name: 'หมวดการตั้งค่า', exact: true }).click()
-        await page.getByRole('option', { name, exact: true }).click()
+        await choose(
+          categories.getByRole('combobox', { name: 'หมวดการตั้งค่า', exact: true }),
+          name,
+        )
       } else await categories.getByRole('tab', { name, exact: true }).click()
       await expect(categories.getByRole('tabpanel')).toHaveCount(1)
     }
@@ -66,8 +74,10 @@ for (const theme of ['LIGHT', 'DARK']) {
     await target.fill('123456789012345678')
     await expect(save).toBeDisabled()
     const chooseTemplate = async (rule: number, number: number) => {
-      await panel.getByRole('combobox', { name: new RegExp(`Template สำหรับกฎ ${rule}`) }).click()
-      await page.getByRole('option', { name: `Template ข้อความ ${number}`, exact: true }).click()
+      await choose(
+        panel.getByRole('combobox', { name: new RegExp(`Template สำหรับกฎ ${rule}`) }),
+        `Template ข้อความ ${number}`,
+      )
     }
     await chooseTemplate(1, 10)
     await expect(save).toBeEnabled()
@@ -107,8 +117,10 @@ for (const theme of ['LIGHT', 'DARK']) {
     const design = page.locator('#feature-presentations')
     const pickMessage = async (number: number) => {
       if ((page.viewportSize()?.width ?? 0) < 1024) {
-        await design.getByRole('combobox', { name: 'ข้อความ', exact: true }).click()
-        await page.getByRole('option', { name: `Template ข้อความ ${number}`, exact: true }).click()
+        await choose(
+          design.getByRole('combobox', { name: 'ข้อความ', exact: true }),
+          `Template ข้อความ ${number}`,
+        )
       } else
         await design
           .getByRole('button', {
