@@ -2,26 +2,52 @@ import {ActionRowBuilder,EmbedBuilder,MessageFlags,ModalBuilder,PermissionFlagsB
 import type {FeatureContext,FeatureModule,MemberSpendingStore} from "../../types.js";
 import {createOwnDatabaseStore} from "./store.js";
 
-export const memberSpendingFeature:FeatureModule={runtimeKey:"member-spending",version:"1.0.0",intents:["Guilds","GuildMembers"],async activate(context){
+export function createMemberSpendingFeature(createExternalStore:typeof createOwnDatabaseStore=createOwnDatabaseStore):FeatureModule {
+return {runtimeKey:"member-spending",version:"1.0.0",intents:["Guilds","GuildMembers"],async activate(context){
   const own=bool(context.config.SPENDING_DB_USE_OWN,false);let external:Awaited<ReturnType<typeof createOwnDatabaseStore>>|undefined;
-  const store:MemberSpendingStore=own?(external=await createOwnDatabaseStore(requiredSecret(context.secrets.SPENDING_DB_URL),context.botId)):context.memberSpending;
+  const store:MemberSpendingStore=own?(external=lazyExternalStore(requiredSecret(context.secrets.SPENDING_DB_URL),context.botId,createExternalStore)):context.memberSpending;
   let stopped=false;
   const onInteraction=(i:Interaction)=>{const task=i.isChatInputCommand()&&i.commandName==="spending"?command(context,store,i):i.isModalSubmit()&&i.customId.startsWith("spending:update:")?update(context,store,i):null;if(task)void task.catch(e=>respondError(i,e));};
   context.client.on("interactionCreate",onInteraction);context.client.once("clientReady",()=>{if(!stopped)void register(context).catch(e=>{console.error("Member Spending command registration failed",e);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",e);});});
   return async()=>{stopped=true;context.client.off("interactionCreate",onInteraction);await external?.close();};
 }};
+}
+export const memberSpendingFeature=createMemberSpendingFeature();
+
+function lazyExternalStore(url:string,botId:string,create:typeof createOwnDatabaseStore):Awaited<ReturnType<typeof createOwnDatabaseStore>> {
+  let connection:ReturnType<typeof createOwnDatabaseStore>|undefined;
+  let stopped=false;
+  const get=async()=>{
+    if(stopped)throw new Error("Member Spending has stopped");
+    // Share one connection attempt, but let a later command retry after failure.
+    const store=await(connection??=create(url,botId).catch(error=>{connection=undefined;throw error;}));
+    if(stopped)throw new Error("Member Spending has stopped");
+    return store;
+  };
+  return {
+    async add(id,amount){return(await get()).add(id,amount);},
+    async set(id,input){return(await get()).set(id,input);},
+    async get(id){return(await get()).get(id);},
+    async remove(id){return(await get()).remove(id);},
+    async leaderboard(limit){return(await get()).leaderboard(limit);},
+    async totals(){return(await get()).totals();},
+    async close(){stopped=true;const store=await connection?.catch(()=>undefined);await store?.close();},
+  };
+}
 
 async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommandInteraction){if(!i.inGuild())return;if(!c.permissions.canUse(i,`spending/${i.options.getSubcommand()}`,i.memberPermissions?.has(PermissionFlagsBits.Administrator)===true))return i.reply({content:"คุณไม่มีสิทธิ์ใช้คำสั่งนี้",flags:MessageFlags.Ephemeral});const sub=i.options.getSubcommand();
   const guild=i.guild!;
   if(sub==="add"){const user=i.options.getUser("member",true),baht=i.options.getInteger("amount",true);await i.deferReply({flags:MessageFlags.Ephemeral});const e=await s.add(user.id,baht*100),member=await guild.members.fetch(user.id).catch(()=>null);if(member)await applyRoles(c,member,e.amountSatang,e.txCount);const payload=render(c,e.txCount===1?"first_card":"returning_card",vars(user.id,member?.displayName??user.username,baht*100,e,member?.displayAvatarURL({extension:"png",size:256})??user.displayAvatarURL({extension:"png",size:256})));if(i.channel?.isTextBased()&&"send" in i.channel)await i.channel.send(payload as never);await i.editReply("อัปเดตบัตรสะสมเรียบร้อย");return;}
   if(sub==="update"){const user=i.options.getUser("member",true);await i.showModal(new ModalBuilder().setCustomId(`spending:update:${user.id}`).setTitle("แก้ไขยอดสะสม").addComponents(row("amount","ยอดรวม (บาท) เว้นว่าง=ไม่เปลี่ยน",false),row("count","จำนวนครั้ง เว้นว่าง=ไม่เปลี่ยน",false)));return;}
   const user=i.options.getUser("member")??i.user;
-  if(sub==="delete"){await i.reply({content:await s.remove(user.id)?`ลบข้อมูล <@${user.id}> แล้ว`:"ไม่พบข้อมูลสมาชิก",flags:MessageFlags.Ephemeral});return;}
-  if(sub==="check"){const e=await s.get(user.id)??{memberDiscordId:user.id,amountSatang:0,txCount:0};await i.reply({embeds:[new EmbedBuilder().setTitle("บัตรสะสม").setDescription(`<@${user.id}>\nยอดสะสม **${money(e.amountSatang)} บาท** · ${e.txCount} ครั้ง`)],flags:MessageFlags.Ephemeral});return;}
-  if(sub==="total"){const e=await s.totals();await i.reply({content:`ยอดรวม ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`,flags:MessageFlags.Ephemeral});return;}
-  const board=await s.leaderboard(sub==="rank"?5:20);await syncRankRoles(c,guild,board);const lines=board.map((e,n)=>`${n+1}. <@${e.memberDiscordId}> — ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`).join("\n")||"ยังไม่มีข้อมูล";await i.reply(render(c,"leaderboard",{leaderboard_lines:lines,member_count:String(board.length)}) as never);
+  // Acknowledge before any storage, API, or role lookup can outlive Discord's initial response window.
+  await i.deferReply(sub==="delete"||sub==="check"||sub==="total"?{flags:MessageFlags.Ephemeral}:{});
+  if(sub==="delete"){await i.editReply({content:await s.remove(user.id)?`ลบข้อมูล <@${user.id}> แล้ว`:"ไม่พบข้อมูลสมาชิก"});return;}
+  if(sub==="check"){const e=await s.get(user.id)??{memberDiscordId:user.id,amountSatang:0,txCount:0};await i.editReply({embeds:[new EmbedBuilder().setTitle("บัตรสะสม").setDescription(`<@${user.id}>\nยอดสะสม **${money(e.amountSatang)} บาท** · ${e.txCount} ครั้ง`)]});return;}
+  if(sub==="total"){const e=await s.totals();await i.editReply({content:`ยอดรวม ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`});return;}
+  const board=await s.leaderboard(sub==="rank"?5:20);await syncRankRoles(c,guild,board);const lines=board.map((e,n)=>`${n+1}. <@${e.memberDiscordId}> — ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`).join("\n")||"ยังไม่มีข้อมูล";await i.editReply(render(c,"leaderboard",{leaderboard_lines:lines,member_count:String(board.length)}) as never);
 }
-async function update(c:FeatureContext,s:MemberSpendingStore,i:ModalSubmitInteraction){if(!i.inGuild()||!i.memberPermissions?.has(PermissionFlagsBits.Administrator))return i.reply({content:"ไม่มีสิทธิ์",flags:MessageFlags.Ephemeral});const id=i.customId.slice("spending:update:".length),amount=parseOptional(i.fields.getTextInputValue("amount"),100),count=parseOptional(i.fields.getTextInputValue("count"),1);if(amount===undefined&&count===undefined)return i.reply({content:"กรุณากรอกอย่างน้อยหนึ่งช่อง",flags:MessageFlags.Ephemeral});const e=await s.set(id,{...(amount!==undefined?{amountSatang:amount}:{}),...(count!==undefined?{txCount:count}:{})});await i.reply({content:`ตั้งยอด <@${id}> เป็น ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`,flags:MessageFlags.Ephemeral});}
+async function update(c:FeatureContext,s:MemberSpendingStore,i:ModalSubmitInteraction){if(!i.inGuild()||!i.memberPermissions?.has(PermissionFlagsBits.Administrator))return i.reply({content:"ไม่มีสิทธิ์",flags:MessageFlags.Ephemeral});const id=i.customId.slice("spending:update:".length),amount=parseOptional(i.fields.getTextInputValue("amount"),100),count=parseOptional(i.fields.getTextInputValue("count"),1);if(amount===undefined&&count===undefined)return i.reply({content:"กรุณากรอกอย่างน้อยหนึ่งช่อง",flags:MessageFlags.Ephemeral});await i.deferReply({flags:MessageFlags.Ephemeral});const e=await s.set(id,{...(amount!==undefined?{amountSatang:amount}:{}),...(count!==undefined?{txCount:count}:{})});await i.editReply({content:`ตั้งยอด <@${id}> เป็น ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`});}
 async function register(c:FeatureContext){if(!c.guildId)throw new Error("Discord guild is not configured");const guild=await c.client.guilds.fetch(c.guildId);const cmd=new SlashCommandBuilder().setName("spending").setDescription("จัดการบัตรสะสมยอดใช้จ่ายแบบกรอกเอง");cmd.addSubcommand(x=>x.setName("add").setDescription("เพิ่มยอดสะสม").addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(true)).addIntegerOption(o=>o.setName("amount").setDescription("จำนวนเงินบาท").setMinValue(1).setRequired(true)));cmd.addSubcommand(x=>x.setName("update").setDescription("แก้ไขยอดรวม/จำนวนครั้ง").addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(true)));for(const [name,desc] of [["delete","ลบข้อมูล"],["check","ตรวจสอบบัตร"]] as const)cmd.addSubcommand(x=>x.setName(name).setDescription(desc).addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(name==="delete")));cmd.addSubcommand(x=>x.setName("list").setDescription("อันดับยอดสะสม"));cmd.addSubcommand(x=>x.setName("total").setDescription("ยอดรวมทั้งหมด"));cmd.addSubcommand(x=>x.setName("rank").setDescription("รีเฟรชยศ Top 1 / Top 5"));await guild.commands.create(cmd.toJSON());}
 
 async function applyRoles(c:FeatureContext,m:GuildMember,amount:number,count:number){const first=id(c.config.SPENDING_FIRST_ROLE_ID);if(first)await safeRole(m,first,true);const tiers=Array.isArray(c.config.SPENDING_UPGRADE_TIERS)?c.config.SPENDING_UPGRADE_TIERS.flatMap(x=>isRecord(x)&&Number(x.amount)>0&&id(x.roleId)?[{amount:Number(x.amount)*100,roleId:id(x.roleId)!}]:[]):[];const qualified=tiers.filter(t=>amount>=t.amount||(bool(c.config.SPENDING_COUNT_ENABLED,false)&&count>=num(c.config.SPENDING_UPGRADE_COUNT,5)));if(bool(c.config.SPENDING_TIER_STACK,true)){for(const t of qualified)await safeRole(m,t.roleId,true);}else for(const t of tiers)await safeRole(m,t.roleId,t===qualified.at(-1));}

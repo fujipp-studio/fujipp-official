@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-20 | Kept Member Spending commands available when an external database fails during bot startup, added connection retries and immediate acknowledgements, and verified recovery after installing Shop Status. |
 | 2026-10-20 | Added configurable Shop Status announcement delivery with persistent message tracking and admin-only user Feature revocation with ownership checks, transactional installation removal, core protection, and runtime invalidation after commit. |
 | 2026-10-20 | Added customizable shop open/close commands with role-based channel permissions and validation, and grouped donation rankings by account. |
 | 2026-10-11 | Added validated Price Reader customization with configurable matching tolerance, shared result formatting, and separate all-failed message designs. |
