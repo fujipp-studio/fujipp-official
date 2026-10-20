@@ -2,14 +2,38 @@ import {ActionRowBuilder,EmbedBuilder,MessageFlags,ModalBuilder,PermissionFlagsB
 import type {FeatureContext,FeatureModule,MemberSpendingStore} from "../../types.js";
 import {createOwnDatabaseStore} from "./store.js";
 
-export const memberSpendingFeature:FeatureModule={runtimeKey:"member-spending",version:"1.0.0",intents:["Guilds","GuildMembers"],async activate(context){
+export function createMemberSpendingFeature(createExternalStore:typeof createOwnDatabaseStore=createOwnDatabaseStore):FeatureModule {
+return {runtimeKey:"member-spending",version:"1.0.0",intents:["Guilds","GuildMembers"],async activate(context){
   const own=bool(context.config.SPENDING_DB_USE_OWN,false);let external:Awaited<ReturnType<typeof createOwnDatabaseStore>>|undefined;
-  const store:MemberSpendingStore=own?(external=await createOwnDatabaseStore(requiredSecret(context.secrets.SPENDING_DB_URL),context.botId)):context.memberSpending;
+  const store:MemberSpendingStore=own?(external=lazyExternalStore(requiredSecret(context.secrets.SPENDING_DB_URL),context.botId,createExternalStore)):context.memberSpending;
   let stopped=false;
   const onInteraction=(i:Interaction)=>{const task=i.isChatInputCommand()&&i.commandName==="spending"?command(context,store,i):i.isModalSubmit()&&i.customId.startsWith("spending:update:")?update(context,store,i):null;if(task)void task.catch(e=>respondError(i,e));};
   context.client.on("interactionCreate",onInteraction);context.client.once("clientReady",()=>{if(!stopped)void register(context).catch(e=>{console.error("Member Spending command registration failed",e);void context.reportFeatureError("COMMAND_REGISTRATION_FAILED",e);});});
   return async()=>{stopped=true;context.client.off("interactionCreate",onInteraction);await external?.close();};
 }};
+}
+export const memberSpendingFeature=createMemberSpendingFeature();
+
+function lazyExternalStore(url:string,botId:string,create:typeof createOwnDatabaseStore):Awaited<ReturnType<typeof createOwnDatabaseStore>> {
+  let connection:ReturnType<typeof createOwnDatabaseStore>|undefined;
+  let stopped=false;
+  const get=async()=>{
+    if(stopped)throw new Error("Member Spending has stopped");
+    // Share one connection attempt, but let a later command retry after failure.
+    const store=await(connection??=create(url,botId).catch(error=>{connection=undefined;throw error;}));
+    if(stopped)throw new Error("Member Spending has stopped");
+    return store;
+  };
+  return {
+    async add(id,amount){return(await get()).add(id,amount);},
+    async set(id,input){return(await get()).set(id,input);},
+    async get(id){return(await get()).get(id);},
+    async remove(id){return(await get()).remove(id);},
+    async leaderboard(limit){return(await get()).leaderboard(limit);},
+    async totals(){return(await get()).totals();},
+    async close(){stopped=true;const store=await connection?.catch(()=>undefined);await store?.close();},
+  };
+}
 
 async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommandInteraction){if(!i.inGuild())return;if(!c.permissions.canUse(i,`spending/${i.options.getSubcommand()}`,i.memberPermissions?.has(PermissionFlagsBits.Administrator)===true))return i.reply({content:"คุณไม่มีสิทธิ์ใช้คำสั่งนี้",flags:MessageFlags.Ephemeral});const sub=i.options.getSubcommand();
   const guild=i.guild!;
