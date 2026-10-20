@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-10-20 | Made the Sign in underline exit forward and restored the rising, inverted-color Sign up hover effect with keyboard and reduced-motion support. |
+| 2026-10-20 | Made the Sign in underline exit forward while keeping the original filled Sign up button and hover effect. |
 | 2026-10-20 | Added configurable Shop Status controls, refreshed portfolio styling, navigation, donation identity, and scroll performance, and stabilized responsive Navbar and dropdown browser checks. |
 | 2026-10-11 | Added customizable Price Reader result blocks, status messages, matching tolerance, and unsaved image OCR previews for both versions. |
 | 2026-10-10 | Blocked invalid Components V2 button rows from saving and showed a visible error so users can repair empty or oversized rows. |
