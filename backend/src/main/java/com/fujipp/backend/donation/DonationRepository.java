@@ -51,25 +51,27 @@ class DonationRepository {
 
     List<LeaderboardEntry> leaderboard(int limit) {
         return jdbc.query("""
-                WITH eligible AS (
-                    SELECT CASE
-                               WHEN NOT donation.anonymous
-                                   THEN 'user:' || donation.user_id::text
-                               ELSE 'donation:' || donation.id::text
-                           END AS supporter_key,
-                           CASE WHEN donation.anonymous THEN 'Anonymous' ELSE donation.donor_name END AS display_name,
-                           donation.amount_satang,
-                           donation.succeeded_at
+                WITH supporters AS (
+                    SELECT donation.user_id,
+                           sum(donation.amount_satang) AS total_satang,
+                           count(*) AS donation_count,
+                           max(donation.succeeded_at) AS last_donated_at,
+                           (array_agg(donation.anonymous ORDER BY donation.succeeded_at DESC,
+                               donation.created_at DESC, donation.id DESC))[1] AS anonymous
                       FROM support.donations AS donation
                      WHERE donation.status = 'SUCCESS'
+                     GROUP BY donation.user_id
                 )
-                SELECT (array_agg(display_name ORDER BY succeeded_at DESC))[1] AS display_name,
-                       sum(amount_satang) AS total_satang,
-                       count(*) AS donation_count,
-                       max(succeeded_at) AS last_donated_at
-                  FROM eligible
-                 GROUP BY supporter_key
-                 ORDER BY total_satang DESC, last_donated_at ASC, supporter_key ASC
+                SELECT CASE WHEN supporters.anonymous THEN 'Anonymous'
+                            ELSE COALESCE(NULLIF(btrim(profile.display_name), ''),
+                                          NULLIF(btrim(profile.username), ''), 'Supporter')
+                       END AS display_name,
+                       supporters.total_satang,
+                       supporters.donation_count,
+                       supporters.last_donated_at
+                  FROM supporters
+                  LEFT JOIN public.profiles AS profile ON profile.id = supporters.user_id
+                 ORDER BY total_satang DESC, last_donated_at ASC, supporters.user_id ASC
                  LIMIT ?
                 """, (rs, row) -> new LeaderboardEntry(
                 rs.getString("display_name"),
