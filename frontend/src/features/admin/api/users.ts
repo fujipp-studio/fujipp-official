@@ -99,6 +99,7 @@ export interface AdminFeatureLicense {
   version: string
   status: string
   installationLimit: number
+  installationCount: number
   acquiredAt: string
   expiresAt: string | null
 }
@@ -152,6 +153,14 @@ export const updateAdminUserFeature = (
     session,
     { method: 'PUT', body: JSON.stringify(input) },
     'Unable to update feature license.',
+  )
+
+export const removeAdminUserFeature = (userId: string, licenseId: string, session: Session) =>
+  adminRequest<void>(
+    `/api/v1/admin/users/${encodeURIComponent(userId)}/features/${encodeURIComponent(licenseId)}`,
+    session,
+    { method: 'DELETE' },
+    'Unable to remove user feature.',
   )
 
 export async function fetchUserWalletHistory(

@@ -318,7 +318,7 @@ onBeforeUnmount(() => {
             />
             <span>
               Do you agree to our <a href="/terms">Terms</a> and
-              <a href="/privacy">Privacy Policy</a>.
+              <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.
             </span>
           </label>
 

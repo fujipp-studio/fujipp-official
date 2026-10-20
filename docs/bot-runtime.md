@@ -184,6 +184,21 @@ Components V2 designer. Supported variables are `status`, `user`, `user_name`,
 members. `SHOP_ANNOUNCEMENT_CHANNEL_ID` is optional; an empty value posts in the
 command channel. The command response and any errors are private.
 
+`SHOP_OPEN_DELIVERY_MODE` and `SHOP_CLOSE_DELIVERY_MODE` independently choose
+`NEW` (default, always send), `UPDATE` (edit the latest announcement), or
+`REPLACE` (delete it before sending again). Both actions share the latest
+announcement reference for this installation, persisted across restarts. A missing
+message or a different destination starts a new announcement. Fetch/edit/delete
+permission failures are reported without silently sending duplicates. The bot
+needs Read Message History to retrieve the previous announcement.
+
+When editing, obsolete content, embeds, components, and attachments are cleared.
+Discord cannot remove a message's Components V2 flag, so updating from Components
+V2 to text/Embed replaces the message instead. See [Discord's edit-message rules](https://docs.discord.com/developers/resources/message#edit-message).
+A failed reference save is reported after posting and may cause a new message
+following a restart. Entering either designer keeps the local settings draft;
+only confirming Save all submits configuration changes to the runtime.
+
 `SHOP_PERMISSION_RULES` optionally contains up to 25 unique channel/role pairs:
 
 ```json

@@ -268,8 +268,8 @@ onBeforeUnmount(() => listResizeObserver?.disconnect())
           <p :id="id + '-edit-help'" class="mt-sm text-xs text-text-secondary">
             {{
               text(
-                'Preview uses sample data. Opening the editor saves current settings.',
-                'ตัวอย่างใช้ข้อมูลสมมติ การเปิดตัวแก้ไขจะบันทึกการตั้งค่าปัจจุบัน',
+                'Preview uses sample data. Changes apply when you save all settings.',
+                'ตัวอย่างใช้ข้อมูลสมมติ การแก้ไขจะมีผลเมื่อกดบันทึกทั้งหมด',
               )
             }}
           </p>

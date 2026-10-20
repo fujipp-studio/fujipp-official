@@ -256,17 +256,10 @@ describe('feature settings save flow', () => {
     await flushPromises()
     expect(router.currentRoute.value.query.message).toBe('leaderboard')
     expect(editor.editablePresentationSlots.value.map((slot) => slot.key)).toEqual(['leaderboard'])
-    expect(updateFeatureConfiguration).toHaveBeenCalledWith(
-      license.id,
-      expect.objectContaining({
-        presentations: expect.objectContaining({
-          first_card: expect.objectContaining({ mode: formats.first_card }),
-          returning_card: expect.objectContaining({ mode: formats.returning_card }),
-          leaderboard: expect.objectContaining({ mode: formats.leaderboard }),
-        }),
-      }),
-      expect.anything(),
-    )
+    expect(updateFeatureConfiguration).not.toHaveBeenCalled()
+    expect(
+      Object.fromEntries(Object.keys(formats).map((key) => [key, editor.slotMode(key)])),
+    ).toEqual(formats)
     wrapper.unmount()
   })
   it('converts field values, omits unchanged secrets and keeps the server revision', async () => {

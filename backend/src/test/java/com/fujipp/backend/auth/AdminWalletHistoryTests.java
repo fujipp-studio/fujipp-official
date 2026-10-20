@@ -13,7 +13,7 @@ class AdminWalletHistoryTests {
     @Test
     void historyIncludesTheCurrentWalletBalanceWithoutTheLegacyHistoryQuery() {
         var repository = mock(AdminUserRepository.class);
-        var service = new AdminUserService(repository, new CursorCodec(new ObjectMapper()));
+        var service = new AdminUserService(repository, new CursorCodec(new ObjectMapper()), mock(com.fujipp.backend.runtime.RuntimeService.class));
         UUID customer = UUID.randomUUID(), wallet = UUID.randomUUID();
         when(repository.findWalletSnapshot(customer)).thenReturn(Optional.of(
                 new AdminUserResponses.WalletSnapshot(customer, wallet, 12345)));
@@ -29,7 +29,7 @@ class AdminWalletHistoryTests {
     @Test
     void viewingAnAccountWithoutAWalletDoesNotCreateFinancialRecords() {
         var repository = mock(AdminUserRepository.class);
-        var service = new AdminUserService(repository, new CursorCodec(new ObjectMapper()));
+        var service = new AdminUserService(repository, new CursorCodec(new ObjectMapper()), mock(com.fujipp.backend.runtime.RuntimeService.class));
         UUID customer = UUID.randomUUID();
         when(repository.findWalletSnapshot(customer)).thenReturn(Optional.empty());
         var result = service.getWalletHistoryV2(customer, 50, null);

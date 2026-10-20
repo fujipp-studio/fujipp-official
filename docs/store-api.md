@@ -359,7 +359,7 @@ AES-256-GCM before storage and are not written to normal configuration tables.
 Updating configuration increments `revision` and clears previous bot
 validation so the configuration can be validated again at runtime.
 
-## Admin bot feature management
+## Admin feature management
 
 All endpoints in this section require `ROLE_ADMIN`.
 
@@ -375,6 +375,32 @@ bootstrap cache is invalidated so the Feature stops running on that bot. The
 customer keeps the license and can install it again. Core Features
 `bot-permissions`, `bot-presence`, and `runtime-expiry-alert` cannot be removed;
 attempts return `409 Conflict`.
+
+### Remove a feature license from a user
+
+In Admin → Users → User features, select Remove on the individual license.
+The confirmation identifies the user, Feature, version, and number of affected
+bots. Unused core licenses can be removed; installed core licenses are protected.
+
+```http
+DELETE /api/v1/admin/users/{userId}/features/{licenseId}
+Authorization: Bearer <admin-supabase-access-token>
+```
+
+Response: `204 No Content`. The license must belong to the specified user;
+a missing or foreign license returns `404 Not Found`. The operation revokes
+that license and soft-removes all its installations in one transaction. It
+preserves purchase records, saved configuration, and installation history.
+Concurrent installations serialize against the license lock. Runtime bootstrap
+invalidation runs after commit so runners reconcile the removed Feature.
+Repeating a completed removal is safe.
+
+User inventory excludes revoked licenses, and the admin feature dialog hides
+them after removal and on subsequent loads. Other licenses for the same Feature
+are unaffected. Admin feature responses include `installationCount` alongside
+`installationLimit` for the confirmation. Removing an installed
+`bot-permissions`, `bot-presence`, or `runtime-expiry-alert` license returns
+`409 Conflict`.
 
 ## Admin feature media
 

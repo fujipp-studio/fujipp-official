@@ -140,7 +140,7 @@ onMounted(() => void data.load())
         <RouterView v-slot="{ Component }">
           <component
             :is="Component"
-            :key="isFeatureRoute ? route.fullPath : `${adminMode ? 'admin' : 'user'}:${botId}`"
+            :key="`${adminMode ? 'admin' : 'user'}:${botId}:${isFeatureRoute ? route.params.licenseId : ''}`"
           />
         </RouterView>
       </div>

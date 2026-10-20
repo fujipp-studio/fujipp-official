@@ -5,6 +5,9 @@ import {
   type ChatInputCommandInteraction,
   type Interaction,
   type NonThreadGuildBasedChannel,
+  type GuildTextBasedChannel,
+  type Message,
+  type MessageEditOptions,
 } from "discord.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 import { renderTemplate } from "../presentation.js";
@@ -13,6 +16,7 @@ import {
   readShopConfig,
   type ShopPermission,
   type ShopState,
+  type ShopDeliveryMode,
 } from "./config.js";
 
 export const shopStatusFeature: FeatureModule = {
@@ -124,16 +128,28 @@ export const shopStatusFeature: FeatureModule = {
       busy = true;
       try {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-        await changeStatus(context, config, action, interaction, async () => {
-          const next = {
-            ...state,
-            status: action,
-            changedBy: interaction.user.id,
-            changedAt: new Date().toISOString(),
-          };
-          await context.saveRuntimeState(next);
-          state = next;
-        });
+        await changeStatus(
+          context,
+          config,
+          action,
+          interaction,
+          state.announcement,
+          async () => {
+            const next = {
+              ...state,
+              status: action,
+              changedBy: interaction.user.id,
+              changedAt: new Date().toISOString(),
+            };
+            await context.saveRuntimeState(next);
+            state = next;
+          },
+          async (announcement) => {
+            // Keep the ID in memory even if persistence is temporarily unavailable.
+            state = { ...state, announcement };
+            await context.saveRuntimeState(state);
+          },
+        );
       } finally {
         busy = false;
       }
@@ -193,7 +209,9 @@ async function changeStatus(
   config: ReturnType<typeof readShopConfig>,
   action: ShopState,
   interaction: ChatInputCommandInteraction,
+  previousAnnouncement: unknown,
   save: () => Promise<void>,
+  remember: (announcement: AnnouncementReference) => Promise<void>,
 ) {
   const guild = await context.client.guilds.fetch(context.guildId!);
   const target = config.announcementChannelId
@@ -306,7 +324,30 @@ async function changeStatus(
   }
   const label = action === "open" ? "เปิดร้าน" : "ปิดร้าน";
   try {
-    await target.send(payload);
+    const message = await publishAnnouncement(
+      target,
+      payload,
+      (context.config[`SHOP_${action.toUpperCase()}_DELIVERY_MODE`] ??
+        "NEW") as ShopDeliveryMode,
+      previousAnnouncement,
+      me.id,
+    );
+    try {
+      await remember({ channelId: target.id, messageId: message.id });
+    } catch (error) {
+      await context
+        .reportFeatureError("SHOP_ANNOUNCEMENT_STATE_FAILED", error, {
+          recoverable: true,
+        })
+        .catch(() => undefined);
+      await interaction
+        .editReply({
+          content: `${label}และส่งประกาศแล้ว แต่บันทึกตำแหน่งข้อความไม่สำเร็จ หลังรีสตาร์ตอาจส่งข้อความใหม่`,
+          allowedMentions: { parse: [] },
+        })
+        .catch(() => undefined);
+      return;
+    }
   } catch (error) {
     await interaction
       .editReply({
@@ -337,4 +378,67 @@ async function changeStatus(
         .reportFeatureError("SHOP_ACK_FAILED", error, { recoverable: true })
         .catch(() => undefined),
     );
+}
+
+interface AnnouncementReference {
+  channelId: string;
+  messageId: string;
+}
+
+async function publishAnnouncement(
+  target: GuildTextBasedChannel,
+  payload: Record<string, unknown>,
+  mode: ShopDeliveryMode,
+  previous: unknown,
+  botId: string,
+) {
+  let message: Message<true> | undefined;
+  if (mode !== "NEW" && previous && typeof previous === "object") {
+    const reference = previous as Partial<AnnouncementReference>;
+    if (
+      reference.channelId === target.id &&
+      typeof reference.messageId === "string"
+    ) {
+      try {
+        message = await target.messages.fetch({
+          message: reference.messageId,
+          force: true,
+        });
+      } catch (error) {
+        if (!unknownMessage(error)) throw error;
+      }
+      if (message && (message.author.id !== botId || message.webhookId))
+        throw new Error("ประกาศเดิมไม่ได้เป็นข้อความของบอทนี้");
+    }
+  }
+  if (message) {
+    const componentsV2 = payload.flags === MessageFlags.IsComponentsV2;
+    // Discord cannot remove IsComponentsV2 once set on a message.
+    if (
+      mode === "REPLACE" ||
+      (message.flags.has(MessageFlags.IsComponentsV2) && !componentsV2)
+    ) {
+      await message.delete().catch((error: unknown) => {
+        if (!unknownMessage(error)) throw error;
+      });
+    } else {
+      try {
+        return await message.edit({
+          content: null,
+          embeds: [],
+          components: [],
+          attachments: [],
+          ...payload,
+        } as MessageEditOptions);
+      } catch (error) {
+        // The announcement may have been deleted since it was fetched.
+        if (!unknownMessage(error)) throw error;
+      }
+    }
+  }
+  return target.send(payload);
+}
+
+function unknownMessage(error: unknown) {
+  return (error as { code?: number } | null)?.code === 10008;
 }

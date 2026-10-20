@@ -7,6 +7,7 @@ export interface FooterLink {
 
 export interface FooterSocialLink {
   label: string
-  icon: IconSource
+  icon?: IconSource
   href?: string
+  to?: string
 }

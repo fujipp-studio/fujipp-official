@@ -541,8 +541,8 @@ test('saves edited embed content without changing its active mode', async ({ pag
   await page.getByRole('button', { name: 'Save all', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Confirm save', exact: true }).click()
   await expect(page.getByRole('dialog')).toBeHidden()
-  expect(saves).toHaveLength(2) // Navigation saves config first; confirming saves the presentation.
-  expect(saves[1]?.presentations.panel).toMatchObject({
+  expect(saves).toHaveLength(1) // Only explicit confirmation saves the presentation.
+  expect(saves[0]?.presentations.panel).toMatchObject({
     mode: 'EMBED',
     embed: { title: 'Updated {{username}}' },
   })

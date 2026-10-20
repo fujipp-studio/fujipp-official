@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-20 | Aligned Shop Status settings and delivery options, prevented unsaved editor navigation from restarting bots, added Admin user Feature removal and a bilingual Privacy page, updated footer links, and fixed the Sign in underline while preserving Sign up styling. |
 | 2026-10-20 | Added configurable Shop Status controls, refreshed portfolio styling, navigation, donation identity, and scroll performance, and stabilized responsive Navbar and dropdown browser checks. |
 | 2026-10-11 | Added customizable Price Reader result blocks, status messages, matching tolerance, and unsaved image OCR previews for both versions. |
 | 2026-10-10 | Blocked invalid Components V2 button rows from saving and showed a visible error so users can repair empty or oversized rows. |

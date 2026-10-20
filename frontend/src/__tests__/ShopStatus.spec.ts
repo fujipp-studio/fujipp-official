@@ -17,6 +17,8 @@ describe('Shop Status configuration', () => {
     expect(validateShopDraft({})).toBe(true)
     expect(
       validateShopDraft({
+        SHOP_OPEN_DELIVERY_MODE: 'UPDATE',
+        SHOP_CLOSE_DELIVERY_MODE: 'REPLACE',
         SHOP_COMMAND_NAME: 'store',
         SHOP_OPEN_COMMAND: 'start',
         SHOP_CLOSE_COMMAND: 'stop',
@@ -26,6 +28,8 @@ describe('Shop Status configuration', () => {
   })
   it('blocks duplicate rules, unsupported permissions, malformed JSON and empty text', () => {
     for (const invalid of [
+      { SHOP_OPEN_DELIVERY_MODE: 'invalid' },
+      { SHOP_CLOSE_DELIVERY_MODE: ['UPDATE'] },
       { SHOP_OPEN_COMMAND: 'close' },
       { SHOP_COMMAND_NAME: '/shop' },
       { SHOP_PERMISSION_RULES: 'broken' },

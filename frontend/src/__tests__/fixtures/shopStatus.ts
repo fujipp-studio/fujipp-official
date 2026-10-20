@@ -29,6 +29,8 @@ export function shopStatusFixture() {
       field('SHOP_ANNOUNCEMENT_CHANNEL_ID', 'STRING', ''),
       field('SHOP_OPEN_MESSAGE_TYPE', 'ENUM', 'DESIGNED'),
       field('SHOP_CLOSE_MESSAGE_TYPE', 'ENUM', 'DESIGNED'),
+      field('SHOP_OPEN_DELIVERY_MODE', 'ENUM', 'NEW'),
+      field('SHOP_CLOSE_DELIVERY_MODE', 'ENUM', 'NEW'),
       field('SHOP_OPEN_TEXT', 'TEXT', 'เปิดร้านแล้ว'),
       field('SHOP_CLOSE_TEXT', 'TEXT', 'ปิดร้านแล้ว'),
       field('SHOP_PERMISSION_RULES', 'JSON', []),

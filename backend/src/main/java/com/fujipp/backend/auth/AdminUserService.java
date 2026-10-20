@@ -8,6 +8,10 @@ import java.util.UUID;
 import java.time.OffsetDateTime;
 import com.fujipp.backend.store.StoreNotFoundException;
 import com.fujipp.backend.store.StoreValidationException;
+import com.fujipp.backend.store.StoreConflictException;
+import com.fujipp.backend.runtime.RuntimeService;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import com.fujipp.backend.pagination.CursorCodec;
 import com.fujipp.backend.pagination.CursorPage;
 
@@ -15,10 +19,12 @@ import com.fujipp.backend.pagination.CursorPage;
 public class AdminUserService {
     private final AdminUserRepository repository;
     private final CursorCodec cursors;
+    private final RuntimeService runtime;
 
-    public AdminUserService(AdminUserRepository repository,CursorCodec cursors) {
+    public AdminUserService(AdminUserRepository repository,CursorCodec cursors, RuntimeService runtime) {
         this.repository = repository;
         this.cursors = cursors;
+        this.runtime = runtime;
     }
 
     public List<AdminUserResponses.UserSummary> listUsers(String query) {
@@ -116,4 +122,26 @@ public class AdminUserService {
     }
 
     private UUID parseUuid(String value){try{return value==null?null:UUID.fromString(value);}catch(IllegalArgumentException ignored){return null;}}
+
+    @Transactional
+    public void removeFeature(UUID userId, UUID licenseId) {
+        // The installation trigger locks this same license, serializing new installs with removal.
+        var license = repository.lockFeatureLicense(userId, licenseId)
+                .orElseThrow(() -> new StoreNotFoundException("Feature license was not found"));
+        if (license.installationCount() > 0 && List.of("bot-presence", "bot-permissions", "runtime-expiry-alert")
+                .contains(license.featureCode())) {
+            throw new StoreConflictException("Installed core features cannot be removed from a user");
+        }
+        if (!repository.revokeFeatureLicense(userId, licenseId))
+            throw new StoreNotFoundException("Feature license was not found");
+        repository.removeFeatureInstallations(userId, licenseId);
+        // Invalidate after commit so another bootstrap cannot cache the pre-removal state.
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { runtime.invalidateBootstrap(); }
+            });
+        } else {
+            runtime.invalidateBootstrap();
+        }
+    }
 }
