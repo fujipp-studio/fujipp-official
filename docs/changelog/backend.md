@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-20 | Added configurable Shop Status announcement updates and replacements with message tracking across restarts. |
 | 2026-10-20 | Added customizable shop open/close commands with role-based channel permissions and validation, and grouped donation rankings by account. |
 | 2026-10-11 | Added validated Price Reader customization with configurable matching tolerance, shared result formatting, and separate all-failed message designs. |
 | 2026-10-10 | Rejected empty and oversized Components V2 button rows before saving or sending, and kept Message Sets commands available after individual send failures, including recovery of affected installations. |
