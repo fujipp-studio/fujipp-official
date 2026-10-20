@@ -72,6 +72,8 @@ public class RuntimeRepository {
 
     public List<FeatureRow> findFeatures(List<UUID> botIds) {
         if (botIds.isEmpty()) return List.of();
+        // Older Spending startup failures must reach the updated runner so its
+        // lazy database connection can recover without reinstalling the feature.
         return queryByIds(
                 """
                 SELECT installation.id, installation.bot_id, product.code, version.version,
@@ -87,7 +89,10 @@ public class RuntimeRepository {
                    AND installation.removed_at IS NULL
                    AND (installation.status IN ('INSTALLING', 'ACTIVE')
                         OR (installation.status = 'ERROR' AND product.code = 'message-sets'
-                            AND installation.last_error_code IN ('MESSAGE_SET_SEND_FAILED', 'MESSAGE_SET_ACK_FAILED')))
+                            AND installation.last_error_code IN ('MESSAGE_SET_SEND_FAILED', 'MESSAGE_SET_ACK_FAILED'))
+                        OR (installation.status = 'ERROR' AND product.code = 'member-spending'
+                            AND version.runtime_key = 'member-spending' AND version.version = '1.0.0'
+                            AND installation.last_error_code = 'FEATURE_ACTIVATION_FAILED'))
                    AND license.status = 'ACTIVE'
                    AND (license.expires_at IS NULL OR license.expires_at > now())
                  ORDER BY installation.bot_id, product.code

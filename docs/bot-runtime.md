@@ -166,6 +166,26 @@ the product through the admin tools before granting/installing it. Installing or
 uninstalling the feature, changing other features, credentials, or explicitly
 restarting a bot still follows the usual bot restart flow.
 
+## Member Spending Card recovery
+
+Member Spending registers its interaction listener before connecting to an
+external database. Commands acknowledge Discord before database work, share a
+pending connection attempt, and retry initialization on the next command if it
+fails. A database failure is returned through the acknowledged interaction.
+
+Older `member-spending@1.0.0` installations left in `ERROR` with
+`FEATURE_ACTIVATION_FAILED` are included in bootstrap for the updated Runner to
+reactivate. This recovers cases such as a temporary Neon DNS failure during the
+old eager initialization. Recovery still requires an active, unexpired license,
+an existing configuration, and an installation that has not been removed or
+disabled. Other errors and other module versions remain excluded.
+
+Deploy the Backend recovery filter together with the Runner's lazy database
+initialization. Existing affected installations recover without a database
+migration or reinstallation. The package settings page displays the selected
+bot installation's status; an active license alone does not indicate that its
+Feature is running.
+
 ## Shop Status
 
 The bundled `shop-status@1.0.0` feature registers `/shop open` and `/shop close`.
