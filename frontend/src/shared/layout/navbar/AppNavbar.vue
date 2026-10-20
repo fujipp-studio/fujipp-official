@@ -1165,26 +1165,46 @@ function closeProfileMenu() {
   background: currentcolor;
   content: '';
   transform: scaleX(0);
-  transform-origin: left;
+  transform-origin: right;
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .action-button--text:hover::after,
 .action-button--text:focus-visible::after {
   transform: scaleX(1);
+  transform-origin: left;
 }
 
 .action-button--filled {
   width: auto;
+  border: 1px solid var(--semantic-color-text-text-blend-source);
   padding-inline: var(--space-md);
   background: var(--semantic-color-text-text-blend-source);
   color: var(--semantic-color-text-text-blend-cutout);
   white-space: nowrap;
-  transition: opacity 160ms ease;
 }
 
-.action-button--filled:hover {
-  opacity: 0.88;
+.action-button--filled::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--semantic-color-text-text-blend-cutout);
+  content: '';
+  transform: translateY(102%);
+  transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.action-button--filled span {
+  position: relative;
+  z-index: 1;
+  color: var(--semantic-color-text-text-blend-source);
+  mix-blend-mode: difference;
+}
+
+.action-button--filled:hover::before,
+.action-button--filled:focus-visible::before {
+  transform: translateY(0);
 }
 
 .theme-toggle {
@@ -1377,6 +1397,7 @@ function closeProfileMenu() {
   .profile-navbar,
   .profile-navbar__wallet,
   .action-button--filled,
+  .action-button--filled::before,
   .action-button--text::after,
   .theme-toggle,
   .theme-toggle__icon,
