@@ -70,6 +70,17 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect(form).toContainText('/store start')
     await capture('commands')
     await category('ประกาศ')
+    const openPing = form.getByRole('switch', { name: 'อนุญาต Ping ตอนเปิดร้าน', exact: true })
+    const closePing = form.getByRole('switch', { name: 'อนุญาต Ping ตอนปิดร้าน', exact: true })
+    await expect(openPing).not.toBeChecked()
+    await expect(closePing).not.toBeChecked()
+    await openPing.focus()
+    await page.keyboard.press('Space')
+    await expect(openPing).toBeChecked()
+    await expect(closePing).not.toBeChecked()
+    await closePing.click()
+    await expect(closePing).toBeChecked()
+    expect(saves).toBe(0)
     const openName = form.getByRole('textbox', {
       name: 'ชื่อห้องตอนเปิดร้าน (ไม่บังคับ)',
       exact: true,
@@ -97,6 +108,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       form.getByRole('combobox', { name: 'การส่งประกาศเปิดร้าน', exact: true }),
       'อัปเดตข้อความเดิม',
     )
+    await expect(form).toContainText('หากต้องการแจ้งเตือนใหม่ทุกครั้ง')
     await choose(
       form.getByRole('combobox', { name: 'การส่งประกาศปิดร้าน', exact: true }),
       'ลบข้อความเดิมแล้วส่งใหม่',
@@ -107,7 +119,7 @@ for (const theme of ['LIGHT', 'DARK']) {
     )
     await form
       .getByRole('textbox', { name: 'ข้อความประกาศ', exact: true })
-      .fill('เปิดร้านแล้ว {{guild_name}}')
+      .fill('@here เปิดร้านแล้ว {{guild_name}}')
     await capture('announcements')
     await expect(design).toContainText('ปิดร้าน')
     await choose(
@@ -129,7 +141,9 @@ for (const theme of ['LIGHT', 'DARK']) {
     await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
     await expect(page).toHaveURL(/components/)
     expect(saves).toBe(0)
-    await page.getByRole('textbox', { name: 'ข้อความ', exact: true }).fill('## Updated {{status}}')
+    await page
+      .getByRole('textbox', { name: 'ข้อความ', exact: true })
+      .fill('## Updated {{status}} @everyone')
     await page.goBack()
     await category('คำสั่ง')
     await expect(form.getByRole('textbox', { name: 'ชื่อคำสั่ง', exact: true })).toHaveValue(
@@ -148,13 +162,15 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect.poll(() => saved?.values.SHOP_COMMAND_NAME).toBe('store')
     expect(saved!.values.SHOP_OPEN_CHANNEL_NAME).toBe('🟢・สถานะ・ร้านเปิด')
     expect(saved!.values.SHOP_CLOSE_CHANNEL_NAME).toBe('🔴・สถานะ・ร้านปิด')
+    expect(saved!.values.SHOP_OPEN_ALLOW_EVERYONE_MENTIONS).toBe(true)
+    expect(saved!.values.SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS).toBe(true)
     expect(saved!.values.SHOP_OPEN_COMMAND).toBe('start')
     expect(saved!.values.SHOP_CLOSE_COMMAND).toBe('stop')
     expect(saves).toBe(1)
     expect(saved!.values.SHOP_OPEN_DELIVERY_MODE).toBe('UPDATE')
     expect(saved!.values.SHOP_CLOSE_DELIVERY_MODE).toBe('REPLACE')
     expect(saved!.values.SHOP_OPEN_MESSAGE_TYPE).toBe('TEXT')
-    expect(saved!.values.SHOP_OPEN_TEXT).toBe('เปิดร้านแล้ว {{guild_name}}')
+    expect(saved!.values.SHOP_OPEN_TEXT).toBe('@here เปิดร้านแล้ว {{guild_name}}')
     expect(saved!.values.SHOP_PERMISSION_RULES).toEqual([
       {
         channelId: '111111111111111111',
@@ -179,7 +195,7 @@ for (const theme of ['LIGHT', 'DARK']) {
     await design.getByRole('button', { name: 'แก้ไขข้อความ', exact: true }).click()
     await expect(page).toHaveURL(/components/)
     await expect(page.getByRole('textbox', { name: 'ข้อความ', exact: true })).toHaveValue(
-      '## Updated {{status}}',
+      '## Updated {{status}} @everyone',
     )
     expect(saves).toBe(1)
     await page.goBack()

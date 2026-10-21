@@ -53,6 +53,14 @@ describe('Shop Status configuration', () => {
         expect(validateShopDraft({ [`SHOP_${state}_CHANNEL_NAME`]: name })).toBe(false)
     }
   })
+  it('accepts only boolean opt-in ping settings for each action', () => {
+    for (const state of ['OPEN', 'CLOSE']) {
+      const key = `SHOP_${state}_ALLOW_EVERYONE_MENTIONS`
+      for (const value of [true, false]) expect(validateShopDraft({ [key]: value })).toBe(true)
+      for (const value of ['true', 'false', 1, [], null])
+        expect(validateShopDraft({ [key]: value })).toBe(false)
+    }
+  })
   it('suggests customized command paths to Bot Permissions', () => {
     const { shopLicense, config } = shopStatusFixture()
     config.fields.find((f) => f.key === 'SHOP_COMMAND_NAME')!.value = 'store'
