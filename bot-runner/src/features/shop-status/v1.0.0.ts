@@ -214,13 +214,33 @@ async function changeStatus(
   remember: (announcement: AnnouncementReference) => Promise<void>,
 ) {
   const guild = await context.client.guilds.fetch(context.guildId!);
-  const target = config.announcementChannelId
-    ? await guild.channels.fetch(config.announcementChannelId)
-    : interaction.channel;
+  const channelName = config.channelNames[action];
+  const target =
+    config.announcementChannelId || channelName
+      ? await guild.channels.fetch(
+          config.announcementChannelId ?? interaction.channelId,
+          { force: true },
+        )
+      : interaction.channel;
   if (!target?.isSendable() || target.isDMBased())
     throw new Error("ไม่พบห้องสำหรับส่งประกาศ");
   const me = guild.members.me ?? (await guild.members.fetchMe());
   const targetPermissions = target.permissionsFor(me);
+  const previousName = target.name;
+  const rename = Boolean(channelName && channelName !== previousName);
+  if (
+    rename &&
+    !targetPermissions?.has(
+      target.isThread()
+        ? PermissionFlagsBits.ManageThreads
+        : PermissionFlagsBits.ManageChannels,
+    )
+  )
+    throw new Error(
+      target.isThread()
+        ? "บอทต้องมี Manage Threads เพื่อเปลี่ยนชื่อเธรดประกาศ"
+        : "บอทต้องมี Manage Channels เพื่อเปลี่ยนชื่อห้องประกาศ",
+    );
   const type =
     context.config[`SHOP_${action.toUpperCase()}_MESSAGE_TYPE`] ?? "DESIGNED";
   const variables = {
@@ -293,6 +313,7 @@ async function changeStatus(
     changes.push({ channel, roleId: role.id, patch, previous });
   }
   const applied: typeof changes = [];
+  let renameAttempted = false;
   try {
     for (const change of changes) {
       // Include the attempted write: a network error can occur after Discord applied it.
@@ -303,10 +324,26 @@ async function changeStatus(
         { reason: `Shop ${action} by ${interaction.user.id}` },
       );
     }
+    if (rename) {
+      // Include attempted renames: Discord may apply a write before a network error.
+      renameAttempted = true;
+      await target.setName(
+        channelName,
+        `Shop ${action} by ${interaction.user.id}`,
+      );
+    }
     await save();
   } catch (error) {
-    const rollback = await Promise.allSettled(
-      applied
+    const rollback = await Promise.allSettled([
+      ...(renameAttempted
+        ? [
+            target.setName(
+              previousName,
+              "Restore channel name after failed shop change",
+            ),
+          ]
+        : []),
+      ...applied
         .reverse()
         .map((change) =>
           change.channel.permissionOverwrites.edit(
@@ -315,10 +352,10 @@ async function changeStatus(
             { reason: "Restore permissions after failed shop change" },
           ),
         ),
-    );
+    ]);
     if (rollback.some((result) => result.status === "rejected"))
       throw new Error(
-        "ปรับสิทธิ์ไม่ครบและคืนค่าบางห้องไม่สำเร็จ กรุณาตรวจสอบสิทธิ์ทุกห้อง",
+        "ปรับสถานะไม่ครบและคืนค่าบางห้องไม่สำเร็จ กรุณาตรวจสอบชื่อและสิทธิ์ทุกห้อง",
       );
     throw error;
   }

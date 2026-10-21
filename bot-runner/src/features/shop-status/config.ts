@@ -63,7 +63,19 @@ export function readShopConfig(config: Readonly<Record<string, unknown>>) {
       close: state(r.close),
     };
   });
-  for (const state of ["OPEN", "CLOSE"]) {
+  const channelNames: Record<ShopState, string> = { open: "", close: "" };
+  for (const state of ["OPEN", "CLOSE"] as const) {
+    const channelName = config[`SHOP_${state}_CHANNEL_NAME`] ?? "";
+    if (
+      typeof channelName !== "string" ||
+      channelName.length > 100 ||
+      (channelName !== "" &&
+        (!channelName.trim() || /[\r\n\t]/.test(channelName)))
+    )
+      throw new Error(
+        "Shop channel names must contain 1–100 characters or be empty",
+      );
+    channelNames[state === "OPEN" ? "open" : "close"] = channelName.trim();
     const delivery = config[`SHOP_${state}_DELIVERY_MODE`] ?? "NEW";
     if (
       typeof delivery !== "string" ||
@@ -95,6 +107,7 @@ export function readShopConfig(config: Readonly<Record<string, unknown>>) {
     open,
     close,
     rules,
+    channelNames,
     announcementChannelId: channel ? String(channel) : null,
   };
 }
