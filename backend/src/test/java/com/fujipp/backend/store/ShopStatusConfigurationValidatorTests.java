@@ -34,6 +34,17 @@ class ShopStatusConfigurationValidatorTests {
                     .isInstanceOf(StoreValidationException.class);
         }
     }
+    @Test void mentionOptionsRequireExplicitBooleans() {
+        for (String state : new String[]{"OPEN", "CLOSE"}) {
+            String key = "SHOP_" + state + "_ALLOW_EVERYONE_MENTIONS";
+            for (boolean value : new boolean[]{true, false})
+                assertThatCode(() -> ShopStatusConfigurationValidator.validate(Map.of(key, mapper.valueToTree(value))))
+                    .doesNotThrowAnyException();
+            for (Object value : new Object[]{"true", "false", 1, java.util.List.of(), null})
+                assertThatThrownBy(() -> ShopStatusConfigurationValidator.validate(Map.of(key, mapper.valueToTree(value))))
+                    .isInstanceOf(StoreValidationException.class);
+        }
+    }
     @Test void rejectsInvalidNamesAndMatchingSubcommands() {
         for (String name : new String[]{"", "/shop", "SHOP", "shop open", "a".repeat(33)})
             assertThatThrownBy(() -> ShopStatusConfigurationValidator.validate(Map.of("SHOP_COMMAND_NAME", mapper.valueToTree(name))))

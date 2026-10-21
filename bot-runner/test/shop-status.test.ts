@@ -14,6 +14,7 @@ import {
   permissionPatch,
 } from "../src/features/shop-status/config.js";
 import { shopStatusFeature } from "../src/features/shop-status/v1.0.0.js";
+import { renderTemplate } from "../src/features/presentation.js";
 import { createCommandPermissionGate } from "../src/command-permissions.js";
 import type { FeatureContext } from "../src/types.js";
 const channelId = "111111111111111111",
@@ -38,6 +39,7 @@ function fixture(config: Record<string, unknown> = {}) {
     failRename = false,
     thread = false;
   const fetchedChannels: any[] = [];
+  let canMentionEveryone = true;
   const storedMessages = new Map<string, any>();
   let messageFailure: { operation: string; code: number } | undefined;
   let failAnnouncementSave = false;
@@ -60,12 +62,14 @@ function fixture(config: Record<string, unknown> = {}) {
   });
   const permissions = {
     has: (flag: bigint) =>
-      flag === PermissionFlagsBits.ManageRoles
-        ? canManage
-        : flag === PermissionFlagsBits.ManageChannels ||
-            flag === PermissionFlagsBits.ManageThreads
-          ? canRename
-          : true,
+      flag === PermissionFlagsBits.MentionEveryone
+        ? canMentionEveryone
+        : flag === PermissionFlagsBits.ManageRoles
+          ? canManage
+          : flag === PermissionFlagsBits.ManageChannels ||
+              flag === PermissionFlagsBits.ManageThreads
+            ? canRename
+            : true,
   };
   const channel = {
     id: channelId,
@@ -251,6 +255,9 @@ function fixture(config: Record<string, unknown> = {}) {
     renames,
     channel,
     fetchedChannels,
+    setMentionPermission: (allowed: boolean) => {
+      canMentionEveryone = allowed;
+    },
     setRenamePermission: (allowed: boolean) => {
       canRename = allowed;
     },
@@ -911,4 +918,120 @@ test("validates optional announcement channel names and allows emoji and Thai", 
         readShopConfig({ [`SHOP_${state}_CHANNEL_NAME`]: name }),
       );
   }
+});
+
+test("mention options require explicit booleans", () => {
+  for (const state of ["OPEN", "CLOSE"]) {
+    const key = `SHOP_${state}_ALLOW_EVERYONE_MENTIONS`;
+    for (const value of [true, false])
+      assert.doesNotThrow(() => readShopConfig({ [key]: value }));
+    for (const value of ["true", "false", 1, [], null])
+      assert.throws(() => readShopConfig({ [key]: value }));
+  }
+});
+
+for (const format of ["TEXT", "EMBED", "COMPONENTS_V2"]) {
+  test(`shop ${format} mentions are opt-in per action; private replies and shared templates do not ping`, async () => {
+    const f = fixture({
+      SHOP_OPEN_ALLOW_EVERYONE_MENTIONS: true,
+      SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS: false,
+      SHOP_OPEN_MESSAGE_TYPE: format === "TEXT" ? "TEXT" : "DESIGNED",
+      SHOP_CLOSE_MESSAGE_TYPE: format === "TEXT" ? "TEXT" : "DESIGNED",
+      SHOP_OPEN_TEXT: "@here <@123456789012345678> <@&222222222222222222>",
+      SHOP_CLOSE_TEXT: "@everyone",
+    });
+    f.context.presentations = Object.fromEntries(
+      ["open", "close"].map((state) => [
+        `shop_${state}`,
+        {
+          mode: format,
+          embed: {
+            content: "@here <@123456789012345678> <@&222222222222222222>",
+            title: "Shop",
+          },
+          components_v2: {
+            components: [
+              {
+                type: 17,
+                components: [
+                  {
+                    type: 10,
+                    content:
+                      "@everyone @here <@123456789012345678> <@&222222222222222222>",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ]),
+    );
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    for (const action of ["open", "close"]) {
+      const i = f.interaction(action);
+      f.client.emit("interactionCreate", i.value);
+      await settle();
+      assert.deepEqual(i.replies.at(-1).allowedMentions, { parse: [] });
+    }
+    assert.deepEqual(f.messages[0].allowedMentions, { parse: ["everyone"] });
+    assert.deepEqual(f.messages[1].allowedMentions, { parse: [] });
+    if (format !== "TEXT")
+      assert.deepEqual(
+        renderTemplate(f.context, "shop_open", {}).allowedMentions,
+        { parse: [] },
+      );
+    await dispose();
+  });
+}
+
+for (const delivery of ["NEW", "UPDATE", "REPLACE"]) {
+  test(`close pings stay independent from open pings with ${delivery} delivery`, async () => {
+    const f = fixture({
+      SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS: true,
+      SHOP_CLOSE_DELIVERY_MODE: delivery,
+    });
+    const template = {
+      mode: "COMPONENTS_V2",
+      components_v2: { components: [{ type: 10, content: "@here" }] },
+    };
+    f.context.presentations = { shop_open: template, shop_close: template };
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    for (const action of ["open", "close"]) {
+      f.client.emit("interactionCreate", f.interaction(action).value);
+      await settle();
+    }
+    assert.deepEqual(f.messages[0].allowedMentions, { parse: [] });
+    const payload = delivery === "UPDATE" ? f.messageEdits[0] : f.messages[1];
+    assert.deepEqual(payload.allowedMentions, { parse: ["everyone"] });
+    assert.equal(f.messageDeletes.length, delivery === "REPLACE" ? 1 : 0);
+    await dispose();
+  });
+}
+
+test("missing Mention Everyone is reported before status, name or permission changes", async () => {
+  const f = fixture({
+    SHOP_OPEN_ALLOW_EVERYONE_MENTIONS: true,
+    SHOP_OPEN_CHANNEL_NAME: "open",
+    SHOP_PERMISSION_RULES: rules,
+  });
+  f.setMentionPermission(false);
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  const i = f.interaction();
+  f.client.emit("interactionCreate", i.value);
+  await settle();
+  assert.match(i.replies.at(-1).content, /Mention Everyone/);
+  assert.deepEqual(i.replies.at(-1).allowedMentions, { parse: [] });
+  assert.equal(f.states.at(-1).status, undefined);
+  assert.deepEqual(f.renames, []);
+  assert.deepEqual(f.edits, []);
+  assert.deepEqual(f.messages, []);
+  // A disabled action must continue to work without this extra permission.
+  f.client.emit("interactionCreate", f.interaction("close").value);
+  await settle();
+  assert.equal(f.messages.length, 1);
+  assert.deepEqual(f.messages[0].allowedMentions, { parse: [] });
+  await dispose();
 });

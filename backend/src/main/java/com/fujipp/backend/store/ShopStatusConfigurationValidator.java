@@ -19,6 +19,9 @@ final class ShopStatusConfigurationValidator {
         if (channel != null && (!channel.isTextual() || !channel.asText().matches("(?:[0-9]{15,30})?")))
             fail("Invalid shop announcement channel ID");
         for (String state : new String[]{"OPEN", "CLOSE"}) {
+            JsonNode allowMentions = values.get("SHOP_" + state + "_ALLOW_EVERYONE_MENTIONS");
+            if (allowMentions != null && !allowMentions.isBoolean())
+                fail("Shop mention settings must be booleans");
             JsonNode channelName = values.get("SHOP_" + state + "_CHANNEL_NAME");
             if (channelName != null && (!channelName.isTextual() || channelName.asText().length() > 100
                     || (!channelName.asText().isEmpty() && (channelName.asText().isBlank()

@@ -226,6 +226,16 @@ async function changeStatus(
     throw new Error("ไม่พบห้องสำหรับส่งประกาศ");
   const me = guild.members.me ?? (await guild.members.fetchMe());
   const targetPermissions = target.permissionsFor(me);
+  const allowEveryoneMentions =
+    context.config[`SHOP_${action.toUpperCase()}_ALLOW_EVERYONE_MENTIONS`] ===
+    true;
+  if (
+    allowEveryoneMentions &&
+    !targetPermissions?.has(PermissionFlagsBits.MentionEveryone)
+  )
+    throw new Error(
+      "บอทต้องมี Mention Everyone ในห้องประกาศเพื่อ Ping @here / @everyone",
+    );
   const previousName = target.name;
   const rename = Boolean(channelName && channelName !== previousName);
   if (
@@ -267,6 +277,10 @@ async function changeStatus(
           action === "open" ? "shop_open" : "shop_close",
           variables,
         );
+  // Override only this shop announcement. Other features and private replies stay non-pinging.
+  payload.allowedMentions = {
+    parse: allowEveryoneMentions ? ["everyone"] : [],
+  };
   if (
     "content" in payload &&
     typeof payload.content === "string" &&
