@@ -155,7 +155,12 @@ function updatePermission(
             <FeatureSettingToggle
               class="mb-md"
               :model-value="values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] === true"
-              :label="text(`${state.label} announcement pings`, `อนุญาต Ping ตอน${state.label}`)"
+              :label="
+                text(
+                  `${state.label}: allow @here / @everyone`,
+                  `อนุญาต @here / @everyone ตอน${state.label}`,
+                )
+              "
               :description="
                 text(
                   'Allow @here / @everyone written in the announcement text or a Components V2 text block. Requires Mention Everyone in this channel. Embed titles and descriptions do not ping.',
@@ -164,9 +169,24 @@ function updatePermission(
               "
               @update:model-value="values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] = $event"
             />
+            <FeatureSettingToggle
+              class="mb-md"
+              :model-value="values[`SHOP_${state.prefix}_ALLOW_ROLE_MENTIONS`] === true"
+              :label="
+                text(`${state.label}: allow Role pings`, `อนุญาต Ping Role ตอน${state.label}`)
+              "
+              :description="
+                text(
+                  'Write <@&ROLE_ID> in the announcement text or a Components V2 text block. The role must be mentionable, or the bot must have Mention Everyone. This does not insert a mention automatically.',
+                  'ใส่ <@&ROLE_ID> ในข้อความประกาศหรือบล็อกข้อความ Components V2 โดย Role ต้องเปิดให้แท็กได้ หรือบอทมี Mention Everyone ตัวเลือกนี้ไม่ได้เพิ่มแท็กให้อัตโนมัติ',
+                )
+              "
+              @update:model-value="values[`SHOP_${state.prefix}_ALLOW_ROLE_MENTIONS`] = $event"
+            />
             <p
               v-if="
-                values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] === true &&
+                (values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] === true ||
+                  values[`SHOP_${state.prefix}_ALLOW_ROLE_MENTIONS`] === true) &&
                 values[`SHOP_${state.prefix}_DELIVERY_MODE`] === 'UPDATE'
               "
               class="mb-md text-xs text-text-muted"
