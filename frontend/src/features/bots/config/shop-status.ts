@@ -13,6 +13,8 @@ export const shopStatusConfigKeys = new Set([
   'SHOP_ANNOUNCEMENT_CHANNEL_ID',
   'SHOP_OPEN_CHANNEL_NAME',
   'SHOP_CLOSE_CHANNEL_NAME',
+  'SHOP_OPEN_ALLOW_EVERYONE_MENTIONS',
+  'SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS',
   'SHOP_OPEN_MESSAGE_TYPE',
   'SHOP_CLOSE_MESSAGE_TYPE',
   'SHOP_OPEN_DELIVERY_MODE',
@@ -56,6 +58,8 @@ export function validateShopDraft(values: Record<string, unknown>): boolean {
   if (command('SHOP_OPEN_COMMAND', 'open') === command('SHOP_CLOSE_COMMAND', 'close')) return false
   if (!/^(?:\d{15,30})?$/.test(String(values.SHOP_ANNOUNCEMENT_CHANNEL_ID ?? ''))) return false
   for (const state of ['OPEN', 'CLOSE']) {
+    const allowMentions = values[`SHOP_${state}_ALLOW_EVERYONE_MENTIONS`]
+    if (allowMentions !== undefined && typeof allowMentions !== 'boolean') return false
     const channelName = values[`SHOP_${state}_CHANNEL_NAME`] ?? ''
     if (
       typeof channelName !== 'string' ||

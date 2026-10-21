@@ -4,6 +4,7 @@ import { Store, ShieldCheck, MessageSquare, Terminal } from 'lucide-vue-next'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
+import FeatureSettingToggle from './FeatureSettingToggle.vue'
 import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
 import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureCommandsSettings from './FeatureCommandsSettings.vue'
@@ -151,6 +152,32 @@ function updatePermission(
             class="mt-lg border-t border-border-subtle pt-lg"
           >
             <h3 class="mb-md text-sm font-semibold">{{ state.label }}</h3>
+            <FeatureSettingToggle
+              class="mb-md"
+              :model-value="values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] === true"
+              :label="text(`${state.label} announcement pings`, `อนุญาต Ping ตอน${state.label}`)"
+              :description="
+                text(
+                  'Allow @here / @everyone written in the announcement text or a Components V2 text block. Requires Mention Everyone in this channel. Embed titles and descriptions do not ping.',
+                  'อนุญาต @here / @everyone ที่ใส่ในข้อความประกาศหรือบล็อกข้อความ Components V2 บอทต้องมี Mention Everyone ในห้องนี้ ข้อความในหัวข้อและคำอธิบาย Embed จะไม่ Ping',
+                )
+              "
+              @update:model-value="values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] = $event"
+            />
+            <p
+              v-if="
+                values[`SHOP_${state.prefix}_ALLOW_EVERYONE_MENTIONS`] === true &&
+                values[`SHOP_${state.prefix}_DELIVERY_MODE`] === 'UPDATE'
+              "
+              class="mb-md text-xs text-text-muted"
+            >
+              {{
+                text(
+                  'For a new notification each time, choose Send a new message or Delete previous and send again.',
+                  'หากต้องการแจ้งเตือนใหม่ทุกครั้ง ให้เลือกส่งข้อความใหม่ หรือลบข้อความเดิมแล้วส่งใหม่',
+                )
+              }}
+            </p>
             <AppTextField
               :model-value="String(values[`SHOP_${state.prefix}_CHANNEL_NAME`] ?? '')"
               :label="

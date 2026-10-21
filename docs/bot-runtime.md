@@ -200,9 +200,25 @@ Each action has its own `SHOP_OPEN_MESSAGE_TYPE` / `SHOP_CLOSE_MESSAGE_TYPE`:
 `TEXT` uses the corresponding `SHOP_OPEN_TEXT` / `SHOP_CLOSE_TEXT` (up to 2000
 characters); `DESIGNED` uses `shop_open` / `shop_close` in the existing Embed or
 Components V2 designer. Supported variables are `status`, `user`, `user_name`,
-`channel`, and `guild_name`, written as `{{variable}}`. Mentions do not notify
-members. `SHOP_ANNOUNCEMENT_CHANNEL_ID` is optional; an empty value posts in the
+`channel`, and `guild_name`, written as `{{variable}}`. Mentions are suppressed by
+default. `SHOP_ANNOUNCEMENT_CHANNEL_ID` is optional; an empty value posts in the
 command channel. The command response and any errors are private.
+
+`SHOP_OPEN_ALLOW_EVERYONE_MENTIONS` and `SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS`
+independently opt in to `@here` / `@everyone` pings. Both default to `false`,
+including existing installations. Write the mention in plain announcement text,
+message content accompanying an Embed, or a Components V2 Text Display block;
+enabling the setting does not insert a mention automatically. Embed titles and
+descriptions cannot trigger pings. User and role pings remain suppressed, as do
+private command replies and announcements from other features.
+
+When enabled, the bot needs Mention Everyone in the announcement channel. Missing
+permission is reported before changing the shop status, channel name, or channel
+permissions. See [Discord's allowed mention rules](https://docs.discord.com/developers/resources/message#allowed-mentions-object)
+and [Text Display mentions](https://docs.discord.com/developers/components/reference#text-display).
+For a fresh notification on each command, use `NEW` or `REPLACE` delivery instead
+of relying on edits to an existing announcement. Members' own Discord notification
+settings still apply.
 
 `SHOP_OPEN_CHANNEL_NAME` and `SHOP_CLOSE_CHANNEL_NAME` optionally rename the
 announcement channel for each action, for example `🟢・สถานะ・ร้านเปิด` and
