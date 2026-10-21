@@ -19,10 +19,10 @@ permissions:
 
 concurrency:
   group: frontend-production-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
+  quality:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -30,18 +30,55 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: 1.3.14
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-1.3.14-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-1.3.14-
       - run: bun install --frozen-lockfile
+      - name: Select affected tests
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun scripts/ci-affected.ts plan
       - run: bun run lint
       - name: Ensure lint produced no uncommitted fixes
         run: git diff --exit-code
         working-directory: .
-      - run: bun run test:unit --run
-      - run: bun run build
-      - run: bun run performance:bundle
+      - run: bun scripts/ci-affected.ts unit
       - run: bun run check:tokens
+
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.3.14
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-1.3.14-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-1.3.14-
+      - run: bun install --frozen-lockfile
+      - name: Select affected tests
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: bun scripts/ci-affected.ts plan
       - name: Configure bounded HTTPS downloads for browser dependencies
         run: |
           # Avoid the Azure HTTP mirror that can stall during apt updates.
@@ -57,11 +94,63 @@ jobs:
       - name: Install browser for isolated UI smoke tests
         timeout-minutes: 10
         run: bunx --no-install playwright install --with-deps chromium
-      - run: bun run test:smoke
+      - run: bun scripts/ci-affected.ts smoke
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    # Production variables remain scoped to the existing protected environment.
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && 'frontend-production' || 'frontend-ci' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.3.14
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-1.3.14-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-1.3.14-
+      - run: bun install --frozen-lockfile
+      - name: Build frontend once
+        env:
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
+          VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
+        run: bun run build
+      - run: bun run performance:bundle
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          name: frontend-production
+          path: frontend/dist/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  verify:
+    if: always()
+    needs: [quality, smoke, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all tests to pass
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          SMOKE: ${{ needs.smoke.result }}
+          BUILD: ${{ needs.build.result }}
+        run: test "$QUALITY" = success && test "$SMOKE" = success && test "$BUILD" = success
 
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [verify]
+    needs: [verify, build]
     runs-on: ubuntu-latest
     environment:
       name: frontend-production
@@ -71,18 +160,10 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v6
-      - uses: oven-sh/setup-bun@v2.2.0
+      - uses: actions/download-artifact@v5
         with:
-          bun-version: 1.3.14
-      - run: bun install --frozen-lockfile
-      - name: Build production frontend
-        env:
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
-          VITE_TURNSTILE_SITE_KEY: ${{ vars.VITE_TURNSTILE_SITE_KEY }}
-          VITE_SITE_URL: ${{ vars.VITE_SITE_URL }}
-        run: bun run build
+          name: frontend-production
+          path: frontend/dist
       - name: Install FTPS client
         run: sudo apt-get update && sudo apt-get install --yes lftp
         working-directory: .

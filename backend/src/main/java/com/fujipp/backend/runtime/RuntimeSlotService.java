@@ -55,12 +55,13 @@ public class RuntimeSlotService {
     }
     @Scheduled(fixedDelayString="${app.runtime.reconcile-ms:60000}")
     public void reconcile(){
-        repository.reconcileExpiry();
+        boolean changed = repository.reconcileExpiry();
         for(UUID id:repository.dueAutoRenewals()) {
-            try { repository.renewAutomatically(id); } catch (DataAccessException ignored) { /* retry next cycle */ }
+            try { changed = repository.renewAutomatically(id) || changed; }
+            catch (DataAccessException ignored) { /* retry next cycle */ }
         }
-        repository.reconcileExpiry();
-        runtime.invalidateBootstrap();
+        changed = repository.reconcileExpiry() || changed;
+        if (changed) runtime.invalidateBootstrap();
     }
     private UUID userId(String subject){ return users.getActiveAccount(subject).id(); }
     private RuntimeSubscriptionResponse find(UUID owner,UUID id){ return repository.subscriptions(owner).stream()

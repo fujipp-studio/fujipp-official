@@ -311,12 +311,36 @@ BACKEND_API_URL=http://backend:8080
 RUNNER_API_TOKEN=<same-long-random-token-as-backend>
 RUNTIME_POLL_INTERVAL_MS=30000
 RUNTIME_BOOTSTRAP_CACHE_TTL=60s
+RUNTIME_FEATURE_DATA_CACHE_TTL=5m
 ```
 
-`RUNTIME_BOOTSTRAP_CACHE_TTL` bounds how long changes made outside the runtime
-state endpoint may take to reach a Runner. Runtime state writes invalidate the
-cached snapshot immediately. Keep the TTL short enough for operational control;
-Redis is unnecessary while a single Backend instance owns the cache.
+The two cache TTL settings belong to the Backend environment, not the Runner.
+`RUNTIME_BOOTSTRAP_CACHE_TTL` keeps the snapshot refresh interval at 60 seconds.
+Runtime eligibility, feature expiry, configuration revisions, and saved runtime
+state are checked again on refresh. State writes invalidate the snapshot
+immediately. Expiry reconciliation invalidates caches only when expiry or a
+successful renewal actually changes a subscription.
+
+`RUNTIME_FEATURE_DATA_CACHE_TTL` limits reuse of large feature configuration,
+encrypted secrets, and presentation definitions to five minutes. A changed
+configuration revision reloads that feature's data; explicit application changes
+invalidate both caches. State-only writes reuse unchanged feature data. Changes
+to definitions made outside the application may take up to the feature-data TTL
+plus a snapshot refresh to appear. Removed features are dropped from the cache.
+Do not increase the snapshot TTL to save bandwidth: keep expiry/state checks
+frequent and tune the feature-data TTL instead.
+
+The existing `runtime.bootstrap.cache`, `runtime.bootstrap.load`, and
+`runtime.bootstrap.payload.bytes` metrics plus
+`runtime.bootstrap.config.reloads` (number of feature configurations reloaded per
+snapshot) can be read through the authenticated metrics endpoint. Compare these
+with Supabase's Database/Shared Pooler Egress before and after deployment; payload
+size at the Backend is not a measurement of Supabase wire traffic.
+
+My Bots and Bot Settings poll visible pages every 15 seconds. Hidden tabs stop
+polling, returning to the tab refreshes immediately, and user actions still
+refresh their results immediately. Redis is unnecessary for a single Backend
+instance.
 
 Generate production secrets independently:
 

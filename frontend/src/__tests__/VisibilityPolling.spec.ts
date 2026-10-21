@@ -16,7 +16,7 @@ it('never overlaps slow polls and schedules the next request after completion', 
     .mockReturnValueOnce(pending.promise)
     .mockResolvedValue(undefined)
   const scope = effectScope()
-  scope.run(() => useVisibilityPolling(task).start())
+  scope.run(() => useVisibilityPolling(task, 3000).start())
   await vi.advanceTimersByTimeAsync(12000)
   expect(task).toHaveBeenCalledTimes(1)
   pending.resolve()
@@ -33,7 +33,7 @@ it('aborts hidden/disposed requests, resumes on visibility, and cannot restart a
     signals.push(signal)
   })
   const scope = effectScope()
-  const polling = scope.run(() => useVisibilityPolling(task))!
+  const polling = scope.run(() => useVisibilityPolling(task, 3000))!
   polling.start()
   Object.defineProperty(document, 'hidden', { value: true, configurable: true })
   document.dispatchEvent(new Event('visibilitychange'))
@@ -55,4 +55,16 @@ it('aborts hidden/disposed requests, resumes on visibility, and cannot restart a
   polling.start()
   await vi.advanceTimersByTimeAsync(9000)
   expect(task).toHaveBeenCalledTimes(2)
+})
+
+
+it('uses a 15 second default interval to limit background database traffic', async () => {
+  const task = vi.fn<(signal: AbortSignal) => Promise<void>>().mockResolvedValue(undefined)
+  const scope = effectScope()
+  scope.run(() => useVisibilityPolling(task).start())
+  await vi.advanceTimersByTimeAsync(14999)
+  expect(task).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  expect(task).toHaveBeenCalledTimes(1)
+  scope.stop()
 })

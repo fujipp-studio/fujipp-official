@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Reduced repeated runtime configuration reads while preserving state and expiry refreshes, and retained caches when reconciliation makes no changes. |
 | 2026-10-21 | Added separate open/close Role pings to Shop Status, validating mentioned roles and their permissions before changing the shop while retaining independent everyone controls. |
 | 2026-10-21 | Added independent opt-in @here/@everyone pings for Shop Status announcements with permission checks while keeping private replies and other features non-pinging. |
 | 2026-10-21 | Added optional Shop Status announcement channel names for opening and closing, with permission checks, unchanged-name skips, and name/permission rollback on failed status changes; patched the vulnerable redirect dependency used by Bot Runner. |

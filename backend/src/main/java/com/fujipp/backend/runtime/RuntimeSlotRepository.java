@@ -102,23 +102,28 @@ public class RuntimeSlotRepository {
             """, (rs,n)->rs.getObject(1,UUID.class));
     }
 
-    public void renewAutomatically(UUID id) {
-        jdbc.queryForObject("SELECT private.renew_runtime_subscription(?,false)", Boolean.class, id);
+    public boolean renewAutomatically(UUID id) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT private.renew_runtime_subscription(?,false)", Boolean.class, id));
     }
 
-    public void reconcileExpiry() {
-        jdbc.update("""
+    public boolean reconcileExpiry() {
+        int graceChanged = jdbc.update("""
             UPDATE private.runtime_subscriptions SET status='GRACE',
               grace_until=current_period_end+interval '3 hours',updated_at=now()
              WHERE status='ACTIVE' AND current_period_end<=now()
             """);
-        jdbc.update("""
+        Long expiredCount = jdbc.queryForObject("""
             WITH expired AS (
               UPDATE private.runtime_subscriptions SET status='EXPIRED',updated_at=now()
                WHERE status='GRACE' AND grace_until<=now() RETURNING bot_id
             )
-            UPDATE bots.bot_instances SET desired_state='STOPPED'
-             WHERE id IN (SELECT bot_id FROM expired WHERE bot_id IS NOT NULL)
-            """);
+            , stopped AS (
+              UPDATE bots.bot_instances SET desired_state='STOPPED'
+               WHERE id IN (SELECT bot_id FROM expired WHERE bot_id IS NOT NULL)
+               RETURNING id
+            )
+            SELECT count(*) FROM expired
+            """, Long.class);
+        return graceChanged > 0 || (expiredCount != null && expiredCount > 0);
     }
 }

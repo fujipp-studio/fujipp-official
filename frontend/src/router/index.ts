@@ -56,6 +56,19 @@ export function createAppRouter(
         meta: { seo: pageSeo.home },
       },
       {
+        path: '/links',
+        alias: '/link',
+        name: 'links',
+        component: () => import('../features/links/views/LinksView.vue'),
+        meta: {
+          hideGlobalNavbar: true,
+          seo: {
+            title: 'Links · Fujipp',
+            description: 'Find Fujipp online. Websites, Discord bots, creative projects, and a soundtrack for your scroll.',
+          },
+        },
+      },
+      {
         path: '/components',
         name: 'components',
         component: () => import('../views/DesignSystemView.vue'),
