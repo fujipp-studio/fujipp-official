@@ -35,8 +35,8 @@ class ShopStatusConfigurationValidatorTests {
         }
     }
     @Test void mentionOptionsRequireExplicitBooleans() {
-        for (String state : new String[]{"OPEN", "CLOSE"}) {
-            String key = "SHOP_" + state + "_ALLOW_EVERYONE_MENTIONS";
+        for (String state : new String[]{"OPEN", "CLOSE"}) for (String kind : new String[]{"EVERYONE", "ROLE"}) {
+            String key = "SHOP_" + state + "_ALLOW_" + kind + "_MENTIONS";
             for (boolean value : new boolean[]{true, false})
                 assertThatCode(() -> ShopStatusConfigurationValidator.validate(Map.of(key, mapper.valueToTree(value))))
                     .doesNotThrowAnyException();

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added open/close Role Ping switches and clarified the separate @here/@everyone controls with Role tag syntax and permission guidance. |
 | 2026-10-21 | Added separate open/close Shop Status Ping switches, permission guidance, and fresh-notification advice for updates to existing announcements. |
 | 2026-10-21 | Added optional open/close channel names to Shop Status announcement settings and showed invalid-name feedback before saving. |
 | 2026-10-20 | Showed the selected bot's actual Feature installation status in package settings instead of the license's Active status. |

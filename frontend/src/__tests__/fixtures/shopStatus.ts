@@ -29,6 +29,8 @@ export function shopStatusFixture() {
       field('SHOP_ANNOUNCEMENT_CHANNEL_ID', 'STRING', ''),
       { ...field('SHOP_OPEN_ALLOW_EVERYONE_MENTIONS', 'BOOLEAN', false), required: false },
       { ...field('SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS', 'BOOLEAN', false), required: false },
+      { ...field('SHOP_OPEN_ALLOW_ROLE_MENTIONS', 'BOOLEAN', false), required: false },
+      { ...field('SHOP_CLOSE_ALLOW_ROLE_MENTIONS', 'BOOLEAN', false), required: false },
       { ...field('SHOP_OPEN_CHANNEL_NAME', 'STRING', ''), required: false },
       { ...field('SHOP_CLOSE_CHANNEL_NAME', 'STRING', ''), required: false },
       field('SHOP_OPEN_MESSAGE_TYPE', 'ENUM', 'DESIGNED'),
