@@ -3,10 +3,11 @@ import { ref } from 'vue'
 import { ArrowUpRight, Moon, Sun, Music2, Play, X } from 'lucide-vue-next'
 import { icons } from '../../../config'
 import AppIcon from '../../../shared/ui/icons/AppIcon.vue'
+import AppTextLink from '../../../shared/ui/navigation/AppTextLink.vue'
 
 const dark = ref(true)
 const musicOpen = ref(false)
-const playlist = 'https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M'
+const track = 'https://open.spotify.com/track/687OL6QdsLt1H8oU108dO5'
 const socials = [
   { label: 'Instagram', detail: 'A little behind the scenes', href: 'https://www.instagram.com/fujipp.official/', icon: icons.social.instagram },
   { label: 'GitHub', detail: 'Things I’m building', href: 'https://github.com/Fujipp', icon: icons.social.github },
@@ -36,9 +37,7 @@ const socials = [
         </div>
         <h1 id="links-title">fujipp<span class="intro-star" aria-hidden="true">✳</span></h1>
         <p class="intro-caption">Ideas into things.<br />One project at a time.</p>
-        <a class="contact-link" href="mailto:anawat.boripakhirun@gmail.com">
-          Let’s make something <ArrowUpRight class="size-icon-24" />
-        </a>
+        <AppTextLink to="/work" class="portfolio-link">View my portfolio</AppTextLink>
       </section>
 
       <section class="links-card about-card" aria-label="About Fujipp">
@@ -55,17 +54,17 @@ const socials = [
         <div class="music-row">
           <div class="record-art" aria-hidden="true"><span class="record"><span>f.</span></span></div>
           <div class="min-w-0 flex-1">
-            <p class="text-heading-h3">Today’s Top Hits</p>
-            <p class="text-body-small text-text-muted mt-xxs">A little pop. A little good energy.</p>
-            <a :href="playlist" target="_blank" rel="noopener noreferrer" class="spotify-link">CURATED BY SPOTIFY ↗</a>
+            <p class="text-heading-h3">เขียว เหลือง แดง (Get high)</p>
+            <p class="text-body-small text-text-muted mt-xxs">PUN, THE TOYS</p>
+            <a :href="track" target="_blank" rel="noopener noreferrer" class="spotify-link">LISTEN ON SPOTIFY ↗</a>
           </div>
           <button type="button" class="play-button" :aria-expanded="musicOpen" aria-controls="links-music-player" :aria-label="musicOpen ? 'Close music player' : 'Open music player'" @click="musicOpen = !musicOpen">
             <X v-if="musicOpen" class="size-icon-24" /><Play v-else class="size-icon-24" />
           </button>
         </div>
         <div v-if="musicOpen" id="links-music-player" class="player-wrap">
-          <iframe title="Today’s Top Hits Spotify music player" src="https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M?utm_source=generator&theme=0" width="100%" height="352" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" />
-          <p class="text-label-small text-text-muted mt-sm">Press play in Spotify to listen. <a :href="playlist" target="_blank" rel="noopener noreferrer" class="underline">Open Spotify ↗</a></p>
+          <iframe title="เขียว เหลือง แดง (Get high) Spotify music player" src="https://open.spotify.com/embed/track/687OL6QdsLt1H8oU108dO5?utm_source=generator&theme=0" width="100%" height="152" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" />
+          <p class="text-label-small text-text-muted mt-sm">Press play in Spotify to listen. <a :href="track" target="_blank" rel="noopener noreferrer" class="underline">Open Spotify ↗</a></p>
         </div>
       </section>
 
@@ -94,7 +93,7 @@ const socials = [
 .intro-card h1 { font-family: var(--font-family-sans); font-size: calc(var(--font-size-display-large) + var(--font-size-display-medium)); font-weight: var(--typography-font-weight-medium); line-height: var(--line-height-display); letter-spacing: -.085em; margin-block: var(--space-xl); }
 .intro-star { font-size: var(--font-size-display-small); display: inline-block; vertical-align: top; margin-left: var(--space-sm); margin-top: var(--space-sm); }
 .intro-caption { font-size: var(--font-size-heading-h2); line-height: var(--line-height-heading); color: var(--semantic-color-text-text-muted); letter-spacing: -.03em; }
-.contact-link { display: inline-flex; align-items: center; gap: var(--space-xs); margin-top: var(--space-xl); padding-bottom: var(--space-xxs); border-bottom: 1px solid var(--semantic-color-border-border-strong); font-size: var(--font-size-body-large); }
+.portfolio-link { margin-top: var(--space-xl); }
 .eyebrow { font-size: var(--font-size-label-small); color: var(--semantic-color-text-text-muted); letter-spacing: .08em; }
 .about-card p { margin-top: var(--space-lg); font-size: var(--font-size-heading-h2); line-height: var(--line-height-body); letter-spacing: -.025em; color: var(--semantic-color-text-text-secondary); }
 .inline-link { display: inline-flex; align-items: center; gap: var(--space-xs); margin-top: var(--space-lg); font-size: var(--font-size-body-small); }
