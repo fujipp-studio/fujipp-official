@@ -43,6 +43,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, ApiExceptionHandler.class, StoreExceptionHandler.class})
 class StoreControllerTests {
 
+    @MockitoBean
+    private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
+
     @Autowired
     private MockMvc mockMvc;
 

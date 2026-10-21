@@ -30,6 +30,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest({DonationController.class, AdminDonationController.class})
 @Import({SecurityConfig.class, ApiExceptionHandler.class, DonationExceptionHandler.class})
 class DonationControllerTests {
+
+    @MockitoBean
+    private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
     @Autowired MockMvc mockMvc;
     @MockitoBean DonationService service;
     @MockitoBean CurrentUserService currentUserService;

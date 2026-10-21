@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added VPS-only identity compatibility and application role migrations for restoring application data while retaining managed Supabase Auth. |
 | 2026-10-21 | Added independent Shop Status Role mention settings with disabled defaults for existing installations. |
 | 2026-10-21 | Added Shop Status open/close mention settings with disabled defaults that preserve existing announcement behavior. |
 | 2026-10-21 | Added optional Shop Status open/close announcement channel name settings with empty defaults that preserve existing channel names. |

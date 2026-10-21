@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added an opt-in VPS identity projection from verified Supabase JWTs, preserving database-controlled account roles and status. |
 | 2026-10-21 | Reduced repeated runtime configuration reads while preserving state and expiry refreshes, and retained caches when reconciliation makes no changes. |
 | 2026-10-21 | Added separate open/close Role pings to Shop Status, validating mentioned roles and their permissions before changing the shop while retaining independent everyone controls. |
 | 2026-10-21 | Added independent opt-in @here/@everyone pings for Shop Status announcements with permission checks while keeping private replies and other features non-pinging. |

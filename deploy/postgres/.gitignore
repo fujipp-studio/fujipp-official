@@ -1,0 +1,8 @@
+secrets/
+backups/
+
+migrations/
+__pycache__/
+backup-database
+.rehearsal.env
+*.jar

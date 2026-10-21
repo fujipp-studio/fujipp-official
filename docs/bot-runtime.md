@@ -361,8 +361,10 @@ docker compose --env-file deploy/.env -f deploy/compose.yml up -d --build
 ```
 
 The default limits reserve at most 2 GiB for Backend, 1.5 GiB for Runner, and
-128 MiB for Caddy. PostgreSQL is assumed to be Supabase or another external
-service; it is deliberately not duplicated on the 8 GiB VPS.
+128 MiB for Caddy. Production database placement is configured through DB_URL. A separate 1 GiB
+PostgreSQL stack and migration rehearsal are documented in
+[deploy/postgres](../deploy/postgres/README.md). Installing that stack does not
+switch production away from Supabase.
 
 Do not expose `/internal/v1/runtime/**` through a public ingress in a later
 multi-host deployment. Replace the shared token with workload identity or

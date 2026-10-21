@@ -20,6 +20,7 @@ services:
       start_period: 45s
     networks:
       - internal
+      - database
 
   bot-runner:
     image: ${BOT_RUNNER_IMAGE:?BOT_RUNNER_IMAGE is required}
@@ -41,3 +42,6 @@ services:
 
 networks:
   internal:
+  database:
+    external: true
+    name: fujipp-postgres_database

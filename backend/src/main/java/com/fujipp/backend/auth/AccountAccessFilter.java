@@ -29,15 +29,18 @@ public class AccountAccessFilter extends OncePerRequestFilter {
     private final CurrentUserService currentUserService;
     private final SecurityAuditService securityAuditService;
     private final ObjectMapper objectMapper;
+    private final AuthIdentityProjection identityProjection;
 
     public AccountAccessFilter(
             CurrentUserService currentUserService,
             SecurityAuditService securityAuditService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            AuthIdentityProjection identityProjection
     ) {
         this.currentUserService = currentUserService;
         this.securityAuditService = securityAuditService;
         this.objectMapper = objectMapper;
+        this.identityProjection = identityProjection;
     }
 
     @Override
@@ -55,6 +58,7 @@ public class AccountAccessFilter extends OncePerRequestFilter {
         }
 
         try {
+            identityProjection.ensureIdentity(jwtAuthentication.getToken());
             CurrentUserRepository.AccountProfile account =
                     currentUserService.getActiveAccount(jwtAuthentication.getToken().getSubject());
             var authorities = new ArrayList<>(jwtAuthentication.getAuthorities());
