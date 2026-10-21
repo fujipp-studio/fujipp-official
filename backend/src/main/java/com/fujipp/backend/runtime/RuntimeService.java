@@ -27,6 +27,8 @@ public class RuntimeService {
     private final tools.jackson.databind.ObjectMapper objectMapper;
     private final long snapshotTtlNanos;
     private final MeterRegistry meters;
+    private final long featureDataTtlNanos;
+    private Map<UUID, CachedFeatureData> featureDataCache = Map.of();
     private volatile CachedBootstrap cachedBootstrap;
 
     public RuntimeService(
@@ -34,13 +36,15 @@ public class RuntimeService {
             StoreSecretCipher secretCipher,
             tools.jackson.databind.ObjectMapper objectMapper,
             MeterRegistry meters,
-            @Value("${app.runtime.bootstrap-cache-ttl:60s}") Duration snapshotTtl
+            @Value("${app.runtime.bootstrap-cache-ttl:60s}") Duration snapshotTtl,
+            @Value("${app.runtime.feature-data-cache-ttl:5m}") Duration featureDataTtl
     ) {
         this.repository = repository;
         this.secretCipher = secretCipher;
         this.objectMapper = objectMapper;
         this.meters = meters;
         this.snapshotTtlNanos = snapshotTtl.toNanos();
+        this.featureDataTtlNanos = featureDataTtl.toNanos();
     }
 
     @Transactional(readOnly = true)
@@ -82,13 +86,7 @@ public class RuntimeService {
         var botRows = repository.findRunnableBots();
         List<UUID> botIds = botRows.stream().map(RuntimeRepository.BotRow::id).toList();
         var featureRows = repository.findFeatures(botIds);
-        List<UUID> configSetIds = featureRows.stream().map(RuntimeRepository.FeatureRow::configSetId).distinct().toList();
-        Map<UUID, Map<String, tools.jackson.databind.JsonNode>> configs = repository.findConfig(configSetIds);
-        Map<UUID, List<RuntimeRepository.SecretRow>> secretsByConfig = new LinkedHashMap<>();
-        for (var secret : repository.findSecrets(configSetIds)) {
-            secretsByConfig.computeIfAbsent(secret.configSetId(), ignored -> new ArrayList<>()).add(secret);
-        }
-        var presentations = repository.findPresentations(configSetIds);
+        Map<UUID, CachedFeatureData> featureData = loadFeatureData(featureRows);
         Map<UUID, List<RuntimeRepository.FeatureRow>> featuresByBot = new LinkedHashMap<>();
         for (var feature : featureRows) {
             featuresByBot.computeIfAbsent(feature.botId(), ignored -> new ArrayList<>()).add(feature);
@@ -96,8 +94,9 @@ public class RuntimeService {
 
         var bots = botRows.stream().map(bot -> {
             var features = featuresByBot.getOrDefault(bot.id(), List.of()).stream().map(feature -> {
+                var data = featureData.get(feature.configSetId());
                 var secrets = new LinkedHashMap<String, String>();
-                for (var secret : secretsByConfig.getOrDefault(feature.configSetId(), List.of())) {
+                for (var secret : data.secrets()) {
                     secrets.put(secret.key(), secretCipher.decrypt(
                             secret.ciphertext(), secret.nonce(), secret.keyVersion()
                     ));
@@ -105,9 +104,9 @@ public class RuntimeService {
                 return new RuntimeBootstrapResponse.RuntimeFeature(
                         feature.installationId(), feature.code(), feature.version(),
                         feature.runtimeKey(), feature.revision(),
-                        configs.getOrDefault(feature.configSetId(), Map.of()),
+                        data.config(),
                         secrets,
-                        presentations.getOrDefault(feature.configSetId(), Map.of()),
+                        data.presentations(),
                         feature.state()
                 );
             }).toList();
@@ -128,6 +127,47 @@ public class RuntimeService {
         return new RuntimeBootstrapResponse(revision, bots);
     }
 
+    // Called under bootstrap's lock. Runtime eligibility and state are still read
+    // on every snapshot refresh; only large revisioned feature data is reused.
+    private Map<UUID, CachedFeatureData> loadFeatureData(List<RuntimeRepository.FeatureRow> features) {
+        long now = System.nanoTime();
+        Map<UUID, Long> revisions = new LinkedHashMap<>();
+        for (var feature : features) revisions.put(feature.configSetId(), feature.revision());
+        List<UUID> reload = revisions.entrySet().stream().filter(entry -> {
+            var cached = featureDataCache.get(entry.getKey());
+            return cached == null || cached.revision() != entry.getValue()
+                    || now - cached.loadedAtNanos() >= featureDataTtlNanos;
+        }).map(Map.Entry::getKey).toList();
+        meters.summary("runtime.bootstrap.config.reloads").record(reload.size());
+        var configs = reload.isEmpty() ? Map.<UUID, Map<String, tools.jackson.databind.JsonNode>>of()
+                : repository.findConfig(reload);
+        var presentations = reload.isEmpty() ? Map.<UUID, Map<String, tools.jackson.databind.JsonNode>>of()
+                : repository.findPresentations(reload);
+        Map<UUID, List<RuntimeRepository.SecretRow>> secrets = new LinkedHashMap<>();
+        if (!reload.isEmpty()) {
+            for (var secret : repository.findSecrets(reload)) {
+                secrets.computeIfAbsent(secret.configSetId(), ignored -> new ArrayList<>()).add(secret);
+            }
+        }
+        var refreshed = new java.util.HashSet<>(reload);
+        Map<UUID, CachedFeatureData> active = new LinkedHashMap<>();
+        for (var entry : revisions.entrySet()) {
+            UUID id = entry.getKey();
+            active.put(id, refreshed.contains(id)
+                    ? new CachedFeatureData(entry.getValue(), now, configs.getOrDefault(id, Map.of()),
+                            secrets.getOrDefault(id, List.of()), presentations.getOrDefault(id, Map.of()))
+                    : featureDataCache.get(id));
+        }
+        // Drop removed installations instead of retaining configurations forever.
+        featureDataCache = active;
+        return active;
+    }
+
+    private record CachedFeatureData(long revision, long loadedAtNanos,
+            Map<String, tools.jackson.databind.JsonNode> config,
+            List<RuntimeRepository.SecretRow> secrets,
+            Map<String, tools.jackson.databind.JsonNode> presentations) {}
+
     private String etag(RuntimeBootstrapResponse response) {
         try {
             byte[] content = objectMapper.writeValueAsString(response).getBytes(StandardCharsets.UTF_8);
@@ -147,7 +187,7 @@ public class RuntimeService {
         }
         repository.updateStatus(request);
         if (request.installationId() != null && java.util.Set.of("DISABLED", "ERROR").contains(request.status())) {
-            invalidateBootstrap();
+            invalidateSnapshot();
         }
     }
 
@@ -162,11 +202,16 @@ public class RuntimeService {
         if (!repository.upsertState(request)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Active feature installation not found");
         }
-        invalidateBootstrap();
+        invalidateSnapshot();
     }
 
-    public void invalidateBootstrap() {
+    private void invalidateSnapshot() {
         cachedBootstrap = null;
+    }
+
+    public synchronized void invalidateBootstrap() {
+        cachedBootstrap = null;
+        featureDataCache = Map.of();
     }
 
     public record CachedBootstrap(RuntimeBootstrapResponse response, String etag, long createdAtNanos) {

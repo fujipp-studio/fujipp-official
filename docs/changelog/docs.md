@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Documented runtime cache freshness, Egress monitoring metrics, and the reduced visible-page polling frequency. |
 | 2026-10-21 | Documented Role Ping configuration, tag syntax, mentionability checks, and independence from everyone pings. |
 | 2026-10-21 | Documented Shop Status Ping options, supported mention locations, channel permissions, and notification behavior. |
 | 2026-10-21 | Documented optional Shop Status channel renames, blank-name behavior, required permissions, and rollback. |

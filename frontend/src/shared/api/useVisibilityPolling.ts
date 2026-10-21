@@ -3,7 +3,7 @@ import { onScopeDispose } from 'vue'
 /** One request at a time; the next interval starts after completion. */
 export function useVisibilityPolling(
   task: (signal: AbortSignal) => Promise<void>,
-  interval = 3000,
+  interval = 15000,
 ) {
   let started = false
   let disposed = false
