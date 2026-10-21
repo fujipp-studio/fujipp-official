@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { select } from './ci-affected'
+import { readScripts, select } from './ci-affected'
 
 test('page changes select its smoke coverage', () => {
   const plan = select(['frontend/src/features/privacy/views/PrivacyView.vue'])
@@ -28,4 +28,18 @@ test('multiple features combine coverage; broad bot changes use full coverage', 
 test('cross-feature consumers extend coverage', () => {
   const plan = select(['frontend/src/features/work/api.ts'])
   expect(plan.full || plan.features.includes('home')).toBe(true)
+})
+
+
+test('Vue parser reads both script blocks without treating template content as imports', () => {
+  const source = `<script lang="ts">import legacy from './legacy'</script>
+<script setup lang="ts">import modern from './modern'</script>
+<template><p>import fake from './fake'</p></template>`
+  expect(readScripts('Page.vue', source)).toContain("import legacy from './legacy'")
+  expect(readScripts('Page.vue', source)).toContain("import modern from './modern'")
+  expect(readScripts('Page.vue', source)).not.toContain('./fake')
+})
+
+test('malformed Vue source fails selection instead of silently omitting dependencies', () => {
+  expect(() => readScripts('Broken.vue', '<script setup>import page from "./page"')).toThrow('Cannot parse Vue source: Broken.vue')
 })

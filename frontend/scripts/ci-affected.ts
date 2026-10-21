@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } 
 import { dirname, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
+import { parse } from 'vue/compiler-sfc'
 import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -38,6 +39,13 @@ function walk(directory: string): string[] {
   })
 }
 
+export function readScripts(filename: string, text: string): string {
+  if (!filename.endsWith('.vue')) return text
+  const { descriptor, errors } = parse(text, { filename })
+  if (errors.length) throw new Error(`Cannot parse Vue source: ${filename}`)
+  return [descriptor.script?.content, descriptor.scriptSetup?.content].filter(Boolean).join('\n')
+}
+
 // Build reverse imports, including re-exports and literal lazy imports. Vue SFC
 // scripts are parsed separately so template text cannot obscure their imports.
 function consumers(): Map<string, Set<string>> {
@@ -45,9 +53,7 @@ function consumers(): Map<string, Set<string>> {
   for (const file of walk(join(frontend, 'src'))) {
     if (!/\.(ts|vue|js)$/.test(file) || file.includes('/__tests__/')) continue
     const text = readFileSync(join(root, file), 'utf8')
-    const scripts = file.endsWith('.vue')
-      ? [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(match => match[1]!).join('\n')
-      : text
+    const scripts = readScripts(file, text)
     for (const entry of ts.preProcessFile(scripts, true, true).importedFiles) {
       const specifier = entry.fileName
       const target = specifier.startsWith('@/') ? join(frontend, 'src', specifier.slice(2))
