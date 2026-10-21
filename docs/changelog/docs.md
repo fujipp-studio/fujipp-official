@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Documented optional Shop Status channel renames, blank-name behavior, required permissions, and rollback. |
 | 2026-10-20 | Documented Member Spending startup recovery, bootstrap eligibility, external database retries, and installation status reporting. |
 | 2026-10-20 | Documented Shop Status delivery and explicit designer saves, plus Admin user Feature removal, affected installations, retained history, and core restrictions. |
 | 2026-10-20 | Documented Shop Status commands, announcement formats, role permission behavior, failure recovery, and deployment requirements. |

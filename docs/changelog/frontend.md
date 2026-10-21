@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added optional open/close channel names to Shop Status announcement settings and showed invalid-name feedback before saving. |
 | 2026-10-20 | Showed the selected bot's actual Feature installation status in package settings instead of the license's Active status. |
 | 2026-10-20 | Aligned Shop Status settings and delivery options, prevented unsaved editor navigation from restarting bots, added Admin user Feature removal and a bilingual Privacy page, updated footer links, and fixed the Sign in underline while preserving Sign up styling. |
 | 2026-10-20 | Added configurable Shop Status controls, refreshed portfolio styling, navigation, donation identity, and scroll performance, and stabilized responsive Navbar and dropdown browser checks. |

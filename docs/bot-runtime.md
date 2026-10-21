@@ -204,6 +204,17 @@ Components V2 designer. Supported variables are `status`, `user`, `user_name`,
 members. `SHOP_ANNOUNCEMENT_CHANNEL_ID` is optional; an empty value posts in the
 command channel. The command response and any errors are private.
 
+`SHOP_OPEN_CHANNEL_NAME` and `SHOP_CLOSE_CHANNEL_NAME` optionally rename the
+announcement channel for each action, for example `🟢・สถานะ・ร้านเปิด` and
+`🔴・สถานะ・ร้านปิด`. Empty values keep the current name; setting only one does
+not automatically restore the old name for the other action. Names accept up to
+100 characters, including Thai and emoji, without tabs or line breaks. The same
+destination as the announcement is used, including the command channel fallback.
+The bot requires Manage Channels, or Manage Threads for a thread. The Runner
+fetches the current channel and skips a rename when the name already matches.
+Discord can normalize text channel names and rate-limit channel edits; see
+[Discord's channel modification rules](https://docs.discord.com/developers/resources/channel#modify-channel).
+
 `SHOP_OPEN_DELIVERY_MODE` and `SHOP_CLOSE_DELIVERY_MODE` independently choose
 `NEW` (default, always send), `UPDATE` (edit the latest announcement), or
 `REPLACE` (delete it before sending again). Both actions share the latest
@@ -242,11 +253,12 @@ other role/member overwrites and Administrator bypass continue to apply.
 
 The bot needs Manage Roles in each affected channel and the appropriate
 announcement permissions. Rules target individual non-thread channels in the
-configured guild. Empty rules send announcements only. Before making changes,
-the Runner resolves every affected channel and role, checks permissions, and
-renders the announcement. Commands cannot run concurrently. A permission or
-state-save failure attempts to restore the affected permission bits; rollback
-failure explicitly asks the caller to inspect all affected channels. If sending
+configured guild. Empty rules still allow announcements and optional channel
+renames. Before making changes, the Runner resolves every affected channel and role, checks permissions, and
+renders the announcement. Commands cannot run concurrently. A permission,
+rename, or state-save failure attempts to restore the affected permission bits and
+any attempted channel rename; rollback failure explicitly asks the caller to
+inspect all affected channels. If sending
 the announcement fails after the status is saved, the private response explains
 that permissions changed but the announcement failed. A restart does not replay
 old permission changes or announcements. Configuration changes use the normal

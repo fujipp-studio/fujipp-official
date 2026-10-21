@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added optional Shop Status announcement channel names for opening and closing, with permission checks, unchanged-name skips, and name/permission rollback on failed status changes. |
 | 2026-10-20 | Restored Member Spending 1.0.0 installations excluded from Runner bootstrap after legacy database startup failures, while retaining license, bot, configuration, removal, and disabled-state restrictions. |
 | 2026-10-20 | Kept Member Spending commands available when an external database fails during bot startup, added connection retries and immediate acknowledgements, and verified recovery after installing Shop Status. |
 | 2026-10-20 | Added configurable Shop Status announcement delivery with persistent message tracking and admin-only user Feature revocation with ownership checks, transactional installation removal, core protection, and runtime invalidation after commit. |
