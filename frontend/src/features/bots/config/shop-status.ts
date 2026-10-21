@@ -11,6 +11,8 @@ export const shopStatusConfigKeys = new Set([
   'SHOP_OPEN_COMMAND',
   'SHOP_CLOSE_COMMAND',
   'SHOP_ANNOUNCEMENT_CHANNEL_ID',
+  'SHOP_OPEN_CHANNEL_NAME',
+  'SHOP_CLOSE_CHANNEL_NAME',
   'SHOP_OPEN_MESSAGE_TYPE',
   'SHOP_CLOSE_MESSAGE_TYPE',
   'SHOP_OPEN_DELIVERY_MODE',
@@ -54,8 +56,16 @@ export function validateShopDraft(values: Record<string, unknown>): boolean {
   if (command('SHOP_OPEN_COMMAND', 'open') === command('SHOP_CLOSE_COMMAND', 'close')) return false
   if (!/^(?:\d{15,30})?$/.test(String(values.SHOP_ANNOUNCEMENT_CHANNEL_ID ?? ''))) return false
   for (const state of ['OPEN', 'CLOSE']) {
+    const channelName = values[`SHOP_${state}_CHANNEL_NAME`] ?? ''
+    if (
+      typeof channelName !== 'string' ||
+      channelName.length > 100 ||
+      (channelName !== '' && (!channelName.trim() || /[\r\n\t]/.test(channelName)))
+    )
+      return false
     const delivery = values[`SHOP_${state}_DELIVERY_MODE`] ?? 'NEW'
-    if (typeof delivery !== 'string' || !['NEW', 'UPDATE', 'REPLACE'].includes(delivery)) return false
+    if (typeof delivery !== 'string' || !['NEW', 'UPDATE', 'REPLACE'].includes(delivery))
+      return false
     const mode = values[`SHOP_${state}_MESSAGE_TYPE`] ?? 'DESIGNED'
     if (!['TEXT', 'DESIGNED'].includes(String(mode))) return false
     const text = values[`SHOP_${state}_TEXT`] ?? (state === 'OPEN' ? 'เปิดร้านแล้ว' : 'ปิดร้านแล้ว')

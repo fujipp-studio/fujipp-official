@@ -45,6 +45,14 @@ describe('Shop Status configuration', () => {
     expect(parseShopRules('broken')).toEqual([])
     expect(parseShopRules('[null, {}, {"channelId":"1","roleId":"2"}]')).toEqual([])
   })
+  it('accepts optional Thai and emoji channel names and rejects invalid names', () => {
+    for (const state of ['OPEN', 'CLOSE']) {
+      for (const name of ['', '🔴・สถานะ・ร้านปิด', 'x'.repeat(100)])
+        expect(validateShopDraft({ [`SHOP_${state}_CHANNEL_NAME`]: name })).toBe(true)
+      for (const name of [123, [], ' ', 'x'.repeat(101), 'open\nshop', 'open\tshop'])
+        expect(validateShopDraft({ [`SHOP_${state}_CHANNEL_NAME`]: name })).toBe(false)
+    }
+  })
   it('suggests customized command paths to Bot Permissions', () => {
     const { shopLicense, config } = shopStatusFixture()
     config.fields.find((f) => f.key === 'SHOP_COMMAND_NAME')!.value = 'store'

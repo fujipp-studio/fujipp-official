@@ -27,6 +27,8 @@ export function shopStatusFixture() {
       field('SHOP_OPEN_COMMAND', 'STRING', 'open'),
       field('SHOP_CLOSE_COMMAND', 'STRING', 'close'),
       field('SHOP_ANNOUNCEMENT_CHANNEL_ID', 'STRING', ''),
+      { ...field('SHOP_OPEN_CHANNEL_NAME', 'STRING', ''), required: false },
+      { ...field('SHOP_CLOSE_CHANNEL_NAME', 'STRING', ''), required: false },
       field('SHOP_OPEN_MESSAGE_TYPE', 'ENUM', 'DESIGNED'),
       field('SHOP_CLOSE_MESSAGE_TYPE', 'ENUM', 'DESIGNED'),
       field('SHOP_OPEN_DELIVERY_MODE', 'ENUM', 'NEW'),

@@ -89,8 +89,8 @@ function updatePermission(
     <p v-if="!valid" role="alert" class="text-sm text-error-text">
       {{
         text(
-          'Check command names, announcement text and channel/role IDs. Each channel and role pair must be unique.',
-          'ตรวจสอบชื่อคำสั่ง ข้อความ และ ID ห้อง/Role โดยแต่ละคู่ห้องกับ Role ต้องไม่ซ้ำกัน',
+          'Check command names, announcement text, channel names (up to 100 characters) and channel/role IDs. Each channel and role pair must be unique.',
+          'ตรวจสอบชื่อคำสั่ง ข้อความ ชื่อห้อง (สูงสุด 100 ตัวอักษร) และ ID ห้อง/Role โดยแต่ละคู่ห้องกับ Role ต้องไม่ซ้ำกัน',
         )
       }}
     </p>
@@ -152,24 +152,44 @@ function updatePermission(
           >
             <h3 class="mb-md text-sm font-semibold">{{ state.label }}</h3>
             <AppTextField
-              variant="dropdown"
-              :model-value="String(values[`SHOP_${state.prefix}_DELIVERY_MODE`] ?? 'NEW')"
-              :label="text(`${state.label} delivery`, `การส่งประกาศ${state.label}`)"
-              :options="deliveryOptions"
-              :support-text="
-                values[`SHOP_${state.prefix}_DELIVERY_MODE`] &&
-                values[`SHOP_${state.prefix}_DELIVERY_MODE`] !== 'NEW'
-                  ? text(
-                      'Uses the latest shop announcement in this channel. If none exists, sends a new message. Requires Read Message History.',
-                      'ใช้ประกาศร้านล่าสุดในห้องนี้ หากยังไม่มีจะส่งข้อความใหม่ บอทต้องมี Read Message History',
-                    )
-                  : text(
-                      'Posts a separate announcement each time.',
-                      'ส่งประกาศเป็นข้อความใหม่ทุกครั้ง',
-                    )
+              :model-value="String(values[`SHOP_${state.prefix}_CHANNEL_NAME`] ?? '')"
+              :label="
+                text(
+                  `Channel name when ${state.key} (optional)`,
+                  `ชื่อห้องตอน${state.label} (ไม่บังคับ)`,
+                )
               "
-              @update:model-value="values[`SHOP_${state.prefix}_DELIVERY_MODE`] = $event"
+              :placeholder="state.key === 'open' ? '🟢・สถานะ・ร้านเปิด' : '🔴・สถานะ・ร้านปิด'"
+              :maxlength="100"
+              :support-text="
+                text(
+                  'Leave empty to keep the channel name. Up to 100 characters. Renames the announcement channel; requires Manage Channels (Manage Threads for threads).',
+                  'เว้นว่างเพื่อไม่เปลี่ยนชื่อ สูงสุด 100 ตัวอักษร เปลี่ยนชื่อห้องที่ส่งประกาศ บอทต้องมี Manage Channels (Manage Threads สำหรับเธรด)',
+                )
+              "
+              @update:model-value="values[`SHOP_${state.prefix}_CHANNEL_NAME`] = $event"
             />
+            <div class="mt-md">
+              <AppTextField
+                variant="dropdown"
+                :model-value="String(values[`SHOP_${state.prefix}_DELIVERY_MODE`] ?? 'NEW')"
+                :label="text(`${state.label} delivery`, `การส่งประกาศ${state.label}`)"
+                :options="deliveryOptions"
+                :support-text="
+                  values[`SHOP_${state.prefix}_DELIVERY_MODE`] &&
+                  values[`SHOP_${state.prefix}_DELIVERY_MODE`] !== 'NEW'
+                    ? text(
+                        'Uses the latest shop announcement in this channel. If none exists, sends a new message. Requires Read Message History.',
+                        'ใช้ประกาศร้านล่าสุดในห้องนี้ หากยังไม่มีจะส่งข้อความใหม่ บอทต้องมี Read Message History',
+                      )
+                    : text(
+                        'Posts a separate announcement each time.',
+                        'ส่งประกาศเป็นข้อความใหม่ทุกครั้ง',
+                      )
+                "
+                @update:model-value="values[`SHOP_${state.prefix}_DELIVERY_MODE`] = $event"
+              />
+            </div>
             <div class="mt-md">
               <AppTextField
                 variant="dropdown"
@@ -300,8 +320,8 @@ function updatePermission(
           <p v-if="!rules.length" class="mb-md text-sm text-text-muted">
             {{
               text(
-                'No permission rules. Commands will only send announcements.',
-                'ยังไม่มีกฎสิทธิ์ คำสั่งจะส่งประกาศอย่างเดียว',
+                'No permission rules. Commands will send announcements and apply any configured channel names.',
+                'ยังไม่มีกฎสิทธิ์ คำสั่งจะส่งประกาศและเปลี่ยนชื่อห้องตามที่ตั้งไว้',
               )
             }}
           </p>
@@ -342,16 +362,16 @@ function updatePermission(
           <p class="mt-lg border-t border-border-subtle pt-md text-sm text-text-secondary">
             {{
               text(
-                'Use the open or close command to post an announcement and apply the configured permission rules.',
-                'ใช้คำสั่งเปิดหรือปิดร้านเพื่อส่งประกาศและปรับสิทธิ์ตามกฎที่ตั้งไว้',
+                'Use the open or close command to post an announcement, rename its channel and apply permission rules as configured.',
+                'ใช้คำสั่งเปิดหรือปิดร้านเพื่อส่งประกาศ เปลี่ยนชื่อห้อง และปรับสิทธิ์ตามที่ตั้งไว้',
               )
             }}
           </p>
           <p class="mt-md text-xs text-text-muted">
             {{
               text(
-                'No rules means announcements only. Opening applies the open settings; it does not automatically restore previous permissions.',
-                'หากไม่เพิ่มกฎจะส่งประกาศอย่างเดียว เมื่อเปิดร้านจะใช้ค่าฝั่งเปิดร้านตามที่ตั้งไว้',
+                'Channel names are optional. Each action applies its own settings; blank names keep the current name.',
+                'ชื่อห้องเป็นตัวเลือกเสริม แต่ละสถานะใช้ค่าที่ตั้งไว้ หากเว้นชื่อว่างจะคงชื่อห้องปัจจุบัน',
               )
             }}
           </p>

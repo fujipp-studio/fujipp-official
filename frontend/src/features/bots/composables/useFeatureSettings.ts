@@ -855,13 +855,15 @@ export function useFeatureSettings() {
             'ตรวจสอบชื่อคำสั่งและชื่อ SET (สูงสุด 20 รายการ)',
           ),
         )
-      if (isShopStatusFeature.value && !validateShopDraft(values.value))
+      if (isShopStatusFeature.value && !validateShopDraft(values.value)) {
+        saveConfirmationOpen.value = false
         throw new Error(
           text(
-            'Check shop command names, announcement text and permission rules.',
-            'ตรวจสอบชื่อคำสั่งร้าน ข้อความประกาศ และกฎสิทธิ์ห้อง',
+            'Check shop command names, announcement text, channel names (up to 100 characters) and permission rules.',
+            'ตรวจสอบชื่อคำสั่งร้าน ข้อความประกาศ ชื่อห้อง (สูงสุด 100 ตัวอักษร) และกฎสิทธิ์ห้อง',
           ),
         )
+      }
       const normalValues: Record<string, FeatureConfigValue> = {}
       if (isPriceReaderFeature.value && !validatePriceReaderDraft(values.value)) {
         saveConfirmationOpen.value = false
