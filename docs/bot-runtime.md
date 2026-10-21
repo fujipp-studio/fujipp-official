@@ -209,11 +209,22 @@ independently opt in to `@here` / `@everyone` pings. Both default to `false`,
 including existing installations. Write the mention in plain announcement text,
 message content accompanying an Embed, or a Components V2 Text Display block;
 enabling the setting does not insert a mention automatically. Embed titles and
-descriptions cannot trigger pings. User and role pings remain suppressed, as do
-private command replies and announcements from other features.
+descriptions cannot trigger pings. User pings remain suppressed, as do private
+command replies and announcements from other features.
 
-When enabled, the bot needs Mention Everyone in the announcement channel. Missing
-permission is reported before changing the shop status, channel name, or channel
+`SHOP_OPEN_ALLOW_ROLE_MENTIONS` and `SHOP_CLOSE_ALLOW_ROLE_MENTIONS` separately
+allow Role pings, defaulting to `false`. Write `<@&ROLE_ID>` in announcement text
+or a Components V2 Text Display. Only roles mentioned in that action's rendered
+text are allowed, with duplicates removed and at most 100 roles per announcement.
+Embed titles, descriptions, button labels and URLs do not authorize Role pings.
+The Role must exist in the configured server and be mentionable, or the bot must
+have Mention Everyone in the destination channel. Missing or unmentionable Roles
+are reported before applying the shop status, channel name, or permission changes.
+Role pings can be enabled while `@here` / `@everyone` remain disabled, and vice versa.
+Neither switch inserts tags automatically.
+
+When everyone pings are enabled, the bot needs Mention Everyone in the
+announcement channel. Missing permission is reported before changing the shop status, channel name, or channel
 permissions. See [Discord's allowed mention rules](https://docs.discord.com/developers/resources/message#allowed-mentions-object)
 and [Text Display mentions](https://docs.discord.com/developers/components/reference#text-display).
 For a fresh notification on each command, use `NEW` or `REPLACE` delivery instead

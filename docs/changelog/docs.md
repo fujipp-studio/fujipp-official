@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Documented Role Ping configuration, tag syntax, mentionability checks, and independence from everyone pings. |
 | 2026-10-21 | Documented Shop Status Ping options, supported mention locations, channel permissions, and notification behavior. |
 | 2026-10-21 | Documented optional Shop Status channel renames, blank-name behavior, required permissions, and rollback. |
 | 2026-10-20 | Documented Member Spending startup recovery, bootstrap eligibility, external database retries, and installation status reporting. |
