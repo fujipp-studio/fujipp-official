@@ -65,9 +65,11 @@ export function readShopConfig(config: Readonly<Record<string, unknown>>) {
   });
   const channelNames: Record<ShopState, string> = { open: "", close: "" };
   for (const state of ["OPEN", "CLOSE"] as const) {
-    const allowMentions = config[`SHOP_${state}_ALLOW_EVERYONE_MENTIONS`];
-    if (allowMentions !== undefined && typeof allowMentions !== "boolean")
-      throw new Error("Shop mention settings must be booleans");
+    for (const kind of ["EVERYONE", "ROLE"]) {
+      const allowMentions = config[`SHOP_${state}_ALLOW_${kind}_MENTIONS`];
+      if (allowMentions !== undefined && typeof allowMentions !== "boolean")
+        throw new Error("Shop mention settings must be booleans");
+    }
     const channelName = config[`SHOP_${state}_CHANNEL_NAME`] ?? "";
     if (
       typeof channelName !== "string" ||

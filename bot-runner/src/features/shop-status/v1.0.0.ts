@@ -277,9 +277,30 @@ async function changeStatus(
           action === "open" ? "shop_open" : "shop_close",
           variables,
         );
-  // Override only this shop announcement. Other features and private replies stay non-pinging.
+  const allowRoleMentions =
+    context.config[`SHOP_${action.toUpperCase()}_ALLOW_ROLE_MENTIONS`] === true;
+  const roleIds = allowRoleMentions ? announcementRoleIds(payload) : [];
+  if (roleIds.length > 100)
+    throw new Error("ประกาศร้านสามารถ Ping ได้สูงสุด 100 Role");
+  if (roleIds.length) {
+    const roles = await guild.roles.fetch();
+    for (const id of roleIds) {
+      const role = roles.get(id);
+      if (!role || id === guild.id)
+        throw new Error(`ไม่พบ Role สำหรับ Ping: ${id}`);
+      if (
+        !role.mentionable &&
+        !targetPermissions?.has(PermissionFlagsBits.MentionEveryone)
+      )
+        throw new Error(
+          `Role ${id} ไม่อนุญาตให้แท็ก บอทต้องมี Mention Everyone หรือเปิดให้แท็ก Role นี้ได้`,
+        );
+    }
+  }
+  // Keep Role and everyone permissions independent; user mentions stay suppressed.
   payload.allowedMentions = {
     parse: allowEveryoneMentions ? ["everyone"] : [],
+    ...(allowRoleMentions ? { roles: roleIds } : {}),
   };
   if (
     "content" in payload &&
@@ -429,6 +450,25 @@ async function changeStatus(
         .reportFeatureError("SHOP_ACK_FAILED", error, { recoverable: true })
         .catch(() => undefined),
     );
+}
+
+function announcementRoleIds(payload: Record<string, unknown>): string[] {
+  const ids = new Set<string>();
+  const collect = (text: unknown) => {
+    if (typeof text !== "string") return;
+    for (const match of text.matchAll(/<@&(\d{15,30})>/g)) ids.add(match[1]!);
+  };
+  const visit = (components: unknown) => {
+    if (!Array.isArray(components)) return;
+    for (const item of components) {
+      if (!item || typeof item !== "object") continue;
+      if (item.type === 10) collect(item.content);
+      visit(item.components);
+    }
+  };
+  collect(payload.content);
+  visit(payload.components);
+  return [...ids];
 }
 
 interface AnnouncementReference {

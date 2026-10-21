@@ -40,6 +40,10 @@ function fixture(config: Record<string, unknown> = {}) {
     thread = false;
   const fetchedChannels: any[] = [];
   let canMentionEveryone = true;
+  const roles = new Collection([
+    [roleId, { id: roleId, mentionable: false }],
+    ["333333333333333333", { id: "333333333333333333", mentionable: false }],
+  ]);
   const storedMessages = new Map<string, any>();
   let messageFailure: { operation: string; code: number } | undefined;
   let failAnnouncementSave = false;
@@ -155,7 +159,10 @@ function fixture(config: Record<string, unknown> = {}) {
         return channel;
       },
     },
-    roles: { fetch: async (id: string) => (missingRole ? null : { id }) },
+    roles: {
+      fetch: async (id?: string) =>
+        id === undefined ? roles : missingRole ? null : roles.get(id),
+    },
     members: { me: { id: "bot" } },
   };
   client.application = {
@@ -255,6 +262,7 @@ function fixture(config: Record<string, unknown> = {}) {
     renames,
     channel,
     fetchedChannels,
+    roles,
     setMentionPermission: (allowed: boolean) => {
       canMentionEveryone = allowed;
     },
@@ -921,13 +929,14 @@ test("validates optional announcement channel names and allows emoji and Thai", 
 });
 
 test("mention options require explicit booleans", () => {
-  for (const state of ["OPEN", "CLOSE"]) {
-    const key = `SHOP_${state}_ALLOW_EVERYONE_MENTIONS`;
-    for (const value of [true, false])
-      assert.doesNotThrow(() => readShopConfig({ [key]: value }));
-    for (const value of ["true", "false", 1, [], null])
-      assert.throws(() => readShopConfig({ [key]: value }));
-  }
+  for (const state of ["OPEN", "CLOSE"])
+    for (const kind of ["EVERYONE", "ROLE"]) {
+      const key = `SHOP_${state}_ALLOW_${kind}_MENTIONS`;
+      for (const value of [true, false])
+        assert.doesNotThrow(() => readShopConfig({ [key]: value }));
+      for (const value of ["true", "false", 1, [], null])
+        assert.throws(() => readShopConfig({ [key]: value }));
+    }
 });
 
 for (const format of ["TEXT", "EMBED", "COMPONENTS_V2"]) {
@@ -1033,5 +1042,200 @@ test("missing Mention Everyone is reported before status, name or permission cha
   await settle();
   assert.equal(f.messages.length, 1);
   assert.deepEqual(f.messages[0].allowedMentions, { parse: [] });
+  await dispose();
+});
+
+for (const format of ["TEXT", "EMBED", "COMPONENTS_V2"]) {
+  test(`Role pings work without everyone pings in ${format}, scoped to the chosen action`, async () => {
+    const f = fixture({
+      SHOP_OPEN_ALLOW_ROLE_MENTIONS: true,
+      SHOP_OPEN_MESSAGE_TYPE: format === "TEXT" ? "TEXT" : "DESIGNED",
+      SHOP_OPEN_TEXT: `@here @everyone <@123456789012345678> <@&${roleId}> <@&${roleId}>`,
+    });
+    f.setMentionPermission(false);
+    f.roles.get(roleId)!.mentionable = true;
+    f.context.presentations = {
+      shop_open: {
+        mode: format,
+        embed: {
+          title: "Shop",
+          content: `<@&${roleId}> @here <@123456789012345678>`,
+        },
+        components_v2: {
+          components: [
+            {
+              type: 17,
+              components: [
+                {
+                  type: 9,
+                  components: [
+                    {
+                      type: 10,
+                      content: `<@&${roleId}> @everyone <@123456789012345678> <@&${roleId}>`,
+                    },
+                  ],
+                  accessory: {
+                    type: 2,
+                    style: 5,
+                    label: "Website",
+                    url: "https://example.com",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      },
+      shop_close: {
+        mode: "COMPONENTS_V2",
+        components_v2: {
+          components: [{ type: 10, content: `<@&${roleId}> @everyone` }],
+        },
+      },
+    };
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    for (const action of ["open", "close"]) {
+      const i = f.interaction(action);
+      f.client.emit("interactionCreate", i.value);
+      await settle();
+      assert.deepEqual(i.replies.at(-1).allowedMentions, { parse: [] });
+    }
+    assert.deepEqual(f.messages[0].allowedMentions, {
+      parse: [],
+      roles: [roleId],
+    });
+    assert.deepEqual(f.messages[1].allowedMentions, { parse: [] });
+    await dispose();
+  });
+}
+
+for (const delivery of ["NEW", "UPDATE", "REPLACE"]) {
+  test(`Role and everyone pings coexist in ${delivery} delivery`, async () => {
+    const f = fixture({
+      SHOP_CLOSE_ALLOW_ROLE_MENTIONS: true,
+      SHOP_CLOSE_ALLOW_EVERYONE_MENTIONS: true,
+      SHOP_CLOSE_DELIVERY_MODE: delivery,
+    });
+    const template = {
+      mode: "COMPONENTS_V2",
+      components_v2: {
+        components: [{ type: 10, content: `<@&${roleId}> @here` }],
+      },
+    };
+    f.context.presentations = { shop_open: template, shop_close: template };
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    for (const action of ["open", "close"]) {
+      f.client.emit("interactionCreate", f.interaction(action).value);
+      await settle();
+    }
+    assert.deepEqual(f.messages[0].allowedMentions, { parse: [] });
+    const payload = delivery === "UPDATE" ? f.messageEdits[0] : f.messages[1];
+    assert.deepEqual(payload.allowedMentions, {
+      parse: ["everyone"],
+      roles: [roleId],
+    });
+    await dispose();
+  });
+}
+
+for (const problem of ["missing", "unmentionable"]) {
+  test(`reports a ${problem} Role before making shop changes`, async () => {
+    const f = fixture({
+      SHOP_OPEN_ALLOW_ROLE_MENTIONS: true,
+      SHOP_OPEN_MESSAGE_TYPE: "TEXT",
+      SHOP_OPEN_TEXT: `<@&${roleId}>`,
+      SHOP_OPEN_CHANNEL_NAME: "open",
+      SHOP_PERMISSION_RULES: rules,
+    });
+    f.setMentionPermission(false);
+    if (problem === "missing") f.roles.delete(roleId);
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    const i = f.interaction();
+    f.client.emit("interactionCreate", i.value);
+    await settle();
+    assert.match(
+      i.replies.at(-1).content,
+      problem === "missing" ? /ไม่พบ Role/ : /ไม่อนุญาตให้แท็ก/,
+    );
+    assert.deepEqual(i.replies.at(-1).allowedMentions, { parse: [] });
+    assert.deepEqual(f.messages, []);
+    assert.deepEqual(f.renames, []);
+    assert.deepEqual(f.edits, []);
+    assert.equal(f.states.at(-1).status, undefined);
+    await dispose();
+  });
+}
+
+test("Role pings consider only message content and Text Displays, not Embed text or button labels", async () => {
+  const f = fixture({
+    SHOP_OPEN_ALLOW_ROLE_MENTIONS: true,
+    SHOP_CLOSE_ALLOW_ROLE_MENTIONS: true,
+  });
+  f.setMentionPermission(false);
+  f.roles.clear();
+  f.context.presentations = {
+    shop_open: {
+      mode: "EMBED",
+      embed: { title: `<@&${roleId}>`, description: `<@&${roleId}>` },
+    },
+    shop_close: {
+      mode: "COMPONENTS_V2",
+      components_v2: {
+        components: [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 5,
+                label: `<@&${roleId}>`,
+                url: "https://example.com",
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  for (const action of ["open", "close"]) {
+    f.client.emit("interactionCreate", f.interaction(action).value);
+    await settle();
+  }
+  assert.equal(f.messages.length, 2);
+  assert.deepEqual(
+    f.messages.map((m) => m.allowedMentions),
+    [
+      { parse: [], roles: [] },
+      { parse: [], roles: [] },
+    ],
+  );
+  await dispose();
+});
+
+test("rejects more than 100 distinct Role pings before applying shop changes", async () => {
+  const f = fixture({ SHOP_OPEN_ALLOW_ROLE_MENTIONS: true });
+  const text = Array.from(
+    { length: 101 },
+    (_, i) => `<@&${BigInt(roleId) + BigInt(i)}>`,
+  ).join(" ");
+  f.context.presentations = {
+    shop_open: {
+      mode: "COMPONENTS_V2",
+      components_v2: { components: [{ type: 10, content: text }] },
+    },
+  };
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  const i = f.interaction();
+  f.client.emit("interactionCreate", i.value);
+  await settle();
+  assert.match(i.replies.at(-1).content, /100 Role/);
+  assert.deepEqual(f.messages, []);
+  assert.equal(f.states.at(-1).status, undefined);
   await dispose();
 });
