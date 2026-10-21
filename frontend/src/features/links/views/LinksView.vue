@@ -1,68 +1,94 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
-import { ArrowUpRight, Moon, Sun, Music2, Play, X } from 'lucide-vue-next'
+import { ArrowUpRight, Moon, Sun, Music2, Play, Pause, Volume2 } from 'lucide-vue-next'
 import { icons } from '../../../config'
 import AppIcon from '../../../shared/ui/icons/AppIcon.vue'
 import AppTextLink from '../../../shared/ui/navigation/AppTextLink.vue'
-import { loadSpotifyPlayer, type SpotifyController } from '../spotifyPlayer'
+import getHighUrl from '../assets/get-high.mp3?url'
 
 const dark = ref(true)
-const musicOpen = ref(false)
+const audio = ref<HTMLAudioElement | null>(null)
+const playing = ref(false)
 const manuallyStopped = ref(false)
-const track = 'https://open.spotify.com/track/687OL6QdsLt1H8oU108dO5'
-const playerHost = ref<HTMLElement | null>(null)
-const playerUnavailable = ref(false)
-let controller: SpotifyController | undefined
-let playerReady = false
-let disposed = false
-let interactionStarted = false
-let playbackStarted = false
-let gesturePlaybackAllowed = true
+const needsTap = ref(false)
+const audioFailed = ref(false)
+const currentTime = ref(0)
+const duration = ref(0)
+const volume = ref(0.4)
+let hasPlayed = false
+let wheelAttempted = false
+let playPending = false
+let requestedPlaying = false
 
-function startMusic(event?: Event) {
-  // Scroll may not unlock audio; allow a later tap to retry until playback starts.
-  // Once the user stops the music, later page gestures must not restart it.
-  if (!gesturePlaybackAllowed || playbackStarted) return
-  if (interactionStarted && event?.type === 'wheel') return
-  if (event?.target instanceof Element && event.target.closest('[data-music-control]')) return
-  interactionStarted = true
-  musicOpen.value = true
-  if (playerReady) controller?.play()
+async function playMusic() {
+  const player = audio.value
+  if (!player || playPending) return
+  requestedPlaying = true
+  playPending = true
+  audioFailed.value = false
+  try {
+    await player.play()
+    if (!requestedPlaying) player.pause()
+    else needsTap.value = false
+  } catch (error) {
+    if (!requestedPlaying) return
+    if (error instanceof DOMException && error.name === 'NotAllowedError') needsTap.value = true
+    else if (!(error instanceof DOMException && error.name === 'AbortError')) audioFailed.value = true
+  } finally {
+    playPending = false
+  }
+}
+
+function startMusic(event: Event) {
+  if (manuallyStopped.value || hasPlayed || playPending) return
+  if (event.target instanceof Element && event.target.closest('[data-music-control]')) return
+  if (event.type === 'wheel') {
+    if (wheelAttempted) return
+    wheelAttempted = true
+  }
+  void playMusic()
 }
 
 function toggleMusic() {
-  gesturePlaybackAllowed = false
-  interactionStarted = true
-  musicOpen.value = !musicOpen.value
-  manuallyStopped.value = !musicOpen.value
-  if (musicOpen.value && playerReady) controller?.play()
-  else controller?.pause()
+  if (playing.value || playPending) {
+    requestedPlaying = false
+    manuallyStopped.value = true
+    audio.value?.pause()
+  } else {
+    manuallyStopped.value = false
+    void playMusic()
+  }
 }
 
-onMounted(async () => {
-  try {
-    const api = await loadSpotifyPlayer()
-    if (disposed || !playerHost.value) return
-    // Use a disposable child: Spotify replaces it without owning Vue's ref node.
-    const element = document.createElement('div')
-    playerHost.value.append(element)
-    api.createController(element, { uri: 'spotify:track:687OL6QdsLt1H8oU108dO5', width: '100%', height: 152 }, (created) => {
-      if (disposed) { created.destroy(); return }
-      controller = created
-      created.addListener('playback_started', () => { playbackStarted = true })
-      created.addListener('ready', () => {
-        playerReady = true
-        if (musicOpen.value && !disposed) created.play()
-      })
-    })
-  } catch {
-    if (!disposed) playerUnavailable.value = true
-  }
-})
+function onPlaying() {
+  playing.value = true
+  hasPlayed = true
+  needsTap.value = false
+}
 
+function updateTime() {
+  currentTime.value = audio.value?.currentTime ?? 0
+  const length = audio.value?.duration ?? 0
+  duration.value = Number.isFinite(length) ? length : 0
+}
+
+function seek(event: Event) {
+  if (audio.value && duration.value > 0) audio.value.currentTime = Number((event.target as HTMLInputElement).value)
+}
+
+function setVolume(event: Event) {
+  volume.value = Number((event.target as HTMLInputElement).value)
+  if (audio.value) audio.value.volume = volume.value
+}
+
+function formatTime(seconds: number) {
+  return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`
+}
+
+onMounted(() => { if (audio.value) audio.value.volume = volume.value })
 onUnmounted(() => {
-  disposed = true
-  controller?.destroy()
+  requestedPlaying = false
+  audio.value?.pause()
 })
 
 const socials = [
@@ -112,17 +138,21 @@ const socials = [
           <div class="min-w-0 flex-1">
             <p class="text-heading-h3">เขียว เหลือง แดง (Get high)</p>
             <p class="text-body-small text-text-muted mt-xxs">PUN, THE TOYS</p>
-            <a :href="track" target="_blank" rel="noopener noreferrer" class="spotify-link">LISTEN ON SPOTIFY ↗</a>
+            <span class="track-caption">FULL TRACK · ON REPEAT</span>
           </div>
-          <button type="button" data-music-control class="play-button" :aria-expanded="musicOpen" aria-controls="links-music-player" :aria-label="musicOpen ? 'Close music player' : 'Open music player'" @click="toggleMusic">
-            <X v-if="musicOpen" class="size-icon-24" /><Play v-else class="size-icon-24" />
+          <button type="button" data-music-control class="play-button" :aria-label="playing ? 'Pause music' : 'Play music'" @click="toggleMusic">
+            <Pause v-if="playing" class="size-icon-24" /><Play v-else class="size-icon-24" />
           </button>
         </div>
-        <p v-if="!musicOpen" class="text-label-small text-text-muted mt-md">{{ manuallyStopped ? 'Music paused. Press Play to listen again.' : 'Tap or scroll to start the music.' }}</p>
-        <div v-show="musicOpen" id="links-music-player" class="player-wrap">
-          <div ref="playerHost" aria-label="เขียว เหลือง แดง Spotify music player" />
-          <p class="text-label-small text-text-muted mt-sm">{{ playerUnavailable ? 'Player unavailable.' : 'If music does not start, press Play in Spotify. Playback length depends on Spotify.' }} <a :href="track" target="_blank" rel="noopener noreferrer" class="underline">Listen on Spotify ↗</a></p>
+        <audio ref="audio" :src="getHighUrl" preload="metadata" loop @playing="onPlaying" @pause="playing = false" @timeupdate="updateTime" @loadedmetadata="updateTime" @error="audioFailed = true" />
+        <div class="audio-controls" data-music-control>
+          <input class="audio-slider progress-slider" type="range" aria-label="Song position" min="0" :max="duration || 1" step="0.1" :value="currentTime" :disabled="!duration" :aria-valuetext="`${formatTime(currentTime)} of ${formatTime(duration)}`" @input="seek" />
+          <div class="flex items-center justify-between gap-md">
+            <span class="track-time">{{ formatTime(currentTime) }} / {{ formatTime(duration) }}</span>
+            <label class="volume-control"><Volume2 class="size-icon-16" /><span class="sr-only">Music volume</span><input class="audio-slider" type="range" min="0" max="1" step="0.05" :value="volume" @input="setVolume" /></label>
+          </div>
         </div>
+        <p class="text-label-small text-text-muted mt-md" role="status">{{ audioFailed ? 'Unable to load the song. Please refresh and try again.' : playing ? 'Playing on repeat. Stay a little longer.' : manuallyStopped ? 'Music paused. Press Play to listen again.' : needsTap ? 'Tap Play to start the music.' : 'Tap or scroll to start the music.' }}</p>
       </section>
 
       <nav aria-label="Find Fujipp online" class="social-links">
@@ -157,10 +187,14 @@ const socials = [
 .record-art { width: var(--icon-size-64); height: var(--icon-size-64); display: grid; place-items: center; border-radius: var(--corner-radius-md); background: var(--semantic-color-background-bg-surface-active); flex: none; }
 .record { width: calc(var(--icon-size-64) - var(--space-sm)); aspect-ratio: 1; border-radius: var(--corner-radius-full); border: 1px solid var(--semantic-color-border-border-strong); display: grid; place-items: center; background: repeating-radial-gradient(circle, var(--semantic-color-background-bg-default) 0 2px, var(--semantic-color-border-border-subtle) 3px 4px); }
 .record span { display: grid; place-items: center; width: var(--icon-size-24); height: var(--icon-size-24); border-radius: var(--corner-radius-full); background: var(--semantic-color-action-backgrounds-bg-primary); color: var(--semantic-color-action-text-text-on-primary); font-size: var(--font-size-label-small); }
-.spotify-link { display: inline-block; font-size: var(--font-size-label-small); color: var(--semantic-color-text-text-muted); margin-top: var(--space-sm); }
+.track-caption { display: inline-block; font-size: var(--font-size-label-small); color: var(--semantic-color-text-text-muted); margin-top: var(--space-sm); }
 .play-button { display: grid; place-items: center; width: calc(var(--icon-size-32) + var(--space-md)); height: calc(var(--icon-size-32) + var(--space-md)); border-radius: var(--corner-radius-full); background: var(--semantic-color-action-backgrounds-bg-primary); color: var(--semantic-color-action-text-text-on-primary); flex: none; cursor: pointer; }
-.player-wrap { margin-top: var(--space-lg); }
-.player-wrap :deep(iframe) { border: 0; border-radius: var(--corner-radius-md); width: 100%; }
+.audio-controls { display: grid; gap: var(--space-sm); margin-top: var(--space-lg); }
+.audio-slider { min-width: 0; accent-color: var(--semantic-color-text-text-primary); cursor: pointer; }
+.progress-slider { width: 100%; }
+.track-time { font-size: var(--font-size-label-small); color: var(--semantic-color-text-text-muted); font-variant-numeric: tabular-nums; }
+.volume-control { display: flex; align-items: center; gap: var(--space-xs); color: var(--semantic-color-text-text-muted); }
+.volume-control input { width: var(--icon-size-64); }
 .social-links { display: grid; gap: var(--space-xs); }
 .social-card { display: flex; align-items: center; gap: var(--space-md); transition: background-color .2s, transform .2s; }
 .social-card:hover { background: var(--semantic-color-background-bg-surface-hover); transform: translateY(-2px); }
