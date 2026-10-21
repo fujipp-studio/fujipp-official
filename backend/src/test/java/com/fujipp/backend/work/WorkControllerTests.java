@@ -22,6 +22,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, WorkExceptionHandler.class})
 class WorkControllerTests {
 
+    @MockitoBean
+    private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
+
     @Autowired
     private MockMvc mockMvc;
 

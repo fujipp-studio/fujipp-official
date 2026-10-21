@@ -24,8 +24,9 @@ class AccountAccessFilterTests {
 
     private final CurrentUserService currentUserService = mock(CurrentUserService.class);
     private final SecurityAuditService securityAuditService = mock(SecurityAuditService.class);
+    private final AuthIdentityProjection identityProjection = mock(AuthIdentityProjection.class);
     private final AccountAccessFilter filter =
-            new AccountAccessFilter(currentUserService, securityAuditService, new ObjectMapper());
+            new AccountAccessFilter(currentUserService, securityAuditService, new ObjectMapper(), identityProjection);
 
     @AfterEach
     void clearSecurityContext() {
@@ -49,6 +50,9 @@ class AccountAccessFilterTests {
                 chain
         );
 
+        var order = org.mockito.Mockito.inOrder(identityProjection, currentUserService);
+        order.verify(identityProjection).ensureIdentity(jwt);
+        order.verify(currentUserService).getActiveAccount(userId.toString());
         assertThat(chain.getRequest()).isNotNull();
         assertThat(SecurityContextHolder.getContext().getAuthentication().getAuthorities())
                 .extracting("authority")

@@ -35,6 +35,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 class AdminWorkControllerTests {
 
+    @MockitoBean
+    private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
+
     @Autowired
     private MockMvc mockMvc;
 

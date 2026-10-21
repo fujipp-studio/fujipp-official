@@ -31,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(TopupController.class)
 @Import({SecurityConfig.class,ApiExceptionHandler.class,TopupExceptionHandler.class})
 class TopupControllerTests {
+
+    @MockitoBean
+    private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
     @Autowired MockMvc mockMvc;
     @MockitoBean TopupService service;
     @MockitoBean CurrentUserService currentUserService;

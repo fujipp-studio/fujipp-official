@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added a private resource-limited VPS PostgreSQL stack, scheduled backups, snapshot verification and isolated Backend migration rehearsals. |
 | 2026-10-21 | Reduced duplicated Frontend CI/CD work with affected test selection, parallel checks, dependency caching, a reusable production build artifact, and Vue-aware dependency parsing that resolves the new CodeQL finding. |
 | 2026-10-20 | Added per-feature configuration bundle budgets, made Vue development tools opt-in, and normalized Maven wrapper line endings so merged CI checkouts remain clean. |
 | 2026-10-11 | Included shared Price Reader logic changes in Frontend verification and deployment triggers. |
