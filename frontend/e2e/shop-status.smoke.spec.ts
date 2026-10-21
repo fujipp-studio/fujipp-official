@@ -70,6 +70,29 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect(form).toContainText('/store start')
     await capture('commands')
     await category('ประกาศ')
+    const openName = form.getByRole('textbox', {
+      name: 'ชื่อห้องตอนเปิดร้าน (ไม่บังคับ)',
+      exact: true,
+    })
+    const closeName = form.getByRole('textbox', {
+      name: 'ชื่อห้องตอนปิดร้าน (ไม่บังคับ)',
+      exact: true,
+    })
+    await expect(openName).toHaveValue('')
+    await expect(closeName).toHaveValue('')
+    await openName.fill(' ')
+    await expect(form.getByRole('alert')).toBeVisible()
+    await save.click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    expect(saves).toBe(0)
+    await openName.fill('🟢・สถานะ・ร้านเปิด')
+    await expect(form.getByRole('alert')).toHaveCount(0)
+    await closeName.fill('🔴・สถานะ・ร้านปิด')
+    expect(saves).toBe(0)
     await choose(
       form.getByRole('combobox', { name: 'การส่งประกาศเปิดร้าน', exact: true }),
       'อัปเดตข้อความเดิม',
@@ -123,6 +146,8 @@ for (const theme of ['LIGHT', 'DARK']) {
       .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
       .click()
     await expect.poll(() => saved?.values.SHOP_COMMAND_NAME).toBe('store')
+    expect(saved!.values.SHOP_OPEN_CHANNEL_NAME).toBe('🟢・สถานะ・ร้านเปิด')
+    expect(saved!.values.SHOP_CLOSE_CHANNEL_NAME).toBe('🔴・สถานะ・ร้านปิด')
     expect(saved!.values.SHOP_OPEN_COMMAND).toBe('start')
     expect(saved!.values.SHOP_CLOSE_COMMAND).toBe('stop')
     expect(saves).toBe(1)

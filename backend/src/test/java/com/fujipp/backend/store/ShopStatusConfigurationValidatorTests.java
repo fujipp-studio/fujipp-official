@@ -23,6 +23,17 @@ class ShopStatusConfigurationValidatorTests {
                   "close":{"ViewChannel":"DENY","SendMessages":"KEEP"}}]
                 """)))).doesNotThrowAnyException();
     }
+    @Test void validatesOptionalChannelNames() {
+        for (String state : new String[]{"OPEN", "CLOSE"}) {
+            for (String name : new String[]{"", "🔴・สถานะ・ร้านปิด", "x".repeat(100)})
+                assertThatCode(() -> ShopStatusConfigurationValidator.validate(Map.of(
+                    "SHOP_" + state + "_CHANNEL_NAME", mapper.valueToTree(name)))).doesNotThrowAnyException();
+            for (Object name : new Object[]{123, java.util.List.of(), " ", "x".repeat(101), "open\nshop", "open\tshop"})
+                assertThatThrownBy(() -> ShopStatusConfigurationValidator.validate(Map.of(
+                    "SHOP_" + state + "_CHANNEL_NAME", mapper.valueToTree(name))))
+                    .isInstanceOf(StoreValidationException.class);
+        }
+    }
     @Test void rejectsInvalidNamesAndMatchingSubcommands() {
         for (String name : new String[]{"", "/shop", "SHOP", "shop open", "a".repeat(33)})
             assertThatThrownBy(() -> ShopStatusConfigurationValidator.validate(Map.of("SHOP_COMMAND_NAME", mapper.valueToTree(name))))

@@ -19,6 +19,11 @@ final class ShopStatusConfigurationValidator {
         if (channel != null && (!channel.isTextual() || !channel.asText().matches("(?:[0-9]{15,30})?")))
             fail("Invalid shop announcement channel ID");
         for (String state : new String[]{"OPEN", "CLOSE"}) {
+            JsonNode channelName = values.get("SHOP_" + state + "_CHANNEL_NAME");
+            if (channelName != null && (!channelName.isTextual() || channelName.asText().length() > 100
+                    || (!channelName.asText().isEmpty() && (channelName.asText().isBlank()
+                        || channelName.asText().matches("(?s).*[\\r\\n\\t].*")))))
+                fail("Shop channel names must contain 1–100 characters or be empty");
             JsonNode delivery = values.get("SHOP_" + state + "_DELIVERY_MODE");
             if (delivery != null && (!delivery.isTextual() || !Set.of("NEW", "UPDATE", "REPLACE").contains(delivery.asText())))
                 fail("Invalid shop delivery mode");

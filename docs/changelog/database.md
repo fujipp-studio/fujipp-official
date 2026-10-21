@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added optional Shop Status open/close announcement channel name settings with empty defaults that preserve existing channel names. |
 | 2026-10-20 | Added independent open/close Shop Status announcement delivery policies. |
 | 2026-10-20 | Added the draft Shop Status catalog feature with customizable commands, permission rules, and independent open/close message designs. |
 | 2026-10-11 | Added customization settings and error presentation slots to both Price Reader versions while preserving existing configuration and message designs. |

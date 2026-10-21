@@ -32,7 +32,12 @@ function fixture(config: Record<string, unknown> = {}) {
     edits: any[] = [],
     messages: any[] = [],
     messageEdits: any[] = [],
-    messageDeletes: string[] = [];
+    messageDeletes: string[] = [],
+    renames: string[] = [];
+  let canRename = true,
+    failRename = false,
+    thread = false;
+  const fetchedChannels: any[] = [];
   const storedMessages = new Map<string, any>();
   let messageFailure: { operation: string; code: number } | undefined;
   let failAnnouncementSave = false;
@@ -55,11 +60,24 @@ function fixture(config: Record<string, unknown> = {}) {
   });
   const permissions = {
     has: (flag: bigint) =>
-      flag !== PermissionFlagsBits.ManageRoles || canManage,
+      flag === PermissionFlagsBits.ManageRoles
+        ? canManage
+        : flag === PermissionFlagsBits.ManageChannels ||
+            flag === PermissionFlagsBits.ManageThreads
+          ? canRename
+          : true,
   };
   const channel = {
     id: channelId,
-    isThread: () => false,
+    name: "announcements",
+    setName: async (name: string) => {
+      renames.push(name);
+      channel.name = name;
+      if (failRename && renames.length === 1)
+        throw new Error("Rename failed after write");
+      return channel;
+    },
+    isThread: () => thread,
     isDMBased: () => false,
     isVoiceBased: () => voice,
     isSendable: () => true,
@@ -127,7 +145,12 @@ function fixture(config: Record<string, unknown> = {}) {
   const guild = {
     id: "guild",
     name: "Server",
-    channels: { fetch: async () => channel },
+    channels: {
+      fetch: async (...args: unknown[]) => {
+        fetchedChannels.push(args);
+        return channel;
+      },
+    },
     roles: { fetch: async (id: string) => (missingRole ? null : { id }) },
     members: { me: { id: "bot" } },
   };
@@ -225,6 +248,18 @@ function fixture(config: Record<string, unknown> = {}) {
     messageEdits,
     messageDeletes,
     storedMessages,
+    renames,
+    channel,
+    fetchedChannels,
+    setRenamePermission: (allowed: boolean) => {
+      canRename = allowed;
+    },
+    setFailRename: () => {
+      failRename = true;
+    },
+    setThread: () => {
+      thread = true;
+    },
     setMessageFailure: (operation: string, code = 50013) => {
       messageFailure = { operation, code };
     },
@@ -741,4 +776,139 @@ test("replacement send failure can recover on the next action after deleting the
   assert.equal(f.messages.length, 2);
   assert.equal(f.messageDeletes.length, 1);
   await dispose();
+});
+
+test("renames the announcement channel per state, skips unchanged names and optional blanks", async () => {
+  const f = fixture({
+    SHOP_OPEN_CHANNEL_NAME: "🟢・สถานะ・ร้านเปิด",
+    SHOP_CLOSE_CHANNEL_NAME: "🔴・สถานะ・ร้านปิด",
+  });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  for (const action of ["open", "open", "close"]) {
+    const i = f.interaction(action);
+    f.client.emit("interactionCreate", i.value);
+    await settle();
+    assert.equal(i.replies[0].defer, true);
+    assert.match(i.replies.at(-1).content, /ส่งประกาศแล้ว/);
+  }
+  assert.deepEqual(f.renames, ["🟢・สถานะ・ร้านเปิด", "🔴・สถานะ・ร้านปิด"]);
+  assert.deepEqual(f.fetchedChannels[0], [channelId, { force: true }]);
+  assert.equal(f.messages.length, 3);
+  await dispose();
+
+  const optional = fixture({
+    SHOP_OPEN_CHANNEL_NAME: "",
+    SHOP_CLOSE_CHANNEL_NAME: "closed",
+  });
+  optional.setRenamePermission(false);
+  const stop = await shopStatusFeature.activate(optional.context);
+  await settle();
+  optional.client.emit("interactionCreate", optional.interaction("open").value);
+  await settle();
+  assert.deepEqual(optional.renames, []);
+  assert.equal(optional.messages.length, 1);
+  await stop();
+});
+
+test("renames the configured announcement destination instead of the command channel", async () => {
+  const destinationId = "333333333333333333";
+  const f = fixture({
+    SHOP_ANNOUNCEMENT_CHANNEL_ID: destinationId,
+    SHOP_OPEN_CHANNEL_NAME: "open",
+  });
+  const dispose = await shopStatusFeature.activate(f.context);
+  await settle();
+  const i = f.interaction();
+  // The interaction channel must never be renamed when another destination was configured.
+  (i.value as any).channel = {
+    setName: () => {
+      throw new Error("Wrong channel");
+    },
+  };
+  f.client.emit("interactionCreate", i.value);
+  await settle();
+  assert.deepEqual(f.fetchedChannels[0], [destinationId, { force: true }]);
+  assert.deepEqual(f.renames, ["open"]);
+  await dispose();
+});
+
+for (const thread of [false, true]) {
+  test(`checks rename permission before changing permissions or announcements (thread=${thread})`, async () => {
+    const f = fixture({
+      SHOP_OPEN_CHANNEL_NAME: "open",
+      SHOP_PERMISSION_RULES: rules,
+    });
+    if (thread) f.setThread();
+    f.setRenamePermission(false);
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    const i = f.interaction();
+    f.client.emit("interactionCreate", i.value);
+    await settle();
+    assert.match(
+      i.replies.at(-1).content,
+      thread ? /Manage Threads/ : /Manage Channels/,
+    );
+    assert.deepEqual(f.edits, []);
+    assert.deepEqual(f.renames, []);
+    assert.deepEqual(f.messages, []);
+    await dispose();
+  });
+}
+
+for (const failure of ["rename", "save"] as const) {
+  test(`restores the name and permission overrides after ${failure} failure`, async () => {
+    const f = fixture({
+      SHOP_OPEN_CHANNEL_NAME: "open",
+      SHOP_PERMISSION_RULES: rules,
+    });
+    const dispose = await shopStatusFeature.activate(f.context);
+    await settle();
+    if (failure === "rename") f.setFailRename();
+    else f.setFailSave();
+    const i = f.interaction();
+    f.client.emit("interactionCreate", i.value);
+    await settle();
+    assert.deepEqual(f.renames, ["open", "announcements"]);
+    assert.equal(f.channel.name, "announcements");
+    assert.equal(
+      f.overwrites.get(roleId)!.deny.has(PermissionFlagsBits.ViewChannel),
+      true,
+    );
+    assert.equal(
+      f.overwrites.get(roleId)!.allow.has(PermissionFlagsBits.SendMessages),
+      true,
+    );
+    assert.equal(f.messages.length, 0);
+    assert.match(i.replies.at(-1).content, /ปรับสถานะร้านไม่สำเร็จ/);
+    await dispose();
+  });
+}
+
+test("validates optional announcement channel names and allows emoji and Thai", () => {
+  assert.deepEqual(readShopConfig({}).channelNames, { open: "", close: "" });
+  assert.equal(
+    readShopConfig({ SHOP_CLOSE_CHANNEL_NAME: "🔴・สถานะ・ร้านปิด" })
+      .channelNames.close,
+    "🔴・สถานะ・ร้านปิด",
+  );
+  assert.equal(
+    readShopConfig({ SHOP_OPEN_CHANNEL_NAME: "x".repeat(100) }).channelNames
+      .open.length,
+    100,
+  );
+  for (const state of ["OPEN", "CLOSE"]) {
+    for (const name of [
+      123,
+      [],
+      " ",
+      "x".repeat(101),
+      "open\nshop",
+      "open\tshop",
+    ])
+      assert.throws(() =>
+        readShopConfig({ [`SHOP_${state}_CHANNEL_NAME`]: name }),
+      );
+  }
 });
