@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-21 | Added Shop Status open/close mention settings with disabled defaults that preserve existing announcement behavior. |
 | 2026-10-21 | Added optional Shop Status open/close announcement channel name settings with empty defaults that preserve existing channel names. |
 | 2026-10-20 | Added independent open/close Shop Status announcement delivery policies. |
 | 2026-10-20 | Added the draft Shop Status catalog feature with customizable commands, permission rules, and independent open/close message designs. |
