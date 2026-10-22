@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-22 | Added Message Sets 1.1.0 commands to send SETs and update existing bot messages by ID with ownership checks. |
 | 2026-10-21 | Added an opt-in VPS identity projection from verified Supabase JWTs, preserving database-controlled account roles and status. |
 | 2026-10-21 | Reduced repeated runtime configuration reads while preserving state and expiry refreshes, and retained caches when reconciliation makes no changes. |
 | 2026-10-21 | Added separate open/close Role pings to Shop Status, validating mentioned roles and their permissions before changing the shop while retaining independent everyone controls. |

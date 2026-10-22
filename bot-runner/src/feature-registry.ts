@@ -1,3 +1,4 @@
+import { messageSetsFeatureV11 } from "./features/message-sets/v1.1.0.js";
 import { welcomeMessageFeature } from "./features/welcome-message.js";
 import { voiceKeeperFeature } from "./features/voice-keeper/index.js";
 import { botPresenceFeature } from "./features/bot-presence/index.js";
@@ -19,6 +20,7 @@ import { shopStatusFeature } from "./features/shop-status/v1.0.0.js";
 
 const modules = new Map<string, FeatureModule>([
   [moduleKey(shopStatusFeature.runtimeKey, shopStatusFeature.version), shopStatusFeature],
+  [moduleKey(messageSetsFeatureV11.runtimeKey, messageSetsFeatureV11.version), messageSetsFeatureV11],
   [moduleKey(messageSetsFeature.runtimeKey, messageSetsFeature.version), messageSetsFeature],
   [moduleKey(welcomeMessageFeature.runtimeKey, welcomeMessageFeature.version), welcomeMessageFeature],
   [moduleKey(voiceKeeperFeature.runtimeKey, voiceKeeperFeature.version), voiceKeeperFeature],

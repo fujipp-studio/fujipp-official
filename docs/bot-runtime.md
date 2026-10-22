@@ -118,6 +118,15 @@ and can disable webhook counting when required.
 
 ## Message Sets
 
+Version `message-sets@1.1.0` uses `/<command> send set:<SET name>` and
+`/<command> update message_id:<message ID> set:<SET name>`. Update edits a message
+in the current channel authored by this bot, excluding webhooks. It replaces the
+content, embeds, components, and attachments using the selected SET's latest
+design. Bot Permissions supports `<command>/send` and `<command>/update`
+separately. Components V2 messages require a Components V2 SET for updates.
+Responses remain private. The new catalog version starts as DRAFT; existing
+1.0.0 installations keep their original command format until upgraded.
+
 The bundled `message-sets@1.0.0` feature sends named messages designed with the
 website's existing Embed and Components V2 editors. `MESSAGE_SETS_COMMAND_NAME`
 defaults to `ec` and accepts 1–32 lowercase letters, digits, underscores, or

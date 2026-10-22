@@ -20,7 +20,7 @@ export interface PermissionCommandFeature {
 // Keep suggestions aligned with command registration and permission gates in bot-runner/src/features.
 const versions: Record<string, string[]> = {
   'shop-status': ['1.0.0'],
-  'message-sets': ['1.0.0'],
+  'message-sets': ['1.0.0', '1.1.0'],
   'member-spending': ['1.0.0'],
   'wallet-topup': ['1.0.0', '2.0.0', '2.1.0'],
   'admin-message-tools': ['1.0.0'],
@@ -70,6 +70,11 @@ export function permissionCommands(
       break
     }
     case 'message-sets':
+      if (license.version === '1.1.0') {
+        const root = name('MESSAGE_SETS_COMMAND_NAME', 'ec')
+        commands = [all(root), command(`${root}/send`, 'Send a SET', 'ส่ง SET'), command(`${root}/update`, 'Update a bot message from a SET', 'อัปเดตข้อความเดิมจาก SET')]
+        break
+      }
       commands = [
         command(
           name('MESSAGE_SETS_COMMAND_NAME', 'ec'),
