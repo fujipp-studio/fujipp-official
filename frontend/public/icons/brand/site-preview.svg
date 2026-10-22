@@ -1,7 +1,22 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <title>Fujipp logo on a graphite background</title>
-  <rect width="1200" height="630" fill="#0e1116"/>
-  <g transform="translate(384 123.158) scale(0.7105263157894737)">
-    <path d="M203 338L338 203H283C238.817 203 203 238.817 203 283V338ZM0 189V540L135 405V270C135 195.442 195.442 135 270 135H405L540 0H189C84.6182 0 0 84.6182 0 189ZM0 540H337C411.558 540 472 479.558 472 405H135L0 540ZM203 338H404.5C479.058 338 539.5 277.558 539.5 203H338L203 338ZM405 135H473C547.558 135 608 74.5584 608 0H540L405 135Z" fill="#f2f4f8"/>
-  </g>
+  <title>FUJIPP — Websites. Bots. Automation.</title>
+  <defs>
+    <radialGradient id="glow" cx="82%" cy="28%" r="80%">
+      <stop stop-color="#293441"/>
+      <stop offset="1" stop-color="#0e1116"/>
+    </radialGradient>
+    <pattern id="grid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M60 0H0V60" fill="none" stroke="#f2f4f8" stroke-opacity=".045"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  <rect x="40" y="40" width="1120" height="550" rx="24" fill="none" stroke="#f2f4f8" stroke-opacity=".14"/>
+  <g transform="translate(850 126) scale(.32)"><path d="M203 338L338 203H283C238.817 203 203 238.817 203 283V338ZM0 189V540L135 405V270C135 195.442 195.442 135 270 135H405L540 0H189C84.6182 0 0 84.6182 0 189ZM0 540H337C411.558 540 472 479.558 472 405H135L0 540ZM203 338H404.5C479.058 338 539.5 277.558 539.5 203H338L203 338ZM405 135H473C547.558 135 608 74.5584 608 0H540L405 135Z" fill="#f2f4f8"/></g>
+  <path d="M88 120H136" stroke="#b9d8ed" stroke-width="4"/>
+  <text x="88" y="254" fill="#f2f4f8" font-family="Arial, Helvetica, sans-serif" font-size="108" font-weight="700" letter-spacing="-5">FUJIPP</text>
+  <text x="94" y="328" fill="#c2cbd5" font-family="Arial, Helvetica, sans-serif" font-size="36" letter-spacing="-.7">Websites. Bots. Automation.</text>
+  <path d="M88 462H1112" stroke="#f2f4f8" stroke-opacity=".14"/>
+  <text x="92" y="526" fill="#a5b3c2" font-family="Arial, Helvetica, sans-serif" font-size="24" letter-spacing="2">BUILDING IDEAS INTO REALITY</text>
+  <text x="1110" y="526" text-anchor="end" fill="#f2f4f8" font-family="Arial, Helvetica, sans-serif" font-size="24">fujipp.com ↗</text>
 </svg>
