@@ -1,3 +1,4 @@
+import { createRouter, createMemoryHistory, type Router } from 'vue-router'
 import type { Session } from '@supabase/supabase-js'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -56,8 +57,16 @@ const originalScrollIntoView = Object.getOwnPropertyDescriptor(
   'scrollIntoView',
 )
 
+let router: Router
+
 describe('WalletTopupView', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/add-credit', component: { template: '<main />' } },
+      { path: '/support', component: { template: '<main />' } },
+    ] })
+    await router.push('/add-credit')
+    await router.isReady()
     vi.clearAllMocks()
     vi.mocked(listWalletTopups).mockResolvedValue({ items: [], nextCursor: null, hasMore: false })
     vi.stubGlobal('scrollTo', vi.fn<typeof window.scrollTo>())
@@ -94,8 +103,22 @@ describe('WalletTopupView', () => {
     else Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   })
 
+  it('returns to Support only after a successful top-up and preserves Thai locale', async () => {
+    await router.replace('/add-credit?returnTo=/support&locale=th')
+    vi.spyOn(useAuthStore(), 'reloadCurrentUser').mockResolvedValue(undefined)
+    vi.mocked(listWalletTopups).mockResolvedValue({ items: [pendingInvoice], nextCursor: null, hasMore: false })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/add-credit')
+    vi.mocked(fetchWalletTopup).mockResolvedValue({ ...pendingInvoice, status: 'SUCCESS' })
+    await wrapper.get('.resume-button').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/support?locale=th')
+    wrapper.unmount()
+  })
+
   it('keeps the skin based on the actual balance when a top-up amount is selected', async () => {
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
     expect(wrapper.get('.balance-card').attributes('data-wallet-skin')).toBe('green')
     await wrapper.get('.amount-grid button:last-child').trigger('click')
     expect(wrapper.get('.balance-card').attributes('data-wallet-skin')).toBe('green')
@@ -106,7 +129,7 @@ describe('WalletTopupView', () => {
   })
 
   it('shows the current balance and amount choices', () => {
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
 
     expect(wrapper.text()).toContain('Current balance')
     expect(wrapper.text()).toContain('125.00')
@@ -116,7 +139,7 @@ describe('WalletTopupView', () => {
 
   it('creates an invoice for the selected preset and displays its QR', async () => {
     vi.mocked(createWalletTopup).mockResolvedValue(pendingInvoice)
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
 
     await wrapper.get('.amount-grid button:nth-child(3)').trigger('click')
     await wrapper.get('.continue-button').trigger('click')
@@ -134,7 +157,7 @@ describe('WalletTopupView', () => {
 
   it('accepts a custom whole-baht amount', async () => {
     vi.mocked(createWalletTopup).mockResolvedValue({ ...pendingInvoice, amountSatang: 75000 })
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
 
     const amountInput = wrapper.get('input[inputmode="numeric"]')
     await amountInput.setValue('abc750')
@@ -156,7 +179,7 @@ describe('WalletTopupView', () => {
       nextCursor: null,
       hasMore: false,
     })
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Top-up history')
@@ -169,7 +192,7 @@ describe('WalletTopupView', () => {
   })
 
   it('blocks out-of-range amounts and restores the preset selection', async () => {
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
     const input = wrapper.get('input[inputmode="numeric"]')
     const button = wrapper.get('.continue-button')
     for (const value of ['9', '100001']) {
@@ -191,7 +214,7 @@ describe('WalletTopupView', () => {
 
   it('rejects unsupported and oversized slips and lets the user remove and reselect an image', async () => {
     vi.mocked(createWalletTopup).mockResolvedValue(pendingInvoice)
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
     await wrapper.get('.continue-button').trigger('click')
     await flushPromises()
     const input = wrapper.get('input[type="file"]')
@@ -224,7 +247,7 @@ describe('WalletTopupView', () => {
     vi.mocked(verifyWalletTopupSlip)
       .mockRejectedValueOnce(new Error('Slip not found'))
       .mockResolvedValueOnce({ ...pendingInvoice, status: 'SUCCESS', balanceSatang: 42500 })
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
     await wrapper.get('.continue-button').trigger('click')
     await flushPromises()
     const file = new File(['image'], 'slip.png', { type: 'image/png' })
@@ -256,7 +279,7 @@ describe('WalletTopupView', () => {
 
   it('disables expired payments and returns to amount selection', async () => {
     vi.mocked(createWalletTopup).mockResolvedValue({ ...pendingInvoice, status: 'EXPIRED' })
-    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n] } })
+    const wrapper = mount(WalletTopupView, { global: { plugins: [i18n, router] } })
     await wrapper.get('.continue-button').trigger('click')
     await flushPromises()
     expect(wrapper.get('input[type="file"]').attributes('disabled')).toBeDefined()

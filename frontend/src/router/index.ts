@@ -120,10 +120,29 @@ export function createAppRouter(
         meta: { requiresAuth: true, seo: pageSeo.account },
       },
       {
+        path: '/terms',
+        name: 'terms',
+        component: () => import('../features/terms/views/TermsView.vue'),
+        meta: { seo: { title: 'Terms', description: 'Terms for FUJIPP accounts, payments, Discord bot services, and project support.' } },
+      },
+      {
         path: '/privacy',
         name: 'privacy',
         component: () => import('../features/privacy/views/PrivacyView.vue'),
         meta: { seo: pageSeo.privacy },
+      },
+      {
+        path: '/support',
+        alias: '/supports',
+        name: 'support',
+        component: () => import('../features/donation/views/SupportView.vue'),
+        meta: {
+          hideGlobalNavbar: true,
+          seo: {
+            title: 'Support',
+            description: 'Support Fujipp’s projects and meet the community of supporters.',
+          },
+        },
       },
       {
         path: '/donate',

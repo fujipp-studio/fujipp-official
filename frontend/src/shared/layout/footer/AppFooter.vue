@@ -12,7 +12,7 @@ withDefaults(
     socialLinks?: readonly FooterSocialLink[]
   }>(),
   {
-    copyright: '© 2026 Fujipp',
+    copyright: '© 2026 FUJIPP',
     socialLinks: () => [
       {
         label: 'LinkedIn',
@@ -29,6 +29,10 @@ withDefaults(
         label: 'Discord',
         icon: icons.social.discord,
         href: 'https://discord.gg/nRn7YDwGSH',
+      },
+      {
+        label: 'Terms',
+        to: '/terms',
       },
       {
         label: 'Privacy',
@@ -137,9 +141,11 @@ const route = useRoute()
 
 .footer__bottom {
   display: flex;
-  align-items: flex-end;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-lg);
+  font-size: var(--font-size-body-medium);
+  font-weight: var(--typography-font-weight-regular);
 }
 
 .footer__link-list {
@@ -155,11 +161,21 @@ const route = useRoute()
   border: 0;
   padding: 0;
   background: transparent;
-  color: inherit;
+  color: var(--semantic-color-text-text-secondary);
+  opacity: 0.6;
   font: inherit;
   line-height: var(--line-height-body);
   text-decoration: none;
   cursor: pointer;
+  transition: opacity 160ms ease;
+}
+
+.footer__link-list a:hover,
+.footer__link-list a:focus-visible,
+.footer__link-list a[aria-current='page'],
+.footer__link-list button:hover,
+.footer__link-list button:focus-visible {
+  opacity: 1;
 }
 
 .footer__link-list a::after,
@@ -186,6 +202,7 @@ const route = useRoute()
 .footer__copyright {
   margin: 0;
   color: var(--semantic-color-text-text-secondary);
+  opacity: 0.6;
   line-height: var(--line-height-body);
   white-space: nowrap;
 }
@@ -219,6 +236,8 @@ const route = useRoute()
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .footer__link-list a,
+  .footer__link-list button,
   .footer__link-list a::after,
   .footer__link-list button::after {
     transition: none;
