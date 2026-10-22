@@ -1,3 +1,4 @@
+import { messageSetsFeatureV11 } from "../src/features/message-sets/v1.1.0.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
@@ -508,5 +509,54 @@ test("a private confirmation failure never retries or reports a successful SET a
   assert.equal(failedConfirmation.sent.length, 1);
   assert.equal(failedConfirmation.replies.length, 0);
   assert.deepEqual(errors, ["MESSAGE_SET_ACK_FAILED"]);
+  await dispose();
+});
+
+
+test("v1.1 registers subcommands and updates only messages authored by this bot", async () => {
+  const client = new FakeClient();
+  client.ready = true;
+  Object.assign(client, { user: { id: "bot" } });
+  const c = context(client);
+  const gates: string[] = [];
+  c.permissions.canUse = (_i, command) => { gates.push(command); return true; };
+  const dispose = await messageSetsFeatureV11.activate(c);
+  const registered = client.registrations[0] as { options: { name: string }[] };
+  assert.deepEqual(registered.options.map(o => o.name), ["send", "update"]);
+  for (const [author, webhook, oldV2, newV2, expected] of [
+    ["other", false, false, false, false],
+    ["bot", true, false, false, false],
+    ["bot", false, true, false, false],
+    ["bot", false, false, false, true],
+    ["bot", false, false, true, true],
+    ["bot", false, true, true, true],
+  ] as const) {
+    const next = feature();
+    if (newV2) next.presentations.set_1 = {
+      mode: "COMPONENTS_V2", components_v2: { components: [{ type: 10, content: "Updated" }] },
+    };
+    await dispose.update!(next);
+    const i = interaction();
+    const edited: Record<string, unknown>[] = [];
+    const value = i.value as unknown as {
+      options: { getSubcommand: () => string; getString: (key: string) => string };
+      channel: { messages: unknown };
+    };
+    value.options.getSubcommand = () => "update";
+    value.options.getString = key => key === "message_id" ? "123456789012345678" : "Rules";
+    value.channel.messages = { fetch: async () => ({
+      author: { id: author }, webhookId: webhook ? "webhook" : null, flags: { has: () => oldV2 },
+      edit: async (payload: Record<string, unknown>) => edited.push(payload),
+    }) };
+    client.emit("interactionCreate", i.value);
+    await settle();
+    assert.equal(i.sent.length, 0);
+    assert.equal(edited.length, expected ? 1 : 0);
+    if (expected) {
+      assert.equal(edited[0]?.content, null);
+      assert.deepEqual(edited[0]?.attachments, []);
+    }
+  }
+  assert.deepEqual(gates, Array(6).fill("info/update"));
   await dispose();
 });

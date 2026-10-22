@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-22 | Added the draft Message Sets 1.1.0 catalog version with existing configuration and presentation defaults. |
 | 2026-10-21 | Added VPS-only identity compatibility and application role migrations for restoring application data while retaining managed Supabase Auth. |
 | 2026-10-21 | Added independent Shop Status Role mention settings with disabled defaults for existing installations. |
 | 2026-10-21 | Added Shop Status open/close mention settings with disabled defaults that preserve existing announcement behavior. |
