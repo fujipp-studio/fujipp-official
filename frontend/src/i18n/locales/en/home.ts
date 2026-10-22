@@ -1,30 +1,30 @@
 export default {
   hero: {
-    title: 'Have an idea? Build it.',
-    accent: "Here's what I've made.",
+    title: 'Hi, I’m Anawat.',
+    accent: 'I turn ideas into software.',
     summary:
-      'This website is a collection of projects I have designed and developed—a place to share what happens when an idea becomes something real.',
-    workAction: 'View my portfolio',
+      'I’m a full-stack developer building web apps, mobile apps, and automation. This is where I share what I’ve made and what I’m learning.',
+    workAction: 'Explore my work',
     galleryLabel: 'Portrait gallery',
     gallerySlide: 'Show portrait {number}',
   },
   problem: {
-    title: 'Discord Bots, Without the Setup Headache.',
+    title: 'Discord bots, built for real communities.',
     description:
-      'From custom features to reliable hosting, I build Discord bots that are straightforward to launch, easy to shape around your community, and ready to keep running.',
+      'I build and maintain Discord bots with custom features, automation, and hosting—helping communities manage everyday tasks.',
     imageAlt: 'Discord developer portal displayed on a floating Studio Display',
   },
   services: {
-    title: 'Premium Bot Features & Reliable Hosting',
-    customTitle: 'Custom Bot Features',
+    title: 'Discord bot development and maintenance',
+    customTitle: 'Features for your community',
     customDescription:
-      'Upgrade your server with our pre-built or custom-made features. Choose exactly what your community needs.',
-    runtimeTitle: 'Flexible Runtime Plans',
+      'Custom commands and automation shaped around how each server works.',
+    runtimeTitle: 'From development to deployment',
     runtimeDescription:
-      'Keep your bot online 24/7. We offer flexible runtime subscriptions tailored to your needs available in 1, 2, or 3 month plans.',
+      'Building, deploying, and maintaining bots beyond the first launch.',
   },
   trusted: {
-    title: 'Powering Discord Communities Every Day',
+    title: 'Communities using my bots',
     description:
       'Join our growing community! Currently powering custom bots and delivering smooth experiences for 3 active Discord communities.',
     listLabel: 'Trusted communities',
@@ -32,7 +32,7 @@ export default {
   about: {
     title: 'I build ideas into software that works.',
     description:
-      'I’m Anawat, a full-stack developer focused on practical products, thoughtful interfaces, automation, and systems that remain maintainable after launch.',
+      'I like turning everyday problems into useful tools, keeping things clear for the people who use them and manageable for the people who build them.',
     imageAlt: 'Portrait of Anawat Boripakhirun',
     aboutAction: 'More about me',
     workAction: 'View my portfolio',

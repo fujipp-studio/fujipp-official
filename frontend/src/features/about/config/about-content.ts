@@ -1,4 +1,8 @@
 import {
+  siApachenifi,
+  siFigma,
+  siGit,
+  siPostman,
   siDocker,
   siFlutter,
   siGithubactions,
@@ -19,12 +23,12 @@ import {
 
 export interface SkillItem {
   label: string
-  icon: SimpleIcon
+  icon?: SimpleIcon
 }
 
 export interface SkillGroup {
   titleKey: string
-  category: 'language' | 'frontend' | 'backend' | 'database' | 'infra'
+  category: 'language' | 'frontend' | 'backend' | 'database' | 'infra' | 'tools'
   skills: readonly SkillItem[]
 }
 
@@ -61,6 +65,7 @@ export const skillGroups = [
     skills: [
       { label: 'Node.js', icon: siNodedotjs },
       { label: 'Spring Boot', icon: siSpringboot },
+      { label: 'Apache NiFi', icon: siApachenifi },
     ],
   },
   {
@@ -80,6 +85,16 @@ export const skillGroups = [
       { label: 'Docker', icon: siDocker },
       { label: 'Nginx', icon: siNginx },
       { label: 'Linux Server', icon: siLinux },
+    ],
+  },
+  {
+    titleKey: 'about.skills.tools',
+    category: 'tools',
+    skills: [
+      { label: 'Git', icon: siGit },
+      { label: 'Postman', icon: siPostman },
+      { label: 'Figma', icon: siFigma },
+      { label: 'VS Code' },
     ],
   },
 ] satisfies readonly SkillGroup[]

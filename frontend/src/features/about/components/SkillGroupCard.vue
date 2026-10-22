@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Box, Code2, Database, Monitor, Server } from 'lucide-vue-next'
+import { Code2 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
 import type { SkillGroup } from '../config'
@@ -11,30 +11,18 @@ defineProps<{
 
 const { t } = useI18n()
 
-const categoryIcons = {
-  language: Code2,
-  frontend: Monitor,
-  backend: Server,
-  database: Database,
-  infra: Box,
-}
 </script>
 
 <template>
   <article class="skill-group-card" :class="`skill-group-card--${group.category}`">
     <h3>
-      <component
-        :is="categoryIcons[group.category]"
-        :size="24"
-        :stroke-width="1.75"
-        aria-hidden="true"
-      />
       <span>{{ t(group.titleKey) }}</span>
     </h3>
 
     <ul>
       <li v-for="skill in group.skills" :key="skill.label">
-        <TechnologyIcon :icon="skill.icon" />
+        <TechnologyIcon v-if="skill.icon" :icon="skill.icon" />
+        <Code2 v-else class="skill-group-card__fallback-icon" aria-hidden="true" />
         <span>{{ skill.label }}</span>
       </li>
     </ul>
@@ -43,33 +31,25 @@ const categoryIcons = {
 
 <style scoped>
 .skill-group-card {
-  position: relative;
-  overflow: hidden;
-  box-sizing: border-box;
+  display: grid;
   min-width: 0;
-  border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-lg);
-  padding: var(--space-xl);
-  background: var(--semantic-color-background-bg-surface);
-}
-
-.skill-group-card--infra {
-  grid-column: 1 / -1;
+  gap: var(--space-lg);
+  border-top: 1px solid var(--semantic-color-border-border-default);
+  padding-block: var(--space-xl);
 }
 
 .skill-group-card h3 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  margin: 0 0 var(--space-lg);
-  font-size: var(--font-size-heading-h1);
+  margin: 0;
+  color: var(--semantic-color-text-text-primary);
+  font-size: var(--font-size-heading-h3);
+  font-weight: var(--typography-font-weight-medium);
   line-height: var(--line-height-heading);
 }
 
 .skill-group-card ul {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  gap: var(--space-lg) var(--space-xl);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -77,28 +57,37 @@ const categoryIcons = {
 
 .skill-group-card li {
   display: inline-flex;
-  min-height: 2.5rem;
   align-items: center;
-  gap: var(--space-xs);
-  border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-full);
-  padding: var(--space-xs) var(--space-md);
-  background: var(--semantic-color-background-bg-glass);
+  gap: var(--space-sm);
   color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-label-large);
-  font-weight: var(--typography-font-weight-medium);
-  white-space: nowrap;
+  font-size: var(--font-size-body-medium);
+  line-height: var(--line-height-body);
+  transition: color 160ms ease;
 }
 
-@media (max-width: 47.99rem) {
+.skill-group-card__fallback-icon {
+  width: var(--icon-size-24);
+  height: var(--icon-size-24);
+  flex-shrink: 0;
+  color: var(--semantic-color-text-text-primary);
+}
+
+.skill-group-card li:hover {
+  color: var(--semantic-color-text-text-primary);
+}
+
+@media (min-width: 48rem) {
   .skill-group-card {
-    padding: var(--space-lg);
-  }
-
-  .skill-group-card li {
-    padding-inline: var(--space-sm);
-    font-size: var(--font-size-label-medium);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: baseline;
+    gap: var(--space-2xl);
+    padding-block: var(--space-2xl);
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .skill-group-card li {
+    transition: none;
+  }
+}
 </style>
