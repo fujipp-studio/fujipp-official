@@ -8,8 +8,13 @@ import { AppButton, AppProgressiveImage } from '../../../shared/ui'
 import { icons } from '../../../config'
 import { useThemeStore } from '../../../stores'
 import { DonationSupportSection } from '../../donation/components'
-import { AboutContactSection, AboutSectionNavigation, SkillGroupCard } from '../components'
-import { experienceHighlights, skillGroups } from '../config'
+import {
+  AboutContactSection,
+  AboutExperienceSection,
+  AboutSectionNavigation,
+  SkillGroupCard,
+} from '../components'
+import { skillGroups } from '../config'
 
 const { isDarkTheme } = storeToRefs(useThemeStore())
 const { t } = useI18n()
@@ -51,7 +56,7 @@ onMounted(() => {
   document.documentElement.classList.add('about-section-scroll')
   ageTimer = window.setInterval(() => {
     ageClock.value = new Date()
-  }, 60_000)
+  }, 1_000)
 })
 
 onBeforeUnmount(() => {
@@ -67,7 +72,6 @@ onBeforeUnmount(() => {
       <section id="about-profile" class="about-section about-profile">
         <div class="about-profile__grid">
           <div class="about-copy about-profile__content">
-            <p class="about-profile__eyebrow">{{ t('about.sections.profile') }}</p>
             <h1>{{ t('about.profile.name') }}</h1>
             <p class="about-profile__introduction">{{ t('about.profile.introduction') }}</p>
             <nav class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
@@ -87,7 +91,10 @@ onBeforeUnmount(() => {
               >
                 LinkedIn
               </AppButton>
-              <AppButton href="mailto:anawat.boripakhirun@gmail.com" :left-icon="icons.social.email">
+              <AppButton
+                href="mailto:anawat.boripakhirun@gmail.com"
+                :left-icon="icons.social.email"
+              >
                 {{ t('about.profile.mail') }}
               </AppButton>
             </nav>
@@ -97,6 +104,7 @@ onBeforeUnmount(() => {
             <div class="about-profile__image">
               <AppProgressiveImage
                 class="about-profile__picture"
+                :class="{ 'about-profile__picture--dark': isDarkTheme }"
                 :src="profileImageSrc"
                 :placeholder-src="profilePlaceholderSrc"
                 :alt="t('about.profile.portraitAlt')"
@@ -105,7 +113,6 @@ onBeforeUnmount(() => {
                 loading="eager"
                 fetchpriority="high"
               />
-              <strong class="about-profile__name">Fuji</strong>
             </div>
           </div>
         </div>
@@ -122,37 +129,10 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section id="about-experience" class="about-section about-experience">
-        <div class="about-experience__inner">
-          <header class="about-experience__heading">
-            <div class="about-experience__intro">
-              <p class="about-experience__eyebrow">{{ t('about.sections.experience') }}</p>
-              <h2>{{ t('about.experience.title') }}</h2>
-            </div>
-            <div class="about-experience__summary">
-              <span class="about-experience__duration">{{ t('about.experience.duration') }}</span>
-              <div class="about-experience__role">
-                <strong>{{ t('about.experience.role') }}</strong>
-                <p>{{ t('about.experience.company') }}</p>
-              </div>
-            </div>
-          </header>
-
-          <ol class="about-experience__list">
-            <li v-for="(highlight, index) in experienceHighlights" :key="highlight.titleKey">
-              <span class="about-experience__number" aria-hidden="true">0{{ index + 1 }}</span>
-              <div class="about-experience__item-copy">
-                <h3>{{ t(highlight.titleKey) }}</h3>
-                <p>{{ t(highlight.descriptionKey) }}</p>
-              </div>
-            </li>
-          </ol>
-        </div>
-      </section>
+      <AboutExperienceSection />
 
       <section id="about-skills" class="about-section about-skills">
         <header class="about-skills__heading">
-          <p class="about-skills__eyebrow">{{ t('about.sections.skills') }}</p>
           <h2>{{ t('about.skills.title') }}</h2>
           <p class="about-skills__statement">
             {{ t('about.skills.description') }}
@@ -211,21 +191,13 @@ onBeforeUnmount(() => {
 
 .about-profile__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 27rem);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 23rem);
   align-items: center;
   gap: clamp(var(--space-2xl), 6vw, var(--space-5xl));
 }
 
 .about-profile__content {
   max-width: 45rem;
-}
-
-.about-profile__eyebrow {
-  color: var(--semantic-color-text-text-accent);
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .about-profile__introduction {
@@ -238,28 +210,14 @@ onBeforeUnmount(() => {
   width: 100%;
 }
 
-.about-profile__portrait::before {
-  position: absolute;
-  z-index: -1;
-  inset: -8%;
-  border-radius: var(--corner-radius-full);
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--semantic-color-text-text-accent) 16%, transparent),
-    transparent 70%
-  );
-  content: '';
-}
-
 .about-profile__image {
   position: relative;
   overflow: hidden;
   width: 100%;
   aspect-ratio: 4 / 5;
   border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-lg);
+  border-radius: var(--corner-radius-sm);
   background: var(--semantic-color-background-bg-surface);
-  box-shadow: var(--effect-shadow-lg);
 }
 
 .about-profile__picture {
@@ -269,20 +227,8 @@ onBeforeUnmount(() => {
   object-fit: cover;
 }
 
-.about-profile__name {
-  position: absolute;
-  z-index: 2;
-  right: var(--space-md);
-  bottom: var(--space-md);
-  padding: var(--space-xs) var(--space-sm);
-  border: 1px solid var(--semantic-color-border-border-subtle);
-  border-radius: var(--corner-radius-full);
-  background: var(--semantic-color-background-bg-default);
-  color: var(--semantic-color-text-text-primary);
-  font-family: var(--font-family-display);
-  font-size: var(--font-size-label-large);
-  line-height: var(--line-height-label);
-  white-space: nowrap;
+.about-profile__picture--dark {
+  filter: grayscale(1) brightness(1.6) contrast(0.95);
 }
 
 .about-profile__details {
@@ -333,9 +279,7 @@ onBeforeUnmount(() => {
 .about-copy h2,
 .about-copy p,
 .about-skills__heading h2,
-.about-skills__heading p,
-.about-experience__heading h2,
-.about-experience__heading p {
+.about-skills__heading p {
   margin: 0;
 }
 
@@ -368,67 +312,30 @@ onBeforeUnmount(() => {
   line-height: var(--line-height-body);
 }
 
-.about-copy > p:not(.about-eyebrow):not(.about-profile__eyebrow),
-.about-experience__heading > p:not(.about-eyebrow) {
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-body-large);
-  line-height: var(--line-height-body);
-}
-
-.about-skills,
-.about-experience {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: var(--space-xl);
-}
-
-.about-skills__heading {
-  display: flex;
-  width: min(100%, 72rem);
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-md);
-  margin-inline: auto;
-  text-align: center;
-}
-
-.about-skills__heading h2,
-.about-experience__heading h2 {
-  margin-top: 0;
-  font-size: clamp(3rem, 7vw, 6rem);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: -0.055em;
-  line-height: 0.94;
-}
-
-.about-experience__heading h2 {
-  white-space: pre-line;
-}
-
-.about-skills__statement,
-.about-experience__summary p {
+.about-copy > p {
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-large);
   line-height: var(--line-height-body);
 }
 
 .about-skills {
+  display: grid;
   gap: var(--space-3xl);
 }
 
-.about-skills__eyebrow {
-  color: var(--semantic-color-text-text-accent);
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+.about-skills__heading,
+.about-skills__grid {
+  width: min(100%, 72rem);
+  margin-inline: auto;
 }
 
 .about-skills__heading h2 {
+  margin: 0;
   max-width: 18ch;
-  font-size: clamp(3.5rem, 7vw, 6.5rem);
-  line-height: 0.98;
+  font-size: clamp(2.75rem, 6vw, 5rem);
+  font-weight: var(--typography-font-weight-bold);
+  letter-spacing: -0.055em;
+  line-height: 1.05;
 }
 
 .about-skills__heading h2:lang(th) {
@@ -438,282 +345,15 @@ onBeforeUnmount(() => {
 
 .about-skills__statement {
   max-width: 40rem;
-}
-
-.about-skills__grid {
-  display: grid;
-  width: min(100%, 72rem);
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: var(--space-md);
-  margin-inline: auto;
-}
-
-.about-skills__grid :deep(.skill-group-card) {
-  display: flex;
-  min-height: 18rem;
-  grid-column: span 5;
-  flex-direction: column;
-  align-self: stretch;
-  justify-content: space-between;
-  gap: var(--space-2xl);
-  border: 1px solid var(--semantic-color-border-border-subtle);
-  border-radius: var(--corner-radius-lg);
-  padding: var(--space-xl);
-  background:
-    radial-gradient(
-      circle at 90% 0,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 8%, transparent),
-      transparent 60%
-    ),
-    var(--semantic-color-background-bg-surface);
-  box-shadow: var(--effect-shadow-sm);
-  text-align: left;
-  transition: box-shadow 180ms ease;
-}
-
-.about-skills__grid :deep(.skill-group-card:hover) {
-  box-shadow: var(--effect-shadow-lg);
-}
-
-.about-skills__grid :deep(.skill-group-card h3) {
-  position: relative;
-  z-index: 1;
-  align-items: flex-start;
-  margin: 0;
-  font-size: clamp(1.75rem, 2.4vw, 2.25rem);
-  letter-spacing: -0.035em;
-  line-height: 1.1;
-}
-
-.about-skills__grid :deep(.skill-group-card h3 svg) {
-  flex-shrink: 0;
-}
-
-.about-skills__grid :deep(.skill-group-card ul) {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm);
-}
-
-.about-skills__grid :deep(.skill-group-card li) {
-  min-width: 0;
-  min-height: 2.75rem;
-  border-color: var(--semantic-color-border-border-subtle);
-  border-radius: var(--corner-radius-full);
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--semantic-color-background-bg-default);
-  font-size: var(--font-size-label-medium);
-  white-space: nowrap;
-}
-
-.about-skills__grid :deep(.technology-icon) {
-  box-sizing: border-box;
-  border-radius: var(--corner-radius-sm);
-  padding: var(--space-xxs);
-  background: var(--semantic-color-action-backgrounds-bg-primary);
-}
-
-.about-skills__grid :deep(.skill-group-card--frontend),
-.about-skills__grid :deep(.skill-group-card--database) {
-  grid-column: span 7;
-}
-
-.about-skills__grid :deep(.skill-group-card--frontend) {
-  border-color: transparent;
-  background:
-    radial-gradient(
-      circle at 90% 0,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 18%, transparent),
-      transparent 60%
-    ),
-    var(--semantic-color-background-bg-inverse);
-  color: var(--semantic-color-text-text-inverse);
-}
-
-.about-skills__grid :deep(.skill-group-card--frontend li) {
-  border-color: color-mix(in srgb, currentColor 20%, transparent);
-  background: color-mix(in srgb, currentColor 10%, transparent);
-  color: inherit;
-}
-
-.about-skills__grid :deep(.skill-group-card--infra) {
-  grid-column: 1 / -1;
-  min-height: 14rem;
-  flex-direction: row;
-  align-items: flex-end;
-}
-
-.about-skills__grid :deep(.skill-group-card--infra ul) {
-  max-width: 34rem;
-  justify-content: flex-end;
-}
-
-.about-experience {
-  max-width: none;
-}
-
-.about-experience__inner {
-  width: min(100%, 72rem);
-  margin-inline: auto;
-}
-
-.about-experience__heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 20rem);
-  align-items: center;
-  gap: var(--space-3xl);
-  margin-bottom: var(--space-3xl);
-}
-
-.about-experience__intro {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-sm);
-}
-
-.about-experience__eyebrow {
-  color: var(--semantic-color-text-text-accent);
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.about-experience__heading h2 {
-  font-size: clamp(3.5rem, 7vw, 6.5rem);
-  line-height: 0.95;
-}
-
-.about-experience__heading h2:lang(th) {
-  letter-spacing: 0;
-  line-height: 1.22;
-}
-
-.about-experience__summary {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-md);
-  border-top: 1px solid var(--semantic-color-border-border-default);
-  padding-top: var(--space-lg);
-}
-
-.about-experience__duration {
-  font-family: var(--font-family-display);
-  font-size: clamp(3.25rem, 5vw, 5rem);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: -0.06em;
-  line-height: 1;
-}
-
-.about-experience__role {
-  display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: var(--space-xs);
-  font-size: var(--font-size-label-large);
-  line-height: var(--line-height-label);
-}
-
-.about-experience__list {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: var(--space-md);
-  margin-block: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.about-experience__list li {
-  display: flex;
-  min-height: 18rem;
-  grid-column: span 5;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-2xl);
-  border: 1px solid var(--semantic-color-border-border-subtle);
-  border-radius: var(--corner-radius-lg);
-  padding: var(--space-xl);
-  background:
-    radial-gradient(
-      circle at 95% 0,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 9%, transparent),
-      transparent 65%
-    ),
-    var(--semantic-color-background-bg-surface);
-  box-shadow: var(--effect-shadow-sm);
-  transition: box-shadow 180ms ease;
-}
-
-.about-experience__list li:nth-child(4n + 1),
-.about-experience__list li:nth-child(4n + 4) {
-  grid-column: span 7;
-  border-color: transparent;
-  background:
-    radial-gradient(
-      circle at 95% 0,
-      color-mix(in srgb, var(--semantic-color-text-text-accent) 18%, transparent),
-      transparent 60%
-    ),
-    var(--semantic-color-background-bg-inverse);
-  color: var(--semantic-color-text-text-inverse);
-}
-
-.about-experience__list li:hover {
-  box-shadow: var(--effect-shadow-lg);
-}
-
-.about-experience__item-copy {
-  display: flex;
-  max-width: 32rem;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-
-.about-experience__number {
-  color: var(--semantic-color-text-text-secondary);
-  font-family: var(--font-family-display);
-  font-size: clamp(3rem, 5vw, 4.5rem);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: -0.08em;
-  line-height: 0.9;
-  opacity: 0.45;
-}
-
-.about-experience__list li:nth-child(4n + 1) .about-experience__number,
-.about-experience__list li:nth-child(4n + 4) .about-experience__number {
-  color: inherit;
-}
-
-.about-experience__list h3,
-.about-experience__list p {
-  margin: 0;
-}
-
-.about-experience__list h3 {
-  font-size: clamp(1.5rem, 2.2vw, 2rem);
-  letter-spacing: -0.035em;
-  line-height: 1.12;
-}
-
-.about-experience__list h3:lang(th) {
-  letter-spacing: 0;
-  line-height: 1.3;
-}
-
-.about-experience__list p {
+  margin: var(--space-lg) 0 0;
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-large);
   line-height: var(--line-height-body);
 }
 
-.about-experience__list li:nth-child(4n + 1) p,
-.about-experience__list li:nth-child(4n + 4) p {
-  color: inherit;
-  opacity: 0.78;
+.about-skills__grid {
+  display: grid;
+  border-bottom: 1px solid var(--semantic-color-border-border-default);
 }
 
 @media (max-width: 63.99rem) {
@@ -722,63 +362,18 @@ onBeforeUnmount(() => {
   }
 
   .about-profile__portrait {
-    width: min(100%, 26rem);
+    width: min(100%, 23rem);
     justify-self: center;
   }
 
-  .about-skills__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
-  .about-skills__grid :deep(.skill-group-card) {
-    grid-column: auto;
-  }
 
-  .about-skills__grid :deep(.skill-group-card--infra) {
-    grid-column: 1 / -1;
-  }
-
-  .about-skills__grid :deep(.skill-group-card--infra ul) {
-    max-width: 28rem;
-  }
 
 }
 
 @media (max-width: 47.99rem) {
   .about-section {
     padding-block: var(--space-4xl);
-  }
-
-  .about-experience__heading {
-    grid-template-columns: 1fr;
-    gap: var(--space-lg);
-    margin-bottom: var(--space-2xl);
-  }
-
-  .about-experience__heading h2 {
-    font-size: clamp(2.75rem, 10vw, 4.5rem);
-  }
-
-  .about-experience__summary {
-    gap: var(--space-sm);
-  }
-
-  .about-experience__duration {
-    font-size: var(--font-size-heading-h1);
-  }
-
-  .about-experience__list {
-    grid-template-columns: 1fr;
-  }
-
-  .about-experience__list li:nth-child(n) {
-    min-height: 14rem;
-    grid-column: 1;
-    padding: var(--space-lg);
-  }
-
-  .about-experience__number {
-    font-size: var(--font-size-heading-h1);
   }
 
   .about-skills {
@@ -789,18 +384,8 @@ onBeforeUnmount(() => {
     font-size: clamp(2.75rem, 10vw, 4.5rem);
   }
 
-  .about-skills__grid :deep(.skill-group-card) {
-    min-height: 14rem;
-  }
 
-  .about-skills__grid :deep(.skill-group-card--infra) {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 
-  .about-skills__grid :deep(.skill-group-card--infra ul) {
-    justify-content: flex-start;
-  }
 
   .about-profile {
     min-height: auto;
@@ -809,12 +394,9 @@ onBeforeUnmount(() => {
   }
 
   .about-profile__portrait {
-    width: min(100%, 24rem);
+    width: min(100%, 20rem);
   }
 
-  .about-profile__image {
-    aspect-ratio: 1;
-  }
 
   .about-profile__facts {
     grid-template-columns: 1fr;
@@ -825,18 +407,7 @@ onBeforeUnmount(() => {
     font-size: clamp(2.75rem, 10vw, 4.5rem);
   }
 
-  .about-skills__grid :deep(.skill-group-card) {
-    grid-column: 1;
-  }
 
-  .about-skills__grid {
-    grid-template-columns: 1fr;
-  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .about-skills__grid :deep(.skill-group-card) {
-    transition: none;
-  }
-}
 </style>

@@ -1,22 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { AppTextLink } from '../../../shared/ui'
+import DeveloperCodeCard from './DeveloperCodeCard.vue'
 
-import { AppProgressiveImage, AppTextLink } from '../../../shared/ui'
-import { useThemeStore } from '../../../stores'
 const { locale, t } = useI18n()
-const { isDarkTheme } = storeToRefs(useThemeStore())
-const profileImageSrc = computed(() =>
-  isDarkTheme.value
-    ? '/images/about/anawat-grudtoop-profile-cropped-768.webp'
-    : '/images/about/anawat-grudtoop-profile-512.webp',
-)
-const profilePlaceholderSrc = computed(() =>
-  isDarkTheme.value
-    ? '/images/about/anawat-grudtoop-profile-cropped-lqip.webp'
-    : '/images/about/anawat-grudtoop-profile-512-lqip.webp',
-)
 
 function localizedRoute(path: '/about' | '/work') {
   return { path, query: locale.value === 'th' ? { locale: 'th' } : {} }
@@ -30,18 +17,7 @@ function localizedRoute(path: '/about' | '/work') {
     aria-labelledby="about-us-title"
   >
     <div class="about-us-section__layout">
-      <div class="about-us-section__portrait">
-        <AppProgressiveImage
-          class="about-us-section__image"
-          :src="profileImageSrc"
-          :placeholder-src="profilePlaceholderSrc"
-          :alt="t('home.about.imageAlt')"
-          width="512"
-          height="512"
-          loading="lazy"
-          fit="cover"
-        />
-      </div>
+      <DeveloperCodeCard />
 
       <div class="about-us-section__content">
         <h2 id="about-us-title">{{ t('home.about.title') }}</h2>
@@ -50,9 +26,6 @@ function localizedRoute(path: '/about' | '/work') {
         <div class="about-us-section__actions">
           <AppTextLink :to="localizedRoute('/about')">
             {{ t('home.about.aboutAction') }}
-          </AppTextLink>
-          <AppTextLink :to="localizedRoute('/work')">
-            {{ t('home.about.workAction') }}
           </AppTextLink>
         </div>
       </div>
@@ -80,21 +53,9 @@ function localizedRoute(path: '/about' | '/work') {
 .about-us-section__layout {
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(16rem, 0.8fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   align-items: center;
-  gap: var(--space-3xl);
-}
-
-.about-us-section__portrait {
-  overflow: hidden;
-  border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-lg);
-  aspect-ratio: 1;
-}
-
-.about-us-section__image {
-  width: 100%;
-  height: 100%;
+  gap: clamp(var(--space-xl), 6vw, var(--space-5xl));
 }
 
 .about-us-section__content {
@@ -102,7 +63,7 @@ function localizedRoute(path: '/about' | '/work') {
   width: min(100%, var(--layout-reading-max-width));
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-sm);
+  gap: var(--space-lg);
 }
 
 .about-us-section h2,
@@ -112,9 +73,11 @@ function localizedRoute(path: '/about' | '/work') {
 }
 
 .about-us-section h2 {
-  font-size: var(--font-size-display-small);
-  font-weight: var(--typography-font-weight-bold);
-  line-height: var(--line-height-display);
+  max-width: 18ch;
+  font-size: clamp(2.25rem, 4.4vw, 4.75rem);
+  font-weight: var(--typography-font-weight-medium);
+  letter-spacing: -0.045em;
+  line-height: 1.08;
 }
 
 .about-us-section p {
@@ -123,11 +86,16 @@ function localizedRoute(path: '/about' | '/work') {
   line-height: var(--line-height-body);
 }
 
+.about-us-section h2:lang(th) {
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
 .about-us-section__actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-md) var(--space-xl);
-  margin-top: var(--space-sm);
+  margin-top: var(--space-lg);
 }
 
 @media (max-width: 47.99rem) {
@@ -142,10 +110,7 @@ function localizedRoute(path: '/about' | '/work') {
     gap: var(--space-xl);
   }
 
-  .about-us-section__portrait {
-    width: min(100%, 20rem);
-    margin-inline: auto;
-  }
+
 
 }
 </style>

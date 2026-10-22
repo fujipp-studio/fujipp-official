@@ -291,15 +291,17 @@ function navigationLabel(item: NavbarLink) {
     border: 0;
     padding: 0;
     background: transparent;
-    color: inherit;
+    color: var(--semantic-color-text-text-secondary);
     font: inherit;
     font-weight: var(--typography-font-weight-medium);
     text-align: left;
   }
 
   .mobile-menu__row:hover,
-  .mobile-menu__row[aria-current='page'] {
-    color: var(--semantic-color-text-text-accent);
+  .mobile-menu__row:focus-visible,
+  .mobile-menu__row[aria-current='page'],
+  .mobile-menu__row[aria-expanded='true'] {
+    color: var(--semantic-color-text-text-primary);
   }
 
   .mobile-menu__row-label {

@@ -13,7 +13,14 @@ async function loadSupabaseClient() {
 
 function getAuthCallbackUrl(): string {
   const configuredSiteUrl = import.meta.env.VITE_SITE_URL?.trim().replace(/\/+$/, '')
-  return `${configuredSiteUrl || window.location.origin}/auth/callback`
+  const callback = new URL(`${configuredSiteUrl || window.location.origin}/auth/callback`)
+  if (['/support', '/supports'].includes(window.location.pathname)) {
+    callback.searchParams.set('returnTo', '/support')
+    if (new URLSearchParams(window.location.search).get('locale') === 'th') {
+      callback.searchParams.set('locale', 'th')
+    }
+  }
+  return callback.toString()
 }
 
 interface AuthActionResult {

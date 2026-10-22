@@ -18,8 +18,13 @@ for (const theme of ['LIGHT', 'DARK']) {
         'GitHub',
         'Instagram',
         'Discord',
+        'Terms',
         'Privacy',
       ])
+      await expect(links.getByRole('link', { name: 'Terms', exact: true })).toHaveAttribute(
+        'href',
+        locale === 'th' ? '/terms?locale=th' : '/terms',
+      )
       for (const [name, href] of [
         ['LinkedIn', 'https://www.linkedin.com/in/anawat-boripakhirun-aa1799426'],
         ['GitHub', 'https://github.com/Fujipp'],

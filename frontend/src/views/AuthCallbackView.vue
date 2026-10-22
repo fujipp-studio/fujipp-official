@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { defineAsyncComponent, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 import AuthMark from '../shared/ui/dialogs/AuthMark.vue'
 const AppAuthLoadingOverlay = defineAsyncComponent(() => import('../shared/ui/dialogs/AppAuthLoadingOverlay.vue'))
@@ -9,6 +9,7 @@ import DesignSystemView from './DesignSystemView.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 const message = ref('Completing sign in…')
 const failed = ref(false)
 
@@ -23,7 +24,12 @@ onMounted(async () => {
   const result = await authStore.completeOAuthCallback()
   if (result.success) {
     const recovery = new URL(window.location.href).searchParams.get('recovery') === '1'
-    await router.replace(recovery ? { path: '/account', query: { recovery: '1' } } : '/')
+    const returnToSupport = route.query.returnTo === '/support'
+    await router.replace(recovery
+      ? { path: '/account', query: { recovery: '1' } }
+      : returnToSupport
+        ? { path: '/support', query: route.query.locale === 'th' ? { locale: 'th' } : {} }
+        : '/')
     return
   }
   failed.value = true

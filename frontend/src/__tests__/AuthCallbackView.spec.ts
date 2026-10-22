@@ -7,7 +7,11 @@ import { useAuthStore } from '../stores'
 import AuthCallbackView from '../views/AuthCallbackView.vue'
 
 describe('AuthCallbackView', () => {
-  it('returns to the home page after authentication succeeds', async () => {
+  it.each([
+    ['/auth/callback', '/'],
+    ['/auth/callback?returnTo=/support&locale=th', '/support?locale=th'],
+    ['/auth/callback?returnTo=https://example.com', '/'],
+  ])('returns from %s to %s after authentication', async (callback, expected) => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const authStore = useAuthStore()
@@ -18,9 +22,10 @@ describe('AuthCallbackView', () => {
       routes: [
         { path: '/', component: { template: '<main>Home</main>' } },
         { path: '/auth/callback', component: AuthCallbackView },
+        { path: '/support', component: { template: '<main>Support</main>' } },
       ],
     })
-    await router.push('/auth/callback')
+    await router.push(callback)
     await router.isReady()
 
     mount(AuthCallbackView, {
@@ -31,6 +36,6 @@ describe('AuthCallbackView', () => {
     })
     await flushPromises()
 
-    expect(router.currentRoute.value.path).toBe('/')
+    expect(router.currentRoute.value.fullPath).toBe(expected)
   })
 })

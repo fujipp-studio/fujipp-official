@@ -1,6 +1,6 @@
 export default {
   home: 'Home',
-  work: 'Portfolio',
+  work: 'Work',
   about: 'About',
   store: 'Store',
   myBot: 'My bot',

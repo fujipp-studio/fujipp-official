@@ -937,7 +937,9 @@ function closeProfileMenu() {
   padding-inline: var(--space-sm);
   background: transparent;
   color: inherit;
+  opacity: 0.6;
   font: inherit;
+  font-weight: var(--typography-font-weight-regular);
   text-decoration: none;
   touch-action: none;
   white-space: nowrap;
@@ -945,7 +947,15 @@ function closeProfileMenu() {
     border-color 180ms ease,
     background-color 180ms ease,
     box-shadow 180ms ease,
-    color 160ms ease;
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+.navigation__link:hover,
+.navigation__link:focus-visible,
+.navigation__link[aria-current='page'],
+.navigation__link[aria-expanded='true'] {
+  opacity: 1;
 }
 
 .navigation__item {

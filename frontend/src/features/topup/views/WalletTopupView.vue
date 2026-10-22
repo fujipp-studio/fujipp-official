@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useRoute, useRouter } from 'vue-router'
 
 import {
   createWalletTopup,
@@ -39,6 +40,8 @@ const presets = [50, 100, 300, 500, 1000]
 const authStore = useAuthStore()
 const { session, currentUser } = storeToRefs(authStore)
 const { locale, t } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const selectedAmount = ref(100)
 const customAmount = ref<string | number>('')
 const invoice = ref<WalletTopupInvoice | null>(null)
@@ -299,6 +302,15 @@ function stopTimer() {
 watch(slip, (file) => {
   if (slipPreview.value) URL.revokeObjectURL(slipPreview.value)
   slipPreview.value = file ? URL.createObjectURL(file) : ''
+})
+
+watch(completed, async (success) => {
+  if (!success || route.query.returnTo !== '/support') return
+  await authStore.reloadCurrentUser()
+  await router.replace({
+    path: '/support',
+    query: route.query.locale === 'th' ? { locale: 'th' } : {},
+  })
 })
 
 onBeforeUnmount(() => {

@@ -16,6 +16,7 @@ const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/App
 import { useAuthStore } from '@/stores'
 
 const pageSize = 5
+withDefaults(defineProps<{ standalone?: boolean }>(), { standalone: false })
 const presets = [50, 100, 300, 500, 1000]
 const auth = useAuthStore()
 const { currentUser, session } = storeToRefs(auth)
@@ -29,7 +30,9 @@ const error = ref('')
 const leaderboardPage = ref(1)
 const authDialogOpen = ref(false)
 const authDialogLoaded = ref(false)
-watch(authDialogOpen, open => { if (open) authDialogLoaded.value = true })
+watch(authDialogOpen, (open) => {
+  if (open) authDialogLoaded.value = true
+})
 const donationModalOpen = ref(false)
 const openAfterLogin = ref(false)
 const selectedAmount = ref(100)
@@ -150,7 +153,10 @@ async function goToTopup() {
   donationModalOpen.value = false
   await router.push({
     path: '/add-credit',
-    query: route.query.locale === 'th' ? { locale: 'th' } : {},
+    query: {
+      ...(route.query.locale === 'th' ? { locale: 'th' } : {}),
+      ...(['/support', '/supports'].includes(route.path) ? { returnTo: '/support' } : {}),
+    },
   })
 }
 
@@ -183,9 +189,8 @@ onMounted(() => void loadCampaign())
 
     <div v-else class="support-shell">
       <header class="support-header">
-        <p class="support-eyebrow">{{ t('about.sections.support') }}</p>
         <div class="support-header__row">
-          <h2 id="support-title">{{ t('donation.ranking') }}</h2>
+          <component :is="standalone ? 'h1' : 'h2'" id="support-title">{{ t('donation.ranking') }}</component>
           <span>{{ campaign.supporterCount }} {{ t('donation.supporters') }}</span>
         </div>
       </header>
@@ -209,7 +214,9 @@ onMounted(() => void loadCampaign())
                       {{ entry.rank.toString().padStart(2, '0') }}
                     </span>
                   </td>
-                  <td><strong>{{ entry.displayName }}</strong></td>
+                  <td>
+                    <strong>{{ entry.displayName }}</strong>
+                  </td>
                   <td>{{ entry.donationCount }}</td>
                   <td>{{ money(entry.totalSatang) }}</td>
                 </tr>
@@ -295,12 +302,16 @@ onMounted(() => void loadCampaign())
         <Heart :size="36" aria-hidden="true" />
         <strong>{{ t('donation.successTitle') }}</strong>
         <span>{{ money(completedDonation.amountSatang) }}</span>
-        <AppButton variant="primary" @click="resetDonation">{{ t('donation.donateAgain') }}</AppButton>
+        <AppButton variant="primary" @click="resetDonation">{{
+          t('donation.donateAgain')
+        }}</AppButton>
       </div>
 
       <div v-else class="donation-form">
         <div class="wallet-balance">
-          <span><WalletCards :size="18" aria-hidden="true" />{{ t('donation.walletBalance') }}</span>
+          <span
+            ><WalletCards :size="18" aria-hidden="true" />{{ t('donation.walletBalance') }}</span
+          >
           <strong>{{ money(balanceSatang) }}</strong>
         </div>
 
@@ -388,15 +399,6 @@ onMounted(() => void loadCampaign())
   margin-bottom: var(--space-3xl);
 }
 
-.support-eyebrow {
-  margin: 0 0 var(--space-sm);
-  color: var(--semantic-color-text-text-accent);
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .support-header__row {
   display: flex;
   align-items: end;
@@ -422,7 +424,7 @@ onMounted(() => void loadCampaign())
   box-shadow: var(--effect-shadow-sm);
 }
 
-.support-header h2 {
+.support-header :is(h1, h2) {
   margin: 0;
   font-size: clamp(3.5rem, 7vw, 6.5rem);
   font-weight: var(--typography-font-weight-bold);
@@ -430,7 +432,7 @@ onMounted(() => void loadCampaign())
   line-height: 0.98;
 }
 
-.support-header h2:lang(th) {
+.support-header :is(h1, h2):lang(th) {
   letter-spacing: 0;
   line-height: 1.2;
 }
@@ -891,7 +893,7 @@ onMounted(() => void loadCampaign())
     gap: var(--space-md);
   }
 
-  .support-header h2 {
+  .support-header :is(h1, h2) {
     font-size: clamp(2.75rem, 10vw, 4.5rem);
   }
 

@@ -3,7 +3,6 @@ import { onBeforeUnmount, ref } from 'vue'
 import { ArrowUpRight, Check, Copy } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 
-import { AppButton } from '@/shared/ui'
 
 const email = 'anawat.boripakhirun@gmail.com'
 const { t } = useI18n()
@@ -32,21 +31,17 @@ onBeforeUnmount(() => {
   <section id="about-contact" class="contact-section" aria-labelledby="contact-title">
     <div class="contact-layout">
       <div class="contact-copy">
-        <p class="contact-eyebrow">{{ t('about.sections.contact') }}</p>
         <h2 id="contact-title">{{ t('about.contact.title') }}</h2>
         <p class="contact-description">{{ t('about.contact.description') }}</p>
       </div>
 
       <div class="contact-card">
-        <ArrowUpRight
-          class="contact-card__arrow"
-          :size="40"
-          :stroke-width="1.5"
-          aria-hidden="true"
-        />
         <p class="contact-card__label">{{ t('about.contact.emailLabel') }}</p>
         <div class="contact-card__email-row">
-          <a :href="`mailto:${email}`" class="contact-email">{{ email }}</a>
+          <a :href="`mailto:${email}`" class="contact-email">
+            <span>{{ email }}</span>
+            <ArrowUpRight class="contact-card__arrow" :stroke-width="1.25" aria-hidden="true" />
+          </a>
           <button
             class="contact-copy-button"
             type="button"
@@ -60,9 +55,6 @@ onBeforeUnmount(() => {
             <Copy v-else :size="18" aria-hidden="true" />
           </button>
         </div>
-        <AppButton class="contact-send" :href="`mailto:${email}`">
-          {{ t('about.contact.action') }}<ArrowUpRight :size="18" aria-hidden="true" />
-        </AppButton>
         <p class="contact-card__feedback" role="status">
           {{
             copyState === 'idle'
@@ -77,193 +69,134 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .contact-section {
+  box-sizing: border-box;
   width: 100%;
   padding: var(--space-4xl) var(--layout-page-gutter);
-  background: var(--semantic-color-background-bg-default);
   color: var(--semantic-color-text-text-primary);
 }
-
 .contact-layout {
   display: grid;
   width: min(100%, 72rem);
-  align-items: center;
-  gap: var(--space-2xl);
+  gap: var(--space-3xl);
   margin-inline: auto;
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--semantic-color-border-border-default);
 }
-
 .contact-copy {
+  display: grid;
+  gap: var(--space-xl);
   min-width: 0;
 }
-
-.contact-eyebrow {
-  margin: 0 0 var(--space-lg);
-  color: var(--semantic-color-text-text-accent);
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-semibold);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
 .contact-copy h2 {
-  max-width: 14ch;
   margin: 0;
   font-family: var(--font-family-display);
-  font-size: clamp(2.5rem, 7vw, 5rem);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: -0.055em;
+  font-size: clamp(4rem, 11vw, 9rem);
+  font-weight: var(--typography-font-weight-medium);
+  letter-spacing: -0.065em;
   line-height: 1.05;
 }
-
 .contact-copy h2:lang(th) {
-  max-width: 16ch;
-  font-family: var(--font-family-sans);
   letter-spacing: 0;
-  line-height: 1.3;
+  line-height: 1.2;
 }
-
 .contact-description {
-  max-width: 34rem;
-  margin: var(--space-lg) 0 0;
+  max-width: 30rem;
+  margin: 0;
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-large);
   line-height: var(--line-height-body);
 }
-
 .contact-card {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: var(--space-lg);
-  border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-lg);
-  background: var(--semantic-color-background-bg-surface);
-  transition:
-    border-color 200ms ease,
-    transform 200ms ease;
 }
-
-.contact-card__arrow {
-  align-self: flex-end;
-  margin-bottom: var(--space-2xl);
-  transition: transform 200ms ease;
-}
-
 .contact-card__label {
-  margin: 0;
+  margin: 0 0 var(--space-md);
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-label-medium);
-  line-height: var(--line-height-body);
 }
-
 .contact-card__email-row {
   display: flex;
-  width: 100%;
   align-items: center;
-  gap: var(--space-xs);
-  margin-block: var(--space-xs) var(--space-lg);
+  gap: var(--space-md);
 }
-
 .contact-email {
-  flex: 1;
+  display: flex;
   min-width: 0;
-  color: inherit;
-  font-size: var(--font-size-label-medium);
-  font-weight: var(--typography-font-weight-medium);
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-block: var(--space-lg);
+  border-bottom: 1px solid var(--semantic-color-border-border-default);
+  color: var(--semantic-color-text-text-primary);
+  font-size: clamp(1rem, 3.6vw, 2.75rem);
+  letter-spacing: -0.035em;
   text-decoration: none;
+  transition: border-color 180ms ease;
+}
+.contact-email span {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
-
+.contact-card__arrow {
+  width: clamp(1.5rem, 5vw, 4rem);
+  height: auto;
+  flex-shrink: 0;
+  transition: transform 180ms ease;
+}
 .contact-copy-button {
   display: grid;
   width: 2.75rem;
   height: 2.75rem;
   flex-shrink: 0;
   place-items: center;
-  border: 0;
-  border-radius: var(--corner-radius-sm);
+  border: 1px solid var(--semantic-color-border-border-default);
+  border-radius: var(--corner-radius-full);
   background: transparent;
   color: var(--semantic-color-text-text-secondary);
   cursor: pointer;
-  transition:
-    background 180ms ease,
-    color 180ms ease;
 }
-
 .contact-copy-button[data-copied='true'] {
-  color: var(--semantic-color-text-text-accent);
+  color: var(--semantic-color-text-text-primary);
 }
-
-.contact-send.app-button {
-  height: 3rem;
-  border-color: transparent;
-  background: var(--semantic-color-background-bg-inverse);
-  color: var(--semantic-color-text-text-inverse);
-  box-shadow: none;
-}
-
-.contact-send :deep(.app-button__label) {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xs);
-}
-
 .contact-card__feedback {
   min-height: 1.5em;
-  align-self: center;
-  margin: var(--space-xs) 0 0;
+  margin: var(--space-sm) 0 0;
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-label-small);
-  line-height: var(--line-height-body);
 }
-
 .contact-section :is(a, button):focus-visible {
-  outline: 2px solid var(--semantic-color-text-text-accent);
+  outline: 2px solid var(--semantic-color-text-text-primary);
   outline-offset: 4px;
 }
-
 @media (hover: hover) and (pointer: fine) {
-  .contact-card:hover {
-    border-color: var(--semantic-color-text-text-accent);
-    transform: translateY(-3px);
+  .contact-email:hover {
+    border-color: var(--semantic-color-text-text-primary);
   }
-  .contact-card:hover .contact-card__arrow {
+  .contact-email:hover .contact-card__arrow {
     transform: translate(3px, -3px);
   }
   .contact-copy-button:hover {
     background: var(--semantic-color-background-bg-surface-hover);
-  }
-  .contact-email:hover {
-    text-decoration: underline;
-    text-underline-offset: 0.2em;
+    color: var(--semantic-color-text-text-primary);
   }
 }
-
-@media (min-width: 48rem) {
-  .contact-card {
-    padding: var(--space-xl);
-  }
-}
-
 @media (min-width: 64rem) {
-  .contact-layout {
-    min-height: 30rem;
-    grid-template-columns: minmax(0, 1fr) minmax(20rem, 25rem);
-    gap: var(--space-2xl);
+  .contact-section {
+    padding-block: var(--space-5xl);
   }
-  .contact-copy h2 {
-    font-size: clamp(3.25rem, 5.1vw, 5rem);
+  .contact-copy {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    align-items: end;
+    gap: var(--space-3xl);
   }
 }
-
 @media (prefers-reduced-motion: reduce) {
-  .contact-card,
-  .contact-card__arrow,
-  .contact-copy-button {
+  .contact-email,
+  .contact-card__arrow {
     transition: none;
   }
-  .contact-card:hover,
-  .contact-card:hover .contact-card__arrow {
+  .contact-email:hover .contact-card__arrow {
     transform: none;
   }
 }
