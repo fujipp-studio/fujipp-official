@@ -23,7 +23,8 @@ and disable live animations. There is no automatic calendar scheduling.
 Settings persist in `private.website_effect_settings`, a singleton row with an
 allowlisted effect, update timestamp, and authenticated editor ID. The migration
 seeds `NONE`, enables RLS, and grants only SELECT/UPDATE to `service_role`.
-Browser database roles cannot read or write this table directly.
+Browser database roles cannot read or write this table directly. When present,
+the dedicated VPS application role `fujipp_backend` also receives SELECT/UPDATE.
 
 ## API
 
@@ -102,8 +103,32 @@ the admin panel, previews, and live effects in Light and Dark modes.
 
 ## Rollout
 
-Apply `20261023000001_create_website_effect_settings.sql` through the repository's
-migration workflow, then deploy the backend before the frontend. The default
-remains Off until an admin explicitly saves another effect. Verify the local
+Apply `20261023000001_create_website_effect_settings.sql` to the database used by
+the production Backend's `DB_URL`, then deploy the backend before the frontend.
+The migration directory name does not determine the database host. The production
+configuration verified on 2026-10-23 points to VPS PostgreSQL database
+`migration_cutover_20261022` with the `fujipp_backend` role; Supabase Auth remains
+the authentication provider.
+
+Record the applied version in `supabase_migrations.schema_migrations` and retain
+the versioned SQL on the VPS. Apply the SQL and history insert in one transaction.
+The default remains Off until an admin explicitly saves another effect. Verify the local
 database round-trip before deployment when a local Supabase instance is available.
-No remote migration or production effect activation is performed by local tests.
+Local tests never activate a production effect. Schema installation leaves the
+effect at Off; activation remains an explicit Admin action after code deployment.
+
+### VPS schema verification (2026-10-23)
+
+The migration was rehearsed in a fresh temporary PostgreSQL database on the VPS.
+Checks covered the Off default, allowed effect values, singleton constraint, RLS,
+editor foreign key, and SELECT/UPDATE under the dedicated backend role. The
+temporary database was removed after validation.
+
+The same migration and history entry were then applied atomically to
+`migration_cutover_20261022`. Production verification confirmed that
+`fujipp_backend` can read the Off setting, the migration version is recorded,
+and Backend/Runner/database services remain healthy. The versioned SQL is retained
+under `/opt/fujipp/apps/fujipp-postgres/migrations/site/`.
+
+Application code deployment follows the repository's reviewed-main CI/CD flow.
+Installing the schema alone does not expose the new API or Admin page.

@@ -12,5 +12,15 @@ ALTER TABLE private.website_effect_settings ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE private.website_effect_settings FROM PUBLIC, anon, authenticated;
 GRANT SELECT, UPDATE ON TABLE private.website_effect_settings TO service_role;
 
+-- The VPS database retains Supabase-compatible roles, but the application uses
+-- a dedicated login. Grant only the two operations this feature needs.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'fujipp_backend') THEN
+        GRANT SELECT, UPDATE ON TABLE private.website_effect_settings TO fujipp_backend;
+    END IF;
+END;
+$$;
+
 COMMENT ON TABLE private.website_effect_settings IS
     'Site-wide decorative seasonal effects. Public reads and admin writes go through the backend.';
