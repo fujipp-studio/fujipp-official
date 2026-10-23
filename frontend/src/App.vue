@@ -14,6 +14,10 @@ import { useAdminToolsVisibility } from './features/admin/composables/useAdminTo
 const AdminTools = defineAsyncComponent(
   () => import('./features/admin/components/AdminTools.vue'),
 )
+const SeasonalEffects = defineAsyncComponent(
+  () => import('./features/seasonal-effects/components/SeasonalEffects.vue'),
+)
+const seasonalEffectsEnabled = import.meta.env.VITE_PERFORMANCE_AUDIT !== 'true'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,5 +94,6 @@ watch(
   <AppNavbar v-if="!route.meta.hideGlobalNavbar" :active-item="activeNavigationItem" />
   <AppScrollRail />
   <RouterView />
+  <SeasonalEffects v-if="!route.meta.hideGlobalNavbar && seasonalEffectsEnabled" />
   <AdminTools v-if="currentUser?.role === 'ADMIN' && adminToolsVisible && !route.meta.hideGlobalNavbar" />
 </template>
