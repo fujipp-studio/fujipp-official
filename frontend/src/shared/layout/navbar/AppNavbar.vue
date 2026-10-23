@@ -604,7 +604,7 @@ function closeProfileMenu() {
         <div v-if="!authStateReady" class="auth-loading-placeholder" aria-label="Loading account" />
         <template v-else-if="!resolvedAuthenticated">
           <button
-            class="action-button action-button--text"
+            class="action-button action-button--text app-text-link"
             type="button"
             @click="openAuthDialog('login')"
           >
@@ -1163,26 +1163,9 @@ function closeProfileMenu() {
 }
 
 .action-button--text {
+  --text-link-inset: 0.625rem;
+  --text-link-bottom: 0.125rem;
   padding-inline: 0.625rem;
-}
-
-.action-button--text::after {
-  position: absolute;
-  right: 0.625rem;
-  bottom: 0.125rem;
-  left: 0.625rem;
-  height: 1px;
-  background: currentcolor;
-  content: '';
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.action-button--text:hover::after,
-.action-button--text:focus-visible::after {
-  transform: scaleX(1);
-  transform-origin: left;
 }
 
 .action-button--filled {
@@ -1388,7 +1371,6 @@ function closeProfileMenu() {
   .profile-navbar,
   .profile-navbar__wallet,
   .action-button--filled,
-  .action-button--text::after,
   .theme-toggle,
   .theme-toggle__icon,
   .profile-dialog {

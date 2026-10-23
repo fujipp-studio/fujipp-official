@@ -1,0 +1,26 @@
+.app-text-link {
+  position: relative;
+}
+
+.app-text-link::after {
+  position: absolute;
+  right: var(--text-link-inset, 0);
+  bottom: var(--text-link-bottom, 0);
+  left: var(--text-link-inset, 0);
+  height: 1px;
+  background: currentcolor;
+  content: '';
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.app-text-link:hover::after,
+.app-text-link:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-text-link::after { transition: none; }
+}
