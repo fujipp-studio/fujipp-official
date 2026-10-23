@@ -220,7 +220,44 @@ test('navigates from Home without reloading and reuses cached Work data', async 
   await page.locator('.work-filters').getByRole('button', { name: 'Web', exact: true }).click()
   await expect(page.locator('.work-card')).toHaveCount(4)
   expect(requests).toHaveLength(1)
-  await expect(page.locator('.work-pagination')).toContainText('of 4 projects')
+  await expect(page.locator('.work-card__meta')).toHaveText(['Web', 'Web', 'Web', 'Web'])
+  await expect(page.getByText(/^Showing \d+ of \d+ projects$/)).toHaveCount(0)
+})
+
+test('scrolls the Work gallery without moving or trapping the page', async ({ page, isMobile }) => {
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  const next = page.getByRole('button', { name: 'Next projects', exact: true })
+  const previous = page.getByRole('button', { name: 'Previous projects', exact: true })
+  await expect(next).toBeEnabled()
+  await expect(previous).toBeDisabled()
+  await next.scrollIntoViewIfNeeded()
+  const pageTop = await page.evaluate(() => scrollY)
+  await next.click()
+  await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0)
+  await expect(previous).toBeEnabled()
+  await previous.click()
+  await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBe(0)
+  expect(await page.evaluate(() => scrollY)).toBe(pageTop)
+
+  if (isMobile) return
+
+  await gallery.locator('.work-card__meta').first().hover()
+  const beforeWheel = await page.evaluate(() => scrollY)
+  await gallery.evaluate((element) => {
+    const positions: number[] = []
+    Reflect.set(window, 'workGalleryPositions', positions)
+    element.addEventListener('scroll', () => positions.push(element.scrollLeft), { passive: true })
+  })
+  await page.mouse.wheel(200, 0)
+  await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBe(200)
+  const positions = await page.evaluate(
+    () => Reflect.get(window, 'workGalleryPositions') as number[],
+  )
+  expect(positions.some((position) => position > 0 && position < 200)).toBe(true)
+  expect(await page.evaluate(() => scrollY)).toBe(beforeWheel)
+  await page.mouse.wheel(0, 260)
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(beforeWheel)
 })
 
 test('loads wallet history through v2 only and fetches the next page on scroll', async ({
