@@ -9,9 +9,10 @@ import {
   type WorkContentItem,
   type WorkDetail,
   type WorkLocale,
+  type WorkMedia,
 } from '@/features/work/api'
 import { AppFooter } from '../../../shared/layout'
-import { AppButton, AppSectionIndicator } from '../../../shared/ui'
+import { AppButton, AppImageLightbox, AppSectionIndicator } from '../../../shared/ui'
 import { applySeoMetadata } from '../../../services/seo'
 
 const route = useRoute()
@@ -20,6 +21,8 @@ const locale = ref<WorkLocale>(appLocale.value === 'th' ? 'th' : 'en')
 const work = ref<WorkDetail>()
 const loading = ref(true)
 const error = ref('')
+const previewImage = ref<WorkMedia>()
+const imagePreviewOpen = ref(false)
 const workCache = new Map<string, WorkDetail>()
 
 const copy = computed(() =>
@@ -41,6 +44,7 @@ const copy = computed(() =>
         status: 'สถานะ',
         timeline: 'ระยะเวลา',
         present: 'ปัจจุบัน',
+        viewImage: 'ดูรูปเต็ม',
       }
     : {
         back: 'Back to all work',
@@ -59,6 +63,7 @@ const copy = computed(() =>
         status: 'Status',
         timeline: 'Timeline',
         present: 'Present',
+        viewImage: 'View full image',
       },
 )
 
@@ -98,6 +103,7 @@ async function getWork(value: WorkLocale) {
 }
 
 async function loadWork() {
+  imagePreviewOpen.value = false
   loading.value = true
   error.value = ''
   try {
@@ -149,6 +155,11 @@ function formatStatus(status: WorkDetail['status']) {
     .toLowerCase()
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function openImage(image: WorkMedia) {
+  previewImage.value = image
+  imagePreviewOpen.value = true
 }
 
 function formatWorkDate(value: string) {
@@ -236,13 +247,20 @@ onBeforeUnmount(() => {
         </header>
 
         <div class="detail-cover">
-          <img
+          <button
             v-if="work.gallery[0]"
-            :src="work.gallery[0].url"
-            :alt="work.gallery[0].altText ?? ''"
-            decoding="async"
-            fetchpriority="high"
-          />
+            type="button"
+            class="detail-image-button"
+            :aria-label="`${copy.viewImage}: ${work.gallery[0].altText || work.name}`"
+            @click="openImage(work.gallery[0])"
+          >
+            <img
+              :src="work.gallery[0].url"
+              :alt="work.gallery[0].altText ?? ''"
+              decoding="async"
+              fetchpriority="high"
+            />
+          </button>
           <div v-else class="detail-cover__placeholder" aria-hidden="true">
             <span>{{ work.name }}</span>
           </div>
@@ -311,24 +329,38 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-if="work.gallery.length > 1" id="project-gallery" class="detail-gallery">
-          <img
+          <button
             v-for="image in work.gallery.slice(1)"
             :key="image.url"
-            :src="image.url"
-            :alt="image.altText ?? ''"
-            loading="lazy"
-            decoding="async"
-          />
+            type="button"
+            class="detail-image-button"
+            :aria-label="`${copy.viewImage}: ${image.altText || work.name}`"
+            @click="openImage(image)"
+          >
+            <img
+              :src="image.url"
+              :alt="image.altText ?? ''"
+              loading="lazy"
+              decoding="async"
+            />
+          </button>
         </section>
 
         <section v-if="work.architecture" id="project-architecture" class="detail-architecture">
           <p class="section-label">{{ copy.architecture }}</p>
-          <img
-            :src="work.architecture.url"
-            :alt="work.architecture.altText ?? copy.architecture"
-            loading="lazy"
-            decoding="async"
-          />
+          <button
+            type="button"
+            class="detail-image-button"
+            :aria-label="`${copy.viewImage}: ${work.architecture.altText || copy.architecture}`"
+            @click="openImage(work.architecture)"
+          >
+            <img
+              :src="work.architecture.url"
+              :alt="work.architecture.altText ?? copy.architecture"
+              loading="lazy"
+              decoding="async"
+            />
+          </button>
         </section>
 
         <section v-if="work.links.length" id="project-links" class="detail-links">
@@ -357,6 +389,14 @@ onBeforeUnmount(() => {
     />
 
     <AppFooter v-if="!loading" />
+
+    <AppImageLightbox
+      v-if="previewImage"
+      v-model:open="imagePreviewOpen"
+      :src="previewImage.url"
+      :alt="previewImage.altText ?? work?.name ?? ''"
+      :caption="previewImage.altText ?? ''"
+    />
   </div>
 </template>
 
@@ -385,6 +425,7 @@ onBeforeUnmount(() => {
 .detail-toolbar {
   justify-content: space-between;
   gap: var(--space-lg);
+  padding-block: var(--space-3xl) var(--space-xl);
 }
 
 .back-link {
@@ -396,7 +437,7 @@ onBeforeUnmount(() => {
 .back-link:hover { color: var(--semantic-color-text-text-primary); }
 
 .detail-hero {
-  padding-block: var(--space-4xl) var(--space-3xl);
+  padding-bottom: var(--space-3xl);
 }
 
 .detail-hero h1 {
@@ -476,6 +517,21 @@ onBeforeUnmount(() => {
   height: 100%;
   object-fit: cover;
 }
+
+.detail-image-button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: transparent;
+}
+
+.detail-cover .detail-image-button { height: 100%; }
+.detail-image-button img { display: block; }
+.detail-cover:has(.detail-image-button:focus-visible) { overflow: visible; }
 
 .detail-cover__placeholder {
   display: grid;
@@ -664,7 +720,7 @@ a:focus-visible {
 
 @media (max-width: 47.99rem) {
   .detail-main { padding-block: var(--space-xl) var(--space-3xl); }
-  .detail-hero { padding-block: var(--space-3xl) var(--space-2xl); }
+  .detail-hero { padding-bottom: var(--space-2xl); }
   .detail-hero__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detail-hero__fact:last-child { grid-column: 1 / -1; }
   .section-indicator { right: var(--space-xxs); }

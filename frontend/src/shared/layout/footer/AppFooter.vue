@@ -65,19 +65,21 @@ const route = useRoute()
           <template v-for="link in socialLinks" :key="link.label">
             <RouterLink
               v-if="link.to"
+              class="app-text-link"
               :to="{ path: link.to, query: route.query.locale === 'th' ? { locale: 'th' } : {} }"
             >
               {{ link.label }}
             </RouterLink>
             <a
               v-else-if="link.href"
+              class="app-text-link"
               :href="link.href"
               :target="link.href.startsWith('http') ? '_blank' : undefined"
               :rel="link.href.startsWith('http') ? 'noopener noreferrer' : undefined"
             >
               {{ link.label }}
             </a>
-            <button v-else type="button">{{ link.label }}</button>
+            <button v-else type="button" class="app-text-link">{{ link.label }}</button>
           </template>
         </nav>
 
@@ -157,7 +159,6 @@ const route = useRoute()
 
 .footer__link-list a,
 .footer__link-list button {
-  position: relative;
   border: 0;
   padding: 0;
   background: transparent;
@@ -176,27 +177,6 @@ const route = useRoute()
 .footer__link-list button:hover,
 .footer__link-list button:focus-visible {
   opacity: 1;
-}
-
-.footer__link-list a::after,
-.footer__link-list button::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 1px;
-  background: currentcolor;
-  content: '';
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.footer__link-list a:hover::after,
-.footer__link-list a:focus-visible::after,
-.footer__link-list button:hover::after,
-.footer__link-list button:focus-visible::after {
-  transform: scaleX(1);
 }
 
 .footer__copyright {
@@ -237,10 +217,6 @@ const route = useRoute()
 
 @media (prefers-reduced-motion: reduce) {
   .footer__link-list a,
-  .footer__link-list button,
-  .footer__link-list a::after,
-  .footer__link-list button::after {
-    transition: none;
-  }
+  .footer__link-list button { transition: none; }
 }
 </style>
