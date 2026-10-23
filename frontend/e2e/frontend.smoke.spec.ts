@@ -435,6 +435,14 @@ test('navigates nested admin pages and closes account dialog after saving', asyn
 
 for (const theme of ['LIGHT', 'DARK']) {
   test(`navigates the responsive Admin menu in ${theme}`, async ({ page, isMobile }, testInfo) => {
+    const adminPages = [
+      ['seasonal-effects', 'ลูกเล่นเทศกาล'],
+      ['users', 'ผู้ใช้'],
+      ['packages', 'แพ็กเกจ'],
+      ['runtime', 'Runtime'],
+      ['bots', 'บอท'],
+      ['donations', 'Donate'],
+    ] as const
     const errors: string[] = []
     page.on('pageerror', error => errors.push(error.message))
     await page.addInitScript(value => localStorage.setItem('fujipp-theme-mode', value), theme)
@@ -443,7 +451,7 @@ for (const theme of ['LIGHT', 'DARK']) {
     const toggle = page.getByRole('button', { name: 'เมนูจัดการระบบ', exact: true })
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('ภาพรวม')
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme.toLowerCase())
-    await expect(page.locator('#admin-main-menu a')).toHaveCount(5)
+    await expect(page.locator('#admin-main-menu a')).toHaveCount(adminPages.length)
     await page.evaluate(() => document.fonts.ready)
     await page.screenshot({ path: testInfo.outputPath('overview.png'), fullPage: !isMobile })
     if (isMobile) {
@@ -459,13 +467,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       await expect(toggle).toBeHidden()
       await expect(menu).toBeVisible()
     }
-    for (const [path, label] of [
-      ['users', 'ผู้ใช้'],
-      ['packages', 'แพ็กเกจ'],
-      ['runtime', 'Runtime'],
-      ['bots', 'บอท'],
-      ['donations', 'Donate'],
-    ]) {
+    for (const [path, label] of adminPages) {
       if (isMobile && !(await menu.isVisible())) await toggle.click()
       await menu.getByRole('link', { name: label, exact: true }).click()
       await expect(page).toHaveURL(new RegExp(`/admin/${path}\\?locale=th$`))
@@ -490,7 +492,7 @@ for (const theme of ['LIGHT', 'DARK']) {
     if (isMobile) await toggle.click()
     await menu.getByRole('link', { name: 'ภาพรวม', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('ภาพรวม')
-    await expect(page.locator('#admin-main-menu a')).toHaveCount(5)
+    await expect(page.locator('#admin-main-menu a')).toHaveCount(adminPages.length)
     await expect(page.locator('#admin-toolbar-actions')).toBeEmpty()
     expect(errors).toEqual([])
   })
