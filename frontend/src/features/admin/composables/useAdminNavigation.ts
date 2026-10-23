@@ -1,6 +1,6 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bot, Cpu, HeartHandshake, LayoutDashboard, PackageOpen, Users } from 'lucide-vue-next'
+import { Bot, Cpu, HeartHandshake, LayoutDashboard, PackageOpen, Sparkles, Users } from 'lucide-vue-next'
 
 export function useAdminNavigation() {
   const { t, locale } = useI18n()
@@ -9,6 +9,13 @@ export function useAdminNavigation() {
     query: locale.value === 'th' ? { locale: 'th' } : {},
   })
   const modules = computed(() => [
+    {
+      id: 'seasonal-effects',
+      title: t('admin.seasonal.title'),
+      description: t('admin.seasonal.description'),
+      icon: Sparkles,
+      path: '/admin/seasonal-effects',
+    },
     {
       id: 'users',
       title: t('admin.dashboard.usersMenu'),

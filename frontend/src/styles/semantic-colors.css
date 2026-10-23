@@ -7,6 +7,12 @@
  */
 
 :root {
+  --semantic-color-seasonal-ghost-body: var(--global-color-gray-50);
+  --semantic-color-seasonal-ghost-outline: var(--global-color-gray-400);
+  --semantic-color-seasonal-ghost-ink: var(--global-color-gray-800);
+  --semantic-color-seasonal-blush: var(--global-color-rose-300);
+  --semantic-color-seasonal-snow: var(--global-color-gray-500);
+  --semantic-color-seasonal-heart: var(--global-color-rose-400);
   /* Keep the inherited accent stable instead of restyling the page every frame. */
   --semantic-color-brand-rgb: var(--global-color-brand-secondary-blue);
 
@@ -157,6 +163,7 @@
 
 [data-theme='dark'],
 .dark {
+  --semantic-color-seasonal-snow: var(--global-color-gray-100);
   color-scheme: dark;
 
   --semantic-color-background-bg-default: var(--global-color-graphite-950);

@@ -1,6 +1,6 @@
 # แผนลูกเล่นเทศกาลบนเว็บไซต์
 
-สถานะ: เอกสารแผนต้นฉบับสำหรับอ้างอิง พัฒนาแล้วใน [PR #125](https://github.com/fujipp-studio/fujipp-official/pull/125) โดยติดตั้ง migration ในฐานข้อมูลเว็บไซต์บน VPS แล้ว และรอรวมโค้ดเพื่อ deploy แอปพลิเคชัน
+สถานะ: เอกสารแผนต้นฉบับสำหรับอ้างอิง พัฒนาและรวมเข้า `main` แล้วใน [PR #125](https://github.com/fujipp-studio/fujipp-official/pull/125) โดยติดตั้ง migration ในฐานข้อมูลเว็บไซต์บน VPS แล้ว ดูคู่มือระบบที่ [seasonal-effects.md](seasonal-effects.md)
 
 ## เป้าหมายและขอบเขตรุ่นแรก
 

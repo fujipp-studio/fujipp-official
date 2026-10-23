@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: './e2e',
   testMatch: [
+    'seasonal-effects.smoke.spec.ts',
     'admin-tools.smoke.spec.ts',
     'frontend.smoke.spec.ts',
     'privacy.smoke.spec.ts',
