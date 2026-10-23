@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { BriefcaseBusiness } from 'lucide-vue-next'
+import { BriefcaseBusiness, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { type WorkLocale, type WorkSummary } from '@/features/work/api'
 import { useWorkListing } from '../composables/useWorkListing'
+import { useGalleryMotion } from '../composables/useGalleryMotion'
 import { AppFooter } from '../../../shared/layout'
 import { AppButton, AppSectionIndicator, AppTextLink, AppToast } from '../../../shared/ui'
 import GithubActivitySection from '../components/GithubActivitySection.vue'
@@ -21,6 +22,10 @@ const workPageSize = ref(6)
 const visibleWorkCount = ref(6)
 const retrying = ref(false)
 const toastOpen = ref(false)
+const galleryElement = ref<HTMLElement>()
+const galleryMotion = useGalleryMotion(galleryElement)
+const canScrollPrevious = ref(false)
+const canScrollNext = ref(false)
 const listing = useWorkListing(locale, listingCategory, workPageSize)
 const { works, overview, total, loading, loadingMore, error } = listing
 const copy = computed(() =>
@@ -29,9 +34,6 @@ const copy = computed(() =>
         workTitle: 'ผลงานทั้งหมด',
         all: 'ทั้งหมด',
         featured: 'แนะนำ',
-        showing: 'กำลังแสดง',
-        of: 'จาก',
-        projects: 'โปรเจกต์',
         loadMore: 'แสดงเพิ่มเติม',
         showLess: 'แสดงน้อยลง',
         empty: 'ยังไม่มีผลงานในหมวดหมู่นี้',
@@ -39,14 +41,14 @@ const copy = computed(() =>
         retrying: 'กำลังโหลด…',
         loadFailed: 'โหลดโปรเจกต์ไม่สำเร็จ กรุณาลองอีกครั้ง',
         view: 'ดูโปรเจกต์',
+        gallery: 'รายการผลงาน',
+        previous: 'เลื่อนไปผลงานก่อนหน้า',
+        next: 'เลื่อนไปผลงานถัดไป',
       }
     : {
         workTitle: 'All work',
         all: 'All work',
         featured: 'Featured',
-        showing: 'Showing',
-        of: 'of',
-        projects: 'projects',
         loadMore: 'Load more',
         showLess: 'Show less',
         empty: 'There are no projects in this category yet.',
@@ -54,6 +56,9 @@ const copy = computed(() =>
         retrying: 'Loading…',
         loadFailed: 'Could not load projects. Please try again.',
         view: 'View project',
+        gallery: 'Portfolio projects',
+        previous: 'Previous projects',
+        next: 'Next projects',
       },
 )
 
@@ -109,6 +114,33 @@ function formatStatus(status: WorkSummary['status']) {
   return status.toLowerCase().replaceAll('_', ' ')
 }
 
+function updateGalleryScroll() {
+  const gallery = galleryElement.value
+  canScrollPrevious.value = Boolean(gallery && gallery.scrollLeft > 1)
+  canScrollNext.value = Boolean(
+    gallery && gallery.scrollLeft + gallery.clientWidth < gallery.scrollWidth - 1,
+  )
+}
+
+function scrollGallery(direction: -1 | 1) {
+  const gallery = galleryElement.value
+  const card = gallery?.querySelector<HTMLElement>('.work-card')
+  if (!gallery || !card) return
+
+  const style = getComputedStyle(gallery)
+  const gap = Number.parseFloat(style.columnGap) || 0
+  const startPadding = Number.parseFloat(style.paddingInlineStart) || 0
+  const endPadding = Number.parseFloat(style.paddingInlineEnd) || 0
+  const step = card.getBoundingClientRect().width + gap
+  const cardsPerPage = Math.max(
+    1,
+    Math.floor((gallery.clientWidth - startPadding - endPadding + gap) / step),
+  )
+  galleryMotion.scrollTo(
+    (Math.round(galleryMotion.destination() / step) + direction * cardsPerPage) * step,
+  )
+}
+
 function selectCategory(category: string) {
   if (selectedCategory.value === category) return
   selectedCategory.value = category
@@ -118,11 +150,13 @@ function selectCategory(category: string) {
 }
 
 function updateWorkPageSize() {
+  galleryMotion.cancel()
   const previousPageSize = workPageSize.value
   const nextPageSize = window.matchMedia('(max-width: 47.99rem)').matches ? 4 : 6
   workPageSize.value = nextPageSize
 
   if (visibleWorkCount.value <= previousPageSize) visibleWorkCount.value = nextPageSize
+  updateGalleryScroll()
 }
 
 async function loadMoreWorks() {
@@ -155,6 +189,14 @@ watch(workPageSize, async () => {
     await listing.ensureVisible(visibleWorkCount.value)
   }
 })
+watch(
+  [galleryElement, visibleFilteredWorks],
+  async () => {
+    await nextTick()
+    updateGalleryScroll()
+  },
+  { flush: 'post' },
+)
 onMounted(() => {
   updateWorkPageSize()
   void loadWorks()
@@ -170,17 +212,19 @@ onBeforeUnmount(() => {
 <template>
   <div class="work-page">
     <main class="work-main">
-      <div id="all-work" class="work-catalog work-catalog--primary page-container">
-        <h1 class="work-catalog__title">{{ copy.workTitle }}</h1>
-        <WorkCategoryFilter
-          v-if="!loading && !error"
-          class="work-filters"
-          :model-value="selectedCategory"
-          :all-label="copy.all"
-          :options="categories"
-          label="Project categories"
-          @update:model-value="selectCategory"
-        />
+      <div id="all-work" class="work-catalog work-catalog--primary">
+        <div class="page-container">
+          <h1 class="work-catalog__title">{{ copy.workTitle }}</h1>
+          <WorkCategoryFilter
+            v-if="!loading && !error"
+            class="work-filters"
+            :model-value="selectedCategory"
+            :all-label="copy.all"
+            :options="categories"
+            label="Project categories"
+            @update:model-value="selectCategory"
+          />
+        </div>
 
         <section v-if="loading" class="work-grid" aria-label="Loading projects" aria-busy="true">
           <article v-for="index in 3" :key="index" class="work-card work-card--loading">
@@ -204,71 +248,111 @@ onBeforeUnmount(() => {
         </section>
 
         <Transition v-else name="work-content" mode="out-in">
-          <section :key="selectedCategory" class="work-grid" aria-label="Portfolio projects">
-            <article
-              v-for="work in visibleFilteredWorks"
-              :key="work.slug"
-              class="work-card"
+          <div :key="`${selectedCategory}:${locale}`" class="work-gallery">
+            <section
+              id="work-gallery"
+              ref="galleryElement"
+              class="work-grid"
+              :aria-label="copy.gallery"
+              tabindex="0"
+              @scroll.passive="updateGalleryScroll"
+              @wheel="galleryMotion.onWheel"
+              @pointerdown="galleryMotion.cancel"
+              @touchstart.passive="galleryMotion.cancel"
+              @keydown.left.self.prevent="scrollGallery(-1)"
+              @keydown.right.self.prevent="scrollGallery(1)"
             >
-              <RouterLink
-                class="work-card__visual-link"
-                :to="{
-                  name: 'work-detail',
-                  params: { slug: work.slug },
-                  query: locale === 'th' ? { locale: 'th' } : {},
-                }"
-                :aria-label="`${copy.view}: ${work.name}`"
-              >
-                <div class="work-card__media">
-                  <img
-                    v-if="work.cover"
-                    :src="work.cover.url"
-                    :alt="work.cover.altText ?? ''"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <div v-else class="work-card__placeholder" aria-hidden="true">
-                    <span>{{ work.name }}</span>
-                  </div>
-                  <span class="work-card__status">{{ formatStatus(work.status) }}</span>
-                </div>
-              </RouterLink>
-
-              <div class="work-card__body">
-                <div class="work-card__meta">
-                  <span>{{ work.category.name }}</span>
-                </div>
-                <h2>{{ work.name }}</h2>
-                <p>{{ work.shortDescription }}</p>
-                <ul
-                  v-if="work.technologies.length"
-                  class="work-card__tech-stack"
-                  aria-label="Technologies"
-                >
-                  <li v-for="technology in work.technologies.slice(0, 3)" :key="technology.slug">
-                    {{ technology.name }}
-                  </li>
-                </ul>
-                <AppTextLink
-                  class="work-card__link"
+              <article v-for="work in visibleFilteredWorks" :key="work.slug" class="work-card">
+                <RouterLink
+                  class="work-card__visual-link"
                   :to="{
                     name: 'work-detail',
                     params: { slug: work.slug },
                     query: locale === 'th' ? { locale: 'th' } : {},
                   }"
+                  :aria-label="`${copy.view}: ${work.name}`"
                 >
-                  {{ copy.view }}
-                </AppTextLink>
-              </div>
-            </article>
-          </section>
+                  <div class="work-card__media">
+                    <img
+                      v-if="work.cover"
+                      :src="work.cover.url"
+                      :alt="work.cover.altText ?? ''"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div v-else class="work-card__placeholder" aria-hidden="true">
+                      <span>{{ work.name }}</span>
+                    </div>
+                    <span class="work-card__status">{{ formatStatus(work.status) }}</span>
+                  </div>
+                </RouterLink>
+
+                <div class="work-card__body">
+                  <div class="work-card__meta">
+                    <span>{{ work.category.name }}</span>
+                  </div>
+                  <h2>{{ work.name }}</h2>
+                  <p>{{ work.shortDescription }}</p>
+                  <ul
+                    v-if="work.technologies.length"
+                    class="work-card__tech-stack"
+                    aria-label="Technologies"
+                  >
+                    <li v-for="technology in work.technologies.slice(0, 3)" :key="technology.slug">
+                      {{ technology.name }}
+                    </li>
+                  </ul>
+                  <AppTextLink
+                    class="work-card__link"
+                    :to="{
+                      name: 'work-detail',
+                      params: { slug: work.slug },
+                      query: locale === 'th' ? { locale: 'th' } : {},
+                    }"
+                  >
+                    {{ copy.view }}
+                  </AppTextLink>
+                </div>
+              </article>
+            </section>
+            <nav
+              v-if="canScrollPrevious || canScrollNext"
+              class="work-gallery-controls"
+              :aria-label="copy.gallery"
+            >
+              <AppButton
+                class="work-gallery-controls__button"
+                variant="secondary"
+                :disabled="!canScrollPrevious"
+                :aria-label="copy.previous"
+                aria-controls="work-gallery"
+                @click="scrollGallery(-1)"
+              >
+                <ChevronLeft :size="24" aria-hidden="true" />
+              </AppButton>
+              <AppButton
+                class="work-gallery-controls__button"
+                variant="secondary"
+                :disabled="!canScrollNext"
+                :aria-label="copy.next"
+                aria-controls="work-gallery"
+                @click="scrollGallery(1)"
+              >
+                <ChevronRight :size="24" aria-hidden="true" />
+              </AppButton>
+            </nav>
+          </div>
         </Transition>
 
-        <div v-if="!loading && !error && filteredWorks.length" class="work-pagination">
-          <p>
-            {{ copy.showing }} {{ Math.min(visibleWorkCount, displayTotal) }} {{ copy.of }}
-            {{ displayTotal }} {{ copy.projects }}
-          </p>
+        <div
+          v-if="
+            !loading &&
+            !error &&
+            filteredWorks.length &&
+            (visibleWorkCount < displayTotal || visibleWorkCount > workPageSize)
+          "
+          class="work-pagination page-container"
+        >
           <div class="work-pagination__actions">
             <AppButton
               v-if="visibleWorkCount < displayTotal"
@@ -351,11 +435,35 @@ onBeforeUnmount(() => {
   margin-bottom: var(--space-xl);
 }
 
+.work-gallery,
+.work-grid {
+  --work-gallery-gutter: max(
+    var(--layout-page-gutter),
+    calc((100% - var(--layout-content-max-width)) / 2 + var(--layout-page-gutter))
+  );
+  --work-card-width: min(
+    82vw,
+    calc(
+      (var(--layout-content-max-width) - var(--layout-page-gutter) * 2 - var(--space-lg) * 2) / 3
+    )
+  );
+}
+
 .work-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 19.5rem));
-  justify-content: start;
-  gap: var(--space-xl);
+  grid-auto-flow: column;
+  grid-auto-columns: var(--work-card-width);
+  grid-template-rows: repeat(6, auto);
+  column-gap: var(--space-lg);
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  padding: var(--space-sm) var(--work-gallery-gutter) var(--space-lg);
+  scroll-padding-inline: var(--work-gallery-gutter);
+  scrollbar-width: none;
+}
+
+.work-grid::-webkit-scrollbar {
+  display: none;
 }
 
 .work-content-enter-active,
@@ -376,27 +484,36 @@ onBeforeUnmount(() => {
 }
 
 .work-card {
-  display: flex;
+  display: grid;
   width: 100%;
-  max-width: 19.5rem;
-  flex-direction: column;
+  min-width: 0;
+  grid-row: span 6;
+  grid-template-rows: subgrid;
+  justify-items: center;
   border: 0;
   background: transparent;
   color: inherit;
+  text-align: center;
 }
 
 .work-card__visual-link {
   position: relative;
   display: block;
+  width: 100%;
   color: inherit;
   text-decoration: none;
 }
 
 .work-card__visual-link:focus-visible,
 .work-card__link:focus-visible,
+.work-grid:focus-visible,
 button:focus-visible {
   outline: 3px solid var(--semantic-color-text-text-accent);
   outline-offset: 3px;
+}
+
+.work-grid:focus-visible {
+  outline-offset: -3px;
 }
 
 .work-card__media {
@@ -467,21 +584,17 @@ button:focus-visible {
 }
 
 .work-card__body {
-  display: flex;
-  min-height: 14rem;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  padding: var(--space-lg) var(--space-sm) var(--space-sm);
-  text-align: center;
+  display: contents;
 }
 
 .work-card__meta {
   display: flex;
+  grid-row: 2;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   gap: var(--space-sm);
+  margin: var(--space-lg) var(--space-sm) 0;
   color: var(--semantic-color-text-text-secondary);
   font-size: var(--font-size-body-small);
   font-weight: var(--typography-font-weight-bold);
@@ -490,21 +603,24 @@ button:focus-visible {
 }
 
 .work-card h2 {
-  margin: var(--space-sm) 0 var(--space-xs);
-  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  grid-row: 3;
+  margin: var(--space-sm) var(--space-sm) var(--space-xs);
+  font-size: var(--font-size-heading-h1);
   line-height: 1.1;
   letter-spacing: -0.03em;
 }
 
 .work-card p {
-  margin: 0;
+  grid-row: 4;
+  margin: 0 var(--space-sm);
   color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-body-small);
+  font-size: var(--font-size-body-medium);
   line-height: var(--line-height-body);
 }
 
 .work-card__tech-stack {
   display: flex;
+  grid-row: 5;
   flex-wrap: wrap;
   justify-content: center;
   margin: var(--space-md) 0 var(--space-lg);
@@ -525,26 +641,38 @@ button:focus-visible {
 }
 
 .work-card__link {
-  margin-top: auto;
+  grid-row: 6;
+  align-self: end;
+  margin-bottom: var(--space-sm);
 }
 
 .work-pagination {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   margin-top: var(--space-xl);
   gap: var(--space-lg);
-}
-
-.work-pagination p {
-  margin: 0;
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-body-small);
 }
 
 .work-pagination__actions {
   display: flex;
   gap: var(--space-sm);
+}
+
+.work-gallery-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+  padding-inline: var(--work-gallery-gutter);
+}
+
+.work-gallery-controls__button {
+  width: calc(var(--icon-size-24) + var(--space-lg));
+  height: calc(var(--icon-size-24) + var(--space-lg));
+  padding: 0;
+  border-radius: var(--radius-full);
 }
 
 .work-pagination__button {
@@ -576,6 +704,8 @@ button:focus-visible {
 }
 
 .work-card--loading {
+  display: flex;
+  flex-direction: column;
   min-height: 28rem;
   padding: var(--space-sm);
   border: 1px solid var(--semantic-color-border-border-subtle);
@@ -590,6 +720,7 @@ button:focus-visible {
 }
 
 .skeleton--media {
+  width: 100%;
   aspect-ratio: 4 / 3;
 }
 
@@ -620,17 +751,16 @@ button:focus-visible {
   .work-catalog--primary {
     margin-top: 0;
   }
-  .work-grid {
-    grid-template-columns: minmax(0, 19.5rem);
-    justify-content: center;
-  }
   .work-pagination {
     align-items: stretch;
     flex-direction: column;
   }
-  .work-pagination__actions,
   .work-pagination__button {
     width: 100%;
+  }
+  .work-pagination__actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .section-indicator {
     right: var(--space-xxs);

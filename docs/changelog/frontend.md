@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-23 | Enlarged Work cards in a horizontal gallery with aligned details, paired navigation controls, smoother horizontal scrolling, and uninterrupted vertical page scrolling; removed the project count label. |
 | 2026-10-23 | Enabled full-size Work image previews with bilingual close controls, unified link underline animations, and improved back-link spacing while preserving existing text sizes and image cursors. |
 | 2026-10-23 | Added bilingual Admin-controlled Halloween, Christmas, and Valentine’s decorations with private previews, responsive density, and reduced-motion support while preserving website colors and layout. |
 | 2026-10-22 | Added separate send and update permission suggestions for Message Sets 1.1.0. |
