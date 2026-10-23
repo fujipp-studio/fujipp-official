@@ -269,6 +269,12 @@ export function createAppRouter(
         meta: { requiresAuth: true, roles: ['ADMIN'] },
         children: [
           {
+            path: 'seasonal-effects',
+            name: 'admin-seasonal-effects',
+            component: () => import('../features/admin/views/AdminSeasonalEffectsView.vue'),
+            meta: { adminSection: 'seasonal-effects' },
+          },
+          {
             path: '',
             name: 'admin-dashboard',
             component: () => import('../features/admin/views/AdminDashboardView.vue'),
@@ -415,7 +421,7 @@ export default createAppRouter()
 
 declare module 'vue-router' {
   interface RouteMeta {
-    adminSection?: 'main' | 'users' | 'packages' | 'runtime' | 'bots' | 'donations'
+    adminSection?: 'main' | 'users' | 'packages' | 'runtime' | 'bots' | 'donations' | 'seasonal-effects'
     hideGlobalNavbar?: boolean
     requiresAuth?: boolean
     roles?: Array<'USER' | 'TESTER' | 'EDITOR' | 'ADMIN'>

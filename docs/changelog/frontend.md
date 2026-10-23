@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-23 | Added bilingual Admin-controlled Halloween, Christmas, and Valentine’s decorations with private previews, responsive density, and reduced-motion support while preserving website colors and layout. |
 | 2026-10-22 | Added separate send and update permission suggestions for Message Sets 1.1.0. |
 | 2026-10-22 | Refreshed Home and About with a 3D code introduction, project timeline, scroll-revealed experience totals, streamlined skills and contact sections, and muted navigation; added bilingual Terms and standalone Support pages with return-to-Support authentication and wallet top-up flows. |
 | 2026-10-21 | Added a standalone Links page with portfolio and social links, Light/Dark themes, and full-length looping music with playback, seeking, and volume controls; reduced background Bot status polling while retaining immediate action updates. |

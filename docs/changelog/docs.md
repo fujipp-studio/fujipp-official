@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-23 | Documented seasonal-effect administration, APIs, lifecycle behavior, validation, and rollout to the active VPS PostgreSQL database. |
 | 2026-10-22 | Documented Message Sets 1.1.0 send and update commands, permissions, and Components V2 restrictions. |
 | 2026-10-21 | Documented VPS backup recovery, retained Supabase Auth behavior, and a write-quiesced database cutover with rollback requirements. |
 | 2026-10-21 | Documented runtime cache freshness, Egress monitoring metrics, and the reduced visible-page polling frequency. |

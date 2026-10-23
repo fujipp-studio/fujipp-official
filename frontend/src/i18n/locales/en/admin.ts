@@ -1,4 +1,26 @@
 export default {
+  seasonal: {
+    title: 'Seasonal effects',
+    description: 'Add a little atmosphere while keeping your website’s colors and layout.',
+    active: 'Live on the website',
+    updatedAt: 'Last saved',
+    choose: 'Choose an effect',
+    preview: 'Preview',
+    previewTitle: 'Seasonal preview',
+    previewHint: 'Only you can see this preview. Visitors keep seeing the saved effect.',
+    saveHint: 'Save to apply this effect to the whole website.',
+    saved: 'Seasonal effect saved. Open pages update within a minute.',
+    loadError: 'Unable to load the settings. Refresh to try again.',
+    saveError: 'Unable to save the effect. Please try again.',
+    reducedMotion: 'Reduced motion is enabled on your device, so this preview shows still artwork.',
+    names: { NONE: 'Off', HALLOWEEN: 'Halloween', CHRISTMAS: 'Christmas', VALENTINE: 'Valentine’s' },
+    details: {
+      NONE: 'Keep the website free of seasonal decorations.',
+      HALLOWEEN: 'Little ghosts float by, wave hello, and quietly disappear.',
+      CHRISTMAS: 'A light dusting of snow drifts gently across the page.',
+      VALENTINE: 'A few small hearts float up, with a little space between visits.',
+    },
+  },
   tools: {
     title: 'Admin tools',
     open: 'Open Admin tools',

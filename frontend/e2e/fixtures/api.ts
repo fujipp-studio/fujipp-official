@@ -10,6 +10,7 @@ import type { AdminUserSummary } from '../../src/features/admin/api/users'
 import type { WorkSummary } from '../../src/features/work/api'
 import { adminWork, adminWorkCatalog } from './adminWorks'
 const page = (items: unknown[]) => ({ items, nextCursor: null, hasMore: false })
+let seasonalSettings = { effect: 'NONE', updatedAt: '2026-10-23T00:00:00Z' }
 const customer: AdminUserSummary = {
   customerId: 'fixture-customer',
   userId: user.id,
@@ -96,6 +97,11 @@ const donationCampaign = {
   updatedAt: bot.createdAt,
 }
 export function fixtureResponse(path: string, method: string, input: Record<string, unknown>, query = new URLSearchParams()) {
+  if (path === '/api/v1/site/seasonal-effects') return seasonalSettings
+  if (path === '/api/v1/admin/site/seasonal-effects') {
+    if (method === 'PUT') seasonalSettings = { effect: String(input.effect), updatedAt: new Date().toISOString() }
+    return seasonalSettings
+  }
   if (path === '/api/v1/admin/works' && method === 'GET') return [adminWork]
   if (path === '/api/v1/admin/works/catalog' && method === 'GET') return adminWorkCatalog
   if (path === `/api/v1/admin/works/${adminWork.id}` && method === 'GET') return adminWork
