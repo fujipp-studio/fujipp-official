@@ -795,6 +795,29 @@ test('shows a retry action when bot settings cannot load', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Test bot', exact: true })).toBeVisible()
 })
 
+test('keeps My bot children inside the mobile menu and clears them on close', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'This regression exercises the mobile navigation submenu')
+  await page.goto('/?role=USER')
+  const open = page.getByRole('button', { name: 'Open navigation', exact: true })
+  const sidebar = page.getByRole('dialog', { name: 'Mobile navigation', exact: true })
+  await open.click()
+  const myBot = sidebar.getByRole('button', { name: 'My bot', exact: true })
+  await myBot.click()
+  await expect(myBot).toHaveAttribute('aria-expanded', 'true')
+  await expect(sidebar.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await sidebar.getByRole('button', { name: 'Close navigation', exact: true }).click()
+  await expect(sidebar).toBeHidden()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await open.click()
+  await expect(myBot).toHaveAttribute('aria-expanded', 'false')
+  await myBot.click()
+  await sidebar.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await expect(page).toHaveURL(/\/my-bot$/)
+  await expect(sidebar).toBeHidden()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+})
+
 for (const theme of ['light', 'dark']) {
   test(`keeps navigation and settings usable in ${theme} mode`, async ({ page, isMobile }) => {
     await page.goto('/admin')

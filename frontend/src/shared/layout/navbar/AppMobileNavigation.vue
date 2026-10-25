@@ -16,6 +16,7 @@ const emit = defineEmits<{
   child: [item: NavbarLink, parentLabel: string]
   register: []
   home: []
+  preview: [path: string]
 }>()
 const { t } = useI18n()
 const mobileNavigationElement = ref<HTMLElement>()
@@ -64,12 +65,12 @@ function navigationLabel(item: NavbarLink) {
           </button>
 
           <button
-            class="mobile-icon-button"
+            class="mobile-menu__close app-text-link"
             type="button"
             aria-label="Close navigation"
             @click="emit('close')"
           >
-            <AppIcon class="mobile-icon mobile-icon--32" :source="icons.base.close" />
+            {{ t('common.close') }}
           </button>
         </div>
 
@@ -85,6 +86,8 @@ function navigationLabel(item: NavbarLink) {
               :aria-current="item.label === selectedItem ? 'page' : undefined"
               :aria-expanded="item.children?.length ? openMenu === item.label : undefined"
               @click="emit('select', item.label)"
+              @pointerenter="emit('preview', item.path)"
+              @focus="emit('preview', item.path)"
             >
               <span class="mobile-menu__row-label">
                 <AppIcon v-if="item.icon" class="mobile-icon mobile-icon--24" :source="item.icon" />
@@ -105,6 +108,8 @@ function navigationLabel(item: NavbarLink) {
                 :key="child.path"
                 type="button"
                 @click="emit('child', child, item.label)"
+                @pointerenter="emit('preview', child.path)"
+                @focus="emit('preview', child.path)"
               >
                 <AppIcon
                   v-if="child.icon"
@@ -169,17 +174,30 @@ function navigationLabel(item: NavbarLink) {
     height: var(--brand-lockup-height);
   }
 
-  .mobile-icon-button {
-    display: grid;
-    width: var(--icon-size-32);
-    height: var(--icon-size-32);
+  .mobile-menu__close {
     flex-shrink: 0;
     cursor: pointer;
-    place-items: center;
     border: 0;
     padding: 0;
     background: transparent;
-    color: var(--semantic-color-text-text-primary);
+    color: var(--semantic-color-text-text-secondary);
+    opacity: 0.6;
+    font-family: var(--font-family-sans);
+    font-size: var(--font-size-body-medium);
+    font-weight: var(--typography-font-weight-regular);
+    line-height: var(--line-height-body);
+    text-decoration: none;
+    transition: opacity 160ms ease;
+  }
+
+  .mobile-menu__close:hover,
+  .mobile-menu__close:focus-visible {
+    opacity: 1;
+  }
+
+  .mobile-menu__close:focus-visible {
+    outline: 2px solid var(--semantic-color-action-borders-border-focus);
+    outline-offset: 2px;
   }
 
   .mobile-icon {
@@ -195,11 +213,6 @@ function navigationLabel(item: NavbarLink) {
   .mobile-icon--24 {
     width: var(--icon-size-24);
     height: var(--icon-size-24);
-  }
-
-  .mobile-icon--32 {
-    width: var(--icon-size-32);
-    height: var(--icon-size-32);
   }
 
   .mobile-menu-layer {
@@ -344,6 +357,7 @@ function navigationLabel(item: NavbarLink) {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mobile-menu__close,
   .mobile-menu,
   .mobile-menu-backdrop {
     transition: none;

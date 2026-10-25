@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import AppUserMenu from './AppUserMenu.vue'
 import AppMobileNavigation from './AppMobileNavigation.vue'
 import {
   computed,
+  defineAsyncComponent,
   markRaw,
   nextTick,
   onBeforeUnmount,
@@ -54,7 +54,12 @@ const brandExpandScrollY = 40
 const isAtPageTop = ref(true)
 const isMobileMenuOpen = ref(false)
 const isProfileMenuOpen = ref(false)
+const profileMenuLoaded = ref(false)
+const loadUserMenu = () => import('./AppUserMenu.vue')
+const AppUserMenu = defineAsyncComponent(loadUserMenu)
+watch(isProfileMenuOpen, (open) => { if (open) profileMenuLoaded.value = true })
 const openNavigationMenu = ref<string>()
+const openMobileNavigationMenu = ref<string>()
 const requestedLanguage = ref<'th' | 'en'>()
 const activeLanguage = computed(
   () => requestedLanguage.value ?? (locale.value === 'th' ? 'th' : 'en'),
@@ -267,6 +272,8 @@ function scrollToPageTop() {
 }
 
 function handleNavigationResize() {
+  if (window.innerWidth >= 1024) closeMobileMenu()
+  else openNavigationMenu.value = undefined
   updateNavbarScrollState()
 }
 
@@ -380,6 +387,14 @@ async function toggleQuickLanguage() {
 
 function closeMobileMenu() {
   isMobileMenuOpen.value = false
+  openMobileNavigationMenu.value = undefined
+}
+
+function openMobileMenu() {
+  closeProfileMenu()
+  openNavigationMenu.value = undefined
+  openMobileNavigationMenu.value = undefined
+  isMobileMenuOpen.value = true
 }
 
 async function openAuthDialog(mode: AuthDialogMode) {
@@ -425,7 +440,7 @@ function handleDocumentClick(event: MouseEvent) {
 function selectMobileItem(label: string) {
   const item = navbarLinks.value.find((link) => link.label === label)
   if (item?.children?.length) {
-    openNavigationMenu.value = openNavigationMenu.value === label ? undefined : label
+    openMobileNavigationMenu.value = openMobileNavigationMenu.value === label ? undefined : label
     return
   }
   navigateToItem(label)
@@ -589,6 +604,8 @@ function closeProfileMenu() {
                   :key="child.path"
                   type="button"
                   role="menuitem"
+                  @pointerenter="prefetchNavigationImages(child.path)"
+                  @focus="prefetchNavigationImages(child.path)"
                   @click.stop="selectNavigationChild(child, item.label)"
                 >
                   <AppIcon v-if="child.icon" :source="child.icon" />
@@ -625,6 +642,8 @@ function closeProfileMenu() {
           :title="formattedWalletBalance"
           type="button"
           aria-label="Open profile"
+          @pointerenter="loadUserMenu"
+          @focus="loadUserMenu"
           aria-controls="profile-dialog"
           :aria-expanded="isProfileMenuOpen"
           @click.stop="toggleProfileMenu"
@@ -661,17 +680,13 @@ function closeProfileMenu() {
     <div class="mobile-navbar">
       <div class="mobile-navbar__left">
         <button
-          class="mobile-icon-button"
+          class="brand"
           type="button"
           aria-label="Open navigation"
           :aria-expanded="isMobileMenuOpen"
           aria-controls="mobile-navigation"
-          @click="isMobileMenuOpen = true"
+          @click="openMobileMenu"
         >
-          <AppIcon class="mobile-icon mobile-icon--32" :source="icons.base.burger" />
-        </button>
-
-        <button class="brand" type="button" aria-label="Fujipp home" @click="navigateHome">
           <span class="brand__lockup" aria-hidden="true">
             <AppIcon class="brand__mark" :source="icons.brand.mark" />
             <span class="brand__wordmark">FUJIPP</span>
@@ -695,6 +710,8 @@ function closeProfileMenu() {
           type="button"
           :title="formattedWalletBalance"
           aria-label="Open profile"
+          @pointerenter="loadUserMenu"
+          @focus="loadUserMenu"
           aria-controls="profile-dialog"
           :aria-expanded="isProfileMenuOpen"
           @click.stop="toggleProfileMenu"
@@ -745,6 +762,7 @@ function closeProfileMenu() {
     </Teleport>
 
     <AppUserMenu
+      v-if="profileMenuLoaded"
       v-model:open="isProfileMenuOpen"
       :profile-src="resolvedProfileSrc"
       :username="resolvedUsername"
@@ -757,13 +775,14 @@ function closeProfileMenu() {
         :open="isMobileMenuOpen"
         :links="navbarLinks"
         :selected-item="selectedItem"
-        :open-menu="openNavigationMenu"
+        :open-menu="openMobileNavigationMenu"
         :authenticated="resolvedAuthenticated"
         @close="closeMobileMenu"
         @select="selectMobileItem"
         @child="selectNavigationChild"
         @register="openAuthDialog('register')"
         @home="navigateMobileHome"
+        @preview="prefetchNavigationImages"
       />
     </Teleport>
 
@@ -1301,29 +1320,6 @@ function closeProfileMenu() {
   .mobile-menu .brand__lockup {
     width: auto;
     height: var(--brand-lockup-height);
-  }
-
-  .mobile-icon-button {
-    display: grid;
-    width: var(--icon-size-32);
-    height: var(--icon-size-32);
-    flex-shrink: 0;
-    cursor: pointer;
-    place-items: center;
-    border: 0;
-    padding: 0;
-    background: transparent;
-    color: inherit;
-  }
-
-  .mobile-icon {
-    display: block;
-    flex-shrink: 0;
-  }
-
-  .mobile-icon--32 {
-    width: var(--icon-size-32);
-    height: var(--icon-size-32);
   }
 
   .mobile-sign-in {
