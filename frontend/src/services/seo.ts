@@ -26,7 +26,7 @@ function setMeta(selector: string, attributes: Record<string, string>, content: 
 export function applySeoMetadata(metadata: SeoMetadata) {
   const title = metadata.title.includes(siteName) ? metadata.title : `${metadata.title} | ${siteName}`
   const canonicalUrl = new URL(metadata.path ?? window.location.pathname, `${siteOrigin()}/`).href
-  const previewImageUrl = new URL('/icons/brand/site-preview.png?v=2', `${siteOrigin()}/`).href
+  const previewImageUrl = new URL('/apple-touch-icon.png?v=3', `${siteOrigin()}/`).href
 
   document.title = title
   setMeta('meta[name="description"]', { name: 'description' }, metadata.description)
