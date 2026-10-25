@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { BriefcaseBusiness, ChevronLeft, ChevronRight } from 'lucide-vue-next'
+import { useQueryClient } from '@tanstack/vue-query'
+import { workDetailQuery } from '../queries'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -12,6 +14,10 @@ import GithubActivitySection from '../components/GithubActivitySection.vue'
 import WorkCategoryFilter from '../components/WorkCategoryFilter.vue'
 
 const { locale: appLocale } = useI18n()
+const queryClient = useQueryClient()
+function prefetchProject(slug: string) {
+  void queryClient.query(workDetailQuery(slug, locale.value)).catch(() => undefined)
+}
 const featuredCategory = '__featured'
 const locale = ref<WorkLocale>(appLocale.value === 'th' ? 'th' : 'en')
 const selectedCategory = ref('all')
@@ -272,6 +278,8 @@ onBeforeUnmount(() => {
                 <li v-for="work in visibleFilteredWorks" :key="work.slug" class="work-card">
                   <RouterLink
                     class="work-card__visual-link"
+                    @pointerenter="prefetchProject(work.slug)"
+                    @focus="prefetchProject(work.slug)"
                     :to="{
                       name: 'work-detail',
                       params: { slug: work.slug },

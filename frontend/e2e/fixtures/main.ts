@@ -1,6 +1,8 @@
 // Test-only bootstrap. This entry is never referenced by the production index.html.
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import { createApiQueryClient } from '../../src/shared/api/queryClient'
 import App from '../../src/App.vue'
 import router from '../../src/router'
 import { i18n, loadRouteMessages } from '../../src/i18n'
@@ -10,6 +12,7 @@ import '../../src/style.css'
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
+app.use(VueQueryPlugin, { queryClient: createApiQueryClient() })
 const auth = useAuthStore(pinia)
 const role = new URLSearchParams(location.search).get('role')
 auth.initialized = true

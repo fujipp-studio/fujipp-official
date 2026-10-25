@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, useId, watch } from 'vue'
 import { Gamepad2, Hash, LayoutPanelTop, ShoppingBag, Terminal } from 'lucide-vue-next'
 import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
@@ -8,8 +8,6 @@ import FeatureSettingToggle from './FeatureSettingToggle.vue'
 import FeatureConfigField from './FeatureConfigField.vue'
 import FeatureCommandsSettings from './FeatureCommandsSettings.vue'
 import FeatureCommandList from './FeatureCommandList.vue'
-import RobloxGroupEditor from './RobloxGroupEditor.vue'
-import RobuxPanelsEditor from './RobuxPanelsEditor.vue'
 import RobuxPackagesEditor from './RobuxPackagesEditor.vue'
 import { robloxPayoutCommands } from '../config/feature-commands'
 import { useFeatureEditor } from '../composables/featureEditorContext'
@@ -26,6 +24,10 @@ const {
 } = useFeatureEditor()
 const id = useId()
 const activeCategory = ref('sales')
+const RobloxGroupEditor = defineAsyncComponent(() => import('./RobloxGroupEditor.vue'))
+const RobuxPanelsEditor = defineAsyncComponent(() => import('./RobuxPanelsEditor.vue'))
+const openedCategories = ref(new Set(['sales']))
+watch(activeCategory, key => { openedCategories.value.add(key) })
 const field = (key: string) => configuration.value?.fields.find((item) => item.key === key)
 const channels = [
   'ROBUX_SUCCESS_NOTIFICATION_CHANNEL_ID',
@@ -175,7 +177,7 @@ const groupRates = computed(() =>
           </FeatureSettingsCard>
         </template>
         <RobloxGroupEditor
-          v-else-if="category.key === 'groups'"
+          v-else-if="category.key === 'groups' && openedCategories.has('groups')"
           v-model:groups-json="values.ROBLOX_GROUPS as string"
           :credentials-json="String(secrets.ROBLOX_CREDENTIALS ?? '')"
           standalone
@@ -186,7 +188,7 @@ const groupRates = computed(() =>
           @update:credentials-json="secrets.ROBLOX_CREDENTIALS = $event"
         />
         <RobuxPanelsEditor
-          v-else-if="category.key === 'panels'"
+          v-else-if="category.key === 'panels' && openedCategories.has('panels')"
           v-model:panels-json="values.ROBUX_PANELS as string"
           :groups-json="String(values.ROBLOX_GROUPS ?? '[]')"
           standalone

@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { Bot, Clock3, Search } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useQueryClient } from '@tanstack/vue-query'
+import { botListQuery, botLicensesQuery, botRuntimesQuery, accountKeys, cacheBot, invalidateBotAccount } from '../queries'
 
 import {
   controlBot,
   createBot,
   fetchBots,
-  fetchFeatureLicenses,
   installFeatureLicense,
   updateBotDiscordToken,
   syncBotDiscordProfile,
@@ -17,7 +18,6 @@ import {
   type UserBot,
 } from '@/features/bots/api'
 import {
-  fetchRuntimeSubscriptions,
   assignRuntime,
   renewRuntime,
   updateRuntimeAutoRenew,
@@ -44,6 +44,7 @@ const authStore = useAuthStore()
 const router = useRouter()
 const { locale, t } = useI18n()
 const { session, initialized } = storeToRefs(authStore)
+const client = useQueryClient()
 const bots = ref<UserBot[]>([])
 const licenses = ref<FeatureLicense[]>([])
 const runtimeSubscriptions = ref<RuntimeSubscription[]>([])
@@ -185,7 +186,7 @@ function runtimeRenewalPrice(runtime: RuntimeSubscription) {
   }).format(runtime.effectiveRenewalPriceSatang / 100)
 }
 
-async function loadDashboard() {
+async function loadDashboard(force = true) {
   if (disposed) return
   dashboardController?.abort()
   const request = new AbortController()
@@ -200,10 +201,21 @@ async function loadDashboard() {
     return
   }
   try {
+    const cachedBots = client.getQueryData(botListQuery(activeSession).queryKey)
+    const cachedLicenses = client.getQueryData(botLicensesQuery(activeSession).queryKey)
+    const cachedRuntime = client.getQueryData(botRuntimesQuery(activeSession).queryKey)
+    if (!force && cachedBots && cachedLicenses && cachedRuntime) {
+      bots.value = cachedBots
+      licenses.value = cachedLicenses
+      runtimeSubscriptions.value = cachedRuntime
+      loading.value = false
+    }
+    if (force) await invalidateBotAccount(client, activeSession)
+    if (disposed || version !== loadVersion || request.signal.aborted) return
     const [nextBots, nextLicenses, nextRuntime] = await Promise.all([
-      fetchBots(activeSession, request.signal),
-      fetchFeatureLicenses(activeSession, request.signal),
-      fetchRuntimeSubscriptions(activeSession, request.signal),
+      client.query(botListQuery(activeSession)),
+      client.query(botLicensesQuery(activeSession)),
+      client.query(botRuntimesQuery(activeSession)),
     ])
     if (disposed || version !== loadVersion || request.signal.aborted) return
     if (mutation === botMutationVersion) bots.value = nextBots
@@ -228,7 +240,10 @@ async function refreshBots(signal: AbortSignal) {
   try {
     const next = await fetchBots(activeSession, signal)
     if (!disposed && !signal.aborted && mutation === botMutationVersion && !busyBotId.value)
-      bots.value = next
+      {
+        bots.value = next
+        client.setQueryData(accountKeys.list(activeSession), next)
+      }
   } catch {
     // Keep the current cards visible when a background refresh temporarily fails.
   }
@@ -252,6 +267,7 @@ async function syncMissingBotProfiles() {
         .map((result) => [result.value.id, result.value]),
     )
     bots.value = bots.value.map((bot) => updates.get(bot.id) ?? bot)
+    client.setQueryData(accountKeys.list(activeSession), [...bots.value])
   }
 }
 
@@ -287,13 +303,17 @@ function beginEdit(bot: UserBot) {
 
 async function runControl(bot: UserBot, action: BotControlAction) {
   if (!session.value || disposed || busyBotId.value) return
+  const activeSession = session.value
+  const version = loadVersion
   botMutationVersion += 1
   botPolling.stop()
   busyBotId.value = bot.id
   busyAction.value = action
   try {
-    const updated = await controlBot(bot.id, action, session.value)
-    if (disposed) return
+    const updated = await controlBot(bot.id, action, activeSession)
+    await client.cancelQueries({ queryKey: accountKeys.bots(activeSession) })
+    if (disposed || version !== loadVersion) return
+    cacheBot(client, activeSession, updated)
     bots.value = bots.value.map((item) => (item.id === updated.id ? updated : item))
     const successKey = {
       start: 'myBots.startCommandSent',
@@ -444,9 +464,20 @@ async function renew(runtime: RuntimeSubscription) {
   }
 }
 
+watch(() => session.value?.user?.id, (id) => {
+  botMutationVersion++
+  loadVersion++
+  dashboardController?.abort()
+  bots.value = []
+  licenses.value = []
+  runtimeSubscriptions.value = []
+  botPolling.stop()
+  if (id && !disposed) void loadDashboard(false)
+})
+
 onMounted(async () => {
   if (!initialized.value) await authStore.initialize()
-  await loadDashboard()
+  await loadDashboard(false)
   await syncMissingBotProfiles()
   botPolling.start()
 })

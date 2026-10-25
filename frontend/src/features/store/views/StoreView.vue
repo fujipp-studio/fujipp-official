@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Clock3, Search } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { storeCatalogQuery, runtimeAvailabilityQuery } from '../queries'
+import { invalidateBotAccount } from '@/features/bots/queries'
 
 import {
   checkoutStoreOffer,
-  fetchStoreFeatures,
   type StoreFeature,
   type StoreOffer,
 } from '@/features/store/api'
 import {
-  fetchRuntimeAvailability,
   purchaseRuntime,
-  type RuntimeAvailability,
 } from '@/features/bots/runtime-api'
 import { icons } from '../../../config'
 import { useAuthStore } from '../../../stores'
@@ -39,12 +39,15 @@ const router = useRouter()
 const authStore = useAuthStore()
 const { locale, t } = useI18n()
 const { session, isAuthenticated } = storeToRefs(authStore)
-const features = ref<StoreFeature[]>([])
-const runtimeAvailability = ref<RuntimeAvailability | null>(null)
+const client = useQueryClient()
+const catalog = useQuery({ ...storeCatalogQuery(), shallow: true })
+const availability = useQuery({ ...runtimeAvailabilityQuery(), shallow: true })
+const features = computed(() => catalog.data.value ?? [])
+const runtimeAvailability = computed(() => availability.data.value ?? null)
 const section = ref<StoreSection>(deriveSection(route.path))
-const loading = ref(true)
-const error = ref('')
-const runtimeError = ref('')
+const loading = catalog.isPending
+const error = computed(() => catalog.data.value ? '' : catalog.error.value?.message ?? '')
+const runtimeError = computed(() => availability.error.value?.message ?? '')
 const notice = ref('')
 const query = ref('')
 const selectedCard = ref<ProductCard | null>(null)
@@ -52,7 +55,6 @@ const buyingOfferId = ref('')
 const purchaseIdempotencyKey = ref('')
 const transitionName = ref('store-forward')
 const sectionScrollY = ref(0)
-let storeRequest: AbortController | undefined
 
 const toastOpen = ref(false)
 const toastMessage = ref('')
@@ -165,47 +167,9 @@ function restoreSectionPosition() {
   })
 }
 
-async function loadStore(showSkeleton = true) {
-  storeRequest?.abort()
-  const request = new AbortController()
-  storeRequest = request
-  if (showSkeleton) loading.value = true
-  error.value = ''
-  runtimeError.value = ''
-  try {
-    const [featuresResult, runtimeResult] = await Promise.allSettled([
-      fetchStoreFeatures(request.signal),
-      fetchRuntimeAvailability(request.signal),
-    ])
-
-    if (featuresResult.status === 'fulfilled') {
-      features.value = featuresResult.value
-    } else if (featuresResult.reason?.name !== 'AbortError') {
-      error.value =
-        featuresResult.reason instanceof Error ? featuresResult.reason.message : t('store.loadError')
-    }
-
-    if (runtimeResult.status === 'fulfilled') {
-      runtimeAvailability.value = runtimeResult.value
-    } else if (runtimeResult.reason?.name !== 'AbortError') {
-      runtimeError.value =
-        runtimeResult.reason instanceof Error
-          ? runtimeResult.reason.message
-          : t('store.runtimeLoadError')
-    }
-
-    if (error.value) showToast(error.value, 'error')
-  } catch (cause) {
-    if (cause instanceof DOMException && cause.name === 'AbortError') return
-    const msg = cause instanceof Error ? cause.message : t('store.loadError')
-    error.value = msg
-    showToast(msg, 'error')
-  } finally {
-    if (storeRequest === request) {
-      loading.value = false
-      if (section.value !== 'menu') void nextTick(restoreSectionPosition)
-    }
-  }
+async function loadStore() {
+  await Promise.allSettled([catalog.refetch(), availability.refetch()])
+  if (section.value !== 'menu') void nextTick(restoreSectionPosition)
 }
 
 function requestBuy(card: ProductCard) {
@@ -223,14 +187,16 @@ function requestBuy(card: ProductCard) {
 
 async function confirmBuy() {
   if (!session.value || !selectedCard.value || buyingOfferId.value) return
+  const activeSession = session.value
   const card = selectedCard.value
   buyingOfferId.value = card.offer.id
   try {
     if (isRuntime(card.feature)) {
-      if (runtimeAvailability.value && runtimeAvailability.value.availableSlots <= 0) {
+      const latest = await client.query(runtimeAvailabilityQuery())
+      if (latest.availableSlots <= 0) {
         throw new Error(t('store.runtimeSoldOut'))
       }
-      const runtime = await purchaseRuntime(card.offer.id, session.value)
+      const runtime = await purchaseRuntime(card.offer.id, activeSession)
       const msg = t('store.runtimePurchaseSuccess', { slot: runtime.slotNumber })
       notice.value = msg
       showToast(msg, 'success')
@@ -238,7 +204,7 @@ async function confirmBuy() {
       const order = await checkoutStoreOffer(
         card.offer.id,
         1,
-        session.value,
+        activeSession,
         purchaseIdempotencyKey.value,
       )
       const msg = t('store.purchaseSuccess', {
@@ -250,7 +216,11 @@ async function confirmBuy() {
     }
     selectedCard.value = null
     purchaseIdempotencyKey.value = ''
-    void loadStore(false)
+    await Promise.allSettled([
+      client.invalidateQueries({ queryKey: runtimeAvailabilityQuery().queryKey }),
+      invalidateBotAccount(client, activeSession),
+      authStore.reloadCurrentUser(),
+    ])
   } catch (cause) {
     const msg = cause instanceof Error ? cause.message : t('store.purchaseError')
     notice.value = msg
@@ -260,8 +230,6 @@ async function confirmBuy() {
   }
 }
 
-onMounted(loadStore)
-onBeforeUnmount(() => storeRequest?.abort())
 </script>
 
 <template>

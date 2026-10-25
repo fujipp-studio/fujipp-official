@@ -1,25 +1,15 @@
 <script setup lang="ts">
 import { RotateCcw } from 'lucide-vue-next'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useQuery } from '@tanstack/vue-query'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { type WorkLocale } from '@/features/work/api'
 import { AppButton } from '../../../shared/ui/buttons'
-
-interface GithubContributionDay {
-  count: number
-  date: string
-  intensity: string
-}
-
-interface GithubContributionResponse {
-  contributions: GithubContributionDay[][]
-  total: number
-}
+import { githubActivityQuery } from '../queries'
 
 const props = defineProps<{ locale: WorkLocale }>()
 
 const GITHUB_PROFILE_URL = 'https://github.com/Fujipp'
-const GITHUB_CONTRIBUTIONS_URL = 'https://gh-calendar.rschristian.dev/user/Fujipp'
 const weekdayLabels = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] as const
 const currentYear = new Date().getFullYear()
 const contributionYearOptions = [
@@ -30,14 +20,16 @@ const contributionYearOptions = [
   }),
 ]
 
-const contributionTotal = ref<number | null>(null)
-const contributionWeeks = ref<GithubContributionDay[][]>([])
-const contributionError = ref(false)
 const contributionYear = ref('last')
+const loadingStarted = ref(false)
+const activity = useQuery(computed(() => ({
+  ...githubActivityQuery(contributionYear.value), enabled: loadingStarted.value, shallow: true,
+})))
+const contributionData = activity.data
+const contributionTotal = computed(() => contributionData.value?.total ?? null)
+const contributionError = computed(() => !contributionData.value && activity.isError.value)
 const sectionElement = ref<HTMLElement>()
 let observer: IntersectionObserver | undefined
-let loadingStarted = false
-let contributionRequestId = 0
 
 const copy = computed(() =>
   props.locale === 'th'
@@ -57,81 +49,51 @@ const copy = computed(() =>
       },
 )
 
-const contributionMonthLabels = computed(() =>
-  contributionWeeks.value.map((week, index, weeks) => {
-    const firstDate = week[0]?.date
-    if (!firstDate) return ''
-
-    const month = firstDate.slice(0, 7)
-    const previousMonth = weeks[index - 1]?.[0]?.date.slice(0, 7)
-    if (month === previousMonth) return ''
-
-    return new Intl.DateTimeFormat(props.locale, { month: 'short', timeZone: 'UTC' }).format(
-      new Date(`${firstDate}T00:00:00Z`),
-    )
-  }),
-)
-
-async function fetchGithubContributions() {
-  const requestId = ++contributionRequestId
-  contributionError.value = false
-  contributionTotal.value = null
-  contributionWeeks.value = []
-
-  try {
-    const url =
-      contributionYear.value === 'last'
-        ? GITHUB_CONTRIBUTIONS_URL
-        : `${GITHUB_CONTRIBUTIONS_URL}?year=${contributionYear.value}`
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`GitHub contribution request failed: ${response.status}`)
-
-    const data = (await response.json()) as GithubContributionResponse
-    if (!Number.isFinite(data.total) || !Array.isArray(data.contributions)) {
-      throw new Error('Invalid GitHub contribution response')
-    }
-
-    if (requestId === contributionRequestId) {
-      contributionTotal.value = data.total
-      contributionWeeks.value = data.contributions
-    }
-  } catch {
-    if (requestId === contributionRequestId) contributionError.value = true
-  }
-}
-
-function contributionLabel(day: GithubContributionDay) {
-  const formattedDate = new Intl.DateTimeFormat(props.locale, {
+// Format each day once when its data or locale changes, then reuse its label
+// for both the tooltip and accessible name without allocating per render.
+const calendarWeeks = computed(() => {
+  const formatter = new Intl.DateTimeFormat(props.locale, {
     day: 'numeric',
     month: 'short',
     timeZone: 'UTC',
     year: 'numeric',
-  }).format(new Date(`${day.date}T00:00:00Z`))
-  const contributionText =
-    day.count === 0
-      ? props.locale === 'th'
-        ? 'ไม่มีกิจกรรม'
-        : 'No activity'
-      : `${day.count} ${day.count === 1 ? 'contribution' : 'contributions'}`
-  return `${formattedDate} · ${contributionText}`
-}
+  })
+  const monthFormatter = new Intl.DateTimeFormat(props.locale, { month: 'short', timeZone: 'UTC' })
+  return (contributionData.value?.contributions ?? []).map((week, index, weeks) => {
+    const firstDate = week[0]?.date
+    const sameMonth = firstDate?.slice(0, 7) === weeks[index - 1]?.[0]?.date.slice(0, 7)
+    return {
+      month:
+        firstDate && !sameMonth ? monthFormatter.format(new Date(`${firstDate}T00:00:00Z`)) : '',
+      days: week.map((day) => {
+        const contributionText =
+          day.count === 0
+            ? props.locale === 'th' ? 'ไม่มีกิจกรรม' : 'No activity'
+            : `${day.count} ${day.count === 1 ? 'contribution' : 'contributions'}`
+        const query = new URLSearchParams({ tab: 'overview', from: day.date, to: day.date })
+        return {
+          ...day,
+          label: `${formatter.format(new Date(`${day.date}T00:00:00Z`))} · ${contributionText}`,
+          url: `${GITHUB_PROFILE_URL}?${query.toString()}`,
+        }
+      }),
+    }
+  })
+})
 
-function contributionUrl(date: string) {
-  const query = new URLSearchParams({ tab: 'overview', from: date, to: date })
-  return `${GITHUB_PROFILE_URL}?${query.toString()}`
+async function loadContributions(force = false) {
+  if (force) await activity.refetch()
+  else loadingStarted.value = true
 }
 
 function startLoading() {
-  if (loadingStarted) return
-  loadingStarted = true
+  if (loadingStarted.value) return
+  loadingStarted.value = true
   observer?.disconnect()
   observer = undefined
-  void fetchGithubContributions()
+  void loadContributions()
 }
 
-watch(contributionYear, () => {
-  if (loadingStarted) void fetchGithubContributions()
-})
 onMounted(() => {
   if (!('IntersectionObserver' in window)) {
     startLoading()
@@ -186,32 +148,32 @@ onBeforeUnmount(() => observer?.disconnect())
         </div>
       </div>
 
-      <div v-if="contributionWeeks.length" class="contribution-scroller">
+      <div v-if="contributionData" class="contribution-scroller">
         <div
           class="contribution-calendar"
-          :style="{ '--contribution-week-count': contributionWeeks.length }"
+          :style="{ '--contribution-week-count': calendarWeeks.length }"
           aria-label="GitHub contribution calendar"
         >
           <div class="calendar-body">
             <div class="month-spacer" aria-hidden="true" />
             <div class="month-labels" aria-hidden="true">
-              <span v-for="(month, index) in contributionMonthLabels" :key="index">{{ month }}</span>
+              <span v-for="(week, index) in calendarWeeks" :key="index">{{ week.month }}</span>
             </div>
             <div class="weekday-labels" aria-hidden="true">
               <span v-for="(label, index) in weekdayLabels" :key="`${label}-${index}`">{{ label }}</span>
             </div>
             <div class="contribution-weeks">
-              <div v-for="(week, weekIndex) in contributionWeeks" :key="weekIndex" class="contribution-week">
+              <div v-for="(week, weekIndex) in calendarWeeks" :key="weekIndex" class="contribution-week">
                 <a
-                  v-for="day in week"
+                  v-for="day in week.days"
                   :key="day.date"
                   class="contribution-day"
-                  :href="contributionUrl(day.date)"
+                  :href="day.url"
                   target="_blank"
                   rel="noreferrer"
                   :data-intensity="day.intensity"
-                  :data-tooltip="contributionLabel(day)"
-                  :aria-label="contributionLabel(day)"
+                  :data-tooltip="day.label"
+                  :aria-label="day.label"
                 />
               </div>
             </div>
@@ -226,7 +188,7 @@ onBeforeUnmount(() => observer?.disconnect())
       </div>
 
       <div v-else-if="contributionError" class="github-activity__error">
-        <AppButton class="github-activity__retry" @click="fetchGithubContributions">
+        <AppButton class="github-activity__retry" @click="loadContributions(true)">
           <span class="github-activity__button-label">
             <RotateCcw :size="17" aria-hidden="true" />
             {{ copy.retry }}

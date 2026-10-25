@@ -16,6 +16,8 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Wallet } from 'lucide-vue-next'
+import { useQueryClient } from '@tanstack/vue-query'
+import { prefetchPublicRoute } from '@/shared/api/prefetch'
 
 import { authenticatedNavbarLinks, guestNavbarLinks, icons } from '../../../config'
 import type { NavbarLink } from '../../../config'
@@ -49,6 +51,7 @@ const selectedItem = ref(props.activeItem)
 const route = useRoute()
 const router = useRouter()
 const { locale, t } = useI18n()
+const queryClient = useQueryClient()
 const brandCollapseScrollY = 100
 const brandExpandScrollY = 40
 const isAtPageTop = ref(true)
@@ -145,6 +148,7 @@ function prefetchImage(source: string, sourceSet?: string) {
 
 function prefetchNavigationImages(path: string) {
   prefetchRoute(path)
+  void prefetchPublicRoute(queryClient, path, locale.value === 'th' ? 'th' : 'en')
   if (path === '/about') {
     prefetchImage('/images/about/anawat-grudtoop-profile-cropped-768.webp')
     prefetchImage('/images/about/anawat-grudtoop-profile-512.webp')

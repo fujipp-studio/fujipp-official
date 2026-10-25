@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-25 | Smoothed momentum-aware Work card snapping and reverse gestures, simplified mobile navigation, separated Safari logo and Discord banner previews, and shared API caches across pages with account isolation, fresh Runtime checks, and lighter settings tabs. |
 | 2026-10-23 | Enlarged Work cards in a horizontal gallery with aligned details, paired navigation controls, smoother horizontal scrolling, and uninterrupted vertical page scrolling; removed the project count label. |
 | 2026-10-23 | Enabled full-size Work image previews with bilingual close controls, unified link underline animations, and improved back-link spacing while preserving existing text sizes and image cursors. |
 | 2026-10-23 | Added bilingual Admin-controlled Halloween, Christmas, and Valentine’s decorations with private previews, responsive density, and reduced-motion support while preserving website colors and layout. |

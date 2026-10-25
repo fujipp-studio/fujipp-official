@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixtureResponse } from './fixtures/api'
 import { configuration } from '../src/__tests__/fixtures/domain'
+import type { WorkDetail, WorkSummary } from '../src/features/work/api'
 
 test('selects Container text without dragging the block and reorders from the handle', async ({
   page,
@@ -193,6 +194,64 @@ test('loads more Admin users on scroll and resets the cursor for a new search', 
   expect(requests[2]?.searchParams.get('query')).toBe('needle')
 })
 
+test('preloads Work and GitHub on Home and reuses them across pages and calendar years', async ({ page, isMobile }) => {
+  let workRequests = 0
+  let overviewRequests = 0
+  let githubRequests = 0
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v2/works') workRequests++
+    if (path === '/api/v2/works/overview') overviewRequests++
+  })
+  await page.route('https://gh-calendar.rschristian.dev/**', route => {
+    githubRequests++
+    return route.fulfill({ json: {
+      total: 7,
+      contributions: [[
+        { date: '2026-10-24', count: 0, intensity: '0' },
+        { date: '2026-10-25', count: 7, intensity: '4' },
+      ]],
+    } })
+  })
+  await page.goto('/?role=GUEST')
+  await expect.poll(() => workRequests).toBe(1)
+  await expect.poll(() => githubRequests).toBe(1)
+  await page.locator('.home-hero__actions a').click()
+  await expect(page.locator('.work-card')).toHaveCount(isMobile ? 4 : 6)
+  const activity = page.locator('#github-activity')
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Mobile navigation', exact: true }).getByRole('button', { name: 'Home', exact: true }).click()
+  } else {
+    await page.locator('.desktop-navbar .brand').click()
+  }
+  await expect(page).toHaveURL(/\/$/)
+  await page.locator('.home-hero__actions a').click()
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  expect(workRequests).toBe(1)
+  expect(overviewRequests).toBe(1)
+  expect(githubRequests).toBe(1)
+
+  const currentYear = String(new Date().getFullYear())
+  await activity.getByRole('button', { name: currentYear, exact: true }).click()
+  await expect.poll(() => githubRequests).toBe(2)
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  await activity.getByRole('button', { name: 'Last year', exact: true }).click()
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  await activity.getByRole('button', { name: currentYear, exact: true }).click()
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  expect(githubRequests).toBe(2)
+  await page.getByRole('button', { name: 'Switch language to Thai', exact: true }).click()
+  await expect(activity.locator('a.contribution-day').first()).toHaveAttribute('aria-label', /ไม่มีกิจกรรม/)
+  await expect.poll(() => workRequests).toBe(2)
+  await expect.poll(() => overviewRequests).toBe(2)
+  expect(githubRequests).toBe(2)
+  expect(errors).toEqual([])
+})
+
 test('navigates from Home without reloading and reuses cached Work data', async ({
   page,
   isMobile,
@@ -222,6 +281,51 @@ test('navigates from Home without reloading and reuses cached Work data', async 
   expect(requests).toHaveLength(1)
   await expect(page.locator('.work-card__meta')).toHaveText(['Web', 'Web', 'Web', 'Web'])
   await expect(page.getByText(/^Showing \d+ of \d+ projects$/)).toHaveCount(0)
+})
+
+test('reuses project details when returning from the Work list', async ({ page }) => {
+  const summary = (fixtureResponse('/api/v2/works', 'GET', {}) as { items: WorkSummary[] }).items[0]!
+  const detail: WorkDetail = {
+    ...summary, overview: 'Project overview', feasibility: '', targetUsers: '',
+    publishedAt: '2026-01-01T00:00:00Z', gallery: [], architecture: null,
+    links: [], features: [], challenges: [], learnings: [],
+  }
+  let requests = 0
+  await page.route('**/api/v1/works/project-0?*', route => {
+    requests++
+    return route.fulfill({ json: detail })
+  })
+  await page.goto('/work?role=GUEST')
+  await page.locator('.work-card__visual-link').first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Project 1', exact: true })).toBeVisible()
+  await page.locator('.back-link').click()
+  await page.locator('.work-card__visual-link').first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Project 1', exact: true })).toBeVisible()
+  expect(requests).toBe(1)
+})
+
+test('reuses the Store catalog while checking Runtime capacity again on return', async ({ page, isMobile }) => {
+  let catalogRequests = 0
+  let capacityRequests = 0
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/store/features') catalogRequests++
+    if (path === '/api/v1/runtime/availability') capacityRequests++
+  })
+  await page.goto('/store/packages')
+  await expect(page.getByRole('button', { name: 'Buy', exact: true })).toBeVisible()
+  await expect.poll(() => capacityRequests).toBe(1)
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Mobile navigation', exact: true }).getByRole('button', { name: 'Home', exact: true }).click()
+  } else {
+    await page.locator('.desktop-navbar .brand').click()
+  }
+  await expect(page).toHaveURL(/\/$/)
+  await page.goBack()
+  await expect(page.getByRole('button', { name: 'Buy', exact: true })).toBeVisible()
+  await expect.poll(() => capacityRequests).toBe(2)
+  expect(catalogRequests).toBe(1)
 })
 
 test('scrolls the Work gallery without moving or trapping the page', async ({ page, isMobile }) => {

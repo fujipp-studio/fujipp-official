@@ -1,8 +1,7 @@
-import { storeToRefs } from 'pinia'
+import { useQuery, useQueryClient, type QueryClient } from '@tanstack/vue-query'
 import { computed, ref, type Ref } from 'vue'
-
-import { useWorkStore } from '@/stores'
 import type { WorkLocale, WorkOverview } from '../api'
+import { workCatalogQuery } from '../queries'
 
 const emptyOverview: WorkOverview = { total: 0, categories: [], featured: [] }
 
@@ -10,37 +9,44 @@ export function useWorkListing(
   locale: Ref<WorkLocale>,
   category: Ref<string>,
   _pageSize: Ref<number>,
+  queryClient?: QueryClient,
 ) {
-  const store = useWorkStore()
-  const { entries, loading: loadingEntries, errors } = storeToRefs(store)
+  const client = queryClient ?? useQueryClient()
+  const options = computed(() => workCatalogQuery(locale.value))
+  const result = useQuery(
+    computed(() => ({ ...options.value, shallow: true })),
+    client,
+  )
   const moreError = ref('')
   const loadingMore = ref(false)
-
-  const currentEntry = computed(() => entries.value[locale.value])
-  const overview = computed(() => currentEntry.value?.overview ?? emptyOverview)
+  const overview = computed(() => result.data.value?.overview ?? emptyOverview)
   const works = computed(() => {
-    const allWorks = currentEntry.value?.works ?? []
-    if (category.value === 'all') return allWorks
-    return allWorks.filter((work) => work.category.code === category.value)
+    const all = result.data.value?.works ?? []
+    return category.value === 'all'
+      ? all
+      : all.filter((work) => work.category.code === category.value)
   })
   const total = computed(() => works.value.length)
-  const error = computed(() => errors.value[locale.value] ?? '')
-  const loading = computed(
-    () => !currentEntry.value && (Boolean(loadingEntries.value[locale.value]) || !error.value),
-  )
+  const error = computed(() => (result.data.value ? '' : (result.error.value?.message ?? '')))
+  const loading = result.isPending
 
   async function load(force = false) {
+    const current = options.value
     try {
-      await store.load(locale.value, force)
+      if (force)
+        await client.invalidateQueries({
+          queryKey: current.queryKey,
+          exact: true,
+          refetchType: 'none',
+        })
+      await client.query(current)
       return true
     } catch {
       return false
     }
   }
-
   async function ensureVisible(_count: number) {
     return true
   }
-
   return { works, overview, total, loading, loadingMore, error, moreError, load, ensureVisible }
 }

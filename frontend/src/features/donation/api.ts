@@ -46,9 +46,10 @@ export interface CreateDonationInput {
   idempotencyKey: string
 }
 
-export async function fetchDonationCampaign(): Promise<DonationCampaign> {
+export async function fetchDonationCampaign(signal?: AbortSignal): Promise<DonationCampaign> {
   const response = await apiFetch(`${backendUrl}/api/v1/donations/campaign`, {
     headers: { Accept: 'application/json' },
+    signal,
   })
   return readJson<DonationCampaign>(response, 'Unable to load the donation campaign.')
 }

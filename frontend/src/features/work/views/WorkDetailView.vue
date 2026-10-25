@@ -3,9 +3,10 @@ import { ArrowLeft, ExternalLink, RotateCcw } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { workDetailQuery } from '../queries'
 
 import {
-  fetchWork,
   type WorkContentItem,
   type WorkDetail,
   type WorkLocale,
@@ -18,12 +19,16 @@ import { applySeoMetadata } from '../../../services/seo'
 const route = useRoute()
 const { locale: appLocale } = useI18n()
 const locale = ref<WorkLocale>(appLocale.value === 'th' ? 'th' : 'en')
-const work = ref<WorkDetail>()
-const loading = ref(true)
-const error = ref('')
+const slug = computed(() => String(route.params.slug ?? ''))
+const client = useQueryClient()
+const detail = useQuery(computed(() => ({ ...workDetailQuery(slug.value, locale.value), shallow: true })))
+const work = detail.data
+const loading = detail.isPending
+const localeError = ref('')
+let localeVersion = 0
+const error = computed(() => localeError.value || (work.value ? '' : detail.error.value?.message ?? ''))
 const previewImage = ref<WorkMedia>()
 const imagePreviewOpen = ref(false)
-const workCache = new Map<string, WorkDetail>()
 
 const copy = computed(() =>
   locale.value === 'th'
@@ -67,8 +72,6 @@ const copy = computed(() =>
       },
 )
 
-const slug = computed(() => String(route.params.slug ?? ''))
-
 const detailSections = computed(() => {
   if (!work.value) return []
 
@@ -88,57 +91,31 @@ const detailSections = computed(() => {
   ].filter((section) => section.visible)
 })
 
-function workCacheKey(value: WorkLocale) {
-  return `${slug.value}:${value}`
-}
-
-async function getWork(value: WorkLocale) {
-  const cacheKey = workCacheKey(value)
-  const cachedWork = workCache.get(cacheKey)
-  if (cachedWork) return cachedWork
-
-  const nextWork = await fetchWork(slug.value, value)
-  workCache.set(cacheKey, nextWork)
-  return nextWork
-}
-
 async function loadWork() {
-  imagePreviewOpen.value = false
-  loading.value = true
-  error.value = ''
-  try {
-    work.value = await getWork(locale.value)
-    applySeoMetadata({
-      title: work.value.name,
-      description: work.value.shortDescription,
-      path: route.path,
-    })
-    void getWork(locale.value === 'en' ? 'th' : 'en').catch(() => undefined)
-  } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Unable to load this project.'
-  } finally {
-    loading.value = false
-  }
+  localeError.value = ''
+  await detail.refetch()
 }
 
 async function applyRouteLocale(value: WorkLocale) {
+  const version = ++localeVersion
+  const currentSlug = slug.value
   if (value === locale.value) return
   const scrollPosition = { left: window.scrollX, top: window.scrollY }
-  error.value = ''
+  localeError.value = ''
   try {
-    work.value = await getWork(value)
+    await client.query(workDetailQuery(currentSlug, value))
+    if (version !== localeVersion || currentSlug !== slug.value) return
     locale.value = value
-    applySeoMetadata({
-      title: work.value.name,
-      description: work.value.shortDescription,
-      path: route.path,
-    })
     await nextTick()
     window.scrollTo(scrollPosition.left, scrollPosition.top)
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : 'Unable to load this project.'
+    if (version === localeVersion) localeError.value = reason instanceof Error ? reason.message : 'Unable to load this project.'
   }
 }
+
+watch(work, (project) => {
+  if (project) applySeoMetadata({ title: project.name, description: project.shortDescription, path: route.path })
+}, { immediate: true })
 
 function contentSections(project: WorkDetail) {
   return [
@@ -170,16 +147,16 @@ function formatWorkDate(value: string) {
   }).format(new Date(`${value}T00:00:00Z`))
 }
 
-watch(slug, () => void loadWork())
+watch(slug, () => { localeVersion++; imagePreviewOpen.value = false; localeError.value = '' })
 watch(
   appLocale,
   (value) => void applyRouteLocale(value === 'th' ? 'th' : 'en'),
 )
 onMounted(() => {
   document.documentElement.classList.add('work-section-scroll')
-  void loadWork()
 })
 onBeforeUnmount(() => {
+  localeVersion++
   document.documentElement.classList.remove('work-section-scroll')
 })
 </script>

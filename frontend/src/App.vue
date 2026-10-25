@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useQueryClient } from '@tanstack/vue-query'
+import { clearAccountQueries } from './shared/api/queryClient'
 import { useRoute, useRouter } from 'vue-router'
 
 import darkFaviconUrl from './assets/brand/fujipp-mark-tab-dark.svg?url'
@@ -8,6 +10,7 @@ import lightFaviconUrl from './assets/brand/fujipp-mark-tab-light.svg?url'
 import { AppNavbar } from './shared/layout'
 import { AppScrollRail } from './shared/ui'
 import { useDesktopSmoothScroll } from './shared/ui/useDesktopSmoothScroll'
+import { useWorkPreload } from './features/work/composables/useWorkPreload'
 import { useAuthStore, useThemeStore } from './stores'
 import { useAdminToolsVisibility } from './features/admin/composables/useAdminToolsVisibility'
 
@@ -22,7 +25,10 @@ const seasonalEffectsEnabled = import.meta.env.VITE_PERFORMANCE_AUDIT !== 'true'
 const route = useRoute()
 const router = useRouter()
 useDesktopSmoothScroll()
+useWorkPreload()
 const auth = useAuthStore()
+const queryClient = useQueryClient()
+watch(() => auth.session?.user?.id, () => clearAccountQueries(queryClient), { flush: 'sync' })
 const theme = useThemeStore()
 const { currentUser, initialized, isAuthenticated } = storeToRefs(auth)
 const { isDarkTheme } = storeToRefs(theme)

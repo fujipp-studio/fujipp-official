@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { donationCampaignQuery } from '../queries'
 import { ChevronLeft, ChevronRight, Heart, LockKeyhole, WalletCards } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
   createDonation,
-  fetchDonationCampaign,
   type Donation,
-  type DonationCampaign,
 } from '@/features/donation/api'
 import { AppButton, AppModal, AppToast } from '@/shared/ui'
 const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/AppAuthDialog.vue'))
@@ -24,9 +24,11 @@ const { locale, t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 
-const campaign = ref<DonationCampaign | null>(null)
-const loading = ref(true)
-const error = ref('')
+const client = useQueryClient()
+const campaignQuery = useQuery({ ...donationCampaignQuery(), shallow: true })
+const campaign = campaignQuery.data
+const loading = campaignQuery.isPending
+const error = computed(() => campaign.value ? '' : campaignQuery.error.value?.message ?? '')
 const leaderboardPage = ref(1)
 const authDialogOpen = ref(false)
 const authDialogLoaded = ref(false)
@@ -109,17 +111,11 @@ function changePage(page: number) {
 }
 
 async function loadCampaign() {
-  loading.value = true
-  error.value = ''
-  try {
-    campaign.value = await fetchDonationCampaign()
-    leaderboardPage.value = Math.min(leaderboardPage.value, totalPages.value)
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : t('donation.campaignLoadError')
-  } finally {
-    loading.value = false
-  }
+  await campaignQuery.refetch()
 }
+watch(campaign, () => {
+  leaderboardPage.value = Math.min(leaderboardPage.value, totalPages.value)
+})
 
 async function donateFromWallet() {
   if (!session.value || !canDonate.value || creating.value) return
@@ -139,7 +135,7 @@ async function donateFromWallet() {
     toastMessage.value = t('donation.successToast')
     toastVariant.value = 'success'
     toastOpen.value = true
-    await Promise.allSettled([auth.reloadCurrentUser(), loadCampaign()])
+    await Promise.allSettled([auth.reloadCurrentUser(), client.invalidateQueries({ queryKey: donationCampaignQuery().queryKey })])
   } catch (cause) {
     toastMessage.value = cause instanceof Error ? cause.message : t('donation.createError')
     toastVariant.value = 'error'
@@ -173,7 +169,6 @@ watch(session, (activeSession) => {
   donationModalOpen.value = true
 })
 
-onMounted(() => void loadCampaign())
 </script>
 
 <template>
