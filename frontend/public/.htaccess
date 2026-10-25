@@ -2,8 +2,21 @@ Options -MultiViews
 
 RewriteEngine On
 
+# Safari keeps the square logo; only Discord receives the wide link banner.
+RewriteCond %{HTTP_USER_AGENT} Discordbot [NC]
+RewriteRule ^(?:index\.html)?$ discord-preview.html [END]
+
 # Serve real assets directly and send client-side routes to the Vue entry point.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
+RewriteCond %{HTTP_USER_AGENT} Discordbot [NC]
+RewriteRule ^ discord-preview.html [END]
 RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+  <FilesMatch "^(index|discord-preview)\.html$">
+    Header merge Vary User-Agent
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+</IfModule>

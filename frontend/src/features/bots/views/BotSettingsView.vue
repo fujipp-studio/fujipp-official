@@ -2,6 +2,8 @@
 import { useBotSettingsData } from '../composables/useBotSettingsData'
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useQueryClient } from '@tanstack/vue-query'
+import { accountKeys, invalidateBotAccount } from '../queries'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -25,6 +27,7 @@ const coreFeatureCodes = new Set(['bot-permissions', 'bot-presence', 'runtime-ex
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const queryClient = useQueryClient()
 const { session, initialized } = storeToRefs(authStore)
 const { locale, t } = useI18n()
 const botId = computed(() => String(route.params.botId ?? ''))
@@ -99,6 +102,7 @@ async function loadPage(force = false) {
 
 async function saveBot() {
   if (!session.value || !bot.value || !form.value.name.trim()) return
+  const activeSession = session.value
   saving.value = true
   try {
     const input = {
@@ -107,12 +111,13 @@ async function saveBot() {
       discordGuildId: form.value.discordGuildId.trim() || null,
     }
     const updated = adminMode.value
-      ? await updateAdminBotSettings(bot.value.id, input, session.value)
-      : await updateBot(bot.value.id, input, session.value)
+      ? await updateAdminBotSettings(bot.value.id, input, activeSession)
+      : await updateBot(bot.value.id, input, activeSession)
     if (form.value.token.trim() && !adminMode.value) {
-      await updateBotDiscordToken(bot.value.id, form.value.token.trim(), session.value)
+      await updateBotDiscordToken(bot.value.id, form.value.token.trim(), activeSession)
     }
-    data.setBot(updated)
+    if (!adminMode.value) await queryClient.cancelQueries({ queryKey: accountKeys.bots(activeSession) })
+    data.setBot(updated, activeSession.user.id)
     form.value.token = ''
     showToast(t('botSettings.botSettingsSavedRestartTheBotTo'), 'success')
     if (!adminMode.value) activeView.value = 'main'
@@ -201,10 +206,14 @@ async function confirmFeatureRemoval() {
 
 async function upgradeLicense(license: FeatureLicense) {
   if (!session.value || adminMode.value || !license.upgradeAvailable) return
+  const activeSession = session.value
   upgradingLicenseId.value = license.id
   try {
-    const updated = await upgradeFeatureLicense(license.id, session.value)
+    const updated = await upgradeFeatureLicense(license.id, activeSession)
+    if (session.value?.user.id !== activeSession.user.id) return
     licenses.value = licenses.value.map((item) => (item.id === updated.id ? updated : item))
+    await invalidateBotAccount(queryClient, activeSession)
+    data.syncCache(activeSession.user.id)
     showToast(
       text(
         `Upgraded to version ${updated.version}.`,
@@ -279,16 +288,20 @@ function closeRuntimeRenewalModal() {
 
 async function confirmToggleAutoRenew() {
   if (!session.value || !assignedRuntime.value) return
+  const activeSession = session.value
   runtimeBusy.value = true
   try {
     const updated = await updateRuntimeAutoRenew(
       assignedRuntime.value.id,
       !assignedRuntime.value.autoRenew,
-      session.value,
+      activeSession,
     )
+    if (session.value?.user.id !== activeSession.user.id) return
     runtimeSubscriptions.value = runtimeSubscriptions.value.map((item) =>
       item.id === updated.id ? updated : item,
     )
+    await invalidateBotAccount(queryClient, activeSession)
+    data.syncCache(activeSession.user.id)
     showToast(t('botSettings.automaticRenewalUpdated'), 'success')
   } catch (cause) {
     showToast(cause instanceof Error ? cause.message : t('botSettings.updateFailed'), 'error')
@@ -300,12 +313,16 @@ async function confirmToggleAutoRenew() {
 
 async function renewAssignedRuntime() {
   if (!session.value || !assignedRuntime.value) return
+  const activeSession = session.value
   runtimeBusy.value = true
   try {
-    const updated = await renewRuntime(assignedRuntime.value.id, session.value)
+    const updated = await renewRuntime(assignedRuntime.value.id, activeSession)
+    if (session.value?.user.id !== activeSession.user.id) return
     runtimeSubscriptions.value = runtimeSubscriptions.value.map((item) =>
       item.id === updated.id ? updated : item,
     )
+    await invalidateBotAccount(queryClient, activeSession)
+    data.syncCache(activeSession.user.id)
     showToast(t('botSettings.runtimeRenewed'), 'success')
   } catch (cause) {
     showToast(cause instanceof Error ? cause.message : t('botSettings.renewalFailed'), 'error')

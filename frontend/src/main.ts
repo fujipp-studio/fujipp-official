@@ -1,5 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+import { createApiQueryClient } from './shared/api/queryClient'
 
 import App from './App.vue'
 import { i18n, loadRouteMessages } from './i18n'
@@ -11,6 +13,7 @@ const app = createApp(App)
 const pinia = createPinia()
 
 app.use(pinia)
+app.use(VueQueryPlugin, { queryClient: createApiQueryClient() })
 const auth = useAuthStore(pinia)
 auth.initializeGuestState()
 

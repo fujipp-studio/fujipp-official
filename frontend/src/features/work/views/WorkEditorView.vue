@@ -5,7 +5,6 @@ import { useRoute, useRouter } from 'vue-router'
 
 import {
   createAdminWork,
-  invalidateWorkListingCache,
   createAdminTechnology,
   deleteAdminWorkMedia,
   fetchAdminWork,
@@ -29,6 +28,8 @@ import {
 import { AppFooter } from '../../../shared/layout'
 import { AppButton, AppFileField, AppImageLightbox, AppModal, AppMultiSelect, AppSectionIndicator, AppTextArea, AppTextField, AppToast } from '../../../shared/ui'
 import { useAuthStore } from '../../../stores'
+import { useQueryClient } from '@tanstack/vue-query'
+import { invalidateWorkQueries } from '../queries'
 
 type TranslationInput = Omit<AdminWorkTranslation, 'locale'>
 type EditorContent = Omit<AdminWorkContent, 'id' | 'translations'> & {
@@ -38,7 +39,8 @@ type EditorContent = Omit<AdminWorkContent, 'id' | 'translations'> & {
 type EditorLink = Omit<AdminWorkLink, 'id'> & { id?: string }
 
 const route = useRoute()
-onBeforeUnmount(invalidateWorkListingCache)
+const queryClient = useQueryClient()
+onBeforeUnmount(() => { void invalidateWorkQueries(queryClient) })
 const router = useRouter()
 const authStore = useAuthStore()
 const isEdit = computed(() => route.name === 'work-edit')

@@ -73,12 +73,26 @@ export function useDesktopSmoothScroll() {
         syncTouch: false,
         allowNestedScroll: true,
         // Keep horizontal gestures, pinch zoom and touch scrolling native.
-        virtualScroll: ({ event, deltaX, deltaY }) =>
-          event.type === 'wheel' &&
-          !event.ctrlKey &&
-          !event.metaKey &&
-          !event.shiftKey &&
-          Math.abs(deltaY) > Math.abs(deltaX),
+        virtualScroll: ({ event, deltaX, deltaY }) => {
+          if (
+            event
+              .composedPath()
+              .some(
+                (node) =>
+                  node instanceof HTMLElement && node.hasAttribute('data-native-wheel'),
+              )
+          ) {
+            stopMomentum()
+            return false
+          }
+          return (
+            event.type === 'wheel' &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.shiftKey &&
+            Math.abs(deltaY) > Math.abs(deltaX)
+          )
+        },
         prevent: (node) =>
           node.matches(
             'dialog, [role="dialog"], [role="listbox"], input, textarea, select, [contenteditable="true"]',

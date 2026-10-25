@@ -7,6 +7,7 @@ import { controlBot, fetchBot, fetchFeatureLicenses } from '@/features/bots/api'
 import { fetchRuntimeSubscriptions } from '@/features/bots/runtime-api'
 import { useAuthStore } from '@/stores'
 import { bot, license, session, deferred } from './fixtures/domain'
+import { testQueryClient } from './setupQuery'
 vi.mock('@/features/bots/api', () => ({
   controlBot: vi.fn<typeof import('@/features/bots/api').controlBot>(),
   fetchBots: vi.fn<typeof import('@/features/bots/api').fetchBots>(),
@@ -36,7 +37,7 @@ afterEach(() => {
   scope.stop()
   vi.useRealTimers()
 })
-const create = () => scope.run(() => createBotSettingsData({ botId, adminMode: ref(false) }))!
+const create = () => scope.run(() => createBotSettingsData({ botId, adminMode: ref(false), queryClient: testQueryClient }))!
 describe('shared bot settings data', () => {
   it('coalesces concurrent shell/child loads and keeps one status poll', async () => {
     const data = create()

@@ -32,6 +32,7 @@ describe('App', () => {
       expect(wrapper.get('h1').text()).toBe('Components')
       expect(wrapper.text()).toContain('AppNavbar')
       expect(wrapper.text()).toContain('AppTurnstile')
+      wrapper.unmount()
     },
     15_000,
   )

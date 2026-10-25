@@ -55,7 +55,9 @@ from the owning feature; there is no all-features Backend barrel.
   directly from a presentational component.
 - Let routed views coordinate focused components and composables. Use local state
   for a single view, provide/inject for a persistent route flow, and Pinia only for
-  state shared outside that flow. Never put editable secret values into persistent storage.
+  shared client state such as session/theme. Use feature-owned Vue Query options for
+  shared API reads, with one QueryClient per app. Never put editable secret values
+  into persistent storage.
 - The bot settings shell provides one `useBotSettingsData` instance to its children.
   Loads share an in-flight promise, polls run sequentially every three seconds after
   completion, hidden documents pause polling, and disposed/stale responses cannot
@@ -63,9 +65,15 @@ from the owning feature; there is no all-features Backend barrel.
 - Settings load and poll `GET /api/v2/bots/{botId}`, which checks ownership on the
   Backend. The My Bot dashboard uses the same visibility-aware polling scheduler;
   requests never overlap within a poll flow and stop when the scope is disposed.
-- Work requests the visible 4/6-item page and a separate overview for category totals
-  and featured cards. Its bounded public cache expires after 60 seconds and is cleared
-  on editor exit or retry. Admin users and wallet history load 50 rows at a time through
+- Work loads the catalog in 100-item cursor pages, then filters and reveals cards locally.
+  Work catalog/details and Store catalog stay fresh for five minutes; GitHub activity
+  for ten minutes and the donation campaign for 30 seconds. Inactive queries are removed
+  after 15 minutes. Home warms Work/GitHub after load during idle time; navigation intent
+  prefetches likely destinations. Work editor exit and successful donations invalidate
+  the affected queries. Bot reads are keyed by account and cleared on account changes;
+  status polling stays visibility-aware. Runtime capacity is checked on entry and again
+  before purchase. Purchase requests retain their explicit idempotency/retry flow.
+- Admin users and wallet history load 50 rows at a time through
   the existing scroll surface. Wallet v2 returns current balance and cursor metadata
   in one contract. Complete inventories and selectors still aggregate cursor pages.
 - `useFeatureSettings` handles configuration loading/saving and field conversion;

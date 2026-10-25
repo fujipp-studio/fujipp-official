@@ -68,27 +68,15 @@ export interface WorkOverview {
   featured: WorkSummary[]
 }
 
-// Public read-only lists only. Keep a bounded, short-lived cache across route visits.
-const listingCache = new Map<string, { expires: number; value: unknown }>()
-export function invalidateWorkListingCache() { listingCache.clear() }
-
-async function cachedListing<T>(url: URL, signal?: AbortSignal): Promise<T> {
-  const key = url.href
-  const cached = listingCache.get(key)
-  if (cached && cached.expires > Date.now()) return cached.value as T
+async function readListing<T>(url: URL, signal?: AbortSignal): Promise<T> {
   const response = await apiFetch(url, { headers: { Accept: 'application/json' }, signal })
-  const value = await readJson<T>(response, 'Unable to load portfolio projects.')
-  if (!signal?.aborted) {
-    if (listingCache.size >= 32) listingCache.delete(listingCache.keys().next().value!)
-    listingCache.set(key, { expires: Date.now() + 60_000, value })
-  }
-  return value
+  return readJson<T>(response, 'Unable to load portfolio projects.')
 }
 
 export function fetchWorkOverview(locale: WorkLocale, signal?: AbortSignal) {
   const url = new URL(`${backendUrl}/api/v2/works/overview`)
   url.searchParams.set('locale', locale)
-  return cachedListing<WorkOverview>(url, signal)
+  return readListing<WorkOverview>(url, signal)
 }
 
 export function fetchWorksPage(locale: WorkLocale, options: {
@@ -99,7 +87,7 @@ export function fetchWorksPage(locale: WorkLocale, options: {
   url.searchParams.set('limit', String(options.limit))
   if (options.category && options.category !== 'all') url.searchParams.set('category', options.category)
   if (options.cursor) url.searchParams.set('cursor', options.cursor)
-  return cachedListing<CursorPage<WorkSummary>>(url, options.signal)
+  return readListing<CursorPage<WorkSummary>>(url, options.signal)
 }
 
 export interface WorkDetail extends Omit<WorkSummary, 'cover'> {
@@ -220,12 +208,13 @@ export interface CreateAdminTechnologyInput {
   officialUrl: string | null
 }
 
-export async function fetchWork(slug: string, locale: WorkLocale): Promise<WorkDetail> {
+export async function fetchWork(slug: string, locale: WorkLocale, signal?: AbortSignal): Promise<WorkDetail> {
   const query = new URLSearchParams({ locale })
   const response = await apiFetch(
     `${backendUrl}/api/v1/works/${encodeURIComponent(slug)}?${query}`,
     {
       headers: { Accept: 'application/json' },
+      signal,
     },
   )
 

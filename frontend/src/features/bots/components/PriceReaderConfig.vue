@@ -5,7 +5,6 @@ import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
 import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import FeatureConfigField from './FeatureConfigField.vue'
-import PriceMapEditor from './PriceMapEditor.vue'
 import PriceReaderResultEditor from './PriceReaderResultEditor.vue'
 import PriceReaderTemplateField from './PriceReaderTemplateField.vue'
 import PriceReaderPreview from './PriceReaderPreview.vue'
@@ -14,11 +13,14 @@ import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const { text, values, configuration, license, previewBot } = useFeatureEditor()
 const PriceReaderTestPanel = defineAsyncComponent(() => import('./PriceReaderTestPanel.vue'))
+const PriceMapEditor = defineAsyncComponent(() => import('./PriceMapEditor.vue'))
 const id = useId()
 const activeCategory = ref('channels')
 const testOpened = ref(false)
+const pricesOpened = ref(false)
 watch(activeCategory, (key) => {
   if (key === 'test') testOpened.value = true
+  if (key === 'prices') pricesOpened.value = true
 })
 const field = (key: string) => configuration.value?.fields.find((item) => item.key === key)
 const value = (key: string) => String(values.value[key] ?? '')
@@ -163,6 +165,7 @@ const statusFields = computed(() =>
             "
           >
             <PriceMapEditor
+              v-if="pricesOpened"
               :model-value="value('PRICE_READER_PRICE_MAP')"
               @update:model-value="values.PRICE_READER_PRICE_MAP = $event"
             />

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { fixtureResponse } from './fixtures/api'
 import { configuration } from '../src/__tests__/fixtures/domain'
+import type { WorkDetail, WorkSummary } from '../src/features/work/api'
 
 test('selects Container text without dragging the block and reorders from the handle', async ({
   page,
@@ -193,6 +194,64 @@ test('loads more Admin users on scroll and resets the cursor for a new search', 
   expect(requests[2]?.searchParams.get('query')).toBe('needle')
 })
 
+test('preloads Work and GitHub on Home and reuses them across pages and calendar years', async ({ page, isMobile }) => {
+  let workRequests = 0
+  let overviewRequests = 0
+  let githubRequests = 0
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v2/works') workRequests++
+    if (path === '/api/v2/works/overview') overviewRequests++
+  })
+  await page.route('https://gh-calendar.rschristian.dev/**', route => {
+    githubRequests++
+    return route.fulfill({ json: {
+      total: 7,
+      contributions: [[
+        { date: '2026-10-24', count: 0, intensity: '0' },
+        { date: '2026-10-25', count: 7, intensity: '4' },
+      ]],
+    } })
+  })
+  await page.goto('/?role=GUEST')
+  await expect.poll(() => workRequests).toBe(1)
+  await expect.poll(() => githubRequests).toBe(1)
+  await page.locator('.home-hero__actions a').click()
+  await expect(page.locator('.work-card')).toHaveCount(isMobile ? 4 : 6)
+  const activity = page.locator('#github-activity')
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Mobile navigation', exact: true }).getByRole('button', { name: 'Home', exact: true }).click()
+  } else {
+    await page.locator('.desktop-navbar .brand').click()
+  }
+  await expect(page).toHaveURL(/\/$/)
+  await page.locator('.home-hero__actions a').click()
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  expect(workRequests).toBe(1)
+  expect(overviewRequests).toBe(1)
+  expect(githubRequests).toBe(1)
+
+  const currentYear = String(new Date().getFullYear())
+  await activity.getByRole('button', { name: currentYear, exact: true }).click()
+  await expect.poll(() => githubRequests).toBe(2)
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  await activity.getByRole('button', { name: 'Last year', exact: true }).click()
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  await activity.getByRole('button', { name: currentYear, exact: true }).click()
+  await expect(activity.locator('.github-activity__toolbar strong')).toHaveText('7')
+  expect(githubRequests).toBe(2)
+  await page.getByRole('button', { name: 'Switch language to Thai', exact: true }).click()
+  await expect(activity.locator('a.contribution-day').first()).toHaveAttribute('aria-label', /ไม่มีกิจกรรม/)
+  await expect.poll(() => workRequests).toBe(2)
+  await expect.poll(() => overviewRequests).toBe(2)
+  expect(githubRequests).toBe(2)
+  expect(errors).toEqual([])
+})
+
 test('navigates from Home without reloading and reuses cached Work data', async ({
   page,
   isMobile,
@@ -224,17 +283,66 @@ test('navigates from Home without reloading and reuses cached Work data', async 
   await expect(page.getByText(/^Showing \d+ of \d+ projects$/)).toHaveCount(0)
 })
 
+test('reuses project details when returning from the Work list', async ({ page }) => {
+  const summary = (fixtureResponse('/api/v2/works', 'GET', {}) as { items: WorkSummary[] }).items[0]!
+  const detail: WorkDetail = {
+    ...summary, overview: 'Project overview', feasibility: '', targetUsers: '',
+    publishedAt: '2026-01-01T00:00:00Z', gallery: [], architecture: null,
+    links: [], features: [], challenges: [], learnings: [],
+  }
+  let requests = 0
+  await page.route('**/api/v1/works/project-0?*', route => {
+    requests++
+    return route.fulfill({ json: detail })
+  })
+  await page.goto('/work?role=GUEST')
+  await page.locator('.work-card__visual-link').first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Project 1', exact: true })).toBeVisible()
+  await page.locator('.back-link').click()
+  await page.locator('.work-card__visual-link').first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Project 1', exact: true })).toBeVisible()
+  expect(requests).toBe(1)
+})
+
+test('reuses the Store catalog while checking Runtime capacity again on return', async ({ page, isMobile }) => {
+  let catalogRequests = 0
+  let capacityRequests = 0
+  page.on('request', request => {
+    const path = new URL(request.url()).pathname
+    if (path === '/api/v1/store/features') catalogRequests++
+    if (path === '/api/v1/runtime/availability') capacityRequests++
+  })
+  await page.goto('/store/packages')
+  await expect(page.getByRole('button', { name: 'Buy', exact: true })).toBeVisible()
+  await expect.poll(() => capacityRequests).toBe(1)
+  if (isMobile) {
+    await page.getByRole('button', { name: 'Open navigation', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Mobile navigation', exact: true }).getByRole('button', { name: 'Home', exact: true }).click()
+  } else {
+    await page.locator('.desktop-navbar .brand').click()
+  }
+  await expect(page).toHaveURL(/\/$/)
+  await page.goBack()
+  await expect(page.getByRole('button', { name: 'Buy', exact: true })).toBeVisible()
+  await expect.poll(() => capacityRequests).toBe(2)
+  expect(catalogRequests).toBe(1)
+})
+
 test('scrolls the Work gallery without moving or trapping the page', async ({ page, isMobile }) => {
   await page.goto('/work')
   const gallery = page.locator('#work-gallery')
   const next = page.getByRole('button', { name: 'Next projects', exact: true })
   const previous = page.getByRole('button', { name: 'Previous projects', exact: true })
   await expect(next).toBeEnabled()
+  const step = await gallery.evaluate((element) => {
+    const card = element.querySelector('.work-card')!
+    return card.getBoundingClientRect().width + Number.parseFloat(getComputedStyle(element.querySelector('.work-grid')!).columnGap)
+  })
   await expect(previous).toBeDisabled()
   await next.scrollIntoViewIfNeeded()
   const pageTop = await page.evaluate(() => scrollY)
   await next.click()
-  await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0)
+  await expect.poll(async () => Math.abs(await gallery.evaluate((element) => element.scrollLeft) - step)).toBeLessThan(1)
   await expect(previous).toBeEnabled()
   await previous.click()
   await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBe(0)
@@ -245,19 +353,185 @@ test('scrolls the Work gallery without moving or trapping the page', async ({ pa
   await gallery.locator('.work-card__meta').first().hover()
   const beforeWheel = await page.evaluate(() => scrollY)
   await gallery.evaluate((element) => {
-    const positions: number[] = []
-    Reflect.set(window, 'workGalleryPositions', positions)
-    element.addEventListener('scroll', () => positions.push(element.scrollLeft), { passive: true })
+    element.addEventListener('wheel', (event) => {
+      Reflect.set(window, 'workGalleryWheelPrevented', event.defaultPrevented)
+    }, { passive: true })
   })
-  await page.mouse.wheel(200, 0)
-  await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBe(200)
-  const positions = await page.evaluate(
-    () => Reflect.get(window, 'workGalleryPositions') as number[],
-  )
-  expect(positions.some((position) => position > 0 && position < 200)).toBe(true)
+  await page.mouse.wheel(6, 0)
+  await expect.poll(async () => Math.abs(await gallery.evaluate((element) => element.scrollLeft) - step)).toBeLessThan(1)
+  expect(await page.evaluate(() => Reflect.get(window, 'workGalleryWheelPrevented'))).toBe(true)
+  expect(await page.evaluate(() => scrollY)).toBe(beforeWheel)
+  await page.mouse.wheel(-6, 0)
+  await expect.poll(() => gallery.evaluate((element) => element.scrollLeft)).toBe(0)
   expect(await page.evaluate(() => scrollY)).toBe(beforeWheel)
   await page.mouse.wheel(0, 260)
   await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(beforeWheel)
+})
+
+test('keeps vertical wheel input for page scrolling over the Work gallery', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Touch devices keep their native gestures')
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  await expect(page.getByRole('button', { name: 'Next projects', exact: true })).toBeEnabled()
+  await gallery.locator('.work-card__meta').first().hover()
+  const start = await page.evaluate(() => scrollY)
+  await page.mouse.wheel(0, 180)
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(start)
+  expect(await gallery.evaluate(element => element.scrollLeft)).toBe(0)
+  await page.mouse.wheel(0, -180)
+  await expect.poll(() => page.evaluate(() => scrollY)).toBe(start)
+  expect(await gallery.evaluate(element => element.scrollLeft)).toBe(0)
+})
+
+test('coasts across Work cards to the edge when swiped strongly', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Touch input keeps native momentum')
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  const next = page.getByRole('button', { name: 'Next projects', exact: true })
+  await expect(next).toBeEnabled()
+  await gallery.locator('.work-card__meta').first().hover()
+  const pageTop = await page.evaluate(() => scrollY)
+  const maximum = await gallery.evaluate(element => element.scrollWidth - element.clientWidth)
+  await page.mouse.wheel(40, 0)
+  await expect.poll(() => gallery.evaluate(element => element.scrollLeft)).toBeGreaterThan(0)
+  // Extend the same moving trajectory with a stronger flick, without moving the pointer.
+  await page.mouse.wheel(maximum, 0)
+  await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - maximum)).toBeLessThan(1)
+  await expect(next).toBeDisabled()
+  expect(await page.evaluate(() => scrollY)).toBe(pageTop)
+  await page.mouse.wheel(-maximum, 0)
+  await expect.poll(() => gallery.evaluate(element => element.scrollLeft)).toBe(0)
+  expect(await page.evaluate(() => scrollY)).toBe(pageTop)
+})
+
+test('carries light trackpad swipes to consecutive locked cards with a stationary pointer', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Touch input keeps native snapping')
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  await expect(page.getByRole('button', { name: 'Next projects', exact: true })).toBeEnabled()
+  await gallery.locator('.work-card__meta').first().hover()
+  const pageTop = await page.evaluate(() => scrollY)
+  const step = await gallery.evaluate(element => {
+    const card = element.querySelector('.work-card')!
+    return card.getBoundingClientRect().width + Number.parseFloat(getComputedStyle(element.querySelector('.work-grid')!).columnGap)
+  })
+  for (const [index, direction] of [[1, 1], [2, 1], [1, -1], [0, -1]] as const) {
+    await page.mouse.wheel(6 * direction, 0)
+    await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - index * step)).toBeLessThan(1)
+  }
+  expect(await page.evaluate(() => scrollY)).toBe(pageTop)
+})
+
+test('keeps a moderate reverse Work swipe on the second card through its momentum tail', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'This regression exercises desktop trackpad wheel packets')
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  const next = page.getByRole('button', { name: 'Next projects', exact: true })
+  await expect(next).toBeEnabled()
+  const step = await gallery.evaluate(element => {
+    const card = element.querySelector('.work-card')!
+    return card.getBoundingClientRect().width + Number.parseFloat(getComputedStyle(element.querySelector('.work-grid')!).columnGap)
+  })
+  for (const index of [1, 2]) {
+    await next.click()
+    await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - index * step)).toBeLessThan(1)
+  }
+  const positions = await gallery.evaluate(async element => {
+    const positions: number[] = []
+    for (const magnitude of [60, 56, 50, 44, 38, 32, 26, 20, 14, 10, 6, 3, 1]) {
+      element.dispatchEvent(new WheelEvent('wheel', { deltaX: -magnitude, bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 16))
+      positions.push(element.scrollLeft)
+    }
+    return positions
+  })
+  expect(Math.min(...positions)).toBeGreaterThanOrEqual(step - 1)
+  await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - step)).toBeLessThan(1)
+})
+
+test('starts carrying a light trackpad swipe immediately and leaves diagonal page input native', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'Touch input keeps its existing snap behavior')
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  await expect(page.getByRole('button', { name: 'Next projects', exact: true })).toBeEnabled()
+  await gallery.locator('.work-card__meta').first().hover()
+  const pageTop = await page.evaluate(() => scrollY)
+  const step = await gallery.evaluate(element => {
+    const card = element.querySelector('.work-card')!
+    return card.getBoundingClientRect().width + Number.parseFloat(getComputedStyle(element.querySelector('.work-grid')!).columnGap)
+  })
+  await page.mouse.wheel(6, 0)
+  await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - step)).toBeLessThan(1)
+  await page.mouse.wheel(-6, 0)
+  await expect.poll(() => gallery.evaluate(element => element.scrollLeft)).toBe(0)
+  expect(await page.evaluate(() => scrollY)).toBe(pageTop)
+  await gallery.evaluate(() => {
+    window.addEventListener('wheel', event => {
+      Reflect.set(window, 'workDiagonalPrevented', event.defaultPrevented)
+    }, { passive: true, once: true })
+  })
+  await page.mouse.wheel(24, 30)
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, 'workDiagonalPrevented'))).toBe(false)
+})
+
+test('returns to the nearest previous Work card from a partial last page', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'This regression needs a viewport ending between desktop card boundaries')
+  await page.setViewportSize({ width: 1100, height: 900 })
+  await page.goto('/work')
+  const gallery = page.locator('#work-gallery')
+  const previous = page.getByRole('button', { name: 'Previous projects', exact: true })
+  const next = page.getByRole('button', { name: 'Next projects', exact: true })
+  await expect(next).toBeEnabled()
+  const { step, end } = await gallery.evaluate((element) => {
+    const card = element.querySelector('.work-card')!
+    const step = card.getBoundingClientRect().width + Number.parseFloat(getComputedStyle(element.querySelector('.work-grid')!).columnGap)
+    const end = element.scrollWidth - element.clientWidth
+    element.scrollLeft = end
+    return { step, end }
+  })
+  await expect(next).toBeDisabled()
+  const expected = Math.floor((end - 1) / step) * step
+  await previous.click()
+  await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - expected)).toBeLessThan(1)
+  await previous.click()
+  await expect.poll(async () => Math.abs(await gallery.evaluate(element => element.scrollLeft) - (expected - step))).toBeLessThan(1)
+})
+
+test('reverses the Work slide in place without snapping back before animation', async ({ page }) => {
+  await page.goto('/work')
+  await expect(page.getByRole('button', { name: 'Next projects', exact: true })).toBeEnabled()
+  const positions = await page.evaluate(() => new Promise<{ before: number; after: number; afterReverse: number; expected: number }>(resolve => {
+    const gallery = document.querySelector<HTMLElement>('#work-gallery')!
+    const next = document.querySelector<HTMLButtonElement>('[aria-label="Next projects"]')!
+    const previous = document.querySelector<HTMLButtonElement>('[aria-label="Previous projects"]')!
+    next.click()
+    next.click()
+    next.click()
+    const startedAt = performance.now()
+    function reverse(time: number) {
+      if (time - startedAt < 120 || previous.disabled) {
+        requestAnimationFrame(reverse)
+        return
+      }
+      const before = gallery.scrollLeft
+      const card = gallery.querySelector('.work-card')!
+      const step = card.getBoundingClientRect().width + Number.parseFloat(getComputedStyle(gallery.querySelector('.work-grid')!).columnGap)
+      const expected = Math.max(0, (Math.ceil((before - 1) / step) - 1) * step)
+      previous.click()
+      const after = gallery.scrollLeft
+      const reversedAt = performance.now()
+      function sampleReverse(time: number) {
+        if (time - reversedAt < 80) requestAnimationFrame(sampleReverse)
+        else resolve({ before, after, afterReverse: gallery.scrollLeft, expected })
+      }
+      requestAnimationFrame(sampleReverse)
+    }
+    requestAnimationFrame(reverse)
+  }))
+  expect(positions.before).toBeGreaterThan(0)
+  expect(Math.abs(positions.after - positions.before)).toBeLessThanOrEqual(1)
+  expect(positions.afterReverse).toBeLessThan(positions.before)
+  await expect.poll(async () => Math.abs(await page.locator('#work-gallery').evaluate(element => element.scrollLeft) - positions.expected)).toBeLessThan(1)
 })
 
 test('loads wallet history through v2 only and fetches the next page on scroll', async ({
@@ -623,6 +897,29 @@ test('shows a retry action when bot settings cannot load', async ({ page }) => {
   failed = false
   await page.getByRole('button', { name: 'Try again', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Test bot', exact: true })).toBeVisible()
+})
+
+test('keeps My bot children inside the mobile menu and clears them on close', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'This regression exercises the mobile navigation submenu')
+  await page.goto('/?role=USER')
+  const open = page.getByRole('button', { name: 'Open navigation', exact: true })
+  const sidebar = page.getByRole('dialog', { name: 'Mobile navigation', exact: true })
+  await open.click()
+  const myBot = sidebar.getByRole('button', { name: 'My bot', exact: true })
+  await myBot.click()
+  await expect(myBot).toHaveAttribute('aria-expanded', 'true')
+  await expect(sidebar.getByRole('button', { name: 'Dashboard', exact: true })).toBeVisible()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await sidebar.getByRole('button', { name: 'Close navigation', exact: true }).click()
+  await expect(sidebar).toBeHidden()
+  await expect(page.getByRole('menu')).toHaveCount(0)
+  await open.click()
+  await expect(myBot).toHaveAttribute('aria-expanded', 'false')
+  await myBot.click()
+  await sidebar.getByRole('button', { name: 'Dashboard', exact: true }).click()
+  await expect(page).toHaveURL(/\/my-bot$/)
+  await expect(sidebar).toBeHidden()
+  await expect(page.getByRole('menu')).toHaveCount(0)
 })
 
 for (const theme of ['light', 'dark']) {

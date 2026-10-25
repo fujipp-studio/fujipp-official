@@ -78,7 +78,7 @@ describe('Bot package settings', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.session = { access_token: 'test-token' } as Session
+    auth.session = { access_token: 'test-token', user: { id: 'test-user' } } as Session
     auth.initialized = true
 
     const router = createRouter({
@@ -131,7 +131,7 @@ describe('Bot package settings', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.session = { access_token: 'test-token' } as Session
+    auth.session = { access_token: 'test-token', user: { id: 'test-user' } } as Session
     auth.initialized = true
     const router = createRouter({
       history: createMemoryHistory(),
@@ -156,7 +156,7 @@ describe('Bot package settings', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.session = { access_token: 'test-token' } as Session
+    auth.session = { access_token: 'test-token', user: { id: 'test-user' } } as Session
     auth.initialized = true
 
     const router = createRouter({
@@ -202,7 +202,7 @@ describe('Bot package settings', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     const auth = useAuthStore()
-    auth.session = { access_token: 'test-token' } as Session
+    auth.session = { access_token: 'test-token', user: { id: 'test-user' } } as Session
     auth.initialized = true
 
     const router = createRouter({
