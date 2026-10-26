@@ -20,8 +20,9 @@ duplicate supervision without improving availability.
 5. The Backend keeps the assembled snapshot in memory for 60 seconds by
    default, avoiding repeated Supabase reads while the runtime is unchanged.
 6. The Runner starts, stops, or reloads only bots whose runtime fingerprint
-   changed. Message Sets configuration and design changes update the existing
-   worker and Discord client without restarting them.
+   changed. Embed and Components V2 design changes update active features inside
+   the existing worker and Discord client. Message Sets also supports live
+   configuration changes.
 7. Runtime status is reported to `POST /internal/v1/runtime/status`.
 
 Feature modules can persist a small non-secret operational state with
@@ -35,6 +36,37 @@ The browser cannot call the Internal Runtime API and can never retrieve a
 plaintext Discord token or feature secret. Internal endpoints require
 `X-Runner-Token`, should only be reachable over the private Docker network, and
 must use a long random token shared by Backend and Runner.
+
+## Live message designs
+
+Saving only a feature's Embed or Components V2 presentations reaches the running
+bot on the next runtime poll, normally within 30 seconds. Switching between the
+two formats, replacing fields or images, and resetting a design to its default
+all use the existing worker and Discord connection. Active feature listeners,
+voice connections, pending sessions, and scheduled work remain in place.
+Every active feature receives a stable, read-only presentation view; the next
+message it renders reads the latest saved definitions, including newly added
+slots and removal of old slots. The reload itself does not rewrite already
+posted messages. Features that already refresh saved panels keep doing so using
+the latest designs; other posted messages retain their designs until explicitly
+updated or resent through the feature's supported commands.
+
+Configuration revisions and presentations do not by themselves require a
+restart. Changes to a feature's operational configuration or secrets still
+restart the bot unless that module implements full hot reload, as Message Sets
+does. Changing configuration and a design in the same save still follows that
+configuration's restart rules. Installing, uninstalling, or changing a feature
+version, changing Discord credentials or guild, explicitly restarting, and
+recovering an invalidated Discord session retain the normal restart behavior.
+A feature that failed activation must activate successfully before it can use
+live designs; another unchanged failed feature does not block updates to
+healthy features.
+
+The supervisor sends presentation updates over IPC and acknowledges them only
+after the worker applies the update. Unacknowledged or failed updates retry on
+later polls, including unchanged bootstrap responses. Deploy the updated Runner
+image for both supervisor and workers; this change requires no Backend,
+Frontend, or database migration.
 
 ## Store a Discord token
 
@@ -172,8 +204,10 @@ that feature’s command. Existing posted messages keep their original design.
 The first deployment requires the migration, Backend, and updated Runner image.
 The migration creates a draft catalog entry; publish its version and activate
 the product through the admin tools before granting/installing it. Installing or
-uninstalling the feature, changing other features, credentials, or explicitly
-restarting a bot still follows the usual bot restart flow.
+uninstalling the feature, changing operational configuration of features without
+full hot reload, changing credentials, or explicitly restarting a bot still
+follows the usual bot restart flow. Design-only changes use live updates across
+active features.
 
 ## Member Spending Card recovery
 

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { RuntimeApi } from "./api-client.js";
 import { getFeature } from "./feature-registry.js";
 import { createCommandPermissionGate } from "./command-permissions.js";
+import { createLivePresentations } from "./live-presentations.js";
 import type { FeatureDisposer, FeatureModule, RuntimeBot } from "./types.js";
 
 type ClientFactory = (options: ConstructorParameters<typeof Client>[0]) => Client;
@@ -14,6 +15,7 @@ interface RunningBot {
   disposers: FeatureDisposer[];
   bot: RuntimeBot;
   updates: Map<string, NonNullable<FeatureDisposer["update"]>>;
+  presentationUpdates: Map<string, ReturnType<typeof createLivePresentations>["update"]>;
 }
 
 export class BotManager {
@@ -41,20 +43,22 @@ export class BotManager {
           });
           continue;
         }
+        const changedFeatures = bot.features.filter((feature) => JSON.stringify(feature) !== JSON.stringify(
+          current?.bot.features.find((previous) => previous.installationId === feature.installationId)));
         if (current && !current.fingerprint.startsWith("invalidated:") && makeRestartFingerprint(current.bot, this.featureResolver) === makeRestartFingerprint(bot, this.featureResolver)
-          && bot.features.every((feature) => !this.featureResolver(feature.runtimeKey, feature.version)?.supportsHotReload || current.updates.has(feature.installationId))) {
-          for (const feature of bot.features) {
-            const previous = current.bot.features.find((item) => item.installationId === feature.installationId);
-            if (JSON.stringify(previous) !== JSON.stringify(feature)) {
-              try {
-                await current.updates.get(feature.installationId)?.(feature);
-                await this.api.reportStatus({ botId: bot.id, installationId: feature.installationId, status: "ACTIVE" }).catch(() => undefined);
-              }
-              catch (error) {
-                await this.api.reportStatus({ botId: bot.id, installationId: feature.installationId, status: "ERROR",
-                  errorCode: "FEATURE_UPDATE_FAILED", errorMessage: errorMessage(error) }).catch(() => undefined);
-                throw error;
-              }
+          && changedFeatures.every((feature) => current.presentationUpdates.has(feature.installationId)
+            && (!this.featureResolver(feature.runtimeKey, feature.version)?.supportsHotReload || current.updates.has(feature.installationId)))) {
+          for (const feature of changedFeatures) {
+            try {
+              if (this.featureResolver(feature.runtimeKey, feature.version)?.supportsHotReload)
+                await current.updates.get(feature.installationId)!(feature);
+              current.presentationUpdates.get(feature.installationId)!(feature.presentations);
+              await this.api.reportStatus({ botId: bot.id, installationId: feature.installationId, status: "ACTIVE" }).catch(() => undefined);
+            }
+            catch (error) {
+              await this.api.reportStatus({ botId: bot.id, installationId: feature.installationId, status: "ERROR",
+                errorCode: "FEATURE_UPDATE_FAILED", errorMessage: errorMessage(error) }).catch(() => undefined);
+              throw error;
             }
           }
           current.bot = bot;
@@ -96,7 +100,8 @@ export class BotManager {
     const permissions = createCommandPermissionGate(permissionFeature?.config);
     const activatedFeatures: RuntimeBot["features"] = [];
     const updates = new Map<string, NonNullable<FeatureDisposer["update"]>>();
-    this.running.set(bot.id, { client, fingerprint, disposers, bot, updates });
+    const presentationUpdates = new Map<string, ReturnType<typeof createLivePresentations>["update"]>();
+    this.running.set(bot.id, { client, fingerprint, disposers, bot, updates, presentationUpdates });
     this.attachClientSafety(bot, client);
 
     try {
@@ -112,6 +117,7 @@ export class BotManager {
           continue;
         }
         try {
+          const presentations = createLivePresentations(feature.presentations);
           const dispose = await module.activate({
             botId: bot.id,
             installationId: feature.installationId,
@@ -119,7 +125,7 @@ export class BotManager {
             client,
             config: Object.freeze(feature.config),
             secrets: Object.freeze(feature.secrets),
-            presentations: Object.freeze(feature.presentations),
+            presentations: presentations.value,
             runtimeState: Object.freeze(feature.runtimeState),
             runtimeSubscription: Object.freeze(bot.runtimeSubscription),
             installedFeatureCodes: new Set(bot.features.map((item) => item.code)),
@@ -148,6 +154,7 @@ export class BotManager {
             },
           });
           disposers.push(dispose);
+          presentationUpdates.set(feature.installationId, presentations.update);
           if (dispose.update) updates.set(feature.installationId, dispose.update);
           activatedFeatures.push(feature);
         } catch (error) {
@@ -225,10 +232,11 @@ export class BotManager {
   }
 }
 
+// All active features can reload designs; operational changes require module-specific support.
 export function makeRestartFingerprint(bot: RuntimeBot, resolver: FeatureResolver = getFeature): string {
   return makeFingerprint({ ...bot, features: bot.features.map((feature) => resolver(feature.runtimeKey, feature.version)?.supportsHotReload
     ? { ...feature, configRevision: 0, config: {}, secrets: {}, presentations: {}, runtimeState: {} }
-    : feature) });
+    : { ...feature, configRevision: 0, presentations: {} }) });
 }
 
 export function makeFingerprint(bot: RuntimeBot): string {

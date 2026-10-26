@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-10-26 | Documented monthly Member Spending commands, role retention, message variables, storage behavior, and coordinated migration and service rollout. |
+| 2026-10-26 | Documented monthly Member Spending and live message designs, including role retention, storage, restart boundaries, and service rollout. |
 | 2026-10-23 | Preserved the original seasonal effects plan with its implementation reference and VPS migration status. |
 | 2026-10-23 | Documented seasonal-effect administration, APIs, lifecycle behavior, validation, and rollout to the active VPS PostgreSQL database. |
 | 2026-10-22 | Documented Message Sets 1.1.0 send and update commands, permissions, and Components V2 restrictions. |
