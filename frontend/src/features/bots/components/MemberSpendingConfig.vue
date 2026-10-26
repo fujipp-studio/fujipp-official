@@ -2,7 +2,7 @@
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import FeatureSettingsHeading from './FeatureSettingsHeading.vue'
 import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
-import { computed, nextTick, ref, useId } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, useId, watch } from 'vue'
 import {
   Award,
   CalendarDays,
@@ -16,13 +16,18 @@ import {
 } from 'lucide-vue-next'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import FeatureSettingToggle from './FeatureSettingToggle.vue'
-import CommandPermissionsEditor from './CommandPermissionsEditor.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
+
+const CommandPermissionsEditor = defineAsyncComponent(() => import('./CommandPermissionsEditor.vue'))
 
 const { configuration, values, secrets, text } = useFeatureEditor()
 const id = useId()
 const tierList = ref<HTMLElement>()
 const activeCategory = ref('levels')
+const permissionsLoaded = ref(false)
+watch(activeCategory, (category) => {
+  if (category === 'permissions') permissionsLoaded.value = true
+})
 const hasField = (key: string) => configuration.value?.fields.some((field) => field.key === key)
 const ownDatabase = computed(() => Boolean(values.value.SPENDING_DB_USE_OWN))
 const countEnabled = computed(() => Boolean(values.value.SPENDING_COUNT_ENABLED))
@@ -581,6 +586,7 @@ const categories = computed(() =>
           class="mb-lg"
         />
         <CommandPermissionsEditor
+          v-if="permissionsLoaded"
           :model-value="String(values.COMMAND_PERMISSION_RULES ?? '[]')"
           hide-summary
           @update:model-value="values.COMMAND_PERMISSION_RULES = $event"

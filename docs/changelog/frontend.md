@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-26 | Kept Member Spending within its bundle budget while preserving unsaved permission edits when switching categories. |
 | 2026-10-26 | Added optional monthly spending with configurable cycle dates and previews, restored Support account registration and mobile dialog closing, and included store product artwork. |
 | 2026-10-25 | Smoothed momentum-aware Work card snapping and reverse gestures, simplified mobile navigation, separated Safari logo and Discord banner previews, and shared API caches across pages with account isolation, fresh Runtime checks, and lighter settings tabs. |
 | 2026-10-23 | Enlarged Work cards in a horizontal gallery with aligned details, paired navigation controls, smoother horizontal scrolling, and uninterrupted vertical page scrolling; removed the project count label. |
