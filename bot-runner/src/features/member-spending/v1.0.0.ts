@@ -82,7 +82,7 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
   }
   if(sub==="update") {
     const user=i.options.getUser("member",true);
-    await i.showModal(new ModalBuilder().setCustomId(`spending:update:${user.id}`).setTitle("แก้ไขยอดรวมทั้งหมด").addComponents(row("amount","ยอดรวม (บาท) เว้นว่าง=ไม่เปลี่ยน",false),row("count","จำนวนครั้ง เว้นว่าง=ไม่เปลี่ยน",false)));return;
+    await i.showModal(new ModalBuilder().setCustomId(`spending:update:${user.id}`).setTitle(monthlySettings(c.config).enabled?"แก้ยอดรวมและปรับเดือนนี้":"แก้ไขยอดรวมทั้งหมด").addComponents(row("amount","ยอดรวมใหม่ (บาท) เว้นว่าง=ไม่เปลี่ยน",false),row("count","จำนวนครั้ง เว้นว่าง=ไม่เปลี่ยน",false)));return;
   }
   const user=i.options.getUser("member")??i.user;
   await i.deferReply(sub==="delete"||sub==="check"||sub==="total"?{flags:MessageFlags.Ephemeral}:{});
@@ -113,7 +113,9 @@ async function update(c:FeatureContext,s:MemberSpendingStore,i:ModalSubmitIntera
   if(amount===undefined&&count===undefined)return replyFeatureError(i,"member-spending","กรุณากรอกอย่างน้อยหนึ่งช่อง",{code:"INVALID_INPUT"});
   await i.deferReply({flags:MessageFlags.Ephemeral});
   const e=await s.set(id,{...(amount!==undefined?{amountSatang:amount}:{}),...(count!==undefined?{txCount:count}:{})},i.id);
-  await i.editReply({content:`ตั้งยอดรวมทั้งหมด <@${id}> เป็น ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง (ยอดรายเดือนคงเดิม)`});
+  const monthlySynced=await syncMonthlyRolesAfterWrite(c,s,i.guild!);
+  const content=`ตั้งยอดรวมทั้งหมด <@${id}> เป็น ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง${monthlySettings(c.config).enabled?`\nรอบเดือน ${currentSpendingMonth(c)} เป็น ${money(e.thisMonthSatang??0)} บาท · ${e.thisMonthTxCount??0} ครั้ง (ปรับตามส่วนต่างแล้ว)`:" (ระบบรายเดือนปิดอยู่)"}`;
+  await i.editReply(monthlySynced?{content}:featureErrorPayload("member-spending",`${content}\nอัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ`,{code:"MONTHLY_ROLE_SYNC_FAILED",title:"แก้ยอดแล้ว • อัปเดตยศไม่ครบ",warning:true}));
 }
 function periodOptions(c:FeatureContext,x:SlashCommandSubcommandBuilder) {
   if(!monthlySettings(c.config).enabled)return x;
@@ -125,7 +127,7 @@ async function register(c:FeatureContext) {
   const guild=await c.client.guilds.fetch(c.guildId);
   const cmd=new SlashCommandBuilder().setName("spending").setDescription("จัดการบัตรสะสมยอดใช้จ่ายแบบกรอกเอง");
   cmd.addSubcommand(x=>x.setName("add").setDescription("เพิ่มยอดทั้งยอดรวมและเดือนปัจจุบัน").addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(true)).addIntegerOption(o=>o.setName("amount").setDescription("จำนวนเงินบาท").setMinValue(1).setMaxValue(Math.floor(Number.MAX_SAFE_INTEGER/100)).setRequired(true)));
-  cmd.addSubcommand(x=>x.setName("update").setDescription("แก้ไขยอดรวม/จำนวนครั้งทั้งหมด ไม่เปลี่ยนยอดเดือน").addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(true)));
+  cmd.addSubcommand(x=>x.setName("update").setDescription("แก้ยอดรวม/จำนวนครั้ง และปรับส่วนต่างในรอบเดือนนี้หากเปิดรายเดือน").addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(true)));
   cmd.addSubcommand(x=>x.setName("delete").setDescription("ลบข้อมูลสมาชิกทุกเดือน").addUserOption(o=>o.setName("member").setDescription("สมาชิก").setRequired(true)));
   cmd.addSubcommand(x=>periodOptions(c,x.setName("check").setDescription("ตรวจสอบยอดรวมและยอดรายเดือน").addUserOption(o=>o.setName("member").setDescription("สมาชิก"))));
   cmd.addSubcommand(x=>periodOptions(c,x.setName("list").setDescription("อันดับยอดสะสมทั้งหมดหรือรายเดือน")));

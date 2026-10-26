@@ -261,9 +261,17 @@ options are available only while tracking is enabled; stale monthly requests
 receive an explanation that tracking is disabled. `month:YYYY-MM` overrides
 `period` and is also available on `check`, `total`, and `rank`.
 Viewing a historical ranking never changes current-month roles.
-`/spending update` corrects lifetime totals only; it does not redistribute
-undated corrections into monthly history. `/spending delete` removes the
-member's balances across all months and records a compensating operation.
+`/spending update` sets the lifetime amount/count and, while monthly tracking is
+enabled, applies each difference to the current cycle in the same transaction.
+For example, changing a lifetime balance from 1,000 to 1,200 THB adds 200 THB
+to this cycle; reducing it reverses the difference. Count corrections follow
+the same rule, and blank fields stay unchanged. Previous cycles are preserved.
+If either current-cycle amount or count would become negative, the entire
+correction is rejected without changing balances or recording an operation.
+With monthly tracking disabled, corrections affect lifetime totals only.
+Retries never apply the difference twice, including across cycle boundaries
+or changes to the tracking switch. `/spending delete` removes the member's
+balances across all months and records a compensating operation.
 
 Cards support `{{this_month}}` (THB), `{{this_month_count}}`, and `{{month}}`
 (the current cycle's `YYYY-MM`) in both Embed and Components V2. While tracking
@@ -279,7 +287,7 @@ separate from lifetime ranks, first-purchase rewards, and spending levels.
 ranking and are removed when a member leaves it, the next cycle starts, or
 monthly tracking is disabled. Set it to false to retain previously earned roles,
 including while monthly tracking is disabled. Synchronization runs on startup,
-after adds/deletes, when viewing the current ranking, and every minute while
+after adds/updates/deletes, when viewing the current ranking, and every minute while
 the bot is online. Offline bots reconcile after reconnecting. Discord role
 hierarchy and Manage Roles permission must allow the configured changes.
 
@@ -297,6 +305,14 @@ To run the PostgreSQL store contract against a disposable test database, set
 `node --import tsx --test test/member-spending-store.integration.test.ts` from
 `bot-runner/`. The test provisions the customer schema and removes its own
 randomly scoped fixtures afterward.
+
+Backend PostgreSQL integration tests use `SPENDING_PLATFORM_TEST_DB_URL`
+(JDBC URL), `SPENDING_PLATFORM_TEST_DB_USER`, and
+`SPENDING_PLATFORM_TEST_DB_PASSWORD`. Provide a new, empty disposable database
+whose name starts with `spending_correction_test_`; the test refuses application
+databases. Run `./mvnw --batch-mode test` from `backend/` and remove the disposable
+database afterward. These tests cover concurrent corrections, ledger rollback,
+retry recognition, disabled tracking, and preservation of previous cycles.
 
 ## Shop Status
 

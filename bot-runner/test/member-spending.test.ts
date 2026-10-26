@@ -344,26 +344,79 @@ test("spending denies unauthorized commands before accessing storage", async () 
   } finally { await dispose(); }
 });
 
-test("spending update opens the modal without deferring the command", async () => {
-  const client = new EventEmitter();
-  const state = spendingInteraction("update");
-  let shown = 0;
-  const interaction = {
-    ...state.interaction,
-    options: { ...state.interaction.options, getUser: () => ({ id: memberId }) },
-    showModal: async () => { shown++; },
-  };
-  const context = {
-    client, config: {}, secrets: {}, presentations: {},
-    permissions: { canUse: () => true },
-  } as unknown as FeatureContext;
-  const dispose = await memberSpendingFeature.activate(context);
+for (const monthlyEnabled of [false, true]) {
+  test(`spending update opens the appropriate modal without deferring (monthly: ${monthlyEnabled})`, async () => {
+    const client = new EventEmitter();
+    const state = spendingInteraction("update");
+    let shown = 0;
+    const interaction = {
+      ...state.interaction,
+      options: { ...state.interaction.options, getUser: () => ({ id: memberId }) },
+      showModal: async (modal: { toJSON(): { title: string } }) => {
+        shown++; assert.equal(modal.toJSON().title, monthlyEnabled ? "แก้ยอดรวมและปรับเดือนนี้" : "แก้ไขยอดรวมทั้งหมด");
+      },
+    };
+    const context = {
+      client, config: { SPENDING_MONTHLY_ENABLED: monthlyEnabled }, secrets: {}, presentations: {},
+      permissions: { canUse: () => true },
+    } as unknown as FeatureContext;
+    const dispose = await memberSpendingFeature.activate(context);
+    try {
+      client.emit("interactionCreate", interaction);
+      await settle();
+      assert.equal(shown, 1);
+      assert.equal(state.acknowledgements.length, 0);
+      assert.equal(state.replies.length, 0);
+    } finally { await dispose(); }
+  });
+}
+
+for (const syncFails of [false, true]) {
+  test(`spending corrections show updated monthly balances and refresh roles without repeating the write (sync fails: ${syncFails})`, async () => {
+    const f = monthlyRoleFixture(true), client = new EventEmitter(), state = spendingInteraction("update", true);
+    const writes: unknown[] = [];
+    Object.assign(state.interaction, { id: "monthly-correction", guild: f.guild,
+      fields: { getTextInputValue: (key: string) => key === "amount" ? "1200" : "12" },
+    });
+    const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {},
+      memberSpending: {
+        set: async (...args: unknown[]) => { writes.push(args); return { memberDiscordId: memberId, amountSatang: 120000, txCount: 12, thisMonthSatang: 25000, thisMonthTxCount: 3 }; },
+        leaderboard: async () => {
+          if (syncFails) throw new Error("Discord temporarily unavailable");
+          return [{ memberDiscordId: "333333333333333333", amountSatang: 30000, txCount: 2 }];
+        },
+      },
+    } as unknown as FeatureContext);
+    try {
+      client.emit("interactionCreate", state.interaction); await settle();
+      assert.deepEqual(writes, [[memberId, { amountSatang: 120000, txCount: 12 }, "monthly-correction"]]);
+      assert.equal(state.edits.length, 1);
+      const content = syncFails ? assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_ROLE_SYNC_FAILED", true).description
+        : (state.edits[0] as { content: string }).content;
+      assert.match(content, /ยอดรวมทั้งหมด.*1,200\.00.*12 ครั้ง/);
+      assert.match(content, /รอบเดือน.*250\.00.*3 ครั้ง.*ปรับตามส่วนต่างแล้ว/);
+      assert.doesNotMatch(content, /คงเดิม/);
+      if (syncFails) assert.match(content, /ลองใหม่อัตโนมัติ/);
+      else assert.equal(f.members.get("333333333333333333")!.roles.cache.has(f.top1), true);
+    } finally { await dispose(); }
+  });
+}
+
+test("a rejected monthly correction reports an error without refreshing roles or claiming success", async () => {
+  const f = monthlyRoleFixture(true), client = new EventEmitter(), state = spendingInteraction("update", true);
+  let writes = 0, ranks = 0;
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {},
+    memberSpending: {
+      set: async () => { writes++; throw new Error("ไม่สามารถแก้ยอดได้ เพราะจะทำให้ยอดของรอบเดือนปัจจุบันติดลบ"); },
+      leaderboard: async () => { ranks++; return []; },
+    },
+  } as unknown as FeatureContext);
   try {
-    client.emit("interactionCreate", interaction);
-    await settle();
-    assert.equal(shown, 1);
-    assert.equal(state.acknowledgements.length, 0);
-    assert.equal(state.replies.length, 0);
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(writes, 1); assert.equal(ranks, 0);
+    assert.equal(state.edits.length, 1);
+    assert.match(assertFeatureError(state.edits[0], "Member Spending Card").description, /รอบเดือนปัจจุบันติดลบ/);
+    assert.deepEqual(f.changes, []);
   } finally { await dispose(); }
 });
 

@@ -117,10 +117,21 @@ export function createPostgresSpendingStore(pool: Pool, subjectId: string, setti
       for (const value of [input.amountSatang, input.txCount]) if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) throw new Error("ยอดหรือจำนวนครั้งไม่ถูกต้อง");
       const before = await get(db, memberId, undefined, period);
       const amount = input.amountSatang ?? null, count = input.txCount ?? null;
-      if (await record(db, memberId, "SET", key, amount, count, amount === null ? 0 : amount - (before?.amountSatang ?? 0), count === null ? 0 : count - (before?.txCount ?? 0))) {
+      const delta = amount === null ? 0 : amount - (before?.amountSatang ?? 0);
+      const countDelta = count === null ? 0 : count - (before?.txCount ?? 0);
+      if (await record(db, memberId, "SET", key, amount, count, delta, countDelta)) {
+        const monthAmount = (before?.thisMonthSatang ?? 0) + delta;
+        const monthCount = (before?.thisMonthTxCount ?? 0) + countDelta;
+        if (settings.enabled && (monthAmount < 0 || monthCount < 0))
+          throw new Error("ไม่สามารถแก้ยอดได้ เพราะจะทำให้ยอดหรือจำนวนครั้งของรอบเดือนปัจจุบันติดลบ กรุณาตรวจสอบยอดที่จะตั้ง");
+        if (settings.enabled && (!Number.isSafeInteger(monthAmount) || !Number.isSafeInteger(monthCount)))
+          throw new Error("ยอดหรือจำนวนครั้งของรอบเดือนปัจจุบันเกินขอบเขตที่รองรับ");
         await db.query(`INSERT INTO shop.member_spending(external_subject_id,member_discord_id,amount_satang,tx_count)
           VALUES($1,$2,COALESCE($3::bigint,0),COALESCE($4::integer,0)) ON CONFLICT(external_subject_id,member_discord_id) DO UPDATE SET
           amount_satang=COALESCE($3,shop.member_spending.amount_satang),tx_count=COALESCE($4,shop.member_spending.tx_count),updated_at=now()`, [subjectId, memberId, amount, count]);
+        if (settings.enabled && (delta !== 0 || countDelta !== 0)) await db.query(`INSERT INTO shop.member_spending_monthly(external_subject_id,member_discord_id,month,amount_satang,tx_count)
+          VALUES($1,$2,${period},$3,$4) ON CONFLICT(external_subject_id,member_discord_id,month) DO UPDATE SET
+          amount_satang=EXCLUDED.amount_satang,tx_count=EXCLUDED.tx_count`, [subjectId, memberId, monthAmount, monthCount]);
       }
       return (await get(db, memberId, undefined, period))!;
     }),
