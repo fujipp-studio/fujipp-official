@@ -9,14 +9,15 @@ export async function verifySpendingStore(pool: Pool): Promise<void> {
   await initializeSpendingTables(pool);
   const subject = `test-${randomUUID()}`, member = "222222222222222222", other = "333333333333333333";
   const store = createPostgresSpendingStore(pool, subject);
+  const openingStore = createPostgresSpendingStore(pool, subject, { enabled: false, startDay: 1 });
   const otherStore = createPostgresSpendingStore(pool, `other-${subject}`);
   const { rows: [date] } = await pool.query("SELECT to_char(now() AT TIME ZONE 'Asia/Bangkok','YYYY-MM') AS month");
   const month: string = date.month;
   try {
     // A pre-existing balance has no transaction dates and must not be backfilled into this month.
-    await store.set(member, { amountSatang: 30000000000, txCount: 4 }, "large-opening");
+    await openingStore.set(member, { amountSatang: 30000000000, txCount: 4 }, "large-opening");
     assert.equal((await store.get(member))!.amountSatang, 30000000000);
-    await store.set(member, { amountSatang: 50000, txCount: 4 }, "opening");
+    await openingStore.set(member, { amountSatang: 50000, txCount: 4 }, "opening");
     assert.equal((await store.get(member))!.thisMonthSatang, 0);
     assert.deepEqual(await store.leaderboard(5, month), []);
     const first = await store.add(member, 10000, "add-1");
@@ -49,9 +50,10 @@ export async function verifySpendingStore(pool: Pool): Promise<void> {
     await assert.rejects(store.leaderboard(5, "0000-01"), /YYYY-MM/);
     await assert.rejects(store.get(member, "2026-01' OR true --"), /YYYY-MM/);
 
-    // Corrections affect lifetime balances only and record compensating ledger deltas.
+    // Corrections adjust the active month by their lifetime delta, leaving history intact.
     await store.set(member, { amountSatang: 62000 }, "correction");
-    assert.equal((await store.get(member))!.thisMonthSatang, 2500);
+    assert.equal((await store.get(member))!.thisMonthSatang, 1200);
+    assert.equal((await store.get(member, "2020-01"))!.amountSatang, 10800);
     await store.set(member, { amountSatang: 62000 }, "correction");
     const { rows: [ledger] } = await pool.query("SELECT sum(amount_delta)::text amount FROM shop.member_spending_operations WHERE external_subject_id=$1 AND member_discord_id=$2", [subject, member]);
     assert.equal(ledger.amount, "62000");
@@ -127,9 +129,72 @@ export async function verifyMonthlySpendingOptions(pool: Pool): Promise<void> {
   }
 }
 
+export async function verifyMonthlySpendingCorrections(pool: Pool): Promise<void> {
+  await initializeSpendingTables(pool);
+  const subject = `corrections-${randomUUID()}`, member = "222222222222222222";
+  let now = new Date("2026-10-24T16:59:59Z");
+  const enabled = createPostgresSpendingStore(pool, subject, { enabled: true, startDay: 25 }, () => now);
+  const disabled = createPostgresSpendingStore(pool, subject, { enabled: false, startDay: 25 }, () => now);
+  try {
+    await disabled.set(member, { amountSatang: 100000, txCount: 10 }, "opening");
+    await enabled.set(member, { amountSatang: 110000, txCount: 12 }, "increase");
+    assert.deepEqual(await enabled.get(member), { memberDiscordId: member, amountSatang: 110000, txCount: 12, thisMonthSatang: 10000, thisMonthTxCount: 2 });
+    await enabled.set(member, { amountSatang: 105000 }, "decrease");
+    await enabled.set(member, { txCount: 11 }, "decrease-count");
+    const before = await enabled.get(member);
+    assert.deepEqual(before, { memberDiscordId: member, amountSatang: 105000, txCount: 11, thisMonthSatang: 5000, thisMonthTxCount: 1 });
+    for (const [key, input] of [
+      ["negative-amount", { amountSatang: 99000 }],
+      ["negative-count", { txCount: 9 }],
+      ["mixed-invalid", { amountSatang: 110000, txCount: 9 }],
+    ] as const) {
+      await assert.rejects(enabled.set(member, input, key), /รอบเดือนปัจจุบันติดลบ/);
+      assert.deepEqual(await enabled.get(member), before);
+    }
+    const failedKeys = await pool.query("SELECT operation_key FROM shop.member_spending_operations WHERE external_subject_id=$1 AND operation_key IN ('negative-amount','negative-count','mixed-invalid')", [subject]);
+    assert.deepEqual(failedKeys.rows, []);
+    // A retry is recognized before validating any new delta, even after other updates or rollover.
+    await enabled.set(member, { amountSatang: 110000, txCount: 12 }, "increase");
+    assert.deepEqual(await enabled.get(member), before);
+    now = new Date("2026-10-24T17:00:00Z");
+    await enabled.set(member, { amountSatang: 115000, txCount: 13 }, "new-cycle");
+    const next = await enabled.get(member);
+    assert.equal(next!.thisMonthSatang, 10000); assert.equal(next!.thisMonthTxCount, 2);
+    assert.equal((await enabled.get(member, "2026-09"))!.amountSatang, 5000);
+    await enabled.set(member, { amountSatang: 110000, txCount: 12 }, "increase");
+    assert.deepEqual(await enabled.get(member), next);
+    await disabled.set(member, { amountSatang: 120000, txCount: 14 }, "disabled");
+    await enabled.set(member, { amountSatang: 120000, txCount: 14 }, "disabled");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 10000);
+    await Promise.all([enabled.set(member, { amountSatang: 121000 }, "concurrent-1"), enabled.set(member, { amountSatang: 122000 }, "concurrent-2")]);
+    const after = (await enabled.get(member))!;
+    assert.equal(after.thisMonthSatang, after.amountSatang - 110000);
+    assert.equal(after.thisMonthTxCount, 2);
+    const ledger = await pool.query("SELECT sum(amount_delta)::text amount,sum(count_delta)::text count FROM shop.member_spending_operations WHERE external_subject_id=$1", [subject]);
+    assert.equal(Number(ledger.rows[0].amount), after.amountSatang);
+    assert.equal(Number(ledger.rows[0].count), after.txCount);
+    // Failure after the lifetime write rolls back both balances and the ledger, allowing a safe retry.
+    const failingPool = { connect: async () => {
+      const client = await pool.connect();
+      return { query: (sql: string, values?: unknown[]) => sql.includes("INSERT INTO shop.member_spending_monthly")
+        ? Promise.reject(new Error("monthly correction failed")) : client.query(sql, values), release: () => client.release() };
+    } } as unknown as Pool;
+    await assert.rejects(createPostgresSpendingStore(failingPool, subject, { enabled: true, startDay: 25 }, () => now).set(member, { amountSatang: 123000 }, "rollback"), /monthly correction failed/);
+    assert.deepEqual(await enabled.get(member), after);
+    await enabled.set(member, { amountSatang: 123000 }, "rollback");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 13000);
+    await enabled.set(member, { amountSatang: 110000, txCount: 12 }, "zero");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 0);
+    assert.equal((await enabled.get(member))!.thisMonthTxCount, 0);
+  } finally {
+    await pool.query("DELETE FROM shop.member_spending WHERE external_subject_id=$1", [subject]);
+    await pool.query("DELETE FROM shop.member_spending_operations WHERE external_subject_id=$1", [subject]);
+  }
+}
+
 test("PostgreSQL spending: monthly history, lifetime totals, isolation, retries, corrections, and rollback", {
   skip: !process.env.SPENDING_TEST_DB_URL,
 }, async () => {
   const pool = new Pool({ connectionString: process.env.SPENDING_TEST_DB_URL, max: 4 });
-  try { await verifySpendingStore(pool); await verifyMonthlySpendingOptions(pool); } finally { await pool.end(); }
+  try { await verifySpendingStore(pool); await verifyMonthlySpendingOptions(pool); await verifyMonthlySpendingCorrections(pool); } finally { await pool.end(); }
 });

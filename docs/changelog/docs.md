@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-26 | Documented monthly spending corrections, negative-balance protection and disposable PostgreSQL integration tests. |
 | 2026-10-26 | Documented optional monthly spending, configurable cycle dates, role retention and live message designs, including storage, restart boundaries and VPS rollout. |
 | 2026-10-23 | Preserved the original seasonal effects plan with its implementation reference and VPS migration status. |
 | 2026-10-23 | Documented seasonal-effect administration, APIs, lifecycle behavior, validation, and rollout to the active VPS PostgreSQL database. |

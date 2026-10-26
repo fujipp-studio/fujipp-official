@@ -67,14 +67,31 @@ public class MemberSpendingRepository {
     public Entry set(UUID botId, String memberId, Long amount, Integer count, String key, LocalDate period) {
         lock(botId, memberId);
         var before = get(botId, memberId, null, period);
-        if (record(botId, memberId, "SET", key, amount, count,
-                amount == null ? 0 : amount - (before == null ? 0 : before.amountSatang()),
-                count == null ? 0 : count - (before == null ? 0 : before.txCount()))) {
+        long delta = amount == null ? 0 : amount - (before == null ? 0 : before.amountSatang());
+        int countDelta = count == null ? 0 : count - (before == null ? 0 : before.txCount());
+        if (record(botId, memberId, "SET", key, amount, count, delta, countDelta)) {
+            long monthAmount = 0, monthCount = 0;
+            if (period != null) {
+                try {
+                    monthAmount = Math.addExact(before == null ? 0 : before.thisMonthSatang(), delta);
+                } catch (ArithmeticException error) {
+                    throw new IllegalArgumentException("ยอดของรอบเดือนปัจจุบันเกินขอบเขตที่รองรับ", error);
+                }
+                monthCount = (long) (before == null ? 0 : before.thisMonthTxCount()) + countDelta;
+                if (monthAmount < 0 || monthCount < 0)
+                    throw new IllegalArgumentException("ไม่สามารถแก้ยอดได้ เพราะจะทำให้ยอดหรือจำนวนครั้งของรอบเดือนปัจจุบันติดลบ กรุณาตรวจสอบยอดที่จะตั้ง");
+                if (monthCount > Integer.MAX_VALUE)
+                    throw new IllegalArgumentException("จำนวนครั้งของรอบเดือนปัจจุบันเกินขอบเขตที่รองรับ");
+            }
             jdbc.update("""
                 INSERT INTO private.member_spending(bot_id,member_discord_id,amount_satang,tx_count)
                 VALUES(?,?,COALESCE(?::bigint,0),COALESCE(?::integer,0)) ON CONFLICT(bot_id,member_discord_id) DO UPDATE SET
                 amount_satang=COALESCE(?,private.member_spending.amount_satang),
                 tx_count=COALESCE(?,private.member_spending.tx_count),updated_at=now()""", botId, memberId, amount, count, amount, count);
+            if (period != null && (delta != 0 || countDelta != 0)) jdbc.update("""
+                INSERT INTO private.member_spending_monthly(bot_id,member_discord_id,month,amount_satang,tx_count)
+                VALUES(?,?,?,?,?) ON CONFLICT(bot_id,member_discord_id,month) DO UPDATE SET
+                amount_satang=EXCLUDED.amount_satang,tx_count=EXCLUDED.tx_count""", botId, memberId, period, monthAmount, (int) monthCount);
         }
         return get(botId, memberId, null, period);
     }
