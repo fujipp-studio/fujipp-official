@@ -370,7 +370,12 @@ for (const theme of ['LIGHT', 'DARK']) {
 for (const theme of ['LIGHT', 'DARK']) {
   test(`configures Member Spending Card in ${theme}`, async ({ page, isMobile }, testInfo) => {
     const errors: string[] = []
+    const permissionRequests: string[] = []
     page.on('pageerror', (error) => errors.push(error.message))
+    page.on('request', (request) => {
+      if (request.url().includes('/CommandPermissionsEditor.vue'))
+        permissionRequests.push(request.url())
+    })
     await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
     await page.route('**/api/v1/feature-licenses', (route) =>
       route.fulfill({ json: [memberSpendingLicense] }),
@@ -479,10 +484,30 @@ for (const theme of ['LIGHT', 'DARK']) {
       ...screenshotOptions,
       path: testInfo.outputPath('member-spending-configured.png'),
     })
+    expect(permissionRequests).toHaveLength(0)
     await selectCategory('สิทธิ์คำสั่ง')
     await expect(
       config.getByRole('heading', { name: 'สิทธิ์การใช้คำสั่ง', exact: true }),
     ).toBeVisible()
+    const addRule = config.getByRole('button', { name: 'เพิ่ม Rule', exact: true })
+    await expect(addRule).toBeVisible()
+    expect(permissionRequests.length).toBeGreaterThan(0)
+    await addRule.click()
+    await config.getByLabel('Command / Subcommand', { exact: true }).fill('spending/add')
+    const roleDraft = '111111111111111111,   222222222222222222'
+    await config.getByLabel('Role IDs', { exact: true }).fill(roleDraft)
+    await selectCategory('ระดับสมาชิก')
+    await expect(amount).toHaveValue('2500.5')
+    await selectCategory('สิทธิ์คำสั่ง')
+    await expect(config.getByLabel('Command / Subcommand', { exact: true })).toHaveValue(
+      'spending/add',
+    )
+    await expect(config.getByLabel('Role IDs', { exact: true })).toHaveValue(roleDraft)
+    await config.screenshot({
+      ...screenshotOptions,
+      path: testInfo.outputPath('member-spending-permissions.png'),
+    })
+    await config.getByRole('button', { name: 'ลบ Rule 1', exact: true }).click()
     await page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true }).click()
     await page
       .getByRole('dialog')
