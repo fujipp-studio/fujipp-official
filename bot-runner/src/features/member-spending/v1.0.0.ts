@@ -149,8 +149,7 @@ export async function syncMonthlyRoles(c:FeatureContext,s:MemberSpendingStore,gu
   const ranked=monthlySettings(c.config).enabled?(board??await s.leaderboard(5,currentSpendingMonth(c))).filter(e=>e.amountSatang>0):[];
   if(!active())return;
   const reset=bool(c.config.SPENDING_MONTHLY_ROLES_RESET,true);
-  const members=await guild.members.fetch();
-  for(const member of members.values()) {
+  for await(const member of rankingMembers(guild,active)) {
     if(!active())return;
     const first=member.id===ranked[0]?.memberDiscordId;
     const rest=ranked.slice(1,5).some(e=>e.memberDiscordId===member.id);
@@ -159,8 +158,24 @@ export async function syncMonthlyRoles(c:FeatureContext,s:MemberSpendingStore,gu
   }
 }
 
+async function* rankingMembers(guild:NonNullable<ChatInputCommandInteraction["guild"]>,active:()=>boolean=()=>true):AsyncGenerator<GuildMember> {
+  let after:string|undefined;
+  // Paginated REST requests avoid the full-member Gateway rate limit when
+  // spending commands and the minute refresh both synchronize rankings.
+  while(active()) {
+    const page=await guild.members.list({limit:1000,...(after?{after}:{})});
+    if(!active())return;
+    for(const member of page.values()) {
+      if(!active())return;
+      yield member;
+    }
+    if(page.size<1000)return;
+    after=page.lastKey();
+  }
+}
+
 async function applyRoles(c:FeatureContext,m:GuildMember,amount:number,count:number){const first=id(c.config.SPENDING_FIRST_ROLE_ID);if(first)await safeRole(m,first,true);const tiers=Array.isArray(c.config.SPENDING_UPGRADE_TIERS)?c.config.SPENDING_UPGRADE_TIERS.flatMap(x=>isRecord(x)&&Number(x.amount)>0&&id(x.roleId)?[{amount:Number(x.amount)*100,roleId:id(x.roleId)!}]:[]):[];const qualified=tiers.filter(t=>amount>=t.amount||(bool(c.config.SPENDING_COUNT_ENABLED,false)&&count>=num(c.config.SPENDING_UPGRADE_COUNT,5)));if(bool(c.config.SPENDING_TIER_STACK,true)){for(const t of qualified)await safeRole(m,t.roleId,true);}else for(const t of tiers)await safeRole(m,t.roleId,t===qualified.at(-1));}
-async function syncRankRoles(c:FeatureContext,guild:NonNullable<ChatInputCommandInteraction["guild"]>,board:Awaited<ReturnType<MemberSpendingStore["leaderboard"]>>){const top1=id(c.config.SPENDING_TOP1_ROLE_ID),top5=id(c.config.SPENDING_TOP5_ROLE_ID);if(!top1&&!top5)return;const members=await guild.members.fetch();for(const m of members.values()){if(top1)await safeRole(m,top1,m.id===board[0]?.memberDiscordId);if(top5)await safeRole(m,top5,board.slice(1,5).some(e=>e.memberDiscordId===m.id));}}
+async function syncRankRoles(c:FeatureContext,guild:NonNullable<ChatInputCommandInteraction["guild"]>,board:Awaited<ReturnType<MemberSpendingStore["leaderboard"]>>){const top1=id(c.config.SPENDING_TOP1_ROLE_ID),top5=id(c.config.SPENDING_TOP5_ROLE_ID);if(!top1&&!top5)return;for await(const m of rankingMembers(guild)){if(top1)await safeRole(m,top1,m.id===board[0]?.memberDiscordId);if(top5)await safeRole(m,top5,board.slice(1,5).some(e=>e.memberDiscordId===m.id));}}
 async function safeRole(m:GuildMember,roleId:string,add:boolean){const role=m.guild.roles.cache.get(roleId),me=m.guild.members.me;if(!role||!me?.permissions.has(PermissionFlagsBits.ManageRoles)||me.roles.highest.comparePositionTo(role)<=0)return;if(add&&!m.roles.cache.has(roleId))await m.roles.add(roleId);if(!add&&m.roles.cache.has(roleId))await m.roles.remove(roleId);}
 function render(c:FeatureContext,slot:string,v:Record<string,string>):Record<string,unknown>{if((slot==="leaderboard"||slot==="monthly_leaderboard")&&!isRecord(c.presentations[slot]))return{embeds:[new EmbedBuilder().setTitle(slot==="monthly_leaderboard"?`อันดับประจำเดือน ${v.month}`:"อันดับยอดสะสมทั้งหมด").setDescription(v.leaderboard_lines||"ยังไม่มีข้อมูล")]};const raw=isRecord(c.presentations[slot])?c.presentations[slot]:{};if(raw.mode==="COMPONENTS_V2"&&Array.isArray(raw.components))return{flags:MessageFlags.IsComponentsV2,components:deep(raw.components,v)};if(raw.mode==="EMBED"&&Array.isArray(raw.embeds))return{content:fill(String(raw.content??""),v)||undefined,embeds:deep(raw.embeds,v)};return{embeds:[new EmbedBuilder().setColor(0xe46daf).setTitle(fill(String(raw.title??"บัตรสะสมของ {{member}}"),v)).setDescription(fill(String(raw.description??"ยอดรอบนี้ {{today}} บาท\nยอดสะสม {{total}} บาท · {{count}} ครั้ง"),v)).setThumbnail(v.avatar??null)]};}
 function vars(c:FeatureContext,uid:string,name:string,today:number,e:MemberSpendingEntry,avatar:string){return{member:name,member_mention:`<@${uid}>`,today:money(today),total:money(e.amountSatang),count:String(e.txCount),this_month:money(monthlySettings(c.config).enabled?(e.thisMonthSatang??0):0),this_month_count:String(monthlySettings(c.config).enabled?(e.thisMonthTxCount??0):0),month:monthlySettings(c.config).enabled?currentSpendingMonth(c):"",avatar};}

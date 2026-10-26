@@ -554,9 +554,20 @@ function monthlyRoleFixture(reset: boolean) {
   const top1 = "111111111111111111", top5 = "555555555555555555", lifetime = "999999999999999999";
   const members = new Collection<string, GuildMember>();
   const changes: string[] = [];
+  const listRequests: Array<{ limit: number; after?: string }> = [];
   const guild = {
     roles: { cache: new Collection([top1, top5, lifetime].map(id => [id, { id }])) },
-    members: { fetch: async () => members, me: { permissions: { has: () => true }, roles: { highest: { comparePositionTo: () => 1 } } } },
+    members: {
+      fetch: async () => { throw new Error("GatewayRateLimitError: Request with opcode 8 was rate limited"); },
+      list: async (options: { limit: number; after?: string }) => {
+        listRequests.push(options);
+        return new Collection([...members.entries()]
+          .filter(([id]) => !options.after || BigInt(id) > BigInt(options.after))
+          .sort(([a], [b]) => BigInt(a) < BigInt(b) ? -1 : 1)
+          .slice(0, options.limit));
+      },
+      me: { permissions: { has: () => true }, roles: { highest: { comparePositionTo: () => 1 } } },
+    },
   };
   for (const [id, held] of [[memberId, [top1, top5, lifetime]], ["333333333333333333", []]] as const) {
     const cache = new Set<string>(held);
@@ -567,7 +578,7 @@ function monthlyRoleFixture(reset: boolean) {
   }
   const context = { config: { SPENDING_MONTHLY_ENABLED: true, SPENDING_MONTHLY_ROLES_ENABLED: true, SPENDING_MONTHLY_ROLES_RESET: reset,
     SPENDING_MONTHLY_TOP1_ROLE_ID: top1, SPENDING_MONTHLY_TOP5_ROLE_ID: top5, SPENDING_TOP1_ROLE_ID: lifetime } } as unknown as FeatureContext;
-  return { top1, top5, lifetime, guild: guild as unknown as Guild, members, changes, context };
+  return { top1, top5, lifetime, guild: guild as unknown as Guild, members, changes, listRequests, context };
 }
 
 for (const reset of [true, false]) {
@@ -585,6 +596,51 @@ for (const reset of [true, false]) {
     assert.equal(fixture.members.get(memberId)!.roles.cache.has(fixture.lifetime), true);
   });
 }
+
+test("monthly roles reach winners and remove former holders beyond the first REST page without Gateway requests", async () => {
+  const f = monthlyRoleFixture(true);
+  for (let n = 0; n < 1000; n++) {
+    const id = String(100000000000000000n + BigInt(n));
+    f.members.set(id, { id, guild: f.guild, roles: { cache: new Set<string>() } } as unknown as GuildMember);
+  }
+  await syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, [
+    { memberDiscordId: "333333333333333333", amountSatang: 10000, txCount: 1 },
+    { memberDiscordId: memberId, amountSatang: 5000, txCount: 1 },
+  ]);
+  assert.deepEqual(f.listRequests, [{ limit: 1000 }, { limit: 1000, after: "100000000000000999" }]);
+  assert.equal(f.members.get("333333333333333333")!.roles.cache.has(f.top1), true);
+  assert.equal(f.members.get(memberId)!.roles.cache.has(f.top1), false);
+  assert.equal(f.members.get(memberId)!.roles.cache.has(f.top5), true);
+  assert.equal(f.members.get(memberId)!.roles.cache.has(f.lifetime), true);
+});
+
+test("monthly role disposal during a REST member request prevents subsequent role changes", async () => {
+  const f = monthlyRoleFixture(true);
+  let active = true, release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  f.guild.members.list = async () => { await pending; return f.members; };
+  const sync = syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, [], () => active);
+  await settle();
+  active = false; release(); await sync;
+  assert.deepEqual(f.changes, []);
+});
+
+test("lifetime ranking uses REST even when the full-member Gateway request is rate limited", async () => {
+  const f = monthlyRoleFixture(true), client = new EventEmitter(), state = spendingInteraction("rank");
+  Object.assign(state.interaction, { guild: f.guild });
+  Object.assign(state.interaction.options, { getString: () => null });
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {}, permissions: { canUse: () => true },
+    memberSpending: { leaderboard: async () => [{ memberDiscordId: "333333333333333333", amountSatang: 10000, txCount: 1 }] },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(f.listRequests.length, 1);
+    assert.equal(f.members.get("333333333333333333")!.roles.cache.has(f.lifetime), true);
+    assert.equal(f.members.get(memberId)!.roles.cache.has(f.lifetime), false);
+    assert.equal(state.edits.length, 1);
+    assert.doesNotMatch(JSON.stringify(state.edits), /ทำรายการไม่สำเร็จ/);
+  } finally { await dispose(); }
+});
 
 test("new month removes last month's roles even with no spending, while zero balances never win", async () => {
   const f = monthlyRoleFixture(true);
