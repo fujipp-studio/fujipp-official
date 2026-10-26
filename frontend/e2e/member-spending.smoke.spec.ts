@@ -939,3 +939,119 @@ for (const theme of ['LIGHT', 'DARK']) {
     },
   )
 }
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(
+    'configures monthly ranking and previews this-month variables in ' + theme,
+    async ({ page, isMobile }, testInfo) => {
+      await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+      await page.route('**/api/v1/feature-licenses', (route) =>
+        route.fulfill({ json: [memberSpendingLicense] }),
+      )
+      await page.route('**/api/v2/feature-licenses*', (route) =>
+        route.fulfill({
+          json: { items: [memberSpendingLicense], nextCursor: null, hasMore: false },
+        }),
+      )
+      const current = structuredClone(memberSpendingConfiguration)
+      let saved: { values: Record<string, unknown> } | undefined
+      await page.route('**/configuration', async (route) => {
+        if (route.request().method() === 'PUT') {
+          saved = route.request().postDataJSON()
+          current.fields = current.fields.map((field) => ({
+            ...field,
+            value: saved!.values[field.key],
+          }))
+          current.revision++
+        }
+        await route.fulfill({ json: current })
+      })
+      await page.goto('/my-bot/fixture-bot/settings/packages/fixture-license?locale=th')
+      const config = page.locator('#feature-config')
+      if (isMobile) {
+        await config.getByRole('combobox', { name: 'หมวดการตั้งค่า', exact: true }).click()
+        await page.getByRole('option', { name: 'อันดับรายเดือน', exact: true }).click()
+      } else await config.getByRole('tab', { name: 'อันดับรายเดือน', exact: true }).click()
+      await expect(
+        config.getByRole('heading', { name: 'อันดับรายเดือน', exact: true }),
+      ).toBeVisible()
+      await expect(config).toContainText('เวลา 00:00 น. ตามเวลาไทย')
+      const tracking = config.getByRole('switch', { name: 'เปิดระบบยอดสะสมรายเดือน', exact: true })
+      await expect(tracking).not.toBeChecked()
+      await expect(
+        config.getByRole('spinbutton', { name: 'วันที่เริ่มรอบประจำเดือน' }),
+      ).toHaveCount(0)
+      await expect(
+        config.getByRole('switch', { name: 'เปิดยศอันดับประจำเดือน', exact: true }),
+      ).toHaveCount(0)
+      await tracking.click()
+      const startDay = config.getByRole('spinbutton', { name: 'วันที่เริ่มรอบประจำเดือน' })
+      await expect(startDay).toHaveValue('1')
+      await startDay.fill('25')
+      const enable = config.getByRole('switch', { name: 'เปิดยศอันดับประจำเดือน', exact: true })
+      await expect(enable).not.toBeChecked()
+      await expect(config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)')).toHaveCount(0)
+      await enable.click()
+      await config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)').fill('111111111111111111')
+      await config.getByLabel('ยศอันดับ 2–5 ประจำเดือน (ไม่บังคับ)').fill('555555555555555555')
+      const reset = config.getByRole('switch', {
+        name: 'ถอนยศเมื่อหลุดอันดับรายเดือน',
+        exact: true,
+      })
+      await expect(reset).toBeChecked()
+      await reset.click()
+      await expect(config).toContainText('เก็บยศที่เคยได้รับไว้')
+      await reset.click()
+      await tracking.click()
+      await expect(startDay).toHaveCount(0)
+      await expect(config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)')).toHaveCount(0)
+      await tracking.click()
+      await expect(startDay).toHaveValue('25')
+      await expect(config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)')).toHaveValue(
+        '111111111111111111',
+      )
+      await startDay.fill('32')
+      expect(
+        await startDay.evaluate((element) => (element as HTMLInputElement).checkValidity()),
+      ).toBe(false)
+      await startDay.fill('25')
+      await page.evaluate(() => document.fonts.ready)
+      await config.screenshot({
+        path: testInfo.outputPath('member-spending-monthly.png'),
+        animations: 'disabled',
+        scale: 'css',
+        style: '.navbar, .admin-tools, .app-scroll-rail { visibility: hidden !important; }',
+      })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true }).click()
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
+        .click()
+      await expect(page.getByRole('dialog')).toBeHidden()
+      expect(saved?.values).toMatchObject({
+        SPENDING_MONTHLY_ENABLED: true,
+        SPENDING_MONTHLY_START_DAY: 25,
+        SPENDING_MONTHLY_ROLES_ENABLED: true,
+        SPENDING_MONTHLY_ROLES_RESET: true,
+        SPENDING_MONTHLY_TOP1_ROLE_ID: '111111111111111111',
+        SPENDING_MONTHLY_TOP5_ROLE_ID: '555555555555555555',
+      })
+      await page.goto(
+        '/my-bot/fixture-bot/settings/packages/fixture-license/embed?message=first_card&locale=th',
+      )
+      const editor = page.locator('#feature-presentation-editor')
+      await editor
+        .getByRole('textbox', { name: 'รายละเอียด', exact: true })
+        .fill(
+          'เดือน {{month}}: {{this_month}} บาท / {{this_month_count}} ครั้ง · รวม {{total}} บาท',
+        )
+      if (isMobile) await editor.getByRole('button', { name: 'ตัวอย่าง', exact: true }).click()
+      await expect(editor.locator('.embed-preview-pane')).toContainText(
+        'เดือน 2026-10: 500.00 บาท / 1 ครั้ง · รวม 500.00 บาท',
+      )
+    },
+  )
+}

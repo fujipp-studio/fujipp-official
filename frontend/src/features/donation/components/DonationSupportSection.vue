@@ -12,6 +12,7 @@ import {
   type Donation,
 } from '@/features/donation/api'
 import { AppButton, AppModal, AppToast } from '@/shared/ui'
+import type { AuthDialogMode } from '@/shared/ui/dialogs/types'
 const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/AppAuthDialog.vue'))
 import { useAuthStore } from '@/stores'
 
@@ -31,6 +32,7 @@ const loading = campaignQuery.isPending
 const error = computed(() => campaign.value ? '' : campaignQuery.error.value?.message ?? '')
 const leaderboardPage = ref(1)
 const authDialogOpen = ref(false)
+const authDialogMode = ref<AuthDialogMode>('login')
 const authDialogLoaded = ref(false)
 watch(authDialogOpen, (open) => {
   if (open) authDialogLoaded.value = true
@@ -91,6 +93,7 @@ function openDonation() {
     return
   }
   openAfterLogin.value = true
+  authDialogMode.value = 'login'
   authDialogOpen.value = true
 }
 
@@ -372,7 +375,11 @@ watch(session, (activeSession) => {
       </div>
     </AppModal>
 
-    <AppAuthDialog v-if="authDialogLoaded" v-model:open="authDialogOpen" mode="login" />
+    <AppAuthDialog
+      v-if="authDialogLoaded"
+      v-model:open="authDialogOpen"
+      v-model:mode="authDialogMode"
+    />
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
   </section>
 </template>

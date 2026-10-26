@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-26 | Added private monthly spending balances and an append-only ledger, opt-in tracking and cycle-day settings, monthly roles and card variables with restricted VPS backend access. |
 | 2026-10-23 | Added singleton seasonal-effect settings with an Off default, RLS, and restricted access for the Supabase service role and dedicated VPS backend role. |
 | 2026-10-22 | Added the draft Message Sets 1.1.0 catalog version with existing configuration and presentation defaults. |
 | 2026-10-21 | Added VPS-only identity compatibility and application role migrations for restoring application data while retaining managed Supabase Auth. |

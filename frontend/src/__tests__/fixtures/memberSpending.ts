@@ -34,7 +34,17 @@ export const memberSpendingPresentations: FeatureConfiguration['presentations'] 
     label: 'บัตรสะสมครั้งแรก',
     description: 'การ์ดเมื่อเพิ่มสมาชิกครั้งแรก',
     type: 'EMBED',
-    availableVariables: ['member', 'member_mention', 'today', 'total', 'count', 'avatar'],
+    availableVariables: [
+      'member',
+      'member_mention',
+      'today',
+      'total',
+      'count',
+      'avatar',
+      'this_month',
+      'this_month_count',
+      'month',
+    ],
     defaultDefinition: {
       mode: 'EMBED',
       embeds: [
@@ -55,7 +65,17 @@ export const memberSpendingPresentations: FeatureConfiguration['presentations'] 
     label: 'บัตรสะสมครั้งถัดไป',
     description: 'การ์ดเมื่อลูกค้ากลับมาใช้บริการ',
     type: 'COMPONENTS_V2',
-    availableVariables: ['member', 'member_mention', 'today', 'total', 'count', 'avatar'],
+    availableVariables: [
+      'member',
+      'member_mention',
+      'today',
+      'total',
+      'count',
+      'avatar',
+      'this_month',
+      'this_month_count',
+      'month',
+    ],
     defaultDefinition: {
       mode: 'COMPONENTS_V2',
       components: [
@@ -103,6 +123,27 @@ export const memberSpendingPresentations: FeatureConfiguration['presentations'] 
   },
 ]
 
+memberSpendingPresentations.push({
+  slotId: 'member-monthly-leaderboard',
+  key: 'monthly_leaderboard',
+  label: 'อันดับยอดสะสมประจำเดือน',
+  description: 'อันดับประจำเดือนตามเวลาไทย',
+  type: 'COMPONENTS_V2',
+  availableVariables: ['leaderboard_lines', 'member_count', 'month'],
+  defaultDefinition: {
+    mode: 'COMPONENTS_V2',
+    components: [
+      {
+        type: 17,
+        components: [
+          { type: 10, content: '## 🏆 อันดับประจำเดือน {{month}}\n{{leaderboard_lines}}' },
+        ],
+      },
+    ],
+  },
+  overrideDefinition: null,
+})
+
 export const memberSpendingConfiguration: FeatureConfiguration = {
   ...configuration,
   fields: [
@@ -115,6 +156,12 @@ export const memberSpendingConfiguration: FeatureConfiguration = {
     field('SPENDING_UPGRADE_COUNT', 'INTEGER', 5),
     field('SPENDING_TOP1_ROLE_ID', 'ROLE_ID', null),
     field('SPENDING_TOP5_ROLE_ID', 'ROLE_ID', null),
+    field('SPENDING_MONTHLY_ENABLED', 'BOOLEAN', false),
+    field('SPENDING_MONTHLY_START_DAY', 'INTEGER', 1),
+    field('SPENDING_MONTHLY_ROLES_ENABLED', 'BOOLEAN', false),
+    field('SPENDING_MONTHLY_TOP1_ROLE_ID', 'ROLE_ID', null),
+    field('SPENDING_MONTHLY_TOP5_ROLE_ID', 'ROLE_ID', null),
+    field('SPENDING_MONTHLY_ROLES_RESET', 'BOOLEAN', true),
     {
       ...field('COMMAND_PERMISSION_RULES', 'JSON', null),
       label: 'สิทธิ์การใช้คำสั่ง',

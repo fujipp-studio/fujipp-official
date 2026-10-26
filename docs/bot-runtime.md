@@ -20,8 +20,9 @@ duplicate supervision without improving availability.
 5. The Backend keeps the assembled snapshot in memory for 60 seconds by
    default, avoiding repeated Supabase reads while the runtime is unchanged.
 6. The Runner starts, stops, or reloads only bots whose runtime fingerprint
-   changed. Message Sets configuration and design changes update the existing
-   worker and Discord client without restarting them.
+   changed. Embed and Components V2 design changes update active features inside
+   the existing worker and Discord client. Message Sets also supports live
+   configuration changes.
 7. Runtime status is reported to `POST /internal/v1/runtime/status`.
 
 Feature modules can persist a small non-secret operational state with
@@ -35,6 +36,37 @@ The browser cannot call the Internal Runtime API and can never retrieve a
 plaintext Discord token or feature secret. Internal endpoints require
 `X-Runner-Token`, should only be reachable over the private Docker network, and
 must use a long random token shared by Backend and Runner.
+
+## Live message designs
+
+Saving only a feature's Embed or Components V2 presentations reaches the running
+bot on the next runtime poll, normally within 30 seconds. Switching between the
+two formats, replacing fields or images, and resetting a design to its default
+all use the existing worker and Discord connection. Active feature listeners,
+voice connections, pending sessions, and scheduled work remain in place.
+Every active feature receives a stable, read-only presentation view; the next
+message it renders reads the latest saved definitions, including newly added
+slots and removal of old slots. The reload itself does not rewrite already
+posted messages. Features that already refresh saved panels keep doing so using
+the latest designs; other posted messages retain their designs until explicitly
+updated or resent through the feature's supported commands.
+
+Configuration revisions and presentations do not by themselves require a
+restart. Changes to a feature's operational configuration or secrets still
+restart the bot unless that module implements full hot reload, as Message Sets
+does. Changing configuration and a design in the same save still follows that
+configuration's restart rules. Installing, uninstalling, or changing a feature
+version, changing Discord credentials or guild, explicitly restarting, and
+recovering an invalidated Discord session retain the normal restart behavior.
+A feature that failed activation must activate successfully before it can use
+live designs; another unchanged failed feature does not block updates to
+healthy features.
+
+The supervisor sends presentation updates over IPC and acknowledges them only
+after the worker applies the update. Unacknowledged or failed updates retry on
+later polls, including unchanged bootstrap responses. Deploy the updated Runner
+image for both supervisor and workers; this change requires no Backend,
+Frontend, or database migration.
 
 ## Store a Discord token
 
@@ -172,8 +204,10 @@ that feature’s command. Existing posted messages keep their original design.
 The first deployment requires the migration, Backend, and updated Runner image.
 The migration creates a draft catalog entry; publish its version and activate
 the product through the admin tools before granting/installing it. Installing or
-uninstalling the feature, changing other features, credentials, or explicitly
-restarting a bot still follows the usual bot restart flow.
+uninstalling the feature, changing operational configuration of features without
+full hot reload, changing credentials, or explicitly restarting a bot still
+follows the usual bot restart flow. Design-only changes use live updates across
+active features.
 
 ## Member Spending Card recovery
 
@@ -194,6 +228,75 @@ initialization. Existing affected installations recover without a database
 migration or reinstallation. The package settings page displays the selected
 bot installation's status; an active license alone does not indicate that its
 Feature is running.
+
+## Member Spending Card monthly tracking
+
+`SPENDING_MONTHLY_ENABLED` is an opt-in switch (default false). Every
+`/spending add` credits the lifetime balance; while enabled, it also credits the
+current monthly cycle atomically. While disabled, no new monthly balance is
+recorded, and existing monthly history and lifetime totals remain intact.
+Enabling later resumes the current cycle without backfilling purchases made
+while disabled. Retrying an earlier operation never backfills or duplicates it.
+Undated balances saved before this update remain in lifetime totals only.
+Both Fujipp storage and customer PostgreSQL support the same behavior.
+
+`SPENDING_MONTHLY_START_DAY` selects day 1–31 (default 1). Cycles start at 00:00
+in `Asia/Bangkok`; when a month has fewer days than selected, its last day is
+used. For example, day 25 makes the October cycle run from October 25 through
+November 24. Day 31 starts on February 28, or February 29 in a leap year, then
+starts the next cycle on March 31. The stored `YYYY-MM` label names the month in
+which a cycle starts. Changing the day affects future additions and does not
+redistribute previous balances. The Backend reads these controls from the saved
+Member Spending configuration; the customer database adapter receives the same
+settings from its active feature configuration.
+
+- `/spending check` shows the member's lifetime and current-month balances.
+- `/spending list period:this_month` shows this month's ranking.
+- `/spending list month:2026-10` shows the selected month's ranking.
+- `/spending total period:this_month` sums this month's spending across members.
+- `/spending rank period:this_month` refreshes monthly Top 1 / Top 2–5 roles.
+
+Omitting the period keeps the existing lifetime behavior. Monthly command
+options are available only while tracking is enabled; stale monthly requests
+receive an explanation that tracking is disabled. `month:YYYY-MM` overrides
+`period` and is also available on `check`, `total`, and `rank`.
+Viewing a historical ranking never changes current-month roles.
+`/spending update` corrects lifetime totals only; it does not redistribute
+undated corrections into monthly history. `/spending delete` removes the
+member's balances across all months and records a compensating operation.
+
+Cards support `{{this_month}}` (THB), `{{this_month_count}}`, and `{{month}}`
+(the current cycle's `YYYY-MM`) in both Embed and Components V2. While tracking
+is disabled, the monthly amount/count are zero and `{{month}}` is blank.
+Existing `{{total}}` and `{{count}}` remain lifetime values. The separate `monthly_leaderboard` presentation supports
+`{{leaderboard_lines}}`, `{{member_count}}`, and `{{month}}`.
+
+Monthly tracking does not require roles. `SPENDING_MONTHLY_ROLES_ENABLED`
+defaults to false. When enabled, configure either optional
+`SPENDING_MONTHLY_TOP1_ROLE_ID` or `SPENDING_MONTHLY_TOP5_ROLE_ID`, using roles
+separate from lifetime ranks, first-purchase rewards, and spending levels.
+`SPENDING_MONTHLY_ROLES_RESET` defaults to true: roles follow the current
+ranking and are removed when a member leaves it, the next cycle starts, or
+monthly tracking is disabled. Set it to false to retain previously earned roles,
+including while monthly tracking is disabled. Synchronization runs on startup,
+after adds/deletes, when viewing the current ranking, and every minute while
+the bot is online. Offline bots reconcile after reconnecting. Discord role
+hierarchy and Manage Roles permission must allow the configured changes.
+
+Deploy migrations `20261026000001_member_spending_monthly.sql` and
+`20261026000002_member_spending_monthly_options.sql` to the active VPS database
+before the Backend, Frontend, and Runner update. Deploy the Backend and Runner
+together: writes require an operation key, supplied from the Discord interaction ID. Retrying
+the same operation cannot credit either balance twice. The operation ledger
+is append-only; corrections record deltas. Customer databases provision their
+monthly tables automatically using the saved connection owner. The private
+platform tables are accessed only through the Backend.
+
+To run the PostgreSQL store contract against a disposable test database, set
+`SPENDING_TEST_DB_URL` and run
+`node --import tsx --test test/member-spending-store.integration.test.ts` from
+`bot-runner/`. The test provisions the customer schema and removes its own
+randomly scoped fixtures afterward.
 
 ## Shop Status
 
