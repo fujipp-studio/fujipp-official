@@ -159,6 +159,8 @@ function handleCaptchaError() {
 }
 
 function startDrag(event: PointerEvent) {
+  if (event.target instanceof Element && event.target.closest('button, a, input, select, textarea'))
+    return
   if (!window.matchMedia('(max-width: 47.99rem)').matches) return
   pointerId = event.pointerId
   startY = event.clientY

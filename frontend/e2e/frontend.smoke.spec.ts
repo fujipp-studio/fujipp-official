@@ -1200,3 +1200,43 @@ for (const theme of ['LIGHT', 'DARK']) {
     await verify(false)
   })
 }
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(
+    'switches the support sign-in dialog to Create an account in ' + theme,
+    async ({ page }, testInfo) => {
+      await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+      await page.goto('/support?role=GUEST&locale=en')
+      await page.locator('.donate-button').click()
+      const signIn = page.getByRole('dialog', { name: 'Sign in', exact: true })
+      await expect(signIn).toBeVisible()
+      await signIn
+        .getByRole('textbox', { name: 'Email', exact: false })
+        .fill('supporter@example.com')
+      await signIn.getByRole('button', { name: 'Create an account', exact: true }).click()
+      const register = page.getByRole('dialog', { name: 'Create an account', exact: true })
+      await expect(register).toBeVisible()
+      await expect(register.getByLabel('Confirm Password', { exact: false })).toBeVisible()
+      await expect(register.getByRole('textbox', { name: 'Email', exact: false })).toHaveValue(
+        'supporter@example.com',
+      )
+      await expect(register.getByRole('checkbox', { name: /Do you agree/ })).toBeVisible()
+      await page.evaluate(() => document.fonts.ready)
+      await register.screenshot({
+        path: testInfo.outputPath('support-create-account.png'),
+        animations: 'disabled',
+        scale: 'css',
+      })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await register.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await expect(signIn).toBeVisible()
+      await expect(signIn.getByLabel('Confirm Password', { exact: false })).toHaveCount(0)
+      await signIn.getByRole('button', { name: 'Close', exact: true }).click()
+      await expect(signIn).toHaveCount(0)
+      await page.locator('.donate-button').click()
+      await expect(signIn).toBeVisible()
+    },
+  )
+}
