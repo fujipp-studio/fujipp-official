@@ -1,5 +1,6 @@
 import {ActionRowBuilder,EmbedBuilder,MessageFlags,ModalBuilder,PermissionFlagsBits,SlashCommandBuilder,TextInputBuilder,TextInputStyle,type ChatInputCommandInteraction,type GuildMember,type Interaction,type ModalSubmitInteraction,type SlashCommandSubcommandBuilder} from "discord.js";
 import type {FeatureContext,FeatureModule,MemberSpendingEntry,MemberSpendingStore,MemberSpendingMonthlySettings} from "../../types.js";
+import {featureErrorPayload,replyFeatureError} from "../errors.js";
 import {createOwnDatabaseStore} from "./store.js";
 
 import {monthlySettings,spendingMonth} from "./period.js";
@@ -67,7 +68,7 @@ function selectedMonth(c:FeatureContext,i:ChatInputCommandInteraction):string|un
 async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommandInteraction) {
   if(!i.inGuild())return;
   const sub=i.options.getSubcommand();
-  if(!c.permissions.canUse(i,`spending/${sub}`,i.memberPermissions?.has(PermissionFlagsBits.Administrator)===true))return i.reply({content:"คุณไม่มีสิทธิ์ใช้คำสั่งนี้",flags:MessageFlags.Ephemeral});
+  if(!c.permissions.canUse(i,`spending/${sub}`,i.memberPermissions?.has(PermissionFlagsBits.Administrator)===true))return replyFeatureError(i,"member-spending","คุณไม่มีสิทธิ์ใช้คำสั่งนี้",{code:"COMMAND_PERMISSION_DENIED"});
   const guild=i.guild!;
   if(sub==="add") {
     const user=i.options.getUser("member",true),baht=i.options.getInteger("amount",true);
@@ -77,7 +78,7 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
     const monthlySynced=await syncMonthlyRolesAfterWrite(c,s,guild);
     const payload=render(c,e.txCount===1?"first_card":"returning_card",vars(c,user.id,member?.displayName??user.username,baht*100,e,member?.displayAvatarURL({extension:"png",size:256})??user.displayAvatarURL({extension:"png",size:256})));
     if(i.channel?.isTextBased()&&"send" in i.channel)await i.channel.send(payload as never);
-    await i.editReply(`อัปเดตบัตรสะสมเรียบร้อย${monthlySynced?"":" (อัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ)"}`);return;
+    await i.editReply(monthlySynced?"อัปเดตบัตรสะสมเรียบร้อย":featureErrorPayload("member-spending","บันทึกยอดสะสมเรียบร้อย แต่อัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ",{code:"MONTHLY_ROLE_SYNC_FAILED",title:"บันทึกยอดแล้ว • อัปเดตยศไม่ครบ",warning:true}));return;
   }
   if(sub==="update") {
     const user=i.options.getUser("member",true);
@@ -87,10 +88,10 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
   await i.deferReply(sub==="delete"||sub==="check"||sub==="total"?{flags:MessageFlags.Ephemeral}:{});
   if(sub==="delete") {
     const removed=await s.remove(user.id,i.id),monthlySynced=await syncMonthlyRolesAfterWrite(c,s,guild);
-    await i.editReply({content:(removed?`ลบข้อมูล <@${user.id}> รวมทุกเดือนแล้ว`:"ไม่พบข้อมูลสมาชิก")+(monthlySynced?"":" (อัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ)")});return;
+    const result=removed?`ลบข้อมูล <@${user.id}> รวมทุกเดือนแล้ว`:"ไม่พบข้อมูลสมาชิก";await i.editReply(monthlySynced?{content:result}:featureErrorPayload("member-spending",`${result} (อัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ)`,{code:"MONTHLY_ROLE_SYNC_FAILED",title:"ดำเนินการแล้ว • อัปเดตยศไม่ครบ",warning:true}));return;
   }
   const month=selectedMonth(c,i);
-  if(month&&!monthlySettings(c.config).enabled){await i.editReply({content:"ระบบยอดสะสมรายเดือนปิดอยู่ กรุณาเปิดในหน้าตั้งค่า Member Spending Card ก่อน"});return;}
+  if(month&&!monthlySettings(c.config).enabled){await replyFeatureError(i,"member-spending","ระบบยอดสะสมรายเดือนปิดอยู่ กรุณาเปิดในหน้าตั้งค่า Member Spending Card ก่อน",{code:"MONTHLY_TRACKING_DISABLED"});return;}
   if(sub==="check") {
     const e=await s.get(user.id)??{memberDiscordId:user.id,amountSatang:0,txCount:0};
     const history=month&&month!==currentSpendingMonth(c)?await s.get(user.id,month):undefined;
@@ -107,9 +108,9 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
   await i.editReply(render(c,month?"monthly_leaderboard":"leaderboard",{leaderboard_lines:lines,member_count:String(board.length),month:month??""}) as never);
 }
 async function update(c:FeatureContext,s:MemberSpendingStore,i:ModalSubmitInteraction) {
-  if(!i.inGuild()||!i.memberPermissions?.has(PermissionFlagsBits.Administrator))return i.reply({content:"ไม่มีสิทธิ์",flags:MessageFlags.Ephemeral});
+  if(!i.inGuild()||!i.memberPermissions?.has(PermissionFlagsBits.Administrator))return replyFeatureError(i,"member-spending","ไม่มีสิทธิ์",{code:"COMMAND_PERMISSION_DENIED"});
   const id=i.customId.slice("spending:update:".length),amount=parseOptional(i.fields.getTextInputValue("amount"),100),count=parseOptional(i.fields.getTextInputValue("count"),1);
-  if(amount===undefined&&count===undefined)return i.reply({content:"กรุณากรอกอย่างน้อยหนึ่งช่อง",flags:MessageFlags.Ephemeral});
+  if(amount===undefined&&count===undefined)return replyFeatureError(i,"member-spending","กรุณากรอกอย่างน้อยหนึ่งช่อง",{code:"INVALID_INPUT"});
   await i.deferReply({flags:MessageFlags.Ephemeral});
   const e=await s.set(id,{...(amount!==undefined?{amountSatang:amount}:{}),...(count!==undefined?{txCount:count}:{})},i.id);
   await i.editReply({content:`ตั้งยอดรวมทั้งหมด <@${id}> เป็น ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง (ยอดรายเดือนคงเดิม)`});
@@ -164,4 +165,4 @@ async function safeRole(m:GuildMember,roleId:string,add:boolean){const role=m.gu
 function render(c:FeatureContext,slot:string,v:Record<string,string>):Record<string,unknown>{if((slot==="leaderboard"||slot==="monthly_leaderboard")&&!isRecord(c.presentations[slot]))return{embeds:[new EmbedBuilder().setTitle(slot==="monthly_leaderboard"?`อันดับประจำเดือน ${v.month}`:"อันดับยอดสะสมทั้งหมด").setDescription(v.leaderboard_lines||"ยังไม่มีข้อมูล")]};const raw=isRecord(c.presentations[slot])?c.presentations[slot]:{};if(raw.mode==="COMPONENTS_V2"&&Array.isArray(raw.components))return{flags:MessageFlags.IsComponentsV2,components:deep(raw.components,v)};if(raw.mode==="EMBED"&&Array.isArray(raw.embeds))return{content:fill(String(raw.content??""),v)||undefined,embeds:deep(raw.embeds,v)};return{embeds:[new EmbedBuilder().setColor(0xe46daf).setTitle(fill(String(raw.title??"บัตรสะสมของ {{member}}"),v)).setDescription(fill(String(raw.description??"ยอดรอบนี้ {{today}} บาท\nยอดสะสม {{total}} บาท · {{count}} ครั้ง"),v)).setThumbnail(v.avatar??null)]};}
 function vars(c:FeatureContext,uid:string,name:string,today:number,e:MemberSpendingEntry,avatar:string){return{member:name,member_mention:`<@${uid}>`,today:money(today),total:money(e.amountSatang),count:String(e.txCount),this_month:money(monthlySettings(c.config).enabled?(e.thisMonthSatang??0):0),this_month_count:String(monthlySettings(c.config).enabled?(e.thisMonthTxCount??0):0),month:monthlySettings(c.config).enabled?currentSpendingMonth(c):"",avatar};}
 function deep(x:unknown,v:Record<string,string>):unknown{if(typeof x==="string")return fill(x,v);if(Array.isArray(x))return x.map(y=>deep(y,v));if(isRecord(x))return Object.fromEntries(Object.entries(x).map(([k,y])=>[k,deep(y,v)]));return x;}function fill(x:string,v:Record<string,string>){return x.replace(/\{\{([a-z0-9_]+)}}/gi,(_,k:string)=>v[k]??"");}
-function row(customId:string,label:string,required:boolean){return new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(customId).setLabel(label).setStyle(TextInputStyle.Short).setRequired(required));}function parseOptional(x:string,m:number){if(!x.trim())return undefined;if(!/^\d+(?:\.\d{1,2})?$/.test(x.trim()))throw new Error("กรุณากรอกตัวเลขที่ไม่ติดลบ");const result=Number(x)*m;if(!Number.isSafeInteger(Math.round(result))||(m===1&&!Number.isInteger(result)))throw new Error("จำนวนครั้งต้องเป็นจำนวนเต็ม และยอดต้องไม่เกินขอบเขตที่รองรับ");return Math.round(result);}function money(x:number){return(x/100).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});}function bool(x:unknown,f:boolean){return typeof x==="boolean"?x:f;}function num(x:unknown,f:number){return typeof x==="number"?x:f;}function id(x:unknown){const s=String(x??"");return/^\d{15,30}$/.test(s)?s:undefined;}function requiredSecret(x:unknown){if(typeof x!=="string"||!/^postgres(?:ql)?:\/\//i.test(x))throw new Error("SPENDING_DB_URL must be a PostgreSQL connection URL");return x;}function isRecord(x:unknown):x is Record<string,unknown>{return!!x&&typeof x==="object"&&!Array.isArray(x);}async function respondError(i:Interaction,e:unknown){if(!i.isRepliable())return;const content=`ทำรายการไม่สำเร็จ: ${e instanceof Error?e.message:"Unknown error"}`;if(i.deferred||i.replied)await i.editReply(content).catch(()=>{});else await i.reply({content,flags:MessageFlags.Ephemeral}).catch(()=>{});}
+function row(customId:string,label:string,required:boolean){return new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(customId).setLabel(label).setStyle(TextInputStyle.Short).setRequired(required));}function parseOptional(x:string,m:number){if(!x.trim())return undefined;if(!/^\d+(?:\.\d{1,2})?$/.test(x.trim()))throw new Error("กรุณากรอกตัวเลขที่ไม่ติดลบ");const result=Number(x)*m;if(!Number.isSafeInteger(Math.round(result))||(m===1&&!Number.isInteger(result)))throw new Error("จำนวนครั้งต้องเป็นจำนวนเต็ม และยอดต้องไม่เกินขอบเขตที่รองรับ");return Math.round(result);}function money(x:number){return(x/100).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});}function bool(x:unknown,f:boolean){return typeof x==="boolean"?x:f;}function num(x:unknown,f:number){return typeof x==="number"?x:f;}function id(x:unknown){const s=String(x??"");return/^\d{15,30}$/.test(s)?s:undefined;}function requiredSecret(x:unknown){if(typeof x!=="string"||!/^postgres(?:ql)?:\/\//i.test(x))throw new Error("SPENDING_DB_URL must be a PostgreSQL connection URL");return x;}function isRecord(x:unknown):x is Record<string,unknown>{return!!x&&typeof x==="object"&&!Array.isArray(x);}async function respondError(i:Interaction,e:unknown){console.error("Member Spending command failed",e);if(i.isRepliable())await replyFeatureError(i,"member-spending",e);}

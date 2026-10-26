@@ -1,3 +1,4 @@
+import { assertFeatureError } from "./assert-feature-error.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
@@ -101,7 +102,8 @@ test("external database connection failures keep spending available for the next
     client.emit("interactionCreate", first.interaction);
     await settle();
     assert.equal(first.acknowledgements.length, 1);
-    assert.deepEqual(first.edits, ["ทำรายการไม่สำเร็จ: Database temporarily unavailable"]);
+    assert.equal(first.edits.length, 1);
+    assert.equal(assertFeatureError(first.edits[0], "Member Spending Card").description, "Database temporarily unavailable");
     const second = spendingInteraction("check");
     client.emit("interactionCreate", second.interaction);
     await settle();
@@ -208,7 +210,7 @@ test("installing Shop Status restarts the bot without losing spending commands w
       await settle();
       assert.equal(state.acknowledgements.length, 1, `${subcommand} must acknowledge after restart`);
       assert.equal(state.edits.length, 1, `${subcommand} must finish or explain the storage failure`);
-      if (subcommand === "add") assert.deepEqual(state.edits, ["ทำรายการไม่สำเร็จ: Database temporarily unavailable"]);
+      if (subcommand === "add") assert.equal(assertFeatureError(state.edits[0], "Member Spending Card").description, "Database temporarily unavailable");
     }
     assert.equal(attempts, 2);
     assert.equal(statuses.some(status => status.installationId === "spending-install" && status.status === "ERROR"), false);
@@ -292,7 +294,8 @@ test("spending reports a failed database read through the deferred reply", async
     client.emit("interactionCreate", state.interaction);
     await settle();
     assert.equal(state.acknowledgements.length, 1);
-    assert.deepEqual(state.edits, ["ทำรายการไม่สำเร็จ: Database unavailable"]);
+    assert.equal(state.edits.length, 1);
+    assert.equal(assertFeatureError(state.edits[0], "Member Spending Card").description, "Database unavailable");
     assert.equal(state.replies.length, 0);
   } finally { await dispose(); }
 });
@@ -335,7 +338,9 @@ test("spending denies unauthorized commands before accessing storage", async () 
     await settle();
     assert.equal(reads, 0);
     assert.equal(state.acknowledgements.length, 0);
-    assert.deepEqual(state.replies, [{ content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", flags: MessageFlags.Ephemeral }]);
+    assert.equal(state.replies.length, 1);
+    assert.equal(assertFeatureError(state.replies[0], "Member Spending Card", "COMMAND_PERMISSION_DENIED").description, "คุณไม่มีสิทธิ์ใช้คำสั่งนี้");
+    assert.equal((state.replies[0] as { flags: number }).flags, MessageFlags.Ephemeral);
   } finally { await dispose(); }
 });
 
@@ -536,7 +541,7 @@ for (const month of [undefined, "2026-09", "2026-13"]) {
       client.emit("interactionCreate", state.interaction); await settle();
       if (month === "2026-13") {
         assert.deepEqual(reads, []);
-        assert.match(String(state.edits[0]), /YYYY-MM/);
+        assert.match(assertFeatureError(state.edits[0], "Member Spending Card").description, /YYYY-MM/);
       } else {
         assert.deepEqual(reads, [[20, month ?? spendingMonth()]]);
         assert.deepEqual((state.edits[0] as { embeds: unknown[] }).embeds, [{ title: `Month ${month ?? spendingMonth()}`, description: `1. <@${memberId}> — 50.00 บาท · 1 ครั้ง` }]);
@@ -650,7 +655,7 @@ test("a monthly role failure does not report a committed balance change as faile
   try {
     client.emit("interactionCreate", state.interaction); await settle();
     assert.equal(writes, 1);
-    const result = (state.edits[0] as { content: string }).content;
+    const result = assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_ROLE_SYNC_FAILED", true).description;
     assert.match(result, /ลบข้อมูล.*แล้ว/);
     assert.match(result, /ลองใหม่อัตโนมัติ/);
     assert.doesNotMatch(result, /ทำรายการไม่สำเร็จ/);
@@ -683,7 +688,7 @@ test("monthly commands explain disabled tracking without querying storage", asyn
   } as unknown as FeatureContext);
   try {
     client.emit("interactionCreate", state.interaction); await settle();
-    assert.match((state.edits[0] as { content: string }).content, /รายเดือนปิดอยู่/);
+    assert.match(assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_TRACKING_DISABLED").description, /รายเดือนปิดอยู่/);
   } finally { await dispose(); }
 });
 

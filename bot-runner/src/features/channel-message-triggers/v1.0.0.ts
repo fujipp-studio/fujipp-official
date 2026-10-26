@@ -1,3 +1,4 @@
+import { featureErrorPayload } from "../errors.js";
 import {
   ChannelType,
   type GuildTextBasedChannel,
@@ -25,13 +26,15 @@ export const channelMessageTriggersFeature: FeatureModule = {
     const onChannelCreate = (channel: unknown) => {
       void handleChannelCreate(context, channelRules, channel).catch((error) => {
         console.error(`Channel message trigger failed for bot ${context.botId}: ${errorMessage(error)}`);
-        void context.reportFeatureError("CHANNEL_CREATE_TRIGGER_FAILED", error);
+        void context.reportFeatureError("CHANNEL_CREATE_TRIGGER_FAILED", error, { recoverable: true }).catch(() => undefined);
+        if (isCreatedTextChannel(channel)) void channel.send(featureErrorPayload("channel-message-triggers", error, { code: "CHANNEL_CREATE_TRIGGER_FAILED" })).catch(() => undefined);
       });
     };
     const onMessageCreate = (message: Message) => {
       void handleAdminTrigger(context, adminRules, message).catch((error) => {
         console.error(`Admin message trigger failed for bot ${context.botId}: ${errorMessage(error)}`);
-        void context.reportFeatureError("ADMIN_MESSAGE_TRIGGER_FAILED", error);
+        void context.reportFeatureError("ADMIN_MESSAGE_TRIGGER_FAILED", error, { recoverable: true }).catch(() => undefined);
+        if (isSendableGuildChannel(message.channel)) void message.channel.send(featureErrorPayload("channel-message-triggers", error, { code: "ADMIN_MESSAGE_TRIGGER_FAILED" })).catch(() => undefined);
       });
     };
 

@@ -1,3 +1,4 @@
+import { assertFeatureError } from "./assert-feature-error.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
@@ -477,7 +478,7 @@ test("preflight catches missing role, missing Manage Roles, and Connect on text 
     assert.equal(f.edits.length, 0);
     assert.equal(f.messages.length, 0);
     assert.equal(f.states.length, 1);
-    assert.match(i.replies.at(-1).content, /ไม่สำเร็จ/);
+    assert.match(assertFeatureError(i.replies.at(-1), "Shop Status").title, /ไม่สำเร็จ/);
     await dispose();
   }
 });
@@ -547,7 +548,7 @@ test("send failure records changed status and reports announcement failure", asy
   await settle();
   assert.equal(f.states.at(-1).status, "open");
   assert.equal(f.edits.length, 1);
-  assert.match(i.replies.at(-1).content, /ปรับสิทธิ์แล้ว.*ส่งประกาศไม่สำเร็จ/);
+  assert.match(assertFeatureError(i.replies.at(-1), "Shop Status", "SHOP_ANNOUNCEMENT_FAILED", true).description, /ปรับสิทธิ์แล้ว.*ส่งประกาศไม่สำเร็จ/);
   assert.equal(f.errors[0][0], "SHOP_ANNOUNCEMENT_FAILED");
   await dispose();
 });
@@ -560,7 +561,7 @@ test("simultaneous commands cannot interleave writes", async () => {
   f.client.emit("interactionCreate", second.value);
   await settle();
   assert.equal(f.messages.length, 1);
-  assert.match(second.replies[0].content, /กรุณารอ/);
+  assert.match(assertFeatureError(second.replies[0], "Shop Status", "SHOP_BUSY").description, /กรุณารอ/);
   await dispose();
 });
 
@@ -695,7 +696,7 @@ test("fetch, edit and delete failures do not send duplicate announcements", asyn
     f.client.emit("interactionCreate", next.value);
     await settle();
     assert.equal(f.messages.length, 1);
-    assert.match(next.replies.at(-1).content, /ส่งประกาศไม่สำเร็จ/);
+    assert.match(assertFeatureError(next.replies.at(-1), "Shop Status", "SHOP_ANNOUNCEMENT_FAILED", true).description, /ส่งประกาศไม่สำเร็จ/);
     assert.equal(f.errors.at(-1)[0], "SHOP_ANNOUNCEMENT_FAILED");
     await dispose();
   }
@@ -712,7 +713,7 @@ test("announcement tracking failure reports partial success without re-sending",
   assert.equal(f.messages.length, 1);
   assert.equal(f.errors.at(-1)[0], "SHOP_ANNOUNCEMENT_STATE_FAILED");
   assert.match(
-    next.replies.at(-1).content,
+    assertFeatureError(next.replies.at(-1), "Shop Status", "SHOP_ANNOUNCEMENT_STATE_FAILED", true).description,
     /ส่งประกาศแล้ว.*บันทึกตำแหน่งข้อความไม่สำเร็จ/,
   );
   await dispose();
@@ -862,7 +863,7 @@ for (const thread of [false, true]) {
     f.client.emit("interactionCreate", i.value);
     await settle();
     assert.match(
-      i.replies.at(-1).content,
+      assertFeatureError(i.replies.at(-1), "Shop Status").description,
       thread ? /Manage Threads/ : /Manage Channels/,
     );
     assert.deepEqual(f.edits, []);
@@ -896,7 +897,7 @@ for (const failure of ["rename", "save"] as const) {
       true,
     );
     assert.equal(f.messages.length, 0);
-    assert.match(i.replies.at(-1).content, /ปรับสถานะร้านไม่สำเร็จ/);
+    assert.match(assertFeatureError(i.replies.at(-1), "Shop Status").title, /ปรับสถานะร้านไม่สำเร็จ/);
     await dispose();
   });
 }
@@ -1031,7 +1032,7 @@ test("missing Mention Everyone is reported before status, name or permission cha
   const i = f.interaction();
   f.client.emit("interactionCreate", i.value);
   await settle();
-  assert.match(i.replies.at(-1).content, /Mention Everyone/);
+  assert.match(assertFeatureError(i.replies.at(-1), "Shop Status").description, /Mention Everyone/);
   assert.deepEqual(i.replies.at(-1).allowedMentions, { parse: [] });
   assert.equal(f.states.at(-1).status, undefined);
   assert.deepEqual(f.renames, []);
@@ -1157,7 +1158,7 @@ for (const problem of ["missing", "unmentionable"]) {
     f.client.emit("interactionCreate", i.value);
     await settle();
     assert.match(
-      i.replies.at(-1).content,
+      assertFeatureError(i.replies.at(-1), "Shop Status").description,
       problem === "missing" ? /ไม่พบ Role/ : /ไม่อนุญาตให้แท็ก/,
     );
     assert.deepEqual(i.replies.at(-1).allowedMentions, { parse: [] });
@@ -1234,7 +1235,7 @@ test("rejects more than 100 distinct Role pings before applying shop changes", a
   const i = f.interaction();
   f.client.emit("interactionCreate", i.value);
   await settle();
-  assert.match(i.replies.at(-1).content, /100 Role/);
+  assert.match(assertFeatureError(i.replies.at(-1), "Shop Status").description, /100 Role/);
   assert.deepEqual(f.messages, []);
   assert.equal(f.states.at(-1).status, undefined);
   await dispose();

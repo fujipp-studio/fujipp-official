@@ -1,3 +1,4 @@
+import { featureErrorPayload, replyFeatureError } from "../errors.js";
 import { randomUUID } from "node:crypto";
 import {
   ActionRowBuilder,
@@ -38,9 +39,9 @@ export const robloxPayoutTestFeature: FeatureModule = {
     const onInteraction = (interaction: Interaction) => {
       if (!interaction.inGuild() || (context.guildId && interaction.guildId !== context.guildId)) return;
       if (interaction.isChatInputCommand() && interaction.commandName === COMMAND_NAME) {
-        void start(interaction).catch((error) => void context.reportFeatureError("TEST_START_FAILED", error));
+        void start(interaction).catch(async (error) => { await replyFeatureError(interaction, "roblox-payout-test", error, { code: "TEST_START_FAILED" }); await context.reportFeatureError("TEST_START_FAILED", error, { recoverable: true }).catch(() => undefined); });
       } else if (interaction.isButton() && interaction.customId.startsWith(CONFIRM_PREFIX)) {
-        void confirm(interaction).catch((error) => void context.reportFeatureError("TEST_PAYOUT_FAILED", error));
+        void confirm(interaction).catch(async (error) => { await replyFeatureError(interaction, "roblox-payout-test", error, { code: "TEST_PAYOUT_FAILED" }); await context.reportFeatureError("TEST_PAYOUT_FAILED", error, { recoverable: true }).catch(() => undefined); });
       }
     };
 
@@ -48,7 +49,7 @@ export const robloxPayoutTestFeature: FeatureModule = {
       if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return;
       const config = readConfig(context);
       if (!config) {
-        await interaction.reply({ content: "ตั้งค่า Group ID, Recipient ID และ Roblox cookie ของ Feature ทดสอบก่อน", flags: MessageFlags.Ephemeral });
+        await replyFeatureError(interaction, "roblox-payout-test", "ตั้งค่า Group ID, Recipient ID และ Roblox cookie ของ Feature ทดสอบก่อน", { code: "MISSING_CONFIGURATION" });
         return;
       }
       const id = randomUUID();
@@ -66,17 +67,17 @@ export const robloxPayoutTestFeature: FeatureModule = {
       const id = interaction.customId.slice(CONFIRM_PREFIX.length);
       const request = pending.get(id);
       if (!request || request.userId !== interaction.user.id || request.expiresAt < Date.now()) {
-        await interaction.reply({ content: "คำขอทดสอบหมดอายุหรือไม่ใช่ของคุณ", flags: MessageFlags.Ephemeral });
+        await replyFeatureError(interaction, "roblox-payout-test", "คำขอทดสอบหมดอายุหรือไม่ใช่ของคุณ", { code: "TEST_REQUEST_EXPIRED" });
         return;
       }
       if (running) {
-        await interaction.reply({ content: "มีรายการทดสอบกำลังทำงานอยู่", flags: MessageFlags.Ephemeral });
+        await replyFeatureError(interaction, "roblox-payout-test", "มีรายการทดสอบกำลังทำงานอยู่", { code: "TEST_ALREADY_RUNNING" });
         return;
       }
       pending.delete(id);
       const config = readConfig(context);
       if (!config) {
-        await interaction.update({ content: "การตั้งค่า Feature ทดสอบไม่ครบ", components: [] });
+        await interaction.update(featureErrorPayload("roblox-payout-test", "การตั้งค่า Feature ทดสอบไม่ครบ", { code: "MISSING_CONFIGURATION" }));
         return;
       }
       running = true;
@@ -95,7 +96,7 @@ export const robloxPayoutTestFeature: FeatureModule = {
                 : "\nRoblox ไม่ได้ระบุเวลารอ Retry-After"
               : "")
             + (result.error.unknownOutcome ? "\nผลการโอนไม่แน่ชัด ตรวจประวัติ Roblox ก่อนทดสอบซ้ำ" : "");
-        await interaction.editReply({ content: detail.slice(0, 1800), components: [], allowedMentions: { parse: [] } });
+        await interaction.editReply(result.ok ? { content: detail.slice(0, 1800), components: [], allowedMentions: { parse: [] } } : { content: null, ...featureErrorPayload("roblox-payout-test", detail, { code: result.error.code }) });
       } finally {
         running = false;
       }

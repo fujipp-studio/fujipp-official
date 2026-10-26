@@ -8,6 +8,7 @@ import type {
   FeatureDisposer,
   FeatureModule,
 } from "../../types.js";
+import { replyFeatureError } from "../errors.js";
 import { PresentationValidationError, renderTemplate } from "../presentation.js";
 
 export interface MessageSet {
@@ -136,10 +137,7 @@ export const messageSetsFeatureV11: FeatureModule = {
       }
       const action = interaction.options.getSubcommand();
       if (!context.permissions.canUse(interaction, `${name}/${action}`, false)) {
-        await interaction.reply({
-          content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "message-sets", "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", { code: "COMMAND_PERMISSION_DENIED" });
         return;
       }
       const selected = interaction.options
@@ -148,10 +146,7 @@ export const messageSetsFeatureV11: FeatureModule = {
         .toLowerCase();
       const set = sets.find((item) => item.name.toLowerCase() === selected);
       if (!set) {
-        await interaction.reply({
-          content: "ไม่พบ SET นี้ กรุณาเลือกจากรายการล่าสุด",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "message-sets", "ไม่พบ SET นี้ กรุณาเลือกจากรายการล่าสุด", { code: "MESSAGE_SET_NOT_FOUND" });
         return;
       }
       const payload = renderTemplate(
@@ -181,7 +176,7 @@ export const messageSetsFeatureV11: FeatureModule = {
           throw new Error("Only messages sent by this bot can be updated");
         const componentsV2 = payload.flags === MessageFlags.IsComponentsV2;
         if (message.flags.has(MessageFlags.IsComponentsV2) && !componentsV2) {
-          await interaction.editReply({ content: "ข้อความ Components V2 ต้องเลือก SET แบบ Components V2", allowedMentions: { parse: [] } });
+          await replyFeatureError(interaction, "message-sets", "ข้อความ Components V2 ต้องเลือก SET แบบ Components V2", { code: "COMPONENTS_V2_REQUIRED" });
           return;
         }
         await message.edit({ content: null, embeds: [], components: [], attachments: [], ...payload });
@@ -206,13 +201,7 @@ export const messageSetsFeatureV11: FeatureModule = {
             const content = error instanceof PresentationValidationError
               ? `ส่งหรืออัปเดต SET ไม่สำเร็จ: ${error.message}`
               : "ส่งหรืออัปเดต SET ไม่สำเร็จ กรุณาตรวจสอบ message ID ในห้องนี้ ข้อความต้องเป็นของบอทตัวนี้ และตรวจสอบดีไซน์และสิทธิ์ของบอท";
-            if (interaction.deferred) {
-              await interaction.editReply({ content }).catch(() => undefined);
-            } else if (!interaction.replied) {
-              await interaction
-                .reply({ content, flags: MessageFlags.Ephemeral })
-                .catch(() => undefined);
-            }
+            await replyFeatureError(interaction, "message-sets", content, { code: "MESSAGE_SET_SEND_FAILED" });
           }
           // A failed message must not remove the command listener on the next bootstrap.
           // Acknowledge the user before waiting for the diagnostic API.

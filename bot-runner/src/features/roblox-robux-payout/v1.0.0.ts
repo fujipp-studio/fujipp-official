@@ -1,3 +1,4 @@
+import { featureErrorPayload, replyFeatureError, safeErrorText } from "../errors.js";
 import {
   ActionRowBuilder,ButtonBuilder,ButtonStyle,EmbedBuilder,Interaction,MessageFlags,ModalBuilder,
   PermissionFlagsBits,SlashCommandBuilder,StringSelectMenuBuilder,StringSelectMenuOptionBuilder,
@@ -71,14 +72,14 @@ function suggestManualReceiptPackage(interaction:AutocompleteInteraction){return
 async function sendManualReceipt(context:FeatureContext,interaction:ChatInputCommandInteraction){
   if(!interaction.inGuild())return;
   const administrator=interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)===true;
-  if(!context.permissions.canUse(interaction,ROBUX_RECEIPT_COMMAND_NAME,administrator))return interaction.reply({content:"คุณไม่มีสิทธิ์สร้างใบเสร็จ",flags:MessageFlags.Ephemeral});
+  if(!context.permissions.canUse(interaction,ROBUX_RECEIPT_COMMAND_NAME,administrator))return replyFeatureError(interaction,"roblox-robux-payout","คุณไม่มีสิทธิ์สร้างใบเสร็จ",{code:"COMMAND_PERMISSION_DENIED"});
   const channelId=stringConfig(context.config.ROBUX_RECEIPT_CHANNEL_ID,"");
-  if(!channelId)return interaction.reply({content:"กรุณาตั้งค่าห้องใบเสร็จก่อนใช้งานคำสั่งนี้",flags:MessageFlags.Ephemeral});
+  if(!channelId)return replyFeatureError(interaction,"roblox-robux-payout","กรุณาตั้งค่าห้องใบเสร็จก่อนใช้งานคำสั่งนี้",{code:"MISSING_RECEIPT_CHANNEL"});
   const packageName=interaction.options.getString("package",true).trim();
   const priceBaht=interaction.options.getNumber("price",true);
   const recipient=interaction.options.getUser("user");
   const image=interaction.options.getAttachment("image");
-  if(image&&!isReceiptImage(image))return interaction.reply({content:"ไฟล์ที่แนบต้องเป็นรูปภาพ",flags:MessageFlags.Ephemeral});
+  if(image&&!isReceiptImage(image))return replyFeatureError(interaction,"roblox-robux-payout","ไฟล์ที่แนบต้องเป็นรูปภาพ",{code:"INVALID_IMAGE"});
   const channel=await context.client.channels.fetch(channelId);
   if(!channel?.isTextBased()||!channel.isSendable())throw new Error("ไม่สามารถส่งข้อความไปยังห้องใบเสร็จที่ตั้งค่าไว้ได้");
   const values=manualPayoutReceiptValues(packageName,priceBaht,dateTime(),image?.url??"");
@@ -97,7 +98,7 @@ async function sendManualReceipt(context:FeatureContext,interaction:ChatInputCom
 
 async function postPanel(context:FeatureContext,groups:RuntimeGroup[],panelDefinitions:PayoutPanel[],panels:PanelUpdater,membershipEnabled:boolean,multiPanelEnabled:boolean,interaction:ChatInputCommandInteraction){
   if(!interaction.inGuild())return;
-  if(!context.permissions.canUse(interaction,interaction.commandName,false))return interaction.reply({content:"คุณไม่มีสิทธิ์ใช้คำสั่งนี้",flags:MessageFlags.Ephemeral});
+  if(!context.permissions.canUse(interaction,interaction.commandName,false))return replyFeatureError(interaction,"roblox-robux-payout","คุณไม่มีสิทธิ์ใช้คำสั่งนี้",{code:"COMMAND_PERMISSION_DENIED"});
   await interaction.deferReply({flags:MessageFlags.Ephemeral});
   if(!interaction.channel?.isSendable())throw new Error("Channel cannot send messages");
   const requested=multiPanelEnabled?interaction.options.getString("panel")??panelDefinitions[0]?.key:null;
@@ -152,7 +153,7 @@ function panelActionRows(context:FeatureContext,stock:Array<{group:RuntimeGroup;
 }
 
 async function startMembershipCheck(groups:RuntimeGroup[],interaction:ButtonInteraction){
-  if(!groups.length)return interaction.reply({content:"ยังไม่ได้ตั้งค่า Roblox Group",flags:MessageFlags.Ephemeral});
+  if(!groups.length)return replyFeatureError(interaction,"roblox-robux-payout","ยังไม่ได้ตั้งค่า Roblox Group",{code:"MISSING_ROBLOX_GROUP"});
   if(groups.length===1)return showMembershipModal(groups,groups[0]!.key,interaction);
   const panelKey=customIdSuffix(interaction.customId,ID.membership);const menu=new StringSelectMenuBuilder().setCustomId(customId(ID.membershipGroup,panelKey)).setPlaceholder("เลือกกลุ่มที่ต้องการตรวจสอบ").addOptions(groups.slice(0,25).map((group)=>new StringSelectMenuOptionBuilder().setLabel(group.name.slice(0,100)).setValue(group.key)));
   return interaction.reply({content:"เลือกกลุ่ม Roblox",components:[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],flags:MessageFlags.Ephemeral});
@@ -181,8 +182,8 @@ async function checkMembership(context:FeatureContext,groups:RobloxGroup[],key:s
 function numberEmoji(index:number){return ["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣","🔟"][index]??"🎮";}
 
 async function startBuy(context:FeatureContext,groups:RuntimeGroup[],purchaseUsernameMaxLength:number,purchaseModalTitle:string,interaction:ButtonInteraction){
-  if(!groups.length)return interaction.reply({content:"ยังไม่ได้ตั้งค่า Roblox Group และ Credentials สำหรับ Feature นี้",flags:MessageFlags.Ephemeral});
-  if(!boolConfig(context.config.ROBUX_ENABLED,true))return interaction.reply({content:"ระบบขาย Robux ปิดให้บริการชั่วคราว",flags:MessageFlags.Ephemeral});
+  if(!groups.length)return replyFeatureError(interaction,"roblox-robux-payout","ยังไม่ได้ตั้งค่า Roblox Group และ Credentials สำหรับ Feature นี้",{code:"MISSING_ROBLOX_GROUP"});
+  if(!boolConfig(context.config.ROBUX_ENABLED,true))return replyFeatureError(interaction,"roblox-robux-payout","ระบบขาย Robux ปิดให้บริการชั่วคราว",{code:"ROBUX_SHOP_DISABLED"});
   if(groups.length===1)return showUsernameModal(groups,groups[0]!.key,purchaseUsernameMaxLength,purchaseModalTitle,interaction);
   const role=componentConfig(context,"panel","group_select");const menu=new StringSelectMenuBuilder().setCustomId(ID.group).setPlaceholder(String(role.placeholder??"เลือกกลุ่ม Roblox").slice(0,150)).addOptions(groups.slice(0,25).map((g)=>new StringSelectMenuOptionBuilder().setLabel(g.name.slice(0,100)).setValue(g.key)));
   return interaction.reply({content:"เลือกกลุ่มที่ต้องการรับ Robux",components:[new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],flags:MessageFlags.Ephemeral});
@@ -240,14 +241,14 @@ class PayoutQueue{
   constructor(private context:FeatureContext,private groups:RobloxGroup[],private sendSuccessfulPurchaseReceiptsToMember=false,private successfulPurchaseReceiptSlot="notification_success"){}
   add(job:RobuxPayoutJob,extra?:{interaction?:ButtonInteraction}){this.items.push({job,...extra});void this.run();}
   stop(){this.stopped=true;}
-  private async run(){if(this.running)return;this.running=true;while(this.items.length&&!this.stopped){const item=this.items.shift()!;await this.process(item).catch(console.error);if(this.items.length)await new Promise((resolve)=>setTimeout(resolve,numberConfig(this.context.config.ROBUX_PAYOUT_COOLDOWN_SECONDS,30)*1000));}this.running=false;}
+  private async run(){if(this.running)return;this.running=true;while(this.items.length&&!this.stopped){const item=this.items.shift()!;await this.process(item).catch(async(error)=>{console.error(error);if(item.interaction)await replyFeatureError(item.interaction,"roblox-robux-payout",error,{code:"PAYOUT_PROCESSING_FAILED",title:"ตรวจสอบสถานะรายการ",warning:true});});if(this.items.length)await new Promise((resolve)=>setTimeout(resolve,numberConfig(this.context.config.ROBUX_PAYOUT_COOLDOWN_SECONDS,30)*1000));}this.running=false;}
   private async process({job,interaction}: {job:RobuxPayoutJob;interaction?:ButtonInteraction}){
     const group=this.groups.find((item)=>item.key===job.groupKey&&item.groupId===job.groupId);
-    if(!group){await this.context.robux.refund(job.jobId,{errorCode:"GROUP_NOT_CONFIGURED",errorMessage:"Configured Roblox group is no longer available"});return;}
+    if(!group){await this.context.robux.refund(job.jobId,{errorCode:"GROUP_NOT_CONFIGURED",errorMessage:"Configured Roblox group is no longer available"});if(interaction)await replyFeatureError(interaction,"roblox-robux-payout","ไม่พบกลุ่ม Roblox ที่ตั้งไว้ ระบบคืนเงินแล้ว",{code:"GROUP_NOT_CONFIGURED"});return;}
     try{await this.context.robux.claim(job.jobId);}catch{return;}
     const result=await payout(group,job.robloxUserId,job.robuxAmount);
-    if(!result.ok&&result.error.unknownOutcome){await this.context.robux.outcome(job.jobId,{status:"REVIEW_REQUIRED",result:{},errorCode:result.error.code,errorMessage:result.error.message});await this.notify(job,"REVIEW_REQUIRED",result.error.message);return;}
-    if(!result.ok){const refund=await this.context.robux.refund(job.jobId,{errorCode:result.error.code,errorMessage:result.error.message});if(interaction)await interaction.editReply(render(this.context,"failed",{reason:humanRobloxError(result.error),failure_reason:humanRobloxError(result.error),username:job.robloxUsername,datetime:dateTime(),avatar:interaction.user.displayAvatarURL(),refund:money(job.priceSatang),balance:money(refund.balanceSatang),currency:"THB"},[])).catch(()=>undefined);await this.notify(job,"REFUNDED",result.error.message);return;}
+    if(!result.ok&&result.error.unknownOutcome){await this.context.robux.outcome(job.jobId,{status:"REVIEW_REQUIRED",result:{},errorCode:result.error.code,errorMessage:result.error.message});if(interaction)await replyFeatureError(interaction,"roblox-robux-payout","ผลการโอนไม่แน่ชัด ระบบส่งรายการให้ผู้ดูแลตรวจสอบ กรุณาตรวจประวัติก่อนทำรายการซ้ำ",{code:result.error.code,title:"รอตรวจสอบผลการโอน",warning:true});await this.notify(job,"REVIEW_REQUIRED",result.error.message);return;}
+    if(!result.ok){const refund=await this.context.robux.refund(job.jobId,{errorCode:result.error.code,errorMessage:result.error.message});if(interaction)await interaction.editReply(render(this.context,"failed",{reason:humanRobloxError(result.error),failure_reason:humanRobloxError(result.error),username:job.robloxUsername,datetime:dateTime(),avatar:interaction.user.displayAvatarURL(),refund:money(job.priceSatang),balance:money(refund.balanceSatang),currency:"THB"},[])).catch(()=>replyFeatureError(interaction,"roblox-robux-payout",`${humanRobloxError(result.error)} (คืนเงินแล้ว ${money(job.priceSatang)} บาท)`,{code:result.error.code}));await this.notify(job,"REFUNDED",result.error.message);return;}
     await this.context.robux.outcome(job.jobId,{status:"SUCCEEDED",result:result.data});const balance=await this.context.wallet.balance(job.memberDiscordId);
     if(interaction)await interaction.editReply(render(this.context,"succeeded",{member_mention:`<@${job.memberDiscordId}>`,roblox_id:String(job.robloxUserId),idRoblox:String(job.robloxUserId),roblox_username:job.robloxUsername,usernameRoblox:job.robloxUsername,robux:String(job.robuxAmount),price:money(job.priceSatang),balance:money(balance.balanceSatang),group_name:this.groups.find((group)=>group.key===job.groupKey)?.name??job.groupKey,datetime:dateTime(),avatar:interaction.user.displayAvatarURL(),currency:"THB"},[])).catch(()=>undefined);
     await this.notify(job,"SUCCEEDED","");
@@ -356,7 +357,7 @@ class PanelUpdater{
 }
 
 function render(context:FeatureContext,slot:string,values:Record<string,string>,components:Array<ActionRowBuilder<ButtonBuilder>|ActionRowBuilder<StringSelectMenuBuilder>>):any{
-  const raw=(context.presentations[slot]??{}) as Record<string,unknown>;const fill=(value:unknown,fallback:string)=>renderPayoutTemplate(String(value??fallback),values);
+  const raw=(context.presentations[slot]??{}) as Record<string,unknown>;if((slot==="failed"||slot==="notification_error")&&!Object.keys(raw).length)return featureErrorPayload("roblox-robux-payout",values.reason??values.failure_reason??"ทำรายการไม่สำเร็จ");const fill=(value:unknown,fallback:string)=>renderPayoutTemplate(String(value??fallback),values);
   const mode=String(raw.mode??"EMBED").toUpperCase();
   const nested=mode==="EMBED"&&isRecord(raw.embed)?raw.embed:mode==="COMPONENTS_V2"&&isRecord(raw.components_v2)?raw.components_v2:{};
   const definition={...raw,...nested};
@@ -414,7 +415,7 @@ function readPackages(context:FeatureContext,configuredRate?:number):Package[]{
 }
 export function robuxPriceSatang(robux:number,rate:number){return Math.ceil(robux/rate)*100;}
 function humanRobloxError(error:RobloxFailure){const labels:Record<string,string>={ROBLOX_INSUFFICIENT_FUNDS:"Robux ในกลุ่มไม่พอหรือ Roblox แจ้งยอดไม่เพียงพอ",ROBLOX_INSUFFICIENT_PERMISSIONS:"บัญชี Roblox ไม่มีสิทธิ์ payout ในกลุ่มนี้",ROBLOX_PAYOUT_RATE_LIMIT:"Roblox จำกัดความถี่การโอนชั่วคราว",ROBLOX_2FA_REQUIRED:"ยืนยัน 2FA ของ Roblox ไม่สำเร็จ",ROBLOX_SESSION_BLOCKED:"Roblox บล็อก Session นี้ชั่วคราว กรุณารอสักครู่หรือเข้าสู่ระบบใหม่",ROBLOX_CHALLENGE_CHEF:"Roblox ต้องการยืนยันตัวตน (Captcha) กรุณาเข้าสู่ระบบบัญชี Roblox บนเบราว์เซอร์เพื่อแก้ Captcha"};return labels[error.code]??error.message;}
-async function respondError(context:FeatureContext,interaction:Interaction,error:unknown){const message=error instanceof Error?error.message:"เกิดข้อผิดพลาด";console.error(`Robux Payout failed for ${context.botId}:`,error);if(!interaction.isRepliable())return;const user="user" in interaction?interaction.user:null;const payload=render(context,"failed",{reason:message,content:message,username:"-",datetime:dateTime(),avatar:user?.displayAvatarURL()??""},[]);if(interaction.deferred||interaction.replied)await interaction.editReply(payload).catch(()=>undefined);else await interaction.reply({...payload,flags:MessageFlags.Ephemeral|("flags" in payload?payload.flags:0)}).catch(()=>undefined);}
+async function respondError(context:FeatureContext,interaction:Interaction,error:unknown){const message=safeErrorText(error instanceof Error?error.message:"เกิดข้อผิดพลาด");console.error(`Robux Payout failed for ${context.botId}:`,error);if(!interaction.isRepliable())return;try{const payload=render(context,"failed",{reason:message,content:message,username:"-",datetime:dateTime(),avatar:interaction.user.displayAvatarURL()},[]);if(interaction.deferred||interaction.replied)await interaction.editReply(payload);else await interaction.reply({...payload,flags:MessageFlags.Ephemeral|("flags" in payload?payload.flags:0)});}catch{await replyFeatureError(interaction,"roblox-robux-payout",message);}}
 function arrayConfig(value:unknown):unknown[]{if(Array.isArray(value))return value;if(typeof value==="string")try{const parsed=JSON.parse(value);return Array.isArray(parsed)?parsed:[];}catch{return [];}return [];}
 function stringConfig(value:unknown,fallback:string){return typeof value==="string"&&value.trim()?value.trim():fallback;}
 function numberConfig(value:unknown,fallback:number){const number=Number(value);return Number.isFinite(number)?number:fallback;}

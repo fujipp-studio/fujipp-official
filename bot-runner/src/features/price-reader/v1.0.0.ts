@@ -1,3 +1,4 @@
+import { featureErrorPayload } from "../errors.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -65,7 +66,10 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
 
         queue = queue
           .then(() => processImages(context, message, images, options.version))
-          .catch(logError(context, "image processing"));
+          .catch(async (error) => {
+            logError(context, "image processing")(error);
+            await message.reply(featureErrorPayload("price-reader", error)).catch(() => undefined);
+          });
       };
 
       context.client.on("messageCreate", enqueue);
@@ -113,7 +117,11 @@ async function processImages(
     }
   }
 
-  await processing.edit(priceReaderResultPayload(context, perImageResults, version));
+  const payload = priceReaderResultPayload(context, perImageResults, version);
+  if (perImageResults.every(result => result.status === "error") && processing.flags.has(MessageFlags.IsComponentsV2) && !payload.flags) {
+    await message.reply(payload);
+    await processing.delete().catch(() => undefined);
+  } else await processing.edit(payload);
 }
 
 export function priceReaderResultPayload(context: FeatureContext, results: ImageResult[], version: string): Record<string, unknown> {
@@ -299,15 +307,7 @@ function defaultErrorRender(messages: string[]): Record<string, unknown> {
   const description = messages.length > 0
     ? messages.join("\n")
     : "❌ ไม่พบราคาที่รองรับในรูปนี้ กรุณาตรวจสอบว่ารูปมีราคาเป็นเงินบาทและลองส่งอีกครั้ง";
-  return {
-    content: null,
-    embeds: [],
-    flags: MessageFlags.IsComponentsV2,
-    components: [{
-      type: 17,
-      components: [{ type: 10, content: description }],
-    }],
-  };
+  return { content: null, ...featureErrorPayload("price-reader", description, { code: "IMAGE_READ_FAILED" }) };
 }
 
 // ── Template helpers ────────────────────────────────────────────────────────

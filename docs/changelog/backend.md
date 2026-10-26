@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-26 | Added feature-specific error Embeds with actionable details, private fallback replies and partial-success warnings while preserving configured failure designs. |
 | 2026-10-26 | Added opt-in monthly spending with configurable cycles, retry-safe updates and optional ranking roles, and applied feature Embed and Components V2 designs without restarting bots. Patched the Discord HTTP dependency to pass the security audit. |
 | 2026-10-23 | Added public seasonal-effect settings reads and validated Admin-only updates with persisted editor attribution. |
 | 2026-10-22 | Added Message Sets 1.1.0 commands to send SETs and update existing bot messages by ID with ownership checks. |
