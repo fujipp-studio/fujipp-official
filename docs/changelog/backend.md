@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-26 | Added monthly Member Spending history alongside lifetime totals, retry-safe balance updates, and optional monthly ranking roles with automatic synchronization. |
 | 2026-10-23 | Added public seasonal-effect settings reads and validated Admin-only updates with persisted editor attribution. |
 | 2026-10-22 | Added Message Sets 1.1.0 commands to send SETs and update existing bot messages by ID with ownership checks. |
 | 2026-10-21 | Added an opt-in VPS identity projection from verified Supabase JWTs, preserving database-controlled account roles and status. |
