@@ -1,3 +1,4 @@
+import { assertFeatureError } from "./assert-feature-error.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
@@ -101,7 +102,8 @@ test("external database connection failures keep spending available for the next
     client.emit("interactionCreate", first.interaction);
     await settle();
     assert.equal(first.acknowledgements.length, 1);
-    assert.deepEqual(first.edits, ["ทำรายการไม่สำเร็จ: Database temporarily unavailable"]);
+    assert.equal(first.edits.length, 1);
+    assert.equal(assertFeatureError(first.edits[0], "Member Spending Card").description, "Database temporarily unavailable");
     const second = spendingInteraction("check");
     client.emit("interactionCreate", second.interaction);
     await settle();
@@ -208,7 +210,7 @@ test("installing Shop Status restarts the bot without losing spending commands w
       await settle();
       assert.equal(state.acknowledgements.length, 1, `${subcommand} must acknowledge after restart`);
       assert.equal(state.edits.length, 1, `${subcommand} must finish or explain the storage failure`);
-      if (subcommand === "add") assert.deepEqual(state.edits, ["ทำรายการไม่สำเร็จ: Database temporarily unavailable"]);
+      if (subcommand === "add") assert.equal(assertFeatureError(state.edits[0], "Member Spending Card").description, "Database temporarily unavailable");
     }
     assert.equal(attempts, 2);
     assert.equal(statuses.some(status => status.installationId === "spending-install" && status.status === "ERROR"), false);
@@ -292,7 +294,8 @@ test("spending reports a failed database read through the deferred reply", async
     client.emit("interactionCreate", state.interaction);
     await settle();
     assert.equal(state.acknowledgements.length, 1);
-    assert.deepEqual(state.edits, ["ทำรายการไม่สำเร็จ: Database unavailable"]);
+    assert.equal(state.edits.length, 1);
+    assert.equal(assertFeatureError(state.edits[0], "Member Spending Card").description, "Database unavailable");
     assert.equal(state.replies.length, 0);
   } finally { await dispose(); }
 });
@@ -335,7 +338,9 @@ test("spending denies unauthorized commands before accessing storage", async () 
     await settle();
     assert.equal(reads, 0);
     assert.equal(state.acknowledgements.length, 0);
-    assert.deepEqual(state.replies, [{ content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", flags: MessageFlags.Ephemeral }]);
+    assert.equal(state.replies.length, 1);
+    assert.equal(assertFeatureError(state.replies[0], "Member Spending Card", "COMMAND_PERMISSION_DENIED").description, "คุณไม่มีสิทธิ์ใช้คำสั่งนี้");
+    assert.equal((state.replies[0] as { flags: number }).flags, MessageFlags.Ephemeral);
   } finally { await dispose(); }
 });
 
@@ -536,7 +541,7 @@ for (const month of [undefined, "2026-09", "2026-13"]) {
       client.emit("interactionCreate", state.interaction); await settle();
       if (month === "2026-13") {
         assert.deepEqual(reads, []);
-        assert.match(String(state.edits[0]), /YYYY-MM/);
+        assert.match(assertFeatureError(state.edits[0], "Member Spending Card").description, /YYYY-MM/);
       } else {
         assert.deepEqual(reads, [[20, month ?? spendingMonth()]]);
         assert.deepEqual((state.edits[0] as { embeds: unknown[] }).embeds, [{ title: `Month ${month ?? spendingMonth()}`, description: `1. <@${memberId}> — 50.00 บาท · 1 ครั้ง` }]);
@@ -549,9 +554,20 @@ function monthlyRoleFixture(reset: boolean) {
   const top1 = "111111111111111111", top5 = "555555555555555555", lifetime = "999999999999999999";
   const members = new Collection<string, GuildMember>();
   const changes: string[] = [];
+  const listRequests: Array<{ limit: number; after?: string }> = [];
   const guild = {
     roles: { cache: new Collection([top1, top5, lifetime].map(id => [id, { id }])) },
-    members: { fetch: async () => members, me: { permissions: { has: () => true }, roles: { highest: { comparePositionTo: () => 1 } } } },
+    members: {
+      fetch: async () => { throw new Error("GatewayRateLimitError: Request with opcode 8 was rate limited"); },
+      list: async (options: { limit: number; after?: string }) => {
+        listRequests.push(options);
+        return new Collection([...members.entries()]
+          .filter(([id]) => !options.after || BigInt(id) > BigInt(options.after))
+          .sort(([a], [b]) => BigInt(a) < BigInt(b) ? -1 : 1)
+          .slice(0, options.limit));
+      },
+      me: { permissions: { has: () => true }, roles: { highest: { comparePositionTo: () => 1 } } },
+    },
   };
   for (const [id, held] of [[memberId, [top1, top5, lifetime]], ["333333333333333333", []]] as const) {
     const cache = new Set<string>(held);
@@ -562,7 +578,7 @@ function monthlyRoleFixture(reset: boolean) {
   }
   const context = { config: { SPENDING_MONTHLY_ENABLED: true, SPENDING_MONTHLY_ROLES_ENABLED: true, SPENDING_MONTHLY_ROLES_RESET: reset,
     SPENDING_MONTHLY_TOP1_ROLE_ID: top1, SPENDING_MONTHLY_TOP5_ROLE_ID: top5, SPENDING_TOP1_ROLE_ID: lifetime } } as unknown as FeatureContext;
-  return { top1, top5, lifetime, guild: guild as unknown as Guild, members, changes, context };
+  return { top1, top5, lifetime, guild: guild as unknown as Guild, members, changes, listRequests, context };
 }
 
 for (const reset of [true, false]) {
@@ -580,6 +596,51 @@ for (const reset of [true, false]) {
     assert.equal(fixture.members.get(memberId)!.roles.cache.has(fixture.lifetime), true);
   });
 }
+
+test("monthly roles reach winners and remove former holders beyond the first REST page without Gateway requests", async () => {
+  const f = monthlyRoleFixture(true);
+  for (let n = 0; n < 1000; n++) {
+    const id = String(100000000000000000n + BigInt(n));
+    f.members.set(id, { id, guild: f.guild, roles: { cache: new Set<string>() } } as unknown as GuildMember);
+  }
+  await syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, [
+    { memberDiscordId: "333333333333333333", amountSatang: 10000, txCount: 1 },
+    { memberDiscordId: memberId, amountSatang: 5000, txCount: 1 },
+  ]);
+  assert.deepEqual(f.listRequests, [{ limit: 1000 }, { limit: 1000, after: "100000000000000999" }]);
+  assert.equal(f.members.get("333333333333333333")!.roles.cache.has(f.top1), true);
+  assert.equal(f.members.get(memberId)!.roles.cache.has(f.top1), false);
+  assert.equal(f.members.get(memberId)!.roles.cache.has(f.top5), true);
+  assert.equal(f.members.get(memberId)!.roles.cache.has(f.lifetime), true);
+});
+
+test("monthly role disposal during a REST member request prevents subsequent role changes", async () => {
+  const f = monthlyRoleFixture(true);
+  let active = true, release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  f.guild.members.list = async () => { await pending; return f.members; };
+  const sync = syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, [], () => active);
+  await settle();
+  active = false; release(); await sync;
+  assert.deepEqual(f.changes, []);
+});
+
+test("lifetime ranking uses REST even when the full-member Gateway request is rate limited", async () => {
+  const f = monthlyRoleFixture(true), client = new EventEmitter(), state = spendingInteraction("rank");
+  Object.assign(state.interaction, { guild: f.guild });
+  Object.assign(state.interaction.options, { getString: () => null });
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {}, permissions: { canUse: () => true },
+    memberSpending: { leaderboard: async () => [{ memberDiscordId: "333333333333333333", amountSatang: 10000, txCount: 1 }] },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(f.listRequests.length, 1);
+    assert.equal(f.members.get("333333333333333333")!.roles.cache.has(f.lifetime), true);
+    assert.equal(f.members.get(memberId)!.roles.cache.has(f.lifetime), false);
+    assert.equal(state.edits.length, 1);
+    assert.doesNotMatch(JSON.stringify(state.edits), /ทำรายการไม่สำเร็จ/);
+  } finally { await dispose(); }
+});
 
 test("new month removes last month's roles even with no spending, while zero balances never win", async () => {
   const f = monthlyRoleFixture(true);
@@ -650,7 +711,7 @@ test("a monthly role failure does not report a committed balance change as faile
   try {
     client.emit("interactionCreate", state.interaction); await settle();
     assert.equal(writes, 1);
-    const result = (state.edits[0] as { content: string }).content;
+    const result = assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_ROLE_SYNC_FAILED", true).description;
     assert.match(result, /ลบข้อมูล.*แล้ว/);
     assert.match(result, /ลองใหม่อัตโนมัติ/);
     assert.doesNotMatch(result, /ทำรายการไม่สำเร็จ/);
@@ -683,7 +744,7 @@ test("monthly commands explain disabled tracking without querying storage", asyn
   } as unknown as FeatureContext);
   try {
     client.emit("interactionCreate", state.interaction); await settle();
-    assert.match((state.edits[0] as { content: string }).content, /รายเดือนปิดอยู่/);
+    assert.match(assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_TRACKING_DISABLED").description, /รายเดือนปิดอยู่/);
   } finally { await dispose(); }
 });
 

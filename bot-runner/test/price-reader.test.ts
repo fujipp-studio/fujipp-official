@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertFeatureError } from "./assert-feature-error.js";
 import test from "node:test";
 import {
   extractPrices,
@@ -24,6 +25,7 @@ test("uses the error presentation only when every image fails, including custom 
   assert.equal((mixed.embeds as Array<Record<string, unknown>>)[0]?.title, "อ่านได้ 1 / ไม่ได้ 1");
   const fallback = priceReaderResultPayload({ ...context, presentations: {} }, [error], "2.0.0");
   assert.equal(JSON.stringify(fallback).includes("1: ส่งรูปใหม่"), true);
+  assert.equal(assertFeatureError(fallback, "Price Reader", "IMAGE_READ_FAILED").description, "1: ส่งรูปใหม่");
 });
 
 test("configured tolerance has inclusive bounds, exact matching and stable ties", () => {

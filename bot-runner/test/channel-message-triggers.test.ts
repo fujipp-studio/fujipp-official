@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertFeatureError } from "./assert-feature-error.js";
 import { EventEmitter } from "node:events";
 import test from "node:test";
 import { ChannelType, MessageFlags, PermissionFlagsBits, type Client, type Message } from "discord.js";
@@ -108,4 +109,23 @@ test("ignores matching messages from members without Administrator permission", 
   assert.equal(deleted, false);
   assert.equal(sent, false);
   await dispose();
+});
+
+test("a missing channel template produces an Embed and keeps the trigger feature recoverable", async () => {
+  const client = new EventEmitter(), sent: unknown[] = [], errors: unknown[][] = [];
+  const dispose = await channelMessageTriggersFeature.activate(context(client, {
+    config: { CHANNEL_CREATE_RULES: [{ categoryId: "222222222222222", template: "template_1" }] },
+    presentations: {}, reportFeatureError: async (...args) => { errors.push(args); },
+  }));
+  try {
+    client.emit("channelCreate", {
+      type: ChannelType.GuildText, id: "333333333333333", name: "order", guildId: "111111111111111",
+      guild: { name: "Shop" }, parentId: "222222222222222",
+      send: async (payload: unknown) => { sent.push(payload); },
+    });
+    await settle();
+    assert.equal(sent.length, 1);
+    assertFeatureError(sent[0], "Channel Message Triggers", "CHANNEL_CREATE_TRIGGER_FAILED");
+    assert.deepEqual(errors[0]?.[2], { recoverable: true });
+  } finally { await dispose(); }
 });

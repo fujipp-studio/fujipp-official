@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertFeatureError } from "./assert-feature-error.js";
 import { EventEmitter } from "node:events";
 import test from "node:test";
 import {
@@ -117,6 +118,36 @@ function adminMessage(
 function settle(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
+
+test("a broken payment design reports a recoverable failure and sends an Embed in the trigger channel", async () => {
+  const client = new EventEmitter(), sent: Array<Record<string, unknown>> = [], errors: unknown[][] = [];
+  const dispose = await paymentTriggerFeature.activate(context(client, {
+    presentations: {}, reportFeatureError: async (...args) => { errors.push(args); },
+  }));
+  try {
+    client.emit("messageCreate", adminMessage("p10", sent, { value: false })); await settle();
+    assert.equal(sent.length, 1);
+    assertFeatureError(sent[0], "Payment Trigger", "PAYMENT_TRIGGER_FAILED");
+    assert.deepEqual(errors[0]?.[2], { recoverable: true });
+  } finally { await dispose(); }
+});
+
+test("a failed payment button responds privately with an Embed without replacing its public panel", async () => {
+  const client = new EventEmitter(), replies: unknown[] = [];
+  const dispose = await paymentTriggerFeature.activate(context(client, { presentations: {} }));
+  try {
+    client.emit("interactionCreate", {
+      customId: "fujipp:payment:wallet:1000", guildId: "111111111111111",
+      isButton: () => true, inGuild: () => true, deferred: false, replied: false,
+      reply: async (payload: unknown) => { replies.push(payload); },
+      update: async () => assert.fail("the invalid design must not replace the panel"),
+    });
+    await settle();
+    assert.equal(replies.length, 1);
+    assertFeatureError(replies[0], "Payment Trigger", "PAYMENT_METHOD_SELECTION_FAILED");
+    assert.equal((replies[0] as { flags: number }).flags, MessageFlags.Ephemeral);
+  } finally { await dispose(); }
+});
 
 test("p10 deletes the administrator trigger and sends a Components V2 payment selector", async () => {
   const client = new EventEmitter();

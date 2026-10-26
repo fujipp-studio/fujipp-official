@@ -13,6 +13,7 @@ import {
   VoiceConnectionStatus,
   type VoiceConnection,
 } from "@discordjs/voice";
+import { replyFeatureError } from "../errors.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 
 const DEFAULT_COMMAND_NAME = "voice";
@@ -58,7 +59,7 @@ export const voiceKeeperFeature: FeatureModule = {
       if (!interaction.inGuild() || interaction.commandName !== commandName) return;
       if (context.guildId && interaction.guildId !== context.guildId) return;
       if (!context.permissions.canUse(interaction, `${commandName}/${interaction.options.getSubcommand()}`, false)) {
-        await interaction.reply({ content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", flags: MessageFlags.Ephemeral });
+        await replyFeatureError(interaction, "voice-keeper", "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", { code: "COMMAND_PERMISSION_DENIED" });
         return;
       }
 
@@ -83,7 +84,7 @@ export const voiceKeeperFeature: FeatureModule = {
       } catch (error) {
         connection?.destroy();
         connection = undefined;
-        await interaction.editReply(`เชื่อมต่อไม่สำเร็จ: ${errorMessage(error)}`);
+        await replyFeatureError(interaction, "voice-keeper", error, { title: "เชื่อมต่อห้องเสียงไม่สำเร็จ" });
       }
     };
 
@@ -91,6 +92,7 @@ export const voiceKeeperFeature: FeatureModule = {
       if (!interaction.isChatInputCommand()) return;
       void handleCommand(interaction).catch((error) => {
         console.error(`Voice keeper command failed for bot ${context.botId}: ${errorMessage(error)}`);
+        void replyFeatureError(interaction, "voice-keeper", error);
       });
     };
 

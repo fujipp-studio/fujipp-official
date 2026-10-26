@@ -1,3 +1,4 @@
+import { featureErrorPayload, replyFeatureError, safeErrorText } from "../errors.js";
 import {
   ActionRowBuilder, Attachment, ButtonBuilder, ButtonStyle, ChatInputCommandInteraction,
   Interaction, Message, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder,
@@ -82,10 +83,11 @@ export function buildWalletAdminCommand(useAdminAdjustmentModal:boolean){
 
 async function handle(context: FeatureContext, panelCommand: string, pending: Map<string, PendingSession>, countdowns:Map<string,ReturnType<typeof setInterval>>, useAdminAdjustmentModal:boolean, interaction: Interaction) {
   if (interaction.isChatInputCommand()) {
+    if (![panelCommand, "topup-slip", "wallet-admin", "history", "topup-monthly", "top"].includes(interaction.commandName)) return;
     const subcommand = interaction.options.getSubcommand(false);
     const permissionKey = subcommand ? `${interaction.commandName}/${subcommand}` : interaction.commandName;
     if (!context.permissions.canUse(interaction, permissionKey)) {
-      return interaction.reply({ content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", flags: MessageFlags.Ephemeral });
+      return replyFeatureError(interaction,"wallet-topup","คุณไม่มีสิทธิ์ใช้คำสั่งนี้",{code:"COMMAND_PERMISSION_DENIED"});
     }
     if (interaction.commandName === panelCommand) return postPanel(context, interaction);
     if (interaction.commandName === "topup-slip") return verifySlip(context, pending, countdowns, interaction);
@@ -139,10 +141,10 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   if (!slipChannelId || message.channelId!==slipChannelId || message.author.bot || !message.inGuild()) return;
   const roleId=stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,"");
   if (!roleId || !message.member?.roles.cache.has(roleId)) {
-    await message.reply("คุณไม่มียศสำหรับส่งสลิปในห้องนี้"); return;
+    await message.reply(featureErrorPayload("wallet-topup","คุณไม่มียศสำหรับส่งสลิปในห้องนี้",{code:"INVALID_SLIP_REQUEST"})); return;
   }
   const slip=[...message.attachments.values()].find((a)=>a.contentType?.startsWith("image/"));
-  if (!slip) { await message.reply("กรุณาส่งรูปสลิปเป็นไฟล์แนบ"); return; }
+  if (!slip) { await message.reply(featureErrorPayload("wallet-topup","กรุณาส่งรูปสลิปเป็นไฟล์แนบ",{code:"INVALID_SLIP_REQUEST"})); return; }
   const session=pending.get(message.author.id);
   if (session && Date.parse(session.expiresAt)<=Date.now()) {
     clearCountdown(countdowns,message.author.id); const roleRemoved=await removeTemporarySlipRole(context,message.guild,message.author.id);
@@ -156,7 +158,7 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
   statusMessages.set(message.author.id,processing.id);
   let result:WalletTopupResult;
   try{result=await context.wallet.verifySlip({...(session?{sessionId:session.sessionId}:{}),memberDiscordId:message.author.id,slipImageUrl:slip.url,idempotencyKey:`discord:${message.id}`});}
-  catch(error){const failure=humanWalletError(error);await processing.edit(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false));return;}
+  catch(error){const failure=humanWalletError(error);try{await processing.edit(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false));}catch{await message.reply(featureErrorPayload("wallet-topup",failure.message,{code:failure.code})).catch(()=>undefined);}return;}
   clearCountdown(countdowns,message.author.id);
   const roleRemoved=await finalizeSuccessfulTopupRoles(
     ()=>grantPermanentTopupRole(context,message.guild,message.author.id),
@@ -171,7 +173,7 @@ async function handleSlipMessage(context: FeatureContext, pending: Map<string, P
 
 async function walletAdmin(context:FeatureContext,interaction:ChatInputCommandInteraction,useAdminAdjustmentModal:boolean) {
   if (!interaction.inGuild() || !(await isWalletAdmin(context,interaction)))
-    return interaction.reply({content:"คุณไม่มีสิทธิ์จัดการกระเป๋าเงิน",flags:MessageFlags.Ephemeral});
+    return replyFeatureError(interaction,"wallet-topup","คุณไม่มีสิทธิ์จัดการกระเป๋าเงิน",{code:"COMMAND_PERMISSION_DENIED"});
   const member=interaction.options.getUser("member",true) as User;
   const sub=interaction.options.getSubcommand();
   if(sub==="balance"){
@@ -206,7 +208,7 @@ async function submitWalletAdjustmentModal(context:FeatureContext,interaction:im
   const adjustment=parseWalletAdjustmentModalId(interaction.customId);
   if(!adjustment)throw new Error("ข้อมูลการปรับยอดเงินไม่ถูกต้อง กรุณาเริ่มใหม่");
   const permissionKey=`wallet-admin/${adjustment.operation.toLowerCase()}`;
-  if(!context.permissions.canUse(interaction,permissionKey)||!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์จัดการกระเป๋าเงิน",flags:MessageFlags.Ephemeral});
+  if(!context.permissions.canUse(interaction,permissionKey)||!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return replyFeatureError(interaction,"wallet-topup","คุณไม่มีสิทธิ์จัดการกระเป๋าเงิน",{code:"COMMAND_PERMISSION_DENIED"});
   const amount=parseAmount(interaction.fields.getTextInputValue("amount"),adjustment.operation==="SET");
   const reason=interaction.fields.getTextInputValue("reason").trim();
   return completeWalletAdjustment(context,interaction,adjustment.memberId,adjustment.operation,amount,reason,true);
@@ -240,7 +242,7 @@ async function notify(context:FeatureContext,values:Record<string,string>){
 
 async function postPanel(context: FeatureContext, interaction: ChatInputCommandInteraction) {
   if (!interaction.inGuild() || !interaction.memberPermissions?.has(PermissionFlagsBits.Administrator))
-    return interaction.reply({content:"คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลเซิร์ฟเวอร์",flags:MessageFlags.Ephemeral});
+    return replyFeatureError(interaction,"wallet-topup","คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลเซิร์ฟเวอร์",{code:"COMMAND_PERMISSION_DENIED"});
   const channel=interaction.channel as GuildTextBasedChannel | null;
   if (!channel?.isSendable()) throw new Error("Channel cannot send messages");
   await channel.send(render(context,"panel",vars(context,interaction.user.id),false));
@@ -267,6 +269,7 @@ async function verifySlip(context: FeatureContext, pending: Map<string, PendingS
 
 function render(context:FeatureContext,slot:string,values:Record<string,string>,ephemeral:boolean): never {
   const raw=isRecord(context.presentations[slot])?context.presentations[slot]:{};
+  if(slot==="failed"&&!Object.keys(raw).length)return {...featureErrorPayload("wallet-topup",values.failure_reason??"เติมเงินไม่สำเร็จ",{code:values.failure_code??"WALLET_OPERATION_FAILED"}),...(ephemeral?{flags:MessageFlags.Ephemeral}:{})} as never;
   // Advanced overrides may provide the complete Discord payload. Every nested
   // string is templated and `{ "action": "wallet.topup" }` becomes the stable
   // reusable button, so owners can add/remove/reorder every component.
@@ -358,11 +361,11 @@ function buttonStyle(value:unknown,fallback:ButtonStyle){const styles:Record<str
 function stringConfig(v:unknown,f:string){return typeof v==="string"&&v?v:f;}
 function numberConfig(v:unknown,f:number){return typeof v==="number"&&Number.isSafeInteger(v)?v:f;}
 function isRecord(v:unknown):v is Record<string,unknown>{return typeof v==="object"&&v!==null&&!Array.isArray(v);}
-async function respondError(context:FeatureContext,interaction:Interaction,error:unknown){console.error(`Wallet Top-up failed for ${context.botId}:`,error);const failure=humanWalletError(error);const payload=render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},true);if(interaction.isRepliable()){if(interaction.deferred||interaction.replied)await interaction.editReply(payload).catch(()=>undefined);else await interaction.reply(payload).catch(()=>undefined);}}
+async function respondError(context:FeatureContext,interaction:Interaction,error:unknown){console.error(`Wallet Top-up failed for ${context.botId}:`,error);if(!interaction.isRepliable())return;const failure=humanWalletError(error);try{const payload=render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},true);if(interaction.deferred||interaction.replied)await interaction.editReply(payload);else await interaction.reply(payload);}catch{await replyFeatureError(interaction,"wallet-topup",failure.message,{code:failure.code});}}
 type PendingSession={sessionId:string;expiresAt:string;grantedRole?:boolean};
 function readPendingSessions(value:unknown){const map=new Map<string,PendingSession>();if(!isRecord(value))return map;for(const [user,item] of Object.entries(value)){if(isRecord(item)&&typeof item.sessionId==="string"&&typeof item.expiresAt==="string")map.set(user,{sessionId:item.sessionId,expiresAt:item.expiresAt,...(typeof item.grantedRole==="boolean"?{grantedRole:item.grantedRole}:{})});}return map;}
 async function savePending(context:FeatureContext,pending:Map<string,PendingSession>){await context.saveRuntimeState({...context.runtimeState,walletPendingSessions:Object.fromEntries(pending)});}
-async function respondMessageError(context:FeatureContext,message:Message,error:unknown){console.error(`Wallet slip failed for ${context.botId}:`,error);const failure=humanWalletError(error);await message.reply(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false)).catch(()=>undefined);}
+async function respondMessageError(context:FeatureContext,message:Message,error:unknown){console.error(`Wallet slip failed for ${context.botId}:`,error);const failure=humanWalletError(error);try{await message.reply(render(context,"failed",{failure_reason:failure.message,failure_code:failure.code},false));}catch{await message.reply(featureErrorPayload("wallet-topup",failure.message,{code:failure.code})).catch(()=>undefined);}}
 function slipChannelUrl(context:FeatureContext){const channelId=stringConfig(context.config.SLIP_CHANNEL_ID,"");return context.guildId&&channelId?`https://discord.com/channels/${context.guildId}/${channelId}`:"";}
 function formatRemaining(expiresAt:string){const seconds=Math.max(0,Math.ceil((Date.parse(expiresAt)-Date.now())/1000));return `${Math.floor(seconds/60)} นาที ${String(seconds%60).padStart(2,"0")} วินาที`;}
 function clearCountdown(countdowns:Map<string,ReturnType<typeof setInterval>>,userId:string){const timer=countdowns.get(userId);if(timer)clearInterval(timer);countdowns.delete(userId);}
@@ -381,9 +384,9 @@ async function removeTemporarySlipRole(context:FeatureContext,guild:Message["gui
 async function cleanupExpiredSessions(context:FeatureContext,pending:Map<string,PendingSession>,countdowns:Map<string,ReturnType<typeof setInterval>>){const expired=[...pending.entries()].filter(([,session])=>Date.parse(session.expiresAt)<=Date.now());if(!expired.length)return;const guild=context.guildId?await context.client.guilds.fetch(context.guildId).catch(()=>null):null;let changed=false;for(const [userId] of expired){clearCountdown(countdowns,userId);if(await removeTemporarySlipRole(context,guild,userId)){pending.delete(userId);changed=true;}}if(changed)await savePending(context,pending);}
 async function grantPermanentTopupRole(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],userId:string){const roleId=stringConfig(context.config.TOPUP_MEMBER_ROLE_ID,"");if(!guild||!roleId)return;const member=await guild.members.fetch(userId).catch(()=>null);if(member&&!member.roles.cache.has(roleId))await member.roles.add(roleId,"Successful wallet top-up").catch(()=>undefined);}
 
-async function walletHistory(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์ดูประวัติกระเป๋าเงิน",flags:MessageFlags.Ephemeral});const member=interaction.options.getUser("member",true);const limit=interaction.options.getInteger("limit")??numberConfig(context.config.WALLET_HISTORY_DEFAULT_LIMIT,10);await interaction.deferReply({flags:MessageFlags.Ephemeral});const history=await context.wallet.history(member.id,limit);const lines=history.entries.map((e,i)=>`${i+1}. ${e.amountSatang>=0?"+":""}${money(e.amountSatang)} THB · ${e.kind}${e.method?`/${e.method}`:""} · ${new Date(e.createdAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}`).join("\n")||"ไม่พบประวัติ";const total=history.entries.reduce((sum,e)=>sum+e.amountSatang,0);return interaction.editReply(render(context,"history",{member_mention:`<@${member.id}>`,entry_count:String(history.entries.length),history_lines:lines,total:money(total),currency:history.currency},true));}
-async function monthlySummary(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์ดูสรุปยอดเติมเงิน",flags:MessageFlags.Ephemeral});const member=interaction.options.getUser("member");await interaction.deferReply({flags:MessageFlags.Ephemeral});const result=await context.wallet.monthlySummary(member?.id);return interaction.editReply(render(context,"monthly_summary",{member_mention:member?`<@${member.id}>`:"ทั้งร้าน",amount:money(result.totalSatang),entry_count:String(result.entryCount),member_count:String(result.memberCount),currency:result.currency},true));}
-async function topSpenders(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return interaction.reply({content:"คุณไม่มีสิทธิ์อัปเดตอันดับ",flags:MessageFlags.Ephemeral});await interaction.deferReply({flags:MessageFlags.Ephemeral});const sync=await requestTopSpenderSync(context,interaction.guild);const board=await context.wallet.leaderboard(50);const lines=board.entries.slice(0,10).map((e,i)=>`${i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}.`} <@${e.memberDiscordId}> — **${money(e.totalTopupSatang)}** THB`).join("\n")||"ยังไม่มีข้อมูล";const payload=render(context,"leaderboard",{leaderboard_lines:lines,updated_count:String(sync.updated),error_lines:sync.errors.slice(0,5).join("\n")},false);await interaction.editReply(payload);const channelId=stringConfig(context.config.TOP_SPENDER_LEADERBOARD_CHANNEL_ID,"");if(channelId){const channel=await context.client.channels.fetch(channelId);if(channel?.isTextBased()&&channel.isSendable())await channel.send(payload);}}
+async function walletHistory(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return replyFeatureError(interaction,"wallet-topup","คุณไม่มีสิทธิ์ดูประวัติกระเป๋าเงิน",{code:"COMMAND_PERMISSION_DENIED"});const member=interaction.options.getUser("member",true);const limit=interaction.options.getInteger("limit")??numberConfig(context.config.WALLET_HISTORY_DEFAULT_LIMIT,10);await interaction.deferReply({flags:MessageFlags.Ephemeral});const history=await context.wallet.history(member.id,limit);const lines=history.entries.map((e,i)=>`${i+1}. ${e.amountSatang>=0?"+":""}${money(e.amountSatang)} THB · ${e.kind}${e.method?`/${e.method}`:""} · ${new Date(e.createdAt).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}`).join("\n")||"ไม่พบประวัติ";const total=history.entries.reduce((sum,e)=>sum+e.amountSatang,0);return interaction.editReply(render(context,"history",{member_mention:`<@${member.id}>`,entry_count:String(history.entries.length),history_lines:lines,total:money(total),currency:history.currency},true));}
+async function monthlySummary(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return replyFeatureError(interaction,"wallet-topup","คุณไม่มีสิทธิ์ดูสรุปยอดเติมเงิน",{code:"COMMAND_PERMISSION_DENIED"});const member=interaction.options.getUser("member");await interaction.deferReply({flags:MessageFlags.Ephemeral});const result=await context.wallet.monthlySummary(member?.id);return interaction.editReply(render(context,"monthly_summary",{member_mention:member?`<@${member.id}>`:"ทั้งร้าน",amount:money(result.totalSatang),entry_count:String(result.entryCount),member_count:String(result.memberCount),currency:result.currency},true));}
+async function topSpenders(context:FeatureContext,interaction:ChatInputCommandInteraction){if(!interaction.inGuild()||!(await isWalletAdmin(context,interaction)))return replyFeatureError(interaction,"wallet-topup","คุณไม่มีสิทธิ์อัปเดตอันดับ",{code:"COMMAND_PERMISSION_DENIED"});await interaction.deferReply({flags:MessageFlags.Ephemeral});const sync=await requestTopSpenderSync(context,interaction.guild);const board=await context.wallet.leaderboard(50);const lines=board.entries.slice(0,10).map((e,i)=>`${i===0?"🥇":i===1?"🥈":i===2?"🥉":`${i+1}.`} <@${e.memberDiscordId}> — **${money(e.totalTopupSatang)}** THB`).join("\n")||"ยังไม่มีข้อมูล";const payload=render(context,"leaderboard",{leaderboard_lines:lines,updated_count:String(sync.updated),error_lines:sync.errors.slice(0,5).join("\n")},false);await interaction.editReply(payload);const channelId=stringConfig(context.config.TOP_SPENDER_LEADERBOARD_CHANNEL_ID,"");if(channelId){const channel=await context.client.channels.fetch(channelId);if(channel?.isTextBased()&&channel.isSendable())await channel.send(payload);}}
 
 function requestTopSpenderSync(context:FeatureContext,_guild:Message["guild"]|ChatInputCommandInteraction["guild"]){const coordinator=topSpenderCoordinators.get(context.installationId);if(!coordinator)return Promise.reject(new Error("Top spender coordinator is unavailable"));return coordinator.request();}
 
@@ -407,4 +410,4 @@ const WALLET_ERRORS:Record<string,string>={
   SLIPOK_NOT_CONFIGURED:"ร้านยังตั้งค่าระบบตรวจสลิปไม่ครบ",
   PROMPTPAY_NOT_CONFIGURED:"ร้านยังตั้งค่าพร้อมเพย์ไม่ครบ",
 };
-function humanWalletError(error:unknown){if(error instanceof RuntimeApiError)return{code:error.code,message:WALLET_ERRORS[error.code]??error.message};return{code:"RUNTIME_ERROR",message:error instanceof Error?error.message.slice(0,300):"ระบบเกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"};}
+function humanWalletError(error:unknown){if(error instanceof RuntimeApiError)return{code:error.code,message:WALLET_ERRORS[error.code]??error.message};return{code:"RUNTIME_ERROR",message:error instanceof Error?safeErrorText(error.message,300):"ระบบเกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง"};}

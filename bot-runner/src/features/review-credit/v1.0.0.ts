@@ -8,6 +8,7 @@ import {
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js";
+import { replyFeatureError } from "../errors.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 
 const DEFAULT_COMMAND_NAME = "review";
@@ -153,7 +154,7 @@ export const reviewCreditFeature: FeatureModule = {
       if (interaction.commandName !== commandName || !interaction.inGuild()) return;
       if (context.guildId && interaction.guildId !== context.guildId) return;
       if (!context.permissions.canUse(interaction, `${commandName}/${interaction.options.getSubcommand()}`, false)) {
-        await interaction.reply({ content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", flags: MessageFlags.Ephemeral });
+        await replyFeatureError(interaction, "review-credit", "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", { code: "COMMAND_PERMISSION_DENIED" });
         return;
       }
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -178,9 +179,7 @@ export const reviewCreditFeature: FeatureModule = {
       if (!interaction.isChatInputCommand()) return;
       void handleCommand(interaction).catch(async (error) => {
         console.error(`Review Credit command failed for bot ${context.botId}:`, error);
-        const content = `ทำรายการไม่สำเร็จ: ${errorMessage(error)}`;
-        if (interaction.deferred || interaction.replied) await interaction.editReply(content).catch(() => undefined);
-        else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+        await replyFeatureError(interaction, "review-credit", error);
       });
     };
 

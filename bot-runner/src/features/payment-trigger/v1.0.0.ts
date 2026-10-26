@@ -1,3 +1,4 @@
+import { featureErrorPayload, replyFeatureError } from "../errors.js";
 import {
   ActionRowBuilder,
   ButtonBuilder,
@@ -30,7 +31,8 @@ export const paymentTriggerFeature: FeatureModule = {
         console.error(
           `Payment trigger failed for bot ${context.botId}: ${errorMessage(error)}`,
         );
-        void context.reportFeatureError("PAYMENT_TRIGGER_FAILED", error);
+        void context.reportFeatureError("PAYMENT_TRIGGER_FAILED", error, { recoverable: true }).catch(() => undefined);
+        if (isSendableGuildChannel(message.channel)) void message.channel.send(featureErrorPayload("payment-trigger", error, { code: "PAYMENT_TRIGGER_FAILED" })).catch(() => undefined);
       });
     };
     const onInteractionCreate = (interaction: Interaction) => {
@@ -46,8 +48,9 @@ export const paymentTriggerFeature: FeatureModule = {
         void context.reportFeatureError(
           "PAYMENT_METHOD_SELECTION_FAILED",
           error,
-        );
-        void respondInteractionError(interaction);
+          { recoverable: true },
+        ).catch(() => undefined);
+        void replyFeatureError(interaction, "payment-trigger", "ไม่สามารถแสดงข้อมูลการชำระเงินได้ กรุณาลองใหม่อีกครั้ง", { code: "PAYMENT_METHOD_SELECTION_FAILED", followUp: true });
       });
     };
 
@@ -373,20 +376,5 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message.slice(0, 300) : "Unknown error";
 }
 
-async function respondInteractionError(
-  interaction: ButtonInteraction,
-): Promise<void> {
-  if (!interaction.isRepliable()) return;
-  const content = "ไม่สามารถแสดงข้อมูลการชำระเงินได้ กรุณาลองใหม่อีกครั้ง";
-  if (interaction.deferred || interaction.replied) {
-    await interaction
-      .followUp({ content, flags: MessageFlags.Ephemeral })
-      .catch(() => undefined);
-  } else {
-    await interaction
-      .reply({ content, flags: MessageFlags.Ephemeral })
-      .catch(() => undefined);
-  }
-}
 
 export { parseAction, parseAmountSatang, parseTrigger };

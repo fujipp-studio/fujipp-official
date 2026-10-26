@@ -8,6 +8,7 @@ import type {
   FeatureDisposer,
   FeatureModule,
 } from "../../types.js";
+import { replyFeatureError } from "../errors.js";
 import { PresentationValidationError, renderTemplate } from "../presentation.js";
 
 export interface MessageSet {
@@ -134,10 +135,7 @@ export const messageSetsFeature: FeatureModule = {
         return;
       }
       if (!context.permissions.canUse(interaction, name, false)) {
-        await interaction.reply({
-          content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "message-sets", "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", { code: "COMMAND_PERMISSION_DENIED" });
         return;
       }
       const selected = interaction.options
@@ -146,10 +144,7 @@ export const messageSetsFeature: FeatureModule = {
         .toLowerCase();
       const set = sets.find((item) => item.name.toLowerCase() === selected);
       if (!set) {
-        await interaction.reply({
-          content: "ไม่พบ SET นี้ กรุณาเลือกจากรายการล่าสุด",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "message-sets", "ไม่พบ SET นี้ กรุณาเลือกจากรายการล่าสุด", { code: "MESSAGE_SET_NOT_FOUND" });
         return;
       }
       const payload = renderTemplate(
@@ -190,13 +185,7 @@ export const messageSetsFeature: FeatureModule = {
             const content = error instanceof PresentationValidationError
               ? `ส่ง SET ไม่สำเร็จ: ${error.message}`
               : "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท";
-            if (interaction.deferred) {
-              await interaction.editReply({ content }).catch(() => undefined);
-            } else if (!interaction.replied) {
-              await interaction
-                .reply({ content, flags: MessageFlags.Ephemeral })
-                .catch(() => undefined);
-            }
+            await replyFeatureError(interaction, "message-sets", content, { code: "MESSAGE_SET_SEND_FAILED" });
           }
           // A failed message must not remove the command listener on the next bootstrap.
           // Acknowledge the user before waiting for the diagnostic API.

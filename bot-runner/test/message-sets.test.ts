@@ -1,3 +1,4 @@
+import { assertFeatureError } from "./assert-feature-error.js";
 import { messageSetsFeatureV11 } from "../src/features/message-sets/v1.1.0.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
@@ -419,7 +420,7 @@ test("channel send failures produce only a private error after deferring", async
   assert.equal(failed.sent.length, 0);
   assert.equal(failed.replies.length, 0);
   assert.equal(
-    failed.edits[0]?.content,
+    assertFeatureError(failed.edits[0], "Message Sets", "MESSAGE_SET_SEND_FAILED").description,
     "ส่ง SET ไม่สำเร็จ กรุณาตรวจสอบดีไซน์และสิทธิ์ของบอท",
   );
   assert.deepEqual(errors, ["MESSAGE_SET_SEND_FAILED"]);
@@ -448,7 +449,7 @@ test("an invalid SET stays active across bootstrap and does not break autocomple
   client.emit("interactionCreate", failed.value);
   await settle();
   assert.equal(failed.sent.length, 0);
-  assert.match(String(failed.replies[0]?.content), /components\[1\]\.components.*1–5/);
+  assert.match(assertFeatureError(failed.replies[0], "Message Sets", "MESSAGE_SET_SEND_FAILED").description, /components\[1\]\.components.*1–5/);
   assert.equal(failed.replies[0]?.flags, MessageFlags.Ephemeral);
   assert.equal(statuses.findLast((status) => status.errorCode === "MESSAGE_SET_SEND_FAILED")?.status, "ACTIVE");
   await manager.reconcile([original]);

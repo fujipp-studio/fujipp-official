@@ -9,6 +9,7 @@ import {
   type Message,
   type MessageEditOptions,
 } from "discord.js";
+import { featureErrorPayload, replyFeatureError } from "../errors.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 import { renderTemplate } from "../presentation.js";
 import {
@@ -99,10 +100,7 @@ export const shopStatusFeature: FeatureModule = {
             ? "close"
             : null;
       if (!action) {
-        await interaction.reply({
-          content: "คำสั่งนี้เปลี่ยนแล้ว กรุณาเลือกคำสั่งล่าสุด",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "shop-status", "คำสั่งนี้เปลี่ยนแล้ว กรุณาเลือกคำสั่งล่าสุด", { code: "COMMAND_CHANGED" });
         return;
       }
       if (
@@ -112,17 +110,11 @@ export const shopStatusFeature: FeatureModule = {
           false,
         )
       ) {
-        await interaction.reply({
-          content: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "shop-status", "คุณไม่มีสิทธิ์ใช้คำสั่งนี้", { code: "COMMAND_PERMISSION_DENIED" });
         return;
       }
       if (busy) {
-        await interaction.reply({
-          content: "กำลังปรับสถานะร้าน กรุณารอแล้วลองอีกครั้ง",
-          flags: MessageFlags.Ephemeral,
-        });
+        await replyFeatureError(interaction, "shop-status", "กำลังปรับสถานะร้าน กรุณารอแล้วลองอีกครั้ง", { code: "SHOP_BUSY" });
         return;
       }
       busy = true;
@@ -164,19 +156,7 @@ export const shopStatusFeature: FeatureModule = {
         return;
       const operation = handle(interaction)
         .catch(async (error: unknown) => {
-          const content = `ปรับสถานะร้านไม่สำเร็จ: ${error instanceof Error ? error.message : "ตรวจสอบสิทธิ์ของบอท"}`;
-          if (interaction.deferred)
-            await interaction
-              .editReply({ content, allowedMentions: { parse: [] } })
-              .catch(() => undefined);
-          else if (!interaction.replied)
-            await interaction
-              .reply({
-                content,
-                flags: MessageFlags.Ephemeral,
-                allowedMentions: { parse: [] },
-              })
-              .catch(() => undefined);
+          await replyFeatureError(interaction, "shop-status", error, { title: "ปรับสถานะร้านไม่สำเร็จ" });
           await report("SHOP_STATUS_FAILED", error);
         })
         .catch(() => undefined);
@@ -414,7 +394,7 @@ async function changeStatus(
         .catch(() => undefined);
       await interaction
         .editReply({
-          content: `${label}และส่งประกาศแล้ว แต่บันทึกตำแหน่งข้อความไม่สำเร็จ หลังรีสตาร์ตอาจส่งข้อความใหม่`,
+          ...featureErrorPayload("shop-status", `${label}และส่งประกาศแล้ว แต่บันทึกตำแหน่งข้อความไม่สำเร็จ หลังรีสตาร์ตอาจส่งข้อความใหม่`, { code: "SHOP_ANNOUNCEMENT_STATE_FAILED", title: "ปรับสถานะแล้ว • บันทึกประกาศไม่ครบ", warning: true }),
           allowedMentions: { parse: [] },
         })
         .catch(() => undefined);
@@ -423,7 +403,7 @@ async function changeStatus(
   } catch (error) {
     await interaction
       .editReply({
-        content: `${label}และปรับสิทธิ์แล้ว แต่ส่งประกาศไม่สำเร็จ กรุณาตรวจสอบห้องประกาศ`,
+        ...featureErrorPayload("shop-status", `${label}และปรับสิทธิ์แล้ว แต่ส่งประกาศไม่สำเร็จ กรุณาตรวจสอบห้องประกาศ`, { code: "SHOP_ANNOUNCEMENT_FAILED", title: "ปรับสถานะแล้ว • ส่งประกาศไม่สำเร็จ", warning: true }),
         allowedMentions: { parse: [] },
       })
       .catch((ackError: unknown) =>

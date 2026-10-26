@@ -14,6 +14,8 @@ import {
 } from "discord.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 
+import { replyFeatureError } from "../errors.js";
+
 const PENDING_TTL_MS = 10 * 60 * 1_000;
 const DM_MODAL_PREFIX = "admin-message-tools:dm:";
 const SEND_MODAL_PREFIX = "admin-message-tools:send:";
@@ -43,9 +45,8 @@ export const adminMessageToolsFeature: FeatureModule = {
     let stopped = false;
 
     const replyError = async (interaction: ChatInputCommandInteraction | ModalSubmitInteraction, error: unknown) => {
-      const content = `ทำรายการไม่สำเร็จ: ${errorMessage(error)}`;
-      if (interaction.deferred || interaction.replied) await interaction.editReply(content).catch(() => undefined);
-      else await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+      console.error(`Admin Message Tools command failed for ${context.botId}:`, error);
+      await replyFeatureError(interaction, "admin-message-tools", errorMessage(error));
     };
 
     const handleDm = async (interaction: ChatInputCommandInteraction) => {
@@ -164,7 +165,7 @@ export const adminMessageToolsFeature: FeatureModule = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const target = await context.client.users.fetch(targetId).catch(() => null);
         if (!target || target.bot) {
-          await interaction.editReply("ไม่พบผู้ใช้ปลายทาง หรือปลายทางเป็นบัญชีบอท");
+          await replyFeatureError(interaction, "admin-message-tools", "ไม่พบผู้ใช้ปลายทาง หรือปลายทางเป็นบัญชีบอท", { code: "RECIPIENT_NOT_FOUND" });
           return;
         }
         await target.send({ content });
@@ -187,7 +188,7 @@ export const adminMessageToolsFeature: FeatureModule = {
         await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         const channel = await context.client.channels.fetch(pending.channelId).catch(() => null);
         if (!isSendable(channel) || channel.guildId !== interaction.guildId) {
-          await interaction.editReply("ไม่พบห้องปลายทาง หรือบอทไม่มีสิทธิ์ส่งข้อความ");
+          await replyFeatureError(interaction, "admin-message-tools", "ไม่พบห้องปลายทาง หรือบอทไม่มีสิทธิ์ส่งข้อความ", { code: "CHANNEL_UNAVAILABLE" });
           return;
         }
         const sent = await channel.send({
@@ -208,7 +209,7 @@ export const adminMessageToolsFeature: FeatureModule = {
         const channel = interaction.channel;
         const message = channel?.isTextBased() ? await channel.messages.fetch(messageId).catch(() => null) : null;
         if (!message || message.author.id !== context.client.user?.id) {
-          await interaction.editReply("ไม่พบข้อความ หรือข้อความนี้ไม่ได้ส่งโดยบอทนี้");
+          await replyFeatureError(interaction, "admin-message-tools", "ไม่พบข้อความ หรือข้อความนี้ไม่ได้ส่งโดยบอทนี้", { code: "MESSAGE_NOT_FOUND" });
           return;
         }
         await message.edit({ content: requiredContent(interaction) });
@@ -304,7 +305,7 @@ function belongsToGuild(channel: unknown, guildId: string): boolean {
 }
 
 async function ephemeral(interaction: ChatInputCommandInteraction | ModalSubmitInteraction, content: string): Promise<void> {
-  await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  await replyFeatureError(interaction, "admin-message-tools", content, { code: "REQUEST_REJECTED" });
 }
 
 function truncate(value: string, maxLength: number): string {
