@@ -86,9 +86,50 @@ export async function verifySpendingStore(pool: Pool): Promise<void> {
   }
 }
 
+export async function verifyMonthlySpendingOptions(pool: Pool): Promise<void> {
+  await initializeSpendingTables(pool);
+  const subject = `options-${randomUUID()}`, member = "222222222222222222";
+  let now = new Date("2026-10-24T16:59:59Z");
+  const enabled = createPostgresSpendingStore(pool, subject, { enabled: true, startDay: 25 }, () => now);
+  const disabled = createPostgresSpendingStore(pool, subject, { enabled: false, startDay: 25 }, () => now);
+  try {
+    const off = await disabled.add(member, 1000, "off");
+    assert.equal(off.amountSatang, 1000); assert.equal(off.thisMonthSatang, 0);
+    assert.deepEqual(await enabled.totals("2026-09"), { amountSatang: 0, txCount: 0 });
+    await enabled.add(member, 2000, "before-cutoff");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 2000);
+    assert.equal((await enabled.get(member, "2026-09"))!.amountSatang, 2000);
+    now = new Date("2026-10-24T17:00:00Z");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 0);
+    await enabled.add(member, 3000, "after-cutoff");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 3000);
+    await disabled.add(member, 4000, "off-again");
+    assert.equal((await disabled.get(member))!.thisMonthSatang, 0);
+    assert.equal((await disabled.get(member, "2026-10"))!.amountSatang, 3000);
+    await enabled.add(member, 500, "resumed");
+    assert.equal((await enabled.get(member))!.amountSatang, 10500);
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 3500);
+    // Enabling later cannot backfill a retried operation that was first accepted while disabled.
+    await enabled.add(member, 1000, "off");
+    assert.equal((await enabled.get(member))!.thisMonthSatang, 3500);
+    assert.equal((await enabled.get(member))!.amountSatang, 10500);
+    now = new Date("2026-11-09T17:00:00Z");
+    const changed = createPostgresSpendingStore(pool, subject, { enabled: true, startDay: 1 }, () => now);
+    assert.equal((await changed.get(member))!.thisMonthSatang, 0);
+    await changed.add(member, 700, "changed-day");
+    assert.equal((await changed.get(member))!.thisMonthSatang, 700);
+    assert.deepEqual(await changed.totals("2026-09"), { amountSatang: 2000, txCount: 1 });
+    assert.deepEqual(await changed.totals("2026-10"), { amountSatang: 3500, txCount: 2 });
+    assert.equal((await changed.get(member))!.amountSatang, 11200);
+  } finally {
+    await pool.query("DELETE FROM shop.member_spending WHERE external_subject_id=$1", [subject]);
+    await pool.query("DELETE FROM shop.member_spending_operations WHERE external_subject_id=$1", [subject]);
+  }
+}
+
 test("PostgreSQL spending: monthly history, lifetime totals, isolation, retries, corrections, and rollback", {
   skip: !process.env.SPENDING_TEST_DB_URL,
 }, async () => {
   const pool = new Pool({ connectionString: process.env.SPENDING_TEST_DB_URL, max: 4 });
-  try { await verifySpendingStore(pool); } finally { await pool.end(); }
+  try { await verifySpendingStore(pool); await verifyMonthlySpendingOptions(pool); } finally { await pool.end(); }
 });

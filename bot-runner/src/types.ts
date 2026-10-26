@@ -70,6 +70,7 @@ export interface FeatureContext {
   memberSpending: MemberSpendingStore;
 }
 
+export interface MemberSpendingMonthlySettings { enabled: boolean; startDay: number; }
 export interface MemberSpendingEntry { memberDiscordId:string; amountSatang:number; txCount:number; thisMonthSatang?:number; thisMonthTxCount?:number; }
 export interface MemberSpendingStore {
   add(memberDiscordId:string,deltaSatang:number,operationKey?:string):Promise<MemberSpendingEntry>;

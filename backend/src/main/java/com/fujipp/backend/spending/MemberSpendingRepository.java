@@ -9,9 +9,24 @@ import java.util.UUID;
 
 @Repository
 public class MemberSpendingRepository {
-    private static final String CURRENT_MONTH = "date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok')::date";
     private final JdbcTemplate jdbc;
     public MemberSpendingRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+
+    public MemberSpendingMonthlySettings monthlySettings(UUID botId) {
+        return jdbc.queryForObject("""
+            SELECT COALESCE(bool_or(CASE WHEN d.config_key='SPENDING_MONTHLY_ENABLED'
+                       THEN COALESCE(v.value,d.default_value)='true'::jsonb ELSE false END),false),
+                   COALESCE(max(CASE WHEN d.config_key='SPENDING_MONTHLY_START_DAY'
+                       THEN (COALESCE(v.value,d.default_value)::text)::integer END),1)
+              FROM private.bot_feature_installations i
+              JOIN shop.feature_products p ON p.id=i.feature_product_id AND p.code='member-spending'
+              JOIN private.feature_config_sets c ON c.license_id=i.license_id
+              JOIN shop.feature_config_definitions d ON d.feature_version_id=c.feature_version_id
+              LEFT JOIN private.feature_config_values v ON v.config_set_id=c.id AND v.definition_id=d.id
+             WHERE i.bot_id=? AND i.removed_at IS NULL
+               AND d.config_key IN ('SPENDING_MONTHLY_ENABLED','SPENDING_MONTHLY_START_DAY')
+            """, (rs,row)->new MemberSpendingMonthlySettings(rs.getBoolean(1),rs.getInt(2)),botId);
+    }
 
     // The caller owns the transaction. Serialize even the first write and deletion of a member.
     private void lock(UUID botId, String memberId) {
@@ -33,7 +48,7 @@ public class MemberSpendingRepository {
             VALUES(?,?,?,?,?,?,?,?)""", botId, key, memberId, operation, amount, count, delta, countDelta);
         return true;
     }
-    public Entry add(UUID botId, String memberId, long delta, String key) {
+    public Entry add(UUID botId, String memberId, long delta, String key, LocalDate period) {
         lock(botId, memberId);
         if (record(botId, memberId, "ADD", key, delta, null, delta, 1)) {
             jdbc.update("""
@@ -41,17 +56,17 @@ public class MemberSpendingRepository {
                 VALUES(?,?,?,1) ON CONFLICT(bot_id,member_discord_id) DO UPDATE SET
                 amount_satang=private.member_spending.amount_satang+EXCLUDED.amount_satang,
                 tx_count=private.member_spending.tx_count+1,updated_at=now()""", botId, memberId, delta);
-            jdbc.update("""
+            if (period != null) jdbc.update("""
                 INSERT INTO private.member_spending_monthly(bot_id,member_discord_id,month,amount_satang,tx_count)
-                VALUES(?,?,%s,?,1) ON CONFLICT(bot_id,member_discord_id,month) DO UPDATE SET
+                VALUES(?,?,?,?,1) ON CONFLICT(bot_id,member_discord_id,month) DO UPDATE SET
                 amount_satang=private.member_spending_monthly.amount_satang+EXCLUDED.amount_satang,
-                tx_count=private.member_spending_monthly.tx_count+1""".formatted(CURRENT_MONTH), botId, memberId, delta);
+                tx_count=private.member_spending_monthly.tx_count+1""", botId, memberId, period, delta);
         }
-        return get(botId, memberId, null);
+        return get(botId, memberId, null, period);
     }
-    public Entry set(UUID botId, String memberId, Long amount, Integer count, String key) {
+    public Entry set(UUID botId, String memberId, Long amount, Integer count, String key, LocalDate period) {
         lock(botId, memberId);
-        var before = get(botId, memberId, null);
+        var before = get(botId, memberId, null, period);
         if (record(botId, memberId, "SET", key, amount, count,
                 amount == null ? 0 : amount - (before == null ? 0 : before.amountSatang()),
                 count == null ? 0 : count - (before == null ? 0 : before.txCount()))) {
@@ -61,26 +76,26 @@ public class MemberSpendingRepository {
                 amount_satang=COALESCE(?,private.member_spending.amount_satang),
                 tx_count=COALESCE(?,private.member_spending.tx_count),updated_at=now()""", botId, memberId, amount, count, amount, count);
         }
-        return get(botId, memberId, null);
+        return get(botId, memberId, null, period);
     }
     public boolean remove(UUID botId, String memberId, String key) {
         lock(botId, memberId);
-        var before = get(botId, memberId, null);
+        var before = get(botId, memberId, null, null);
         if (!record(botId, memberId, "DELETE", key, null, null,
                 before == null ? 0 : -before.amountSatang(), before == null ? 0 : -before.txCount())) return false;
         return jdbc.update("DELETE FROM private.member_spending WHERE bot_id=? AND member_discord_id=?", botId, memberId) > 0;
     }
-    private String select(LocalDate month) {
+    private String select(LocalDate month, LocalDate period) {
         return "SELECT s.member_discord_id," + (month == null ? "s.amount_satang,s.tx_count" : "COALESCE(p.amount_satang,0),COALESCE(p.tx_count,0)") +
             ",COALESCE(c.amount_satang,0),COALESCE(c.tx_count,0) FROM private.member_spending s " +
-            "LEFT JOIN private.member_spending_monthly c ON c.bot_id=s.bot_id AND c.member_discord_id=s.member_discord_id AND c.month=" + CURRENT_MONTH +
+            "LEFT JOIN private.member_spending_monthly c ON c.bot_id=s.bot_id AND c.member_discord_id=s.member_discord_id AND c.month=" + (period == null ? "NULL::date" : "DATE '" + period + "'") +
             (month == null ? "" : " LEFT JOIN private.member_spending_monthly p ON p.bot_id=s.bot_id AND p.member_discord_id=s.member_discord_id AND p.month=DATE '" + month + "'");
     }
-    public Entry get(UUID botId, String memberId, LocalDate month) {
-        return jdbc.query(select(month) + " WHERE s.bot_id=? AND s.member_discord_id=?", mapper(), botId, memberId).stream().findFirst().orElse(null);
+    public Entry get(UUID botId, String memberId, LocalDate month, LocalDate period) {
+        return jdbc.query(select(month, period) + " WHERE s.bot_id=? AND s.member_discord_id=?", mapper(), botId, memberId).stream().findFirst().orElse(null);
     }
-    public List<Entry> leaderboard(UUID botId, int limit, LocalDate month) {
-        return jdbc.query(select(month) + " WHERE s.bot_id=?" + (month == null ? "" : " AND p.amount_satang>0") +
+    public List<Entry> leaderboard(UUID botId, int limit, LocalDate month, LocalDate period) {
+        return jdbc.query(select(month, period) + " WHERE s.bot_id=?" + (month == null ? "" : " AND p.amount_satang>0") +
             " ORDER BY 2 DESC,3 DESC,s.member_discord_id LIMIT ?", mapper(), botId, limit);
     }
     public Totals totals(UUID botId, LocalDate month) {

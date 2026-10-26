@@ -1,12 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
-import type { MemberSpendingEntry, MemberSpendingStore } from "../../types.js";
+import type { MemberSpendingEntry, MemberSpendingStore, MemberSpendingMonthlySettings } from "../../types.js";
 import { resolvePublicPostgresUrl } from "../../network-security.js";
 import { createPostgresSocket, postgresConnectionError } from "./postgres-connection.js";
+import { spendingMonth } from "./period.js";
 
-const currentMonth = "date_trunc('month', now() AT TIME ZONE 'Asia/Bangkok')::date";
+const legacyMonthlySettings: MemberSpendingMonthlySettings = { enabled: true, startDay: 1 };
 
-export async function createOwnDatabaseStore(url: string, subjectId: string): Promise<MemberSpendingStore & { close(): Promise<void> }> {
+export async function createOwnDatabaseStore(url: string, subjectId: string, settings: MemberSpendingMonthlySettings = legacyMonthlySettings): Promise<MemberSpendingStore & { close(): Promise<void> }> {
   const { url: safeUrl, addresses } = await resolvePublicPostgresUrl(url);
   const connectionString = safeUrl.toString();
   const pool = new Pool({ connectionString, max: 2, connectionTimeoutMillis: 10_000, idleTimeoutMillis: 30_000,
@@ -15,7 +16,7 @@ export async function createOwnDatabaseStore(url: string, subjectId: string): Pr
   pool.on("error", error => console.error(`Member Spending external database pool error: ${error.message}`));
   try {
     await initializeSpendingTables(pool);
-    const store = createPostgresSpendingStore(pool, subjectId);
+    const store = createPostgresSpendingStore(pool, subjectId, settings);
     // Preserve connection diagnostics for both reads and writes without exposing credentials.
     const wrap = <A extends unknown[], R>(fn: (...args: A) => Promise<R>) => async (...args: A): Promise<R> => {
       try { return await fn(...args); } catch (error) { throw postgresConnectionError(error, addresses); }
@@ -57,30 +58,31 @@ export async function initializeSpendingTables(pool: Pool): Promise<void> {
   }
 }
 
-export function createPostgresSpendingStore(pool: Pool, subjectId: string): MemberSpendingStore {
+export function createPostgresSpendingStore(pool: Pool, subjectId: string, settings: MemberSpendingMonthlySettings = legacyMonthlySettings, now: () => Date = () => new Date()): MemberSpendingStore {
+  const currentMonth = () => settings.enabled ? `DATE '${spendingMonth(now(), settings.startDay)}-01'` : "NULL::date";
   const entry = (row: Record<string, unknown>): MemberSpendingEntry => ({ memberDiscordId: String(row.member_discord_id),
     amountSatang: Number(row.amount_satang), txCount: Number(row.tx_count),
     thisMonthSatang: Number(row.this_month_satang), thisMonthTxCount: Number(row.this_month_count) });
-  const select = (month?: string) => {
+  const select = (month?: string, period = currentMonth()) => {
     if (month && !/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error("ระบุเดือนในรูปแบบ YYYY-MM");
     return `SELECT s.member_discord_id,${month ? "COALESCE(p.amount_satang,0) amount_satang,COALESCE(p.tx_count,0) tx_count" : "s.amount_satang,s.tx_count"},
       COALESCE(c.amount_satang,0) this_month_satang,COALESCE(c.tx_count,0) this_month_count
       FROM shop.member_spending s LEFT JOIN shop.member_spending_monthly c
-      ON c.external_subject_id=s.external_subject_id AND c.member_discord_id=s.member_discord_id AND c.month=${currentMonth}
+      ON c.external_subject_id=s.external_subject_id AND c.member_discord_id=s.member_discord_id AND c.month=${period}
       ${month ? `LEFT JOIN shop.member_spending_monthly p ON p.external_subject_id=s.external_subject_id
         AND p.member_discord_id=s.member_discord_id AND p.month=DATE '${month}-01'` : ""}`;
   };
-  const get = async (db: Pool | PoolClient, memberId: string, month?: string) => {
-    const result = await db.query(`${select(month)} WHERE s.external_subject_id=$1 AND s.member_discord_id=$2`, [subjectId, memberId]);
+  const get = async (db: Pool | PoolClient, memberId: string, month?: string, period = currentMonth()) => {
+    const result = await db.query(`${select(month, period)} WHERE s.external_subject_id=$1 AND s.member_discord_id=$2`, [subjectId, memberId]);
     return result.rows[0] ? entry(result.rows[0]) : null;
   };
-  const transact = async <T>(memberId: string, action: (db: PoolClient) => Promise<T>): Promise<T> => {
+  const transact = async <T>(memberId: string, action: (db: PoolClient, period: string) => Promise<T>): Promise<T> => {
     const db = await pool.connect();
     try {
       await db.query("BEGIN");
       await db.query("SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2,0))", [subjectId, memberId]);
       await db.query("SELECT member_discord_id FROM shop.member_spending WHERE external_subject_id=$1 AND member_discord_id=$2 FOR UPDATE", [subjectId, memberId]);
-      const result = await action(db);
+      const result = await action(db, currentMonth());
       await db.query("COMMIT");
       return result;
     } catch (error) { await db.query("ROLLBACK").catch(() => {}); throw error; }
@@ -99,32 +101,32 @@ export function createPostgresSpendingStore(pool: Pool, subjectId: string): Memb
     return true;
   };
   return {
-    add: (memberId, delta, key = randomUUID()) => transact(memberId, async db => {
+    add: (memberId, delta, key = randomUUID()) => transact(memberId, async (db, period) => {
       if (!Number.isSafeInteger(delta) || delta <= 0) throw new Error("ยอดเพิ่มไม่ถูกต้อง");
       if (await record(db, memberId, "ADD", key, delta, null, delta, 1)) {
         await db.query(`INSERT INTO shop.member_spending(external_subject_id,member_discord_id,amount_satang,tx_count)
           VALUES($1,$2,$3,1) ON CONFLICT(external_subject_id,member_discord_id) DO UPDATE SET
           amount_satang=shop.member_spending.amount_satang+$3,tx_count=shop.member_spending.tx_count+1,updated_at=now()`, [subjectId, memberId, delta]);
-        await db.query(`INSERT INTO shop.member_spending_monthly(external_subject_id,member_discord_id,month,amount_satang,tx_count)
-          VALUES($1,$2,${currentMonth},$3,1) ON CONFLICT(external_subject_id,member_discord_id,month) DO UPDATE SET
+        if (settings.enabled) await db.query(`INSERT INTO shop.member_spending_monthly(external_subject_id,member_discord_id,month,amount_satang,tx_count)
+          VALUES($1,$2,${period},$3,1) ON CONFLICT(external_subject_id,member_discord_id,month) DO UPDATE SET
           amount_satang=shop.member_spending_monthly.amount_satang+$3,tx_count=shop.member_spending_monthly.tx_count+1`, [subjectId, memberId, delta]);
       }
-      return (await get(db, memberId))!;
+      return (await get(db, memberId, undefined, period))!;
     }),
-    set: (memberId, input, key = randomUUID()) => transact(memberId, async db => {
+    set: (memberId, input, key = randomUUID()) => transact(memberId, async (db, period) => {
       for (const value of [input.amountSatang, input.txCount]) if (value !== undefined && (!Number.isSafeInteger(value) || value < 0)) throw new Error("ยอดหรือจำนวนครั้งไม่ถูกต้อง");
-      const before = await get(db, memberId);
+      const before = await get(db, memberId, undefined, period);
       const amount = input.amountSatang ?? null, count = input.txCount ?? null;
       if (await record(db, memberId, "SET", key, amount, count, amount === null ? 0 : amount - (before?.amountSatang ?? 0), count === null ? 0 : count - (before?.txCount ?? 0))) {
         await db.query(`INSERT INTO shop.member_spending(external_subject_id,member_discord_id,amount_satang,tx_count)
           VALUES($1,$2,COALESCE($3::bigint,0),COALESCE($4::integer,0)) ON CONFLICT(external_subject_id,member_discord_id) DO UPDATE SET
           amount_satang=COALESCE($3,shop.member_spending.amount_satang),tx_count=COALESCE($4,shop.member_spending.tx_count),updated_at=now()`, [subjectId, memberId, amount, count]);
       }
-      return (await get(db, memberId))!;
+      return (await get(db, memberId, undefined, period))!;
     }),
     get: (memberId, month) => get(pool, memberId, month),
-    remove: (memberId, key = randomUUID()) => transact(memberId, async db => {
-      const before = await get(db, memberId);
+    remove: (memberId, key = randomUUID()) => transact(memberId, async (db, period) => {
+      const before = await get(db, memberId, undefined, period);
       if (!await record(db, memberId, "DELETE", key, null, null, -(before?.amountSatang ?? 0), -(before?.txCount ?? 0))) return false;
       return (await db.query("DELETE FROM shop.member_spending WHERE external_subject_id=$1 AND member_discord_id=$2", [subjectId, memberId])).rowCount !== 0;
     }),

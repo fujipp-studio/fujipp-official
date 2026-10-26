@@ -406,6 +406,7 @@ for (const shopFirst of [true, false]) {
 
 async function addCard(options: {
   txCount: number;
+  monthlyEnabled?: boolean;
   memberAvatar: string | null;
   userAvatar?: string;
   presentations?: Record<string, unknown>;
@@ -421,7 +422,7 @@ async function addCard(options: {
   };
   const context = {
     client: client as unknown as Client,
-    config: {},
+    config: { SPENDING_MONTHLY_ENABLED: options.monthlyEnabled ?? true },
     secrets: {},
     presentations: options.presentations ?? {},
     permissions: { canUse: () => true },
@@ -526,7 +527,7 @@ for (const month of [undefined, "2026-09", "2026-13"]) {
     const reads: unknown[] = [];
     Object.assign(state.interaction.options, { getString: (key: string) => key === "month" ? month : month === undefined ? "this_month" : null });
     const context = {
-      client, config: {}, secrets: {}, permissions: { canUse: () => true },
+      client, config: { SPENDING_MONTHLY_ENABLED: true }, secrets: {}, permissions: { canUse: () => true },
       presentations: { monthly_leaderboard: { mode: "EMBED", embeds: [{ title: "Month {{month}}", description: "{{leaderboard_lines}}" }] } },
       memberSpending: { leaderboard: async (limit: number, period?: string) => { reads.push([limit, period]); return [{ memberDiscordId: memberId, amountSatang: 5000, txCount: 1 }]; } },
     } as unknown as FeatureContext;
@@ -559,7 +560,7 @@ function monthlyRoleFixture(reset: boolean) {
       remove: async (role: string) => { changes.push(`remove:${id}:${role}`); cache.delete(role); },
     } } as unknown as GuildMember);
   }
-  const context = { config: { SPENDING_MONTHLY_ROLES_ENABLED: true, SPENDING_MONTHLY_ROLES_RESET: reset,
+  const context = { config: { SPENDING_MONTHLY_ENABLED: true, SPENDING_MONTHLY_ROLES_ENABLED: true, SPENDING_MONTHLY_ROLES_RESET: reset,
     SPENDING_MONTHLY_TOP1_ROLE_ID: top1, SPENDING_MONTHLY_TOP5_ROLE_ID: top5, SPENDING_TOP1_ROLE_ID: lifetime } } as unknown as FeatureContext;
   return { top1, top5, lifetime, guild: guild as unknown as Guild, members, changes, context };
 }
@@ -654,4 +655,64 @@ test("a monthly role failure does not report a committed balance change as faile
     assert.match(result, /ลองใหม่อัตโนมัติ/);
     assert.doesNotMatch(result, /ทำรายการไม่สำเร็จ/);
   } finally { await dispose(); }
+});
+
+test("disabled monthly tracking renders zero monthly variables while preserving lifetime totals", async () => {
+  const card = await addCard({ txCount: 2, memberAvatar: null, monthlyEnabled: false, presentations: {
+    returning_card: { mode: "EMBED", embeds: [{ description: "{{this_month}}|{{this_month_count}}|{{month}}|{{total}}" }] },
+  } });
+  assert.deepEqual(card.embeds, [{ description: "0.00|0||580.00" }]);
+});
+
+for (const reset of [true, false]) {
+  test(`disabling monthly tracking respects role retention without querying monthly balances (reset: ${reset})`, async () => {
+    const f = monthlyRoleFixture(reset);
+    f.context.config = { ...f.context.config, SPENDING_MONTHLY_ENABLED: false };
+    await syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild);
+    assert.equal(f.members.get(memberId)!.roles.cache.has(f.top1), !reset);
+    assert.equal(f.members.get(memberId)!.roles.cache.has(f.top5), !reset);
+    assert.equal(f.members.get(memberId)!.roles.cache.has(f.lifetime), true);
+  });
+}
+
+test("monthly commands explain disabled tracking without querying storage", async () => {
+  const client = new EventEmitter(), state = spendingInteraction("list");
+  Object.assign(state.interaction.options, { getString: (key: string) => key === "period" ? "this_month" : null });
+  const dispose = await memberSpendingFeature.activate({ client, config: {}, secrets: {}, presentations: {},
+    permissions: { canUse: () => true }, memberSpending: {},
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.match((state.edits[0] as { content: string }).content, /รายเดือนปิดอยู่/);
+  } finally { await dispose(); }
+});
+
+test("external storage receives the saved tracking toggle and start day", async () => {
+  const client = new EventEmitter(), state = spendingInteraction("check");
+  let received: unknown;
+  const module = createMemberSpendingFeature(async (_url, _subject, settings) => {
+    received = settings;
+    return { get: async () => null, close: async () => undefined } as Awaited<ReturnType<typeof import("../src/features/member-spending/store.js").createOwnDatabaseStore>>;
+  });
+  const dispose = await module.activate({ client, botId: "bot", config: {
+    SPENDING_DB_USE_OWN: true, SPENDING_MONTHLY_ENABLED: true, SPENDING_MONTHLY_START_DAY: 25,
+  }, secrets: { SPENDING_DB_URL: "postgresql://shop@example.invalid/shop" }, presentations: {}, permissions: { canUse: () => true },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.deepEqual(received, { enabled: true, startDay: 25 });
+  } finally { await dispose(); }
+});
+
+test("monthly ranking roles switch cycles on the configured day in Thailand time", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-10-24T16:59:59Z") });
+  const f = monthlyRoleFixture(true), periods: string[] = [];
+  f.context.config = { ...f.context.config, SPENDING_MONTHLY_START_DAY: 25 };
+  const store = { leaderboard: async (_limit: number, month: string) => { periods.push(month); return []; } } as MemberSpendingStore;
+  try {
+    await syncMonthlyRoles(f.context, store, f.guild);
+    t.mock.timers.tick(1000);
+    await syncMonthlyRoles(f.context, store, f.guild);
+    assert.deepEqual(periods, ["2026-09", "2026-10"]);
+  } finally { t.mock.timers.reset(); }
 });

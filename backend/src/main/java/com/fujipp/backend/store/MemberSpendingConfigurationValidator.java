@@ -9,6 +9,12 @@ final class MemberSpendingConfigurationValidator {
     private MemberSpendingConfigurationValidator() {}
 
     static void validate(Map<String, JsonNode> values) {
+        JsonNode tracking = values.get("SPENDING_MONTHLY_ENABLED");
+        if (tracking != null && !tracking.isBoolean())
+            throw new StoreValidationException("Monthly tracking must be a boolean");
+        JsonNode day = values.get("SPENDING_MONTHLY_START_DAY");
+        if (day != null && (!day.isIntegralNumber() || !day.canConvertToInt() || day.asInt() < 1 || day.asInt() > 31))
+            throw new StoreValidationException("Monthly start day must be an integer between 1 and 31");
         JsonNode enabled = values.get("SPENDING_MONTHLY_ROLES_ENABLED");
         if (enabled == null || !enabled.asBoolean()) return;
         Set<String> lifetime = new HashSet<>();

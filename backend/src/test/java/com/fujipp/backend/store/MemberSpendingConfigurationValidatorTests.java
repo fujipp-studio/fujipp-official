@@ -36,4 +36,18 @@ class MemberSpendingConfigurationValidatorTests {
         input.put("SPENDING_UPGRADE_TIERS", mapper.valueToTree(java.util.List.of(Map.of("amount", 1000, "roleId", "555555555555555555"))));
         assertThatThrownBy(() -> MemberSpendingConfigurationValidator.validate(input)).isInstanceOf(StoreValidationException.class);
     }
+    @Test void validatesTrackingToggleAndCutoffDayBeforeRoleValidation() {
+        for (Object day : new Object[]{0,32,1.5,"25",true}) {
+            var input = values(); input.put("SPENDING_MONTHLY_START_DAY",mapper.valueToTree(day));
+            assertThatThrownBy(()->MemberSpendingConfigurationValidator.validate(input)).isInstanceOf(StoreValidationException.class);
+        }
+        for (int day : new int[]{1,25,31}) {
+            var input = values(); input.put("SPENDING_MONTHLY_START_DAY",mapper.valueToTree(day));
+            input.put("SPENDING_MONTHLY_ENABLED",mapper.valueToTree(false));
+            assertThatCode(()->MemberSpendingConfigurationValidator.validate(input)).doesNotThrowAnyException();
+        }
+        var invalid = values(); invalid.put("SPENDING_MONTHLY_ENABLED",mapper.valueToTree("false"));
+        assertThatThrownBy(()->MemberSpendingConfigurationValidator.validate(invalid)).isInstanceOf(StoreValidationException.class);
+    }
+
 }

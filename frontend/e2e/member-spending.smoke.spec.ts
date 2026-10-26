@@ -956,7 +956,14 @@ for (const theme of ['LIGHT', 'DARK']) {
       const current = structuredClone(memberSpendingConfiguration)
       let saved: { values: Record<string, unknown> } | undefined
       await page.route('**/configuration', async (route) => {
-        if (route.request().method() === 'PUT') saved = route.request().postDataJSON()
+        if (route.request().method() === 'PUT') {
+          saved = route.request().postDataJSON()
+          current.fields = current.fields.map((field) => ({
+            ...field,
+            value: saved!.values[field.key],
+          }))
+          current.revision++
+        }
         await route.fulfill({ json: current })
       })
       await page.goto('/my-bot/fixture-bot/settings/packages/fixture-license?locale=th')
@@ -969,6 +976,18 @@ for (const theme of ['LIGHT', 'DARK']) {
         config.getByRole('heading', { name: 'อันดับรายเดือน', exact: true }),
       ).toBeVisible()
       await expect(config).toContainText('เวลา 00:00 น. ตามเวลาไทย')
+      const tracking = config.getByRole('switch', { name: 'เปิดระบบยอดสะสมรายเดือน', exact: true })
+      await expect(tracking).not.toBeChecked()
+      await expect(
+        config.getByRole('spinbutton', { name: 'วันที่เริ่มรอบประจำเดือน' }),
+      ).toHaveCount(0)
+      await expect(
+        config.getByRole('switch', { name: 'เปิดยศอันดับประจำเดือน', exact: true }),
+      ).toHaveCount(0)
+      await tracking.click()
+      const startDay = config.getByRole('spinbutton', { name: 'วันที่เริ่มรอบประจำเดือน' })
+      await expect(startDay).toHaveValue('1')
+      await startDay.fill('25')
       const enable = config.getByRole('switch', { name: 'เปิดยศอันดับประจำเดือน', exact: true })
       await expect(enable).not.toBeChecked()
       await expect(config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)')).toHaveCount(0)
@@ -983,6 +1002,19 @@ for (const theme of ['LIGHT', 'DARK']) {
       await reset.click()
       await expect(config).toContainText('เก็บยศที่เคยได้รับไว้')
       await reset.click()
+      await tracking.click()
+      await expect(startDay).toHaveCount(0)
+      await expect(config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)')).toHaveCount(0)
+      await tracking.click()
+      await expect(startDay).toHaveValue('25')
+      await expect(config.getByLabel('ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)')).toHaveValue(
+        '111111111111111111',
+      )
+      await startDay.fill('32')
+      expect(
+        await startDay.evaluate((element) => (element as HTMLInputElement).checkValidity()),
+      ).toBe(false)
+      await startDay.fill('25')
       await page.evaluate(() => document.fonts.ready)
       await config.screenshot({
         path: testInfo.outputPath('member-spending-monthly.png'),
@@ -1000,6 +1032,8 @@ for (const theme of ['LIGHT', 'DARK']) {
         .click()
       await expect(page.getByRole('dialog')).toBeHidden()
       expect(saved?.values).toMatchObject({
+        SPENDING_MONTHLY_ENABLED: true,
+        SPENDING_MONTHLY_START_DAY: 25,
         SPENDING_MONTHLY_ROLES_ENABLED: true,
         SPENDING_MONTHLY_ROLES_RESET: true,
         SPENDING_MONTHLY_TOP1_ROLE_ID: '111111111111111111',

@@ -26,12 +26,22 @@ class MemberSpendingTests {
         var repository = mock(MemberSpendingRepository.class);
         var service = new MemberSpendingService(repository);
         UUID bot = UUID.randomUUID();
+        when(repository.monthlySettings(bot)).thenReturn(new MemberSpendingMonthlySettings(true, 1));
+        LocalDate period = LocalDate.now(java.time.ZoneId.of("Asia/Bangkok")).withDayOfMonth(1);
         service.leaderboard(bot, 5, "2026-10");
-        verify(repository).leaderboard(bot, 5, LocalDate.of(2026, 10, 1));
+        verify(repository).leaderboard(bot, 5, LocalDate.of(2026, 10, 1), period);
         service.leaderboard(bot, 5, null);
-        verify(repository).leaderboard(bot, 5, null);
+        verify(repository).leaderboard(bot, 5, null, period);
         service.get(bot, "222222222222222222", "2026-09");
-        verify(repository).get(bot, "222222222222222222", LocalDate.of(2026, 9, 1));
+        verify(repository).get(bot, "222222222222222222", LocalDate.of(2026, 9, 1), period);
+    }
+    @Test void disabledMonthlyTrackingStillRecordsLifetimeSpending() {
+        var repository = mock(MemberSpendingRepository.class);
+        var service = new MemberSpendingService(repository);
+        UUID bot = UUID.randomUUID();
+        when(repository.monthlySettings(bot)).thenReturn(new MemberSpendingMonthlySettings(false,25));
+        service.add(bot,"222222222222222222",1000,"interaction");
+        verify(repository).add(bot,"222222222222222222",1000,"interaction",null);
     }
     @Test void rejectsInvalidMonthQueriesBeforeTheyReachStorage() {
         var repository = mock(MemberSpendingRepository.class);

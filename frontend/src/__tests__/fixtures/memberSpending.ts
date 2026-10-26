@@ -156,6 +156,8 @@ export const memberSpendingConfiguration: FeatureConfiguration = {
     field('SPENDING_UPGRADE_COUNT', 'INTEGER', 5),
     field('SPENDING_TOP1_ROLE_ID', 'ROLE_ID', null),
     field('SPENDING_TOP5_ROLE_ID', 'ROLE_ID', null),
+    field('SPENDING_MONTHLY_ENABLED', 'BOOLEAN', false),
+    field('SPENDING_MONTHLY_START_DAY', 'INTEGER', 1),
     field('SPENDING_MONTHLY_ROLES_ENABLED', 'BOOLEAN', false),
     field('SPENDING_MONTHLY_TOP1_ROLE_ID', 'ROLE_ID', null),
     field('SPENDING_MONTHLY_TOP5_ROLE_ID', 'ROLE_ID', null),

@@ -543,9 +543,17 @@ export function useFeatureSettings() {
         member: 'Fujipp',
         member_mention: '@Fujipp',
         today: '500.00',
-        this_month: slotKey === 'first_card' ? '500.00' : '1,000.00',
-        this_month_count: slotKey === 'first_card' ? '1' : '2',
-        month: '2026-10',
+        this_month: values.value.SPENDING_MONTHLY_ENABLED
+          ? slotKey === 'first_card'
+            ? '500.00'
+            : '1,000.00'
+          : '0.00',
+        this_month_count: values.value.SPENDING_MONTHLY_ENABLED
+          ? slotKey === 'first_card'
+            ? '1'
+            : '2'
+          : '0',
+        month: values.value.SPENDING_MONTHLY_ENABLED ? '2026-10' : '',
         total: slotKey === 'first_card' ? '500.00' : '2,500.00',
         count: slotKey === 'first_card' ? '1' : '5',
         member_count: '3',
