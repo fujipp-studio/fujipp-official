@@ -195,6 +195,57 @@ migration or reinstallation. The package settings page displays the selected
 bot installation's status; an active license alone does not indicate that its
 Feature is running.
 
+## Member Spending Card monthly tracking
+
+Every `/spending add` credits the member's lifetime balance and calendar-month
+balance atomically. Months follow `Asia/Bangkok`: the new balance starts at zero
+at 00:00 on the first day without deleting previous months or lifetime totals.
+Undated balances saved before this update remain in lifetime totals only.
+Both Fujipp storage and customer PostgreSQL support the same behavior.
+
+- `/spending check` shows the member's lifetime and current-month balances.
+- `/spending list period:this_month` shows this month's ranking.
+- `/spending list month:2026-10` shows the selected month's ranking.
+- `/spending total period:this_month` sums this month's spending across members.
+- `/spending rank period:this_month` refreshes monthly Top 1 / Top 2–5 roles.
+
+Omitting the period keeps the existing lifetime behavior. `month:YYYY-MM`
+overrides `period` and is also available on `check`, `total`, and `rank`.
+Viewing a historical ranking never changes current-month roles.
+`/spending update` corrects lifetime totals only; it does not redistribute
+undated corrections into monthly history. `/spending delete` removes the
+member's balances across all months and records a compensating operation.
+
+Cards support `{{this_month}}` (THB), `{{this_month_count}}`, and `{{month}}`
+(`YYYY-MM`) in both Embed and Components V2. Existing `{{total}}` and `{{count}}`
+remain lifetime values. The separate `monthly_leaderboard` presentation supports
+`{{leaderboard_lines}}`, `{{member_count}}`, and `{{month}}`.
+
+Monthly tracking does not require roles. `SPENDING_MONTHLY_ROLES_ENABLED`
+defaults to false. When enabled, configure either optional
+`SPENDING_MONTHLY_TOP1_ROLE_ID` or `SPENDING_MONTHLY_TOP5_ROLE_ID`, using roles
+separate from lifetime ranks, first-purchase rewards, and spending levels.
+`SPENDING_MONTHLY_ROLES_RESET` defaults to true: roles follow the current
+ranking and are removed when a member leaves it or the month changes. Set it
+to false to retain previously earned roles. Synchronization runs on startup,
+after adds/deletes, when viewing the current ranking, and every minute while
+the bot is online. Offline bots reconcile after reconnecting. Discord role
+hierarchy and Manage Roles permission must allow the configured changes.
+
+Deploy migration `20261026000001_member_spending_monthly.sql` before the
+Backend and Runner update, and deploy both services together: writes now
+require an operation key, supplied from the Discord interaction ID. Retrying
+the same operation cannot credit either balance twice. The operation ledger
+is append-only; corrections record deltas. Customer databases provision their
+monthly tables automatically using the saved connection owner. The private
+platform tables are accessed only through the Backend.
+
+To run the PostgreSQL store contract against a disposable test database, set
+`SPENDING_TEST_DB_URL` and run
+`node --import tsx --test test/member-spending-store.integration.test.ts` from
+`bot-runner/`. The test provisions the customer schema and removes its own
+randomly scoped fixtures afterward.
+
 ## Shop Status
 
 The bundled `shop-status@1.0.0` feature registers `/shop open` and `/shop close`.

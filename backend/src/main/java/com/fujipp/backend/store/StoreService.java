@@ -303,6 +303,16 @@ public class StoreService {
             ShopStatusConfigurationValidator.validate(shopValues);
         }
 
+        if (request.values().keySet().stream().anyMatch(key -> key.startsWith("SPENDING_"))) {
+            Map<String, JsonNode> spendingValues = new LinkedHashMap<>();
+            for (var field : repository.findConfiguration(license).fields()) {
+                JsonNode value = field.value() == null ? field.defaultValue() : field.value();
+                if (value != null && !value.isNull()) spendingValues.put(field.key(), value);
+            }
+            spendingValues.putAll(request.values());
+            MemberSpendingConfigurationValidator.validate(spendingValues);
+        }
+
         MessageSetsConfigurationValidator.validate(request.values());
         PriceReaderConfigurationValidator.validate(request.values());
         PresentationConfigurationValidator.validate(request.presentations());

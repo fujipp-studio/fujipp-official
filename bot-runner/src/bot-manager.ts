@@ -142,9 +142,9 @@ export class BotManager {
               outcome: (jobId,input) => this.api.finishRobuxPayout(bot.id,jobId,input), refund: (jobId,input) => this.api.refundRobuxPayout(bot.id,jobId,input), recoverable: () => this.api.recoverableRobuxPayouts(bot.id),
             },
             memberSpending: {
-              add: (memberDiscordId,deltaSatang) => this.api.addMemberSpending(bot.id,memberDiscordId,deltaSatang), set: (memberDiscordId,input) => this.api.setMemberSpending(bot.id,memberDiscordId,input),
-              get: (memberDiscordId) => this.api.getMemberSpending(bot.id,memberDiscordId), remove: (memberDiscordId) => this.api.removeMemberSpending(bot.id,memberDiscordId),
-              leaderboard: (limit) => this.api.memberSpendingLeaderboard(bot.id,limit), totals: () => this.api.memberSpendingTotals(bot.id),
+              add: (memberDiscordId,deltaSatang,key) => this.api.addMemberSpending(bot.id,memberDiscordId,deltaSatang,key), set: (memberDiscordId,input,key) => this.api.setMemberSpending(bot.id,memberDiscordId,input,key),
+              get: (memberDiscordId,month) => this.api.getMemberSpending(bot.id,memberDiscordId,month), remove: (memberDiscordId,key) => this.api.removeMemberSpending(bot.id,memberDiscordId,key),
+              leaderboard: (limit,month) => this.api.memberSpendingLeaderboard(bot.id,limit,month), totals: (month) => this.api.memberSpendingTotals(bot.id,month),
             },
           });
           disposers.push(dispose);

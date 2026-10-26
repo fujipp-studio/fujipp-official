@@ -70,14 +70,14 @@ export interface FeatureContext {
   memberSpending: MemberSpendingStore;
 }
 
-export interface MemberSpendingEntry { memberDiscordId:string; amountSatang:number; txCount:number; }
+export interface MemberSpendingEntry { memberDiscordId:string; amountSatang:number; txCount:number; thisMonthSatang?:number; thisMonthTxCount?:number; }
 export interface MemberSpendingStore {
-  add(memberDiscordId:string,deltaSatang:number):Promise<MemberSpendingEntry>;
-  set(memberDiscordId:string,input:{amountSatang?:number;txCount?:number}):Promise<MemberSpendingEntry>;
-  get(memberDiscordId:string):Promise<MemberSpendingEntry|null>;
-  remove(memberDiscordId:string):Promise<boolean>;
-  leaderboard(limit:number):Promise<MemberSpendingEntry[]>;
-  totals():Promise<{amountSatang:number;txCount:number}>;
+  add(memberDiscordId:string,deltaSatang:number,operationKey?:string):Promise<MemberSpendingEntry>;
+  set(memberDiscordId:string,input:{amountSatang?:number;txCount?:number},operationKey?:string):Promise<MemberSpendingEntry>;
+  get(memberDiscordId:string,month?:string):Promise<MemberSpendingEntry|null>;
+  remove(memberDiscordId:string,operationKey?:string):Promise<boolean>;
+  leaderboard(limit:number,month?:string):Promise<MemberSpendingEntry[]>;
+  totals(month?:string):Promise<{amountSatang:number;txCount:number}>;
 }
 
 export interface WalletTopupResult { transactionId: string; creditedSatang: number; balanceSatang: number; currency: string; method: string; created: boolean; completedAt: string; }

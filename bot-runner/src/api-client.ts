@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { BootstrapResponse, PromptPaySession, WalletAdjustmentOperation, WalletAdjustmentResult, WalletTopupResult } from "./types.js";
 
 export interface RuntimeApi {
@@ -102,12 +103,12 @@ export class RuntimeApiClient implements RuntimeApi {
   public refundRobuxPayout(botId:string,jobId:string,input:{errorCode:string;errorMessage:string}){const query=new URLSearchParams({botId});return this.request<import("./types.js").RobuxPayoutRefund>(`/internal/v1/robux/jobs/${jobId}/refund?${query}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});}
   public recoverableRobuxPayouts(botId:string){const query=new URLSearchParams({botId});return this.request<{jobs:import("./types.js").RobuxPayoutJob[]}>(`/internal/v1/robux/jobs/recoverable?${query}`,{method:"GET"});}
 
-  public addMemberSpending(botId:string,memberDiscordId:string,deltaSatang:number){return this.request<import("./types.js").MemberSpendingEntry>("/internal/v1/member-spending/add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({botId,memberDiscordId,deltaSatang})});}
-  public setMemberSpending(botId:string,memberDiscordId:string,input:{amountSatang?:number;txCount?:number}){return this.request<import("./types.js").MemberSpendingEntry>("/internal/v1/member-spending",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({botId,memberDiscordId,...input})});}
-  public getMemberSpending(botId:string,memberDiscordId:string){const query=new URLSearchParams({botId,memberDiscordId});return this.request<import("./types.js").MemberSpendingEntry|null>(`/internal/v1/member-spending?${query}`,{method:"GET"});}
-  public removeMemberSpending(botId:string,memberDiscordId:string){const query=new URLSearchParams({botId,memberDiscordId});return this.request<boolean>(`/internal/v1/member-spending?${query}`,{method:"DELETE"});}
-  public memberSpendingLeaderboard(botId:string,limit:number){const query=new URLSearchParams({botId,limit:String(limit)});return this.request<import("./types.js").MemberSpendingEntry[]>(`/internal/v1/member-spending/leaderboard?${query}`,{method:"GET"});}
-  public memberSpendingTotals(botId:string){const query=new URLSearchParams({botId});return this.request<{amountSatang:number;txCount:number}>(`/internal/v1/member-spending/totals?${query}`,{method:"GET"});}
+  public addMemberSpending(botId:string,memberDiscordId:string,deltaSatang:number,operationKey:string=randomUUID()){return this.request<import("./types.js").MemberSpendingEntry>("/internal/v1/member-spending/add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({botId,memberDiscordId,deltaSatang,operationKey})});}
+  public setMemberSpending(botId:string,memberDiscordId:string,input:{amountSatang?:number;txCount?:number},operationKey:string=randomUUID()){return this.request<import("./types.js").MemberSpendingEntry>("/internal/v1/member-spending",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({botId,memberDiscordId,...input,operationKey})});}
+  public getMemberSpending(botId:string,memberDiscordId:string,month?:string){const query=new URLSearchParams({botId,memberDiscordId,...(month?{month}:{})});return this.request<import("./types.js").MemberSpendingEntry|null>(`/internal/v1/member-spending?${query}`,{method:"GET"});}
+  public removeMemberSpending(botId:string,memberDiscordId:string,operationKey:string=randomUUID()){const query=new URLSearchParams({botId,memberDiscordId,operationKey});return this.request<boolean>(`/internal/v1/member-spending?${query}`,{method:"DELETE"});}
+  public memberSpendingLeaderboard(botId:string,limit:number,month?:string){const query=new URLSearchParams({botId,limit:String(limit),...(month?{month}:{})});return this.request<import("./types.js").MemberSpendingEntry[]>(`/internal/v1/member-spending/leaderboard?${query}`,{method:"GET"});}
+  public memberSpendingTotals(botId:string,month?:string){const query=new URLSearchParams({botId,...(month?{month}:{})});return this.request<{amountSatang:number;txCount:number}>(`/internal/v1/member-spending/totals?${query}`,{method:"GET"});}
 
   private async request<T>(path: string, init: RequestInit): Promise<T> {
     const response = await this.fetch(path, init);

@@ -5,6 +5,7 @@ import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
 import { computed, nextTick, ref, useId } from 'vue'
 import {
   Award,
+  CalendarDays,
   Database,
   HelpCircle,
   Plus,
@@ -82,6 +83,18 @@ const rankingRoles = computed(() =>
     { key: 'SPENDING_TOP5_ROLE_ID', label: text('Top 2–5 role', 'ยศอันดับ 2–5') },
   ].filter((field) => hasField(field.key)),
 )
+const monthlyRankingRoles = computed(() =>
+  [
+    {
+      key: 'SPENDING_MONTHLY_TOP1_ROLE_ID',
+      label: text('Monthly Top 1 role (optional)', 'ยศอันดับ 1 ประจำเดือน (ไม่บังคับ)'),
+    },
+    {
+      key: 'SPENDING_MONTHLY_TOP5_ROLE_ID',
+      label: text('Monthly Top 2–5 role (optional)', 'ยศอันดับ 2–5 ประจำเดือน (ไม่บังคับ)'),
+    },
+  ].filter((field) => hasField(field.key)),
+)
 const categories = computed(() =>
   [
     {
@@ -101,6 +114,12 @@ const categories = computed(() =>
       label: text('Leaderboard', 'อันดับ'),
       icon: Trophy,
       visible: rankingRoles.value.length > 0,
+    },
+    {
+      key: 'monthly',
+      label: text('Monthly ranking', 'อันดับรายเดือน'),
+      icon: CalendarDays,
+      visible: hasField('SPENDING_MONTHLY_ROLES_ENABLED'),
     },
     {
       key: 'storage',
@@ -357,6 +376,92 @@ const categories = computed(() =>
             :support-text="roleError(values[field.key])"
             @update:model-value="values[field.key] = $event"
           />
+        </div>
+      </section>
+
+      <section
+        v-if="hasField('SPENDING_MONTHLY_ROLES_ENABLED')"
+        v-show="activeCategory === 'monthly'"
+        :id="id + '-panel-monthly'"
+        role="tabpanel"
+        :aria-labelledby="id + '-tab-monthly'"
+        tabindex="0"
+      >
+        <FeatureSettingsHeading
+          :title="text('Monthly ranking', 'อันดับรายเดือน')"
+          :description="
+            text(
+              'Monthly spending starts at zero on the 1st at 00:00 Thailand time. Lifetime totals and previous months are retained. Existing undated balances stay in lifetime totals.',
+              'ยอดเดือนใหม่เริ่มที่ 0 ทุกวันที่ 1 เวลา 00:00 น. ตามเวลาไทย โดยเก็บยอดรวมและเดือนก่อนไว้ ยอดเดิมที่ไม่มีวันที่จะอยู่ในยอดรวมทั้งหมด',
+            )
+          "
+          class="mb-lg"
+        />
+        <div class="max-w-reading space-y-lg">
+          <p class="text-sm text-text-secondary">
+            {{
+              text(
+                'Use /spending list period:this_month to view this month, or month:YYYY-MM to view a previous month. Monthly tracking works without roles.',
+                'ดูอันดับเดือนนี้ด้วย /spending list period:this_month หรือเลือกเดือนด้วย month:YYYY-MM เก็บยอดรายเดือนได้โดยไม่ต้องเปิดยศ',
+              )
+            }}
+          </p>
+          <FeatureSettingToggle
+            :label="text('Enable monthly ranking roles', 'เปิดยศอันดับประจำเดือน')"
+            :description="
+              text(
+                'Award roles using this month’s Top 1 and Top 2–5, independently of lifetime roles.',
+                'มอบยศตามอันดับ 1 และอันดับ 2–5 ของเดือนนี้ แยกจากยศยอดรวมทั้งหมด',
+              )
+            "
+            :model-value="Boolean(values.SPENDING_MONTHLY_ROLES_ENABLED)"
+            @update:model-value="values.SPENDING_MONTHLY_ROLES_ENABLED = $event"
+          />
+          <template v-if="values.SPENDING_MONTHLY_ROLES_ENABLED">
+            <div class="grid gap-lg tablet:grid-cols-2">
+              <AppTextField
+                v-for="field in monthlyRankingRoles"
+                :key="field.key"
+                :model-value="String(values[field.key] ?? '')"
+                :label="field.label"
+                :placeholder="text('Discord Role ID', 'กรอก Discord Role ID')"
+                pattern="[0-9]{15,30}"
+                :state="roleError(values[field.key]) ? 'error' : 'default'"
+                :support-text="roleError(values[field.key])"
+                @update:model-value="values[field.key] = $event"
+              />
+            </div>
+            <p class="text-sm text-text-secondary">
+              {{
+                text(
+                  'Use separate roles for monthly ranks, lifetime ranks, and spending levels.',
+                  'ใช้ยศประจำเดือนแยกจากยศยอดรวม ยศระดับสมาชิก และแยกแต่ละอันดับ',
+                )
+              }}
+            </p>
+            <FeatureSettingToggle
+              v-if="hasField('SPENDING_MONTHLY_ROLES_RESET')"
+              :label="
+                text(
+                  'Remove roles when members leave the monthly ranking',
+                  'ถอนยศเมื่อหลุดอันดับรายเดือน',
+                )
+              "
+              :description="
+                values.SPENDING_MONTHLY_ROLES_RESET
+                  ? text(
+                      'Keep roles only for current winners. Previous holders lose them when ranks change or a new month starts. Sync runs every minute while the bot is online.',
+                      'ให้ยศเฉพาะผู้ที่อยู่ในอันดับปัจจุบัน ถอนยศเดิมเมื่ออันดับเปลี่ยนหรือขึ้นเดือนใหม่ ตรวจสอบทุกนาทีขณะบอทออนไลน์',
+                    )
+                  : text(
+                      'Keep roles members have already earned across rank changes and new months.',
+                      'เก็บยศที่เคยได้รับไว้ แม้อันดับเปลี่ยนหรือขึ้นเดือนใหม่',
+                    )
+              "
+              :model-value="Boolean(values.SPENDING_MONTHLY_ROLES_RESET)"
+              @update:model-value="values.SPENDING_MONTHLY_ROLES_RESET = $event"
+            />
+          </template>
         </div>
       </section>
 

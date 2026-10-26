@@ -422,6 +422,12 @@ export const variableDescriptions: Record<string, [english: string, thai: string
   fee_amount: ['Additional payment fee', 'ค่าธรรมเนียมที่บวกเพิ่ม'],
   total_amount: ['Total payment amount including fees', 'ยอดชำระรวมค่าธรรมเนียม'],
   today: ['Amount added this time', 'ยอดที่เพิ่มในครั้งนี้'],
+  this_month: [
+    'Spending this calendar month (THB, Thailand time)',
+    'ยอดสะสมเดือนปัจจุบัน (บาท ตามเวลาไทย)',
+  ],
+  this_month_count: ['Transactions this calendar month', 'จำนวนครั้งในเดือนปัจจุบัน'],
+  month: ['Selected month in YYYY-MM format', 'เดือนที่เลือกในรูปแบบ YYYY-MM'],
   total: ['Accumulated total amount', 'ยอดสะสมทั้งหมด'],
   balance: ['Current wallet balance', 'ยอดเงินคงเหลือปัจจุบัน'],
   balance_after: ['Wallet balance after the transaction', 'ยอดเงินหลังทำรายการ'],

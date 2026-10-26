@@ -8,6 +8,10 @@ export const memberSpendingConfigKeys = new Set([
   'SPENDING_UPGRADE_COUNT',
   'SPENDING_TOP1_ROLE_ID',
   'SPENDING_TOP5_ROLE_ID',
+  'SPENDING_MONTHLY_ROLES_ENABLED',
+  'SPENDING_MONTHLY_TOP1_ROLE_ID',
+  'SPENDING_MONTHLY_TOP5_ROLE_ID',
+  'SPENDING_MONTHLY_ROLES_RESET',
   'COMMAND_PERMISSION_RULES',
 ])
 
@@ -27,6 +31,13 @@ export const memberSpendingPresentationCopy: Record<
     description: [
       'Sent when a member returns to spend again.',
       'ส่งเมื่อสมาชิกกลับมาใช้บริการอีกครั้ง',
+    ],
+  },
+  monthly_leaderboard: {
+    label: ['Monthly leaderboard', 'อันดับประจำเดือน'],
+    description: [
+      'Ranks members by spending in the selected month (Thailand time).',
+      'แสดงอันดับจากยอดสะสมเดือนที่เลือก ตามเวลาไทย',
     ],
   },
   leaderboard: {
