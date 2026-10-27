@@ -11,13 +11,9 @@ import {
   variableDescriptions,
   coFeatureCatalog,
 } from '../config/feature-editor'
-import { priceReaderPresentationPreview } from '../models/price-reader-presentation-preview'
 import { priceReaderSampleValues, validatePriceReaderDraft } from '../config/price-reader'
 import { parseMessageSets, validateMessageSets } from '../config/message-sets'
 import { clone, invalidActionRowPath } from '../models/presentation'
-import { roleShopProductsValid } from '../models/role-shop'
-import { walletPresentationPreview } from '../models/wallet-presentation-preview'
-import { paymentTriggerPresentationPreview } from '../models/payment-trigger-presentation-preview'
 import {
   paymentTriggerPresentationCopy,
   paymentTriggerSampleValues,
@@ -33,7 +29,7 @@ import {
 } from '../config/permission-commands'
 import { usePresentationEditor } from './usePresentationEditor'
 import { useBotSettingsData } from '../composables/useBotSettingsData'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -284,6 +280,9 @@ export function useFeatureSettings() {
   const presentationJson = ref<Record<string, string>>({})
   const advancedSlots = ref(new Set<string>())
   const walletExpandedSlots = ref(new Set<string>())
+  const roleShopValidator = shallowRef<typeof import('../models/role-shop').roleShopProductsValid>()
+  const featurePreview =
+    shallowRef<(definition: Record<string, unknown>, slotKey: string) => Record<string, unknown>>()
 
   const valueLength = (value: unknown) => String(value ?? '').length
 
@@ -323,7 +322,7 @@ export function useFeatureSettings() {
       !loading.value &&
       !saving.value &&
       (license.value?.featureCode !== 'role-shop' ||
-        roleShopProductsValid(values.value.ROLE_SHOP_PRODUCTS)),
+        (roleShopValidator.value?.(values.value.ROLE_SHOP_PRODUCTS) ?? false)),
   )
 
   function draftSnapshot(config: FeatureConfiguration) {
@@ -741,10 +740,7 @@ export function useFeatureSettings() {
           mode,
           [mode === 'EMBED' ? 'embed' : 'components_v2']: visualDefinition(slotKey),
         }
-    if (isPriceReaderFeature.value)
-      return priceReaderPresentationPreview(preview, presentationSampleValues(slotKey))
-    if (isPaymentTriggerFeature.value) return paymentTriggerPresentationPreview(preview, slotKey)
-    return isWalletTopupFeature.value ? walletPresentationPreview(preview, slotKey) : preview
+    return featurePreview.value?.(preview, slotKey) ?? preview
   }
 
   function toggleWalletMessage(slotKey: string) {
@@ -779,6 +775,8 @@ export function useFeatureSettings() {
   async function load() {
     loading.value = true
     error.value = ''
+    roleShopValidator.value = undefined
+    featurePreview.value = undefined
     permissionCommandFeatures.value = []
     if (!initialized.value) await authStore.initialize()
     if (!session.value) {
@@ -794,6 +792,22 @@ export function useFeatureSettings() {
         ? await fetchAdminFeatureConfiguration(flowBotId.value, licenseId.value, session.value)
         : await fetchFeatureConfiguration(licenseId.value, session.value)
       license.value = allLicenses.find((item) => item.id === licenseId.value) ?? null
+      if (license.value?.featureCode === 'role-shop')
+        roleShopValidator.value = (await import('../models/role-shop')).roleShopProductsValid
+      if (isWalletTopupFeature.value)
+        featurePreview.value = (
+          await import('../models/wallet-presentation-preview')
+        ).walletPresentationPreview
+      if (isPaymentTriggerFeature.value)
+        featurePreview.value = (
+          await import('../models/payment-trigger-presentation-preview')
+        ).paymentTriggerPresentationPreview
+      if (isPriceReaderFeature.value) {
+        const { priceReaderPresentationPreview } =
+          await import('../models/price-reader-presentation-preview')
+        featurePreview.value = (definition, slotKey) =>
+          priceReaderPresentationPreview(definition, presentationSampleValues(slotKey))
+      }
       const installedBotId = license.value?.installations.find(
         (item) => item.status === 'ACTIVE',
       )?.botId

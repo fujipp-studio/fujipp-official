@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-27 | Kept feature settings within the production bundle budget by loading feature-specific previews and Role Shop validation on demand, while preserving validation and counting required lazy/shared chunks in budget checks. |
 | 2026-10-27 | Fixed Wallet QR image previews and added Role Shop settings with per-role prices and shared Wallet guidance. |
 | 2026-10-26 | Kept Member Spending within its bundle budget while preserving unsaved permission edits when switching categories. |
 | 2026-10-26 | Added optional monthly spending with configurable cycle dates and previews, restored Support account registration and mobile dialog closing, and included store product artwork. |
