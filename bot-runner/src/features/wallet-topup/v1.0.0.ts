@@ -9,6 +9,7 @@ import { RuntimeApiError } from "../../api-client.js";
 import { finalizeSuccessfulTopupRoles, runRoleRemoval } from "./role-actions.js";
 import { topSpenderRolePolicy } from "./role-policy.js";
 import { normalizeWalletQrMedia } from "./presentation-media.js";
+import { promptPayQrImage } from "./qr-image.js";
 import { LatestSyncCoordinator } from "./sync-coordinator.js";
 
 type TopSpenderSyncResult = { updated: number; errors: string[] };
@@ -126,11 +127,13 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
       const minimum=numberConfig(context.config.MIN_TOPUP_SATANG,1000);
       if(amount<minimum)return interaction.reply(render(context,"minimum_warning",{minimum_amount:money(minimum)},true));
       const session=await context.wallet.createPromptPay(interaction.user.id,amount);
+      const qrImage=promptPayQrImage(session);
       const grantedRole=await grantTemporarySlipRole(context,interaction.guild,interaction.user.id);
       pending.set(interaction.user.id,{sessionId:session.sessionId,expiresAt:session.expiresAt,grantedRole});
       await savePending(context,pending);
-      const qrVars={...vars(context,interaction.user.id),amount:money(session.amountSatang),currency:session.currency,account_name:session.accountName,remaining_time:formatRemaining(session.expiresAt),qr_url:session.qrUrl,session_id:session.sessionId,slip_channel_url:slipChannelUrl(context)};
-      await interaction.reply(render(context,"promptpay_qr",qrVars,true));
+      const qrVars={...vars(context,interaction.user.id),amount:money(session.amountSatang),currency:session.currency,account_name:session.accountName,remaining_time:formatRemaining(session.expiresAt),qr_url:qrImage.url,session_id:session.sessionId,slip_channel_url:slipChannelUrl(context)};
+      const qrPayload=render(context,"promptpay_qr",qrVars,true) as Record<string,unknown>;
+      await interaction.reply({...qrPayload,...(qrImage.files.length?{files:qrImage.files}:{})} as never);
       startCountdown(context,pending,countdowns,interaction,session.expiresAt,session.sessionId,qrVars);
       return;
     }
@@ -381,7 +384,15 @@ function startCountdown(context:FeatureContext,pending:Map<string,PendingSession
   clearCountdown(countdowns,interaction.user.id);
   const timer=setInterval(()=>void(async()=>{
     const remaining=Date.parse(expiresAt)-Date.now();
-    if(remaining<=0){clearCountdown(countdowns,interaction.user.id);const session=pending.get(interaction.user.id);const roleRemoved=await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);if(roleRemoved){pending.delete(interaction.user.id);await savePending(context,pending);}await interaction.editReply(render(context,"expired",{session_id:session?.sessionId??sessionId},true)).catch(()=>undefined);return;}
+    if(remaining<=0){
+      clearCountdown(countdowns,interaction.user.id);
+      const session=pending.get(interaction.user.id);
+      const roleRemoved=await removeTemporarySlipRole(context,interaction.guild,interaction.user.id);
+      if(roleRemoved){pending.delete(interaction.user.id);await savePending(context,pending);}
+      const expired=render(context,"expired",{session_id:session?.sessionId??sessionId},true) as Record<string,unknown>;
+      await interaction.editReply({...expired,attachments:[]} as never).catch(()=>undefined);
+      return;
+    }
     await interaction.editReply(render(context,"promptpay_qr",{...base,remaining_time:formatRemaining(expiresAt)},true)).catch(()=>undefined);
   })().catch((error)=>{console.error(`Wallet countdown failed for ${context.botId}:`,error);clearCountdown(countdowns,interaction.user.id);}),1_000);
   countdowns.set(interaction.user.id,timer);

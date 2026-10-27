@@ -17,10 +17,10 @@ import java.util.Base64;
 import java.util.Map;
 
 @Component
-class PromptPayQrGenerator {
+public class PromptPayQrGenerator {
     private static final String PROMPTPAY_AID = "A000000677010111";
 
-    PaymentQr generate(String configuredId, long amountSatang) {
+    public PaymentQr generate(String configuredId, long amountSatang) {
         String target = normalize(configuredId);
         String targetTag = target.length() == 13 && target.startsWith("0066") ? "01" : "02";
         String merchantAccount = tlv("00", PROMPTPAY_AID) + tlv(targetTag, target);
@@ -74,5 +74,5 @@ class PromptPayQrGenerator {
         return crc;
     }
 
-    record PaymentQr(String payload, String imageDataUri) {}
+    public record PaymentQr(String payload, String imageDataUri) {}
 }

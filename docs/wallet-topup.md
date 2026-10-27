@@ -110,6 +110,19 @@ Use `{{slip_channel_url}}` in a link button to open `SLIP_CHANNEL_ID`; a Discord
 channel page is not an image. The settings preview uses a bundled example QR
 labelled “PREVIEW ONLY”, and its slip link has a valid Discord channel URL.
 
+The Backend generates the payment QR locally with the same PromptPay encoder
+used by website top-ups and returns its PNG as `qrImageDataUri`. The runner uploads
+that PNG with the private Discord response and resolves `{{qr_url}}` to
+`attachment://promptpay-qr.png`. Countdown edits retain the uploaded image; the
+expiry response removes it. No image-provider request is needed for this flow.
+The QR amount and recipient are encoded before creating the pending session, so
+invalid configuration does not leave an unusable payment request.
+
+The legacy `qrUrl` field remains available for older runners during deployment.
+A newer runner receiving a response without `qrImageDataUri` uses that legacy URL;
+an invalid generated image is reported as an error rather than silently switching
+back to an external image provider.
+
 For existing `promptpay_qr` designs that placed `{{slip_channel_url}}` in an image
 field, the runner and preview render that image using `{{qr_url}}`. Text and link
 buttons keep the channel URL. This compatibility behavior covers flat/nested

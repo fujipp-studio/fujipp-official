@@ -1,6 +1,6 @@
 package com.fujipp.backend.topup;
 
-final class TopupException extends RuntimeException {
+public final class TopupException extends RuntimeException {
     private final String code;
     private final Kind kind;
 
@@ -10,7 +10,7 @@ final class TopupException extends RuntimeException {
         this.kind = kind;
     }
 
-    String code() { return code; }
+    public String code() { return code; }
     Kind kind() { return kind; }
 
     enum Kind { VALIDATION, NOT_FOUND, CONFLICT, CONFIGURATION, UPSTREAM }
