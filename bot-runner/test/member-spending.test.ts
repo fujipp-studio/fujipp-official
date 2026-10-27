@@ -390,13 +390,14 @@ for (const syncFails of [false, true]) {
     try {
       client.emit("interactionCreate", state.interaction); await settle();
       assert.deepEqual(writes, [[memberId, { amountSatang: 120000, txCount: 12 }, "monthly-correction"]]);
-      assert.equal(state.edits.length, 1);
-      const content = syncFails ? assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_ROLE_SYNC_FAILED", true).description
-        : (state.edits[0] as { content: string }).content;
+      assert.equal(state.edits.length, 2);
+      assert.match((state.edits[0] as { content: string }).content, /กำลังอัปเดตยศ/);
+      const content = syncFails ? assertFeatureError(state.edits[1], "Member Spending Card", "SPENDING_ROLE_SYNC_FAILED", true).description
+        : (state.edits[1] as { content: string }).content;
       assert.match(content, /ยอดรวมทั้งหมด.*1,200\.00.*12 ครั้ง/);
       assert.match(content, /รอบเดือน.*250\.00.*3 ครั้ง.*ปรับตามส่วนต่างแล้ว/);
       assert.doesNotMatch(content, /คงเดิม/);
-      if (syncFails) assert.match(content, /ลองใหม่อัตโนมัติ/);
+      if (syncFails) assert.match(content, /ไม่ต้องบันทึกยอดซ้ำ/);
       else assert.equal(f.members.get("333333333333333333")!.roles.cache.has(f.top1), true);
     } finally { await dispose(); }
   });
@@ -764,9 +765,9 @@ test("a monthly role failure does not report a committed balance change as faile
   try {
     client.emit("interactionCreate", state.interaction); await settle();
     assert.equal(writes, 1);
-    const result = assertFeatureError(state.edits[0], "Member Spending Card", "MONTHLY_ROLE_SYNC_FAILED", true).description;
+    const result = assertFeatureError(state.edits[1], "Member Spending Card", "SPENDING_ROLE_SYNC_FAILED", true).description;
     assert.match(result, /ลบข้อมูล.*แล้ว/);
-    assert.match(result, /ลองใหม่อัตโนมัติ/);
+    assert.match(result, /ไม่ต้องบันทึกยอดซ้ำ/);
     assert.doesNotMatch(result, /ทำรายการไม่สำเร็จ/);
   } finally { await dispose(); }
 });
@@ -829,4 +830,174 @@ test("monthly ranking roles switch cycles on the configured day in Thailand time
     await syncMonthlyRoles(f.context, store, f.guild);
     assert.deepEqual(periods, ["2026-09", "2026-10"]);
   } finally { t.mock.timers.reset(); }
+});
+
+function fiveRankedMembers(f: ReturnType<typeof monthlyRoleFixture>) {
+  f.members.clear();
+  return Array.from({ length: 5 }, (_, n) => {
+    const id = String(200000000000000000n + BigInt(n));
+    const cache = new Set<string>();
+    f.members.set(id, { id, displayName: `Customer ${n + 1}`, displayAvatarURL: () => defaultAvatar, guild: f.guild, roles: { cache,
+      add: async (role: string) => { f.changes.push(`add:${id}:${role}`); cache.add(role); },
+      remove: async (role: string) => { f.changes.push(`remove:${id}:${role}`); cache.delete(role); },
+    } } as unknown as GuildMember);
+    return { memberDiscordId: id, amountSatang: (5 - n) * 10000, txCount: 1 };
+  });
+}
+
+test("all five monthly winners get their roles, including when the third customer is Top 1", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f);
+  const ranked = [board[2]!, board[0]!, board[1]!, board[3]!, board[4]!];
+  await syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, ranked);
+  for (const [n, entry] of ranked.entries()) {
+    assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(n === 0 ? f.top1 : f.top5), true);
+  }
+  assert.equal(f.changes.length, 5);
+});
+
+test("a failing monthly winner does not prevent the other four from receiving roles", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f);
+  f.members.get(board[0]!.memberDiscordId)!.roles.add = async () => { throw new Error("Missing Permissions"); };
+  await assert.rejects(syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, board), /Missing Permissions/);
+  for (const entry of board.slice(1)) assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(f.top5), true);
+});
+
+for (const blocked of ["permission", "hierarchy", "missing-role"] as const) {
+  test(`unavailable monthly role is reported and remaining winners continue (${blocked})`, async () => {
+    const f = monthlyRoleFixture(true), board = fiveRankedMembers(f);
+    const me = f.guild.members.me!;
+    if (blocked === "missing-role") f.guild.roles.cache.delete(f.top1);
+    else if (blocked === "permission") me.permissions.has = () => false;
+    else me.roles.highest.comparePositionTo = role => (typeof role === "string" ? role : role.id) === f.top1 ? -1 : 1;
+    await assert.rejects(syncMonthlyRoles(f.context, {} as MemberSpendingStore, f.guild, board), /ไม่สำเร็จ/);
+    if (blocked !== "permission") {
+      for (const entry of board.slice(1)) assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(f.top5), true);
+    }
+  });
+}
+
+test("spending add publishes its card and confirms the balance before a slow role scan, then awards all five lifetime ranks", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f), client = new EventEmitter(), state = spendingInteraction("add");
+  const lifetimeTop5 = "888888888888888888";
+  f.guild.roles.cache.set(lifetimeTop5, { id: lifetimeTop5 } as never);
+  f.context.config = { SPENDING_TOP1_ROLE_ID: f.lifetime, SPENDING_TOP5_ROLE_ID: lifetimeTop5 };
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const list = f.guild.members.list.bind(f.guild.members);
+  f.guild.members.list = async options => { await pending; return list(options); };
+  f.guild.members.fetch = (async (id: string) => f.members.get(id)) as typeof f.guild.members.fetch;
+  const sent: unknown[] = [], writes: unknown[] = [];
+  Object.assign(state.interaction, { guild: f.guild, channel: { isTextBased: () => true, send: async (payload: unknown) => { sent.push(payload); } } });
+  Object.assign(state.interaction.options, {
+    getUser: () => ({ id: board[2]!.memberDiscordId, username: "Third customer", displayAvatarURL: () => defaultAvatar }),
+    getInteger: () => 100,
+  });
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {}, permissions: { canUse: () => true },
+    memberSpending: { add: async (...args: unknown[]) => { writes.push(args); return board[2]; }, leaderboard: async () => board },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(writes.length, 1); assert.equal(sent.length, 1);
+    assert.equal(state.edits.length, 1);
+    assert.match((state.edits[0] as { content: string }).content, /อัปเดตบัตรสะสมเรียบร้อย.*\nกำลังอัปเดตยศ/);
+    assert.equal(f.changes.length, 0);
+    release(); await settle();
+    assert.equal(state.edits.length, 2);
+    for (const [n, entry] of board.entries()) assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(n === 0 ? f.lifetime : lifetimeTop5), true);
+    assert.equal(writes.length, 1);
+  } finally { release(); await dispose(); }
+});
+
+test("lifetime rank refresh continues after a role failure on an earlier member", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f), client = new EventEmitter(), state = spendingInteraction("rank");
+  f.context.config = { SPENDING_TOP1_ROLE_ID: f.top1, SPENDING_TOP5_ROLE_ID: f.top5 };
+  f.members.get(board[0]!.memberDiscordId)!.roles.add = async () => { throw new Error("Missing Permissions"); };
+  Object.assign(state.interaction, { guild: f.guild });
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {}, permissions: { canUse: () => true },
+    memberSpending: { leaderboard: async () => board },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    for (const entry of board.slice(1)) assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(f.top5), true);
+    assertFeatureError(state.edits[0], "Member Spending Card");
+  } finally { await dispose(); }
+});
+
+test("overlapping monthly refreshes read their rankings in order and finish with the latest winners", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f);
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  let reads = 0;
+  const store = { leaderboard: async () => {
+    if (++reads === 1) { await pending; return [board[0]!]; }
+    return [board[2]!];
+  } } as MemberSpendingStore;
+  const old = syncMonthlyRoles(f.context, store, f.guild);
+  await settle();
+  const latest = syncMonthlyRoles(f.context, store, f.guild);
+  await settle();
+  assert.equal(reads, 1);
+  release(); await Promise.all([old, latest]);
+  assert.equal(f.members.get(board[0]!.memberDiscordId)!.roles.cache.has(f.top1), false);
+  assert.equal(f.members.get(board[2]!.memberDiscordId)!.roles.cache.has(f.top1), true);
+});
+
+
+test("lifetime and monthly ranks share one REST member scan after a write", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f), client = new EventEmitter(), state = spendingInteraction("delete");
+  Object.assign(state.interaction, { guild: f.guild });
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {}, permissions: { canUse: () => true },
+    memberSpending: { remove: async () => true, leaderboard: async () => board },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(state.edits.length, 2);
+    assert.equal(f.listRequests.length, 1);
+    for (const [n, entry] of board.entries()) assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(n === 0 ? f.top1 : f.top5), true);
+    assert.equal(f.members.get(board[0]!.memberDiscordId)!.roles.cache.has(f.lifetime), true);
+  } finally { await dispose(); }
+});
+
+test("a failed purchase role and card publication still allow tier and ranking roles to be applied", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f), client = new EventEmitter(), state = spendingInteraction("add");
+  const purchaseRole = "777777777777777777", tierRole = "666666666666666666";
+  f.context.config = { ...f.context.config, SPENDING_FIRST_ROLE_ID: purchaseRole, SPENDING_UPGRADE_TIERS: [{ amount: 500, roleId: tierRole }] };
+  for (const role of [purchaseRole, tierRole]) f.guild.roles.cache.set(role, { id: role } as never);
+  const customer = f.members.get(board[2]!.memberDiscordId)!;
+  const add = customer.roles.add.bind(customer.roles);
+  customer.roles.add = (async (role: string) => { if (role === purchaseRole) throw new Error("Missing Permissions"); return add(role); }) as typeof customer.roles.add;
+  f.guild.members.fetch = (async () => customer) as typeof f.guild.members.fetch;
+  Object.assign(state.interaction, { guild: f.guild, channel: { isTextBased: () => true, send: async () => { throw new Error("Cannot send messages"); } } });
+  Object.assign(state.interaction.options, { getUser: () => ({ id: customer.id, username: "Customer", displayAvatarURL: () => defaultAvatar }), getInteger: () => 100 });
+  let writes = 0;
+  const dispose = await memberSpendingFeature.activate({ ...f.context, client, secrets: {}, presentations: {}, permissions: { canUse: () => true },
+    memberSpending: {
+      add: async () => { writes++; return board[2]; },
+      // The queue must use the latest balance, even when this write returned an older snapshot.
+      get: async () => ({ ...board[2], amountSatang: 100000 }),
+      leaderboard: async () => board,
+    },
+  } as unknown as FeatureContext);
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(writes, 1);
+    assert.equal(customer.roles.cache.has(tierRole), true);
+    assert.equal(customer.roles.cache.has(f.top5), true);
+    assert.equal(f.members.get(board[0]!.memberDiscordId)!.roles.cache.has(f.lifetime), true);
+    assert.equal(f.listRequests.length, 1);
+    const warning = assertFeatureError(state.edits[1], "Member Spending Card", "SPENDING_ROLE_SYNC_FAILED", true).description;
+    assert.match(warning, /ส่งบัตรไม่สำเร็จ/); assert.match(warning, /อัปเดตยศไม่ครบ/); assert.match(warning, /ไม่ต้องบันทึกยอดซ้ำ/);
+  } finally { await dispose(); }
+});
+
+test("a failed queued refresh does not block the next refresh", async () => {
+  const f = monthlyRoleFixture(true), board = fiveRankedMembers(f);
+  let reads = 0;
+  const store = { leaderboard: async () => { if (++reads === 1) throw new Error("Database unavailable"); return board; } } as MemberSpendingStore;
+  const failed = syncMonthlyRoles(f.context, store, f.guild);
+  const next = syncMonthlyRoles(f.context, store, f.guild);
+  await assert.rejects(failed, /Database unavailable/);
+  await next;
+  assert.equal(reads, 2);
+  for (const [n, entry] of board.entries()) assert.equal(f.members.get(entry.memberDiscordId)!.roles.cache.has(n === 0 ? f.top1 : f.top5), true);
 });
