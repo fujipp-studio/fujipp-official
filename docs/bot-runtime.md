@@ -291,6 +291,21 @@ after adds/updates/deletes, when viewing the current ranking, and every minute w
 the bot is online. Offline bots reconcile after reconnecting. Discord role
 hierarchy and Manage Roles permission must allow the configured changes.
 
+After a spending write, the card and saved-balance confirmation are sent before
+ranking role synchronization. The private confirmation shows that roles are
+pending, then reports completion or a partial-success warning without asking
+for the balance to be entered again. Adds, corrections, and deletions refresh
+lifetime ranking roles as well as monthly roles; corrections also reconcile the
+member's purchase and tier roles. Lifetime and monthly ranks share one paginated
+REST member scan per write. Role work is serialized per guild, with ranking
+reads inside the queue, so overlapping writes and scheduled refreshes cannot
+apply an older ranking after a newer one. A failed role change does not prevent
+other roles or members from being processed. Missing roles, insufficient Manage
+Roles permission, and unmanageable role hierarchy are reported instead of being
+silently skipped. Monthly roles retry during the next scheduled refresh;
+`/spending rank` and `/spending rank period:this_month` can refresh the respective
+ranking roles without repeating a balance write.
+
 Deploy migrations `20261026000001_member_spending_monthly.sql` and
 `20261026000002_member_spending_monthly_options.sql` to the active VPS database
 before the Backend, Frontend, and Runner update. Deploy the Backend and Runner

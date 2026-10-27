@@ -1,6 +1,6 @@
 import {ActionRowBuilder,EmbedBuilder,MessageFlags,ModalBuilder,PermissionFlagsBits,SlashCommandBuilder,TextInputBuilder,TextInputStyle,type ChatInputCommandInteraction,type GuildMember,type Interaction,type ModalSubmitInteraction,type SlashCommandSubcommandBuilder} from "discord.js";
 import type {FeatureContext,FeatureModule,MemberSpendingEntry,MemberSpendingStore,MemberSpendingMonthlySettings} from "../../types.js";
-import {featureErrorPayload,replyFeatureError} from "../errors.js";
+import {featureErrorPayload,replyFeatureError,safeErrorText} from "../errors.js";
 import {createOwnDatabaseStore} from "./store.js";
 
 import {monthlySettings,spendingMonth} from "./period.js";
@@ -74,11 +74,11 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
     const user=i.options.getUser("member",true),baht=i.options.getInteger("amount",true);
     await i.deferReply({flags:MessageFlags.Ephemeral});
     const e=await s.add(user.id,baht*100,i.id),member=await guild.members.fetch(user.id).catch(()=>null);
-    if(member)await applyRoles(c,member,e.amountSatang,e.txCount);
-    const monthlySynced=await syncMonthlyRolesAfterWrite(c,s,guild);
     const payload=render(c,e.txCount===1?"first_card":"returning_card",vars(c,user.id,member?.displayName??user.username,baht*100,e,member?.displayAvatarURL({extension:"png",size:256})??user.displayAvatarURL({extension:"png",size:256})));
-    if(i.channel?.isTextBased()&&"send" in i.channel)await i.channel.send(payload as never);
-    await i.editReply(monthlySynced?"อัปเดตบัตรสะสมเรียบร้อย":featureErrorPayload("member-spending","บันทึกยอดสะสมเรียบร้อย แต่อัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ",{code:"MONTHLY_ROLE_SYNC_FAILED",title:"บันทึกยอดแล้ว • อัปเดตยศไม่ครบ",warning:true}));return;
+    let cardError:unknown;
+    try {if(i.channel?.isTextBased()&&"send" in i.channel)await i.channel.send(payload as never);}
+    catch(error){cardError=error;console.error("Member Spending card publication failed after saving balances",error);}
+    await finishWrite(c,s,guild,i,"อัปเดตบัตรสะสมเรียบร้อย",e,member,cardError);return;
   }
   if(sub==="update") {
     const user=i.options.getUser("member",true);
@@ -87,8 +87,9 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
   const user=i.options.getUser("member")??i.user;
   await i.deferReply(sub==="delete"||sub==="check"||sub==="total"?{flags:MessageFlags.Ephemeral}:{});
   if(sub==="delete") {
-    const removed=await s.remove(user.id,i.id),monthlySynced=await syncMonthlyRolesAfterWrite(c,s,guild);
-    const result=removed?`ลบข้อมูล <@${user.id}> รวมทุกเดือนแล้ว`:"ไม่พบข้อมูลสมาชิก";await i.editReply(monthlySynced?{content:result}:featureErrorPayload("member-spending",`${result} (อัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ)`,{code:"MONTHLY_ROLE_SYNC_FAILED",title:"ดำเนินการแล้ว • อัปเดตยศไม่ครบ",warning:true}));return;
+    const removed=await s.remove(user.id,i.id);
+    const result=removed?`ลบข้อมูล <@${user.id}> รวมทุกเดือนแล้ว`:"ไม่พบข้อมูลสมาชิก";
+    await finishWrite(c,s,guild,i,result);return;
   }
   const month=selectedMonth(c,i);
   if(month&&!monthlySettings(c.config).enabled){await replyFeatureError(i,"member-spending","ระบบยอดสะสมรายเดือนปิดอยู่ กรุณาเปิดในหน้าตั้งค่า Member Spending Card ก่อน",{code:"MONTHLY_TRACKING_DISABLED"});return;}
@@ -101,9 +102,9 @@ async function command(c:FeatureContext,s:MemberSpendingStore,i:ChatInputCommand
     const e=await s.totals(month);await i.editReply({content:`ยอดรวม${month?`เดือน ${month}`:"ทั้งหมด"} ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`});return;
   }
   const board=await s.leaderboard(sub==="rank"?5:20,month);
-  if(!month)await syncRankRoles(c,guild,board);
+  if(!month&&(id(c.config.SPENDING_TOP1_ROLE_ID)||id(c.config.SPENDING_TOP5_ROLE_ID)))await queueRoleSync(guild,async()=>syncRankRoles(c,guild,await s.leaderboard(5)));
   // Historical browsing never awards roles for a previous month.
-  if(month===currentSpendingMonth(c))await syncMonthlyRoles(c,s,guild,board);
+  if(month===currentSpendingMonth(c))await syncMonthlyRoles(c,s,guild);
   const lines=board.map((e,n)=>`${n+1}. <@${e.memberDiscordId}> — ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง`).join("\n")||"ยังไม่มีข้อมูล";
   await i.editReply(render(c,month?"monthly_leaderboard":"leaderboard",{leaderboard_lines:lines,member_count:String(board.length),month:month??""}) as never);
 }
@@ -113,9 +114,8 @@ async function update(c:FeatureContext,s:MemberSpendingStore,i:ModalSubmitIntera
   if(amount===undefined&&count===undefined)return replyFeatureError(i,"member-spending","กรุณากรอกอย่างน้อยหนึ่งช่อง",{code:"INVALID_INPUT"});
   await i.deferReply({flags:MessageFlags.Ephemeral});
   const e=await s.set(id,{...(amount!==undefined?{amountSatang:amount}:{}),...(count!==undefined?{txCount:count}:{})},i.id);
-  const monthlySynced=await syncMonthlyRolesAfterWrite(c,s,i.guild!);
   const content=`ตั้งยอดรวมทั้งหมด <@${id}> เป็น ${money(e.amountSatang)} บาท · ${e.txCount} ครั้ง${monthlySettings(c.config).enabled?`\nรอบเดือน ${currentSpendingMonth(c)} เป็น ${money(e.thisMonthSatang??0)} บาท · ${e.thisMonthTxCount??0} ครั้ง (ปรับตามส่วนต่างแล้ว)`:" (ระบบรายเดือนปิดอยู่)"}`;
-  await i.editReply(monthlySynced?{content}:featureErrorPayload("member-spending",`${content}\nอัปเดตยศประจำเดือนไม่สำเร็จ ระบบจะลองใหม่อัตโนมัติ`,{code:"MONTHLY_ROLE_SYNC_FAILED",title:"แก้ยอดแล้ว • อัปเดตยศไม่ครบ",warning:true}));
+  await finishWrite(c,s,i.guild!,i,content,e);
 }
 function periodOptions(c:FeatureContext,x:SlashCommandSubcommandBuilder) {
   if(!monthlySettings(c.config).enabled)return x;
@@ -139,11 +139,56 @@ function monthlyRolesConfigured(c:FeatureContext) {
   return bool(c.config.SPENDING_MONTHLY_ROLES_ENABLED,false)&&!!(id(c.config.SPENDING_MONTHLY_TOP1_ROLE_ID)||id(c.config.SPENDING_MONTHLY_TOP5_ROLE_ID));
 }
 function monthlyRoleSyncEnabled(c:FeatureContext){return monthlyRolesConfigured(c)&&(monthlySettings(c.config).enabled||bool(c.config.SPENDING_MONTHLY_ROLES_RESET,true));}
-async function syncMonthlyRolesAfterWrite(c:FeatureContext,s:MemberSpendingStore,guild:NonNullable<ChatInputCommandInteraction["guild"]>):Promise<boolean> {
-  try {await syncMonthlyRoles(c,s,guild);return true;}
-  catch(error){console.error("Member Spending monthly role sync failed after saving balances",error);return false;}
+type SpendingGuild=NonNullable<ChatInputCommandInteraction["guild"]>;
+const roleSyncQueues=new WeakMap<SpendingGuild,Promise<unknown>>();
+// Read rankings inside the queue so an older refresh cannot overwrite a newer write.
+function queueRoleSync<T>(guild:SpendingGuild,task:()=>Promise<T>):Promise<T> {
+  const previous=roleSyncQueues.get(guild);
+  const next=(previous??Promise.resolve()).catch(()=>{}).then(task);
+  roleSyncQueues.set(guild,next);
+  void next.finally(()=>{if(roleSyncQueues.get(guild)===next)roleSyncQueues.delete(guild);}).catch(()=>{});
+  return next;
 }
-export async function syncMonthlyRoles(c:FeatureContext,s:MemberSpendingStore,guild:NonNullable<ChatInputCommandInteraction["guild"]>,board?:MemberSpendingEntry[],active:()=>boolean=()=>true) {
+async function attemptRoles(tasks:Array<()=>Promise<void>>) {
+  const errors:unknown[]=[];
+  for(const task of tasks)try{await task();}catch(error){errors.push(error);}
+  if(errors.length)throw new AggregateError(errors,`${errors.length} รายการอัปเดตยศไม่สำเร็จ: ${safeErrorText(errors[0] instanceof Error?errors[0].message:String(errors[0]),500)}`);
+}
+function tierRolesConfigured(c:FeatureContext){return !!id(c.config.SPENDING_FIRST_ROLE_ID)||(Array.isArray(c.config.SPENDING_UPGRADE_TIERS)&&c.config.SPENDING_UPGRADE_TIERS.some(t=>isRecord(t)&&!!id(t.roleId)));}
+async function finishWrite(c:FeatureContext,s:MemberSpendingStore,guild:SpendingGuild,i:ChatInputCommandInteraction|ModalSubmitInteraction,content:string,entry?:MemberSpendingEntry,member?:GuildMember|null,cardError?:unknown) {
+  const lifetime=!!(id(c.config.SPENDING_TOP1_ROLE_ID)||id(c.config.SPENDING_TOP5_ROLE_ID));
+  const tiers=!!entry&&tierRolesConfigured(c);
+  const cardWarning=cardError?`บันทึกยอดสะสมเรียบร้อย แต่ส่งบัตรไม่สำเร็จ: ${safeErrorText(cardError instanceof Error?cardError.message:String(cardError),500)}`:undefined;
+  if(!lifetime&&!tiers&&!monthlyRoleSyncEnabled(c)){
+    await i.editReply(cardWarning?featureErrorPayload("member-spending",`${cardWarning}\nไม่ต้องบันทึกยอดซ้ำ`,{code:"SPENDING_CARD_SEND_FAILED",title:"บันทึกยอดแล้ว • ส่งบัตรไม่สำเร็จ",warning:true}):content);return;
+  }
+  // Confirm the committed balance before Discord's member scan or role rate limits.
+  await i.editReply({content:`${cardWarning??content}\nกำลังอัปเดตยศ…`});
+  let snapshot:Promise<GuildMember[]>|undefined;
+  const members=()=>snapshot??=(async()=>{const result:GuildMember[]=[];for await(const member of rankingMembers(guild))result.push(member);return result;})();
+  let warning:ReturnType<typeof featureErrorPayload>|undefined=cardWarning?featureErrorPayload("member-spending",`${cardWarning}\nไม่ต้องบันทึกยอดซ้ำ`,{code:"SPENDING_CARD_SEND_FAILED",title:"บันทึกยอดแล้ว • ส่งบัตรไม่สำเร็จ",warning:true}):undefined;
+  try {
+    await queueRoleSync(guild,()=>attemptRoles([
+      ...(tiers?[async()=>{
+        const target=member??await guild.members.fetch(entry!.memberDiscordId);
+        if(!target)throw new Error("ไม่พบสมาชิกสำหรับอัปเดตยศ");
+        const latest=await s.get(entry!.memberDiscordId);
+        if(latest)await applyRoles(c,target,latest.amountSatang,latest.txCount);
+      }]:[]),
+      ...(lifetime?[async()=>syncRankRoles(c,guild,await s.leaderboard(5),members)]:[]),
+      async()=>reconcileMonthlyRoles(c,s,guild,undefined,()=>true,members),
+    ]));
+  } catch(error) {
+    console.error("Member Spending role sync failed after saving balances",error);
+    warning=featureErrorPayload("member-spending",`${cardWarning??content}\nอัปเดตยศไม่ครบ: ${safeErrorText(error instanceof Error?error.message:String(error),700)}\nตรวจสอบสิทธิ์และลำดับยศของบอท แล้วใช้ /spending rank เพื่อรีเฟรชยศยอดรวม หรือ /spending rank period:this_month สำหรับยศเดือนนี้ โดยไม่ต้องบันทึกยอดซ้ำ`,{code:"SPENDING_ROLE_SYNC_FAILED",title:"บันทึกยอดแล้ว • อัปเดตยศไม่ครบ",warning:true});
+  }
+  await i.editReply(warning?{...warning,content:null}:{content});
+}
+export async function syncMonthlyRoles(c:FeatureContext,s:MemberSpendingStore,guild:SpendingGuild,board?:MemberSpendingEntry[],active:()=>boolean=()=>true) {
+  if(!monthlyRoleSyncEnabled(c))return;
+  await queueRoleSync(guild,()=>reconcileMonthlyRoles(c,s,guild,board,active));
+}
+async function reconcileMonthlyRoles(c:FeatureContext,s:MemberSpendingStore,guild:SpendingGuild,board?:MemberSpendingEntry[],active:()=>boolean=()=>true,members?:()=>Promise<GuildMember[]>) {
   if(!monthlyRoleSyncEnabled(c))return;
   const top1=id(c.config.SPENDING_MONTHLY_TOP1_ROLE_ID),top5=id(c.config.SPENDING_MONTHLY_TOP5_ROLE_ID);
   const lifetimeRoles=[id(c.config.SPENDING_TOP1_ROLE_ID),id(c.config.SPENDING_TOP5_ROLE_ID),id(c.config.SPENDING_FIRST_ROLE_ID),...(Array.isArray(c.config.SPENDING_UPGRADE_TIERS)?c.config.SPENDING_UPGRADE_TIERS.flatMap(t=>isRecord(t)?[id(t.roleId)]:[]):[])];
@@ -151,13 +196,17 @@ export async function syncMonthlyRoles(c:FeatureContext,s:MemberSpendingStore,gu
   const ranked=monthlySettings(c.config).enabled?(board??await s.leaderboard(5,currentSpendingMonth(c))).filter(e=>e.amountSatang>0):[];
   if(!active())return;
   const reset=bool(c.config.SPENDING_MONTHLY_ROLES_RESET,true);
-  for await(const member of rankingMembers(guild,active)) {
+  const errors:unknown[]=[];
+  for await(const member of members?await members():rankingMembers(guild,active)) {
     if(!active())return;
     const first=member.id===ranked[0]?.memberDiscordId;
     const rest=ranked.slice(1,5).some(e=>e.memberDiscordId===member.id);
-    if(top1&&(reset||first))await safeRole(member,top1,first);
-    if(top5&&(reset||rest))await safeRole(member,top5,rest);
+    await attemptRoles([
+      ...(top1&&(reset||first)?[()=>safeRole(member,top1,first)]:[]),
+      ...(top5&&(reset||rest)?[()=>safeRole(member,top5,rest)]:[]),
+    ]).catch(error=>{errors.push(error);});
   }
+  if(errors.length)throw new AggregateError(errors,`${errors.length} สมาชิกอัปเดตยศประจำเดือนไม่สำเร็จ: ${safeErrorText(String(errors[0]),500)}`);
 }
 
 async function* rankingMembers(guild:NonNullable<ChatInputCommandInteraction["guild"]>,active:()=>boolean=()=>true):AsyncGenerator<GuildMember> {
@@ -176,9 +225,37 @@ async function* rankingMembers(guild:NonNullable<ChatInputCommandInteraction["gu
   }
 }
 
-async function applyRoles(c:FeatureContext,m:GuildMember,amount:number,count:number){const first=id(c.config.SPENDING_FIRST_ROLE_ID);if(first)await safeRole(m,first,true);const tiers=Array.isArray(c.config.SPENDING_UPGRADE_TIERS)?c.config.SPENDING_UPGRADE_TIERS.flatMap(x=>isRecord(x)&&Number(x.amount)>0&&id(x.roleId)?[{amount:Number(x.amount)*100,roleId:id(x.roleId)!}]:[]):[];const qualified=tiers.filter(t=>amount>=t.amount||(bool(c.config.SPENDING_COUNT_ENABLED,false)&&count>=num(c.config.SPENDING_UPGRADE_COUNT,5)));if(bool(c.config.SPENDING_TIER_STACK,true)){for(const t of qualified)await safeRole(m,t.roleId,true);}else for(const t of tiers)await safeRole(m,t.roleId,t===qualified.at(-1));}
-async function syncRankRoles(c:FeatureContext,guild:NonNullable<ChatInputCommandInteraction["guild"]>,board:Awaited<ReturnType<MemberSpendingStore["leaderboard"]>>){const top1=id(c.config.SPENDING_TOP1_ROLE_ID),top5=id(c.config.SPENDING_TOP5_ROLE_ID);if(!top1&&!top5)return;for await(const m of rankingMembers(guild)){if(top1)await safeRole(m,top1,m.id===board[0]?.memberDiscordId);if(top5)await safeRole(m,top5,board.slice(1,5).some(e=>e.memberDiscordId===m.id));}}
-async function safeRole(m:GuildMember,roleId:string,add:boolean){const role=m.guild.roles.cache.get(roleId),me=m.guild.members.me;if(!role||!me?.permissions.has(PermissionFlagsBits.ManageRoles)||me.roles.highest.comparePositionTo(role)<=0)return;if(add&&!m.roles.cache.has(roleId))await m.roles.add(roleId);if(!add&&m.roles.cache.has(roleId))await m.roles.remove(roleId);}
+async function applyRoles(c:FeatureContext,m:GuildMember,amount:number,count:number) {
+  const first=id(c.config.SPENDING_FIRST_ROLE_ID);
+  const tiers=Array.isArray(c.config.SPENDING_UPGRADE_TIERS)?c.config.SPENDING_UPGRADE_TIERS.flatMap(x=>isRecord(x)&&Number(x.amount)>0&&id(x.roleId)?[{amount:Number(x.amount)*100,roleId:id(x.roleId)!}]:[]):[];
+  const qualified=tiers.filter(t=>amount>=t.amount||(bool(c.config.SPENDING_COUNT_ENABLED,false)&&count>=num(c.config.SPENDING_UPGRADE_COUNT,5)));
+  const stack=bool(c.config.SPENDING_TIER_STACK,true);
+  await attemptRoles([
+    ...(first?[()=>safeRole(m,first,true)]:[]),
+    ...(stack?qualified:tiers).map(t=>()=>safeRole(m,t.roleId,stack||t===qualified.at(-1))),
+  ]);
+}
+async function syncRankRoles(c:FeatureContext,guild:SpendingGuild,board:MemberSpendingEntry[],members?:()=>Promise<GuildMember[]>) {
+  const top1=id(c.config.SPENDING_TOP1_ROLE_ID),top5=id(c.config.SPENDING_TOP5_ROLE_ID);
+  if(!top1&&!top5)return;
+  const errors:unknown[]=[];
+  for await(const m of members?await members():rankingMembers(guild)) {
+    await attemptRoles([
+      ...(top1?[()=>safeRole(m,top1,m.id===board[0]?.memberDiscordId)]:[]),
+      ...(top5?[()=>safeRole(m,top5,board.slice(1,5).some(e=>e.memberDiscordId===m.id))]:[]),
+    ]).catch(error=>{errors.push(error);});
+  }
+  if(errors.length)throw new AggregateError(errors,`${errors.length} สมาชิกอัปเดตยศยอดรวมไม่สำเร็จ: ${safeErrorText(String(errors[0]),500)}`);
+}
+async function safeRole(m:GuildMember,roleId:string,add:boolean) {
+  if(m.roles.cache.has(roleId)===add)return;
+  const role=m.guild.roles.cache.get(roleId);
+  const me=m.guild.members.me??await m.guild.members.fetchMe();
+  if(!role)throw new Error(`ไม่พบยศ ${roleId}`);
+  if(!me.permissions.has(PermissionFlagsBits.ManageRoles)||me.roles.highest.comparePositionTo(role)<=0||role.managed)
+    throw new Error(`บอทไม่มีสิทธิ์จัดการยศ ${roleId} กรุณาตรวจสอบ Manage Roles และลำดับยศ`);
+  if(add)await m.roles.add(roleId);else await m.roles.remove(roleId);
+}
 function render(c:FeatureContext,slot:string,v:Record<string,string>):Record<string,unknown>{if((slot==="leaderboard"||slot==="monthly_leaderboard")&&!isRecord(c.presentations[slot]))return{embeds:[new EmbedBuilder().setTitle(slot==="monthly_leaderboard"?`อันดับประจำเดือน ${v.month}`:"อันดับยอดสะสมทั้งหมด").setDescription(v.leaderboard_lines||"ยังไม่มีข้อมูล")]};const raw=isRecord(c.presentations[slot])?c.presentations[slot]:{};if(raw.mode==="COMPONENTS_V2"&&Array.isArray(raw.components))return{flags:MessageFlags.IsComponentsV2,components:deep(raw.components,v)};if(raw.mode==="EMBED"&&Array.isArray(raw.embeds))return{content:fill(String(raw.content??""),v)||undefined,embeds:deep(raw.embeds,v)};return{embeds:[new EmbedBuilder().setColor(0xe46daf).setTitle(fill(String(raw.title??"บัตรสะสมของ {{member}}"),v)).setDescription(fill(String(raw.description??"ยอดรอบนี้ {{today}} บาท\nยอดสะสม {{total}} บาท · {{count}} ครั้ง"),v)).setThumbnail(v.avatar??null)]};}
 function vars(c:FeatureContext,uid:string,name:string,today:number,e:MemberSpendingEntry,avatar:string){return{member:name,member_mention:`<@${uid}>`,today:money(today),total:money(e.amountSatang),count:String(e.txCount),this_month:money(monthlySettings(c.config).enabled?(e.thisMonthSatang??0):0),this_month_count:String(monthlySettings(c.config).enabled?(e.thisMonthTxCount??0):0),month:monthlySettings(c.config).enabled?currentSpendingMonth(c):"",avatar};}
 function deep(x:unknown,v:Record<string,string>):unknown{if(typeof x==="string")return fill(x,v);if(Array.isArray(x))return x.map(y=>deep(y,v));if(isRecord(x))return Object.fromEntries(Object.entries(x).map(([k,y])=>[k,deep(y,v)]));return x;}function fill(x:string,v:Record<string,string>){return x.replace(/\{\{([a-z0-9_]+)}}/gi,(_,k:string)=>v[k]??"");}
