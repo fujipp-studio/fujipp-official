@@ -78,9 +78,50 @@ async function setup() {
   await router.push(`/my-bot/${bot.id}/settings/packages/${license.id}`)
   const wrapper = mount(Harness, { global: { plugins: [router, i18n] } })
   await flushPromises()
+  await vi.dynamicImportSettled()
+  await flushPromises()
   return { editor, wrapper, router }
 }
 describe('feature settings save flow', () => {
+  it('keeps invalid Role Shop products unsavable after loading feature validation', async () => {
+    vi.mocked(fetchFeatureLicenses).mockResolvedValue([{ ...license, featureCode: 'role-shop' }])
+    const config = structuredClone(configuration)
+    config.fields = [
+      {
+        key: 'ROLE_SHOP_PRODUCTS',
+        label: 'Roles',
+        description: '',
+        type: 'JSON',
+        value: [],
+        defaultValue: [],
+        required: true,
+        secret: false,
+        configured: true,
+        validation: null,
+        ui: null,
+      },
+    ]
+    vi.mocked(fetchFeatureConfiguration).mockResolvedValue(config)
+    const { editor, wrapper } = await setup()
+    expect(editor.loading.value).toBe(false)
+    const role = { key: 'vip', name: 'VIP', roleId: '333333333333333333', priceSatang: 10025 }
+    editor.values.value.ROLE_SHOP_PRODUCTS = JSON.stringify([role, { ...role, key: 'premium' }])
+    expect(editor.hasChanges.value).toBe(true)
+    expect(editor.canSave.value).toBe(false)
+    editor.requestSave()
+    expect(editor.saveConfirmationOpen.value).toBe(false)
+    editor.values.value.ROLE_SHOP_PRODUCTS = JSON.stringify([role])
+    expect(editor.canSave.value).toBe(true)
+    editor.requestSave()
+    await editor.confirmSave()
+    expect(updateFeatureConfiguration).toHaveBeenCalledWith(
+      license.id,
+      expect.objectContaining({ values: { ROLE_SHOP_PRODUCTS: [role] } }),
+      session,
+    )
+    wrapper.unmount()
+  })
+
   it.each([0, 6])(
     'blocks a row of %i buttons from advanced JSON, then saves a repaired row',
     async (count) => {

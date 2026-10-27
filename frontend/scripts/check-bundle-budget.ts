@@ -3,6 +3,7 @@ import { join } from 'node:path'
 
 interface ManifestEntry {
   file: string
+  name?: string
   css?: string[]
   imports?: string[]
   isEntry?: boolean
@@ -12,12 +13,22 @@ const manifest = await Bun.file(join(distDirectory, '.vite', 'manifest.json')).j
 const entryKey = Object.keys(manifest).find(key => manifest[key]?.isEntry)
 if (!entryKey) throw new Error('Vite manifest does not contain an application entry.')
 
+function manifestEntry(key: string): ManifestEntry | undefined {
+  if (manifest[key]) return manifest[key]
+  // A module imported both statically and lazily may be emitted as a shared
+  // chunk without a source-path key. Count that chunk and all of its imports.
+  if (!key.endsWith('.ts')) return undefined
+  const name = key.slice(key.lastIndexOf('/') + 1, -3)
+  const shared = Object.values(manifest).filter(entry => entry.name === name)
+  return shared.length === 1 ? shared[0] : undefined
+}
+
 function collect(keys: string[]) {
   const files = new Set<string>(), visited = new Set<string>()
   function visit(key: string) {
     if (visited.has(key)) return
     visited.add(key)
-    const entry = manifest[key]
+    const entry = manifestEntry(key)
     if (!entry) throw new Error(`Bundle budget entry is missing: ${key}`)
     files.add(entry.file)
     entry.css?.forEach(file => files.add(file))
@@ -35,8 +46,13 @@ const settings = ['src/features/bots/views/BotSettingsFlowView.vue', 'src/featur
 const featureConfigs = [
   'MemberSpendingConfig', 'BotPresenceConfig', 'BotPermissionsConfig', 'ReviewCreditConfig',
   'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
-  'VoiceKeeperConfig', 'WalletTopupConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig',
+  'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig',
 ]
+const featurePreviews: Record<string, string> = {
+  WalletTopupConfig: 'src/features/bots/models/wallet-presentation-preview.ts',
+  PaymentTriggerConfig: 'src/features/bots/models/payment-trigger-presentation-preview.ts',
+  PriceReaderConfig: 'src/features/bots/models/price-reader-presentation-preview.ts',
+}
 const profiles = [
   {name:'Initial shell', keys:[], js:180, css:50},
   {name:'Home', keys:['src/features/home/views/HomeView.vue', ...translations('home')], js:150, css:50},
@@ -45,10 +61,10 @@ const profiles = [
   {name:'Feature config', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...featureConfigs.map(component => ({
     name: component,
-    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
+    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, ...(featurePreviews[component] ? [featurePreviews[component]!] : []), 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
     js:250, css:50,
   })),
-  {name:'Presentation editor', keys:[...settings, 'src/features/bots/components/FeaturePresentationEditor.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:260, css:50},
+  {name:'Presentation editor', keys:[...settings, 'src/features/bots/components/FeaturePresentationEditor.vue', ...Object.values(featurePreviews), 'src/features/bots/models/role-shop.ts', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:260, css:50},
 ]
 const sizes = new Map<string, number>()
 let failed = false
