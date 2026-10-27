@@ -7,6 +7,7 @@ const features = {
   "review-credit": ["Review Credit", "ตรวจสอบห้องรีวิว สิทธิ์อ่านข้อความย้อนหลัง และสิทธิ์จัดการห้องหรือยศของบอท"],
   "voice-keeper": ["Voice Keeper", "ตรวจสอบห้องเสียงและสิทธิ์ View Channel / Connect ของบอท"],
   "admin-message-tools": ["Admin Message Tools", "ตรวจสอบห้องหรือผู้รับ Message ID และสิทธิ์ส่งหรือแก้ไขข้อความของบอท"],
+  "role-shop": ["Role Shop", "ตรวจสอบยอดเงินใน Wallet และสิทธิ์ Manage Roles ของบอท"],
   "wallet-topup": ["Wallet Top-up", "ตรวจสอบสถานะรายการและประวัติกระเป๋าเงินก่อนทำรายการซ้ำ หากยังมีปัญหาให้ติดต่อผู้ดูแลร้าน"],
   "roblox-robux-payout": ["Robux Payout", "ตรวจสอบสถานะคำสั่งซื้อและประวัติการโอนก่อนทำรายการซ้ำ หรือติดต่อผู้ดูแลร้าน"],
   "roblox-payout-test": ["Roblox Payout Test", "ตรวจสอบการตั้งค่ากลุ่ม บัญชี Roblox และประวัติการโอนก่อนทดสอบซ้ำ"],

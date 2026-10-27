@@ -115,3 +115,7 @@ field, the runner and preview render that image using `{{qr_url}}`. Text and lin
 buttons keep the channel URL. This compatibility behavior covers flat/nested
 Embed designs, raw Embed arrays and Components V2 media without modifying saved
 designs.
+
+The `role-shop` feature shares this Wallet with Roblox Payout. Purchases and
+refunds appear in the same history; refunds are adjustments, not top-ups. See
+[Role Shop](role-shop.md) for setup and recovery behavior.

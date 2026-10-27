@@ -15,6 +15,7 @@ import { priceReaderPresentationPreview } from '../models/price-reader-presentat
 import { priceReaderSampleValues, validatePriceReaderDraft } from '../config/price-reader'
 import { parseMessageSets, validateMessageSets } from '../config/message-sets'
 import { clone, invalidActionRowPath } from '../models/presentation'
+import { roleShopProductsValid } from '../models/role-shop'
 import { walletPresentationPreview } from '../models/wallet-presentation-preview'
 import { paymentTriggerPresentationPreview } from '../models/payment-trigger-presentation-preview'
 import {
@@ -93,6 +94,7 @@ export function useFeatureSettings() {
   const isPaymentTriggerFeature = computed(() => license.value?.featureCode === 'payment-trigger')
   const usesPresentationDesigner = computed(
     () =>
+      license.value?.featureCode === 'role-shop' ||
       isWalletTopupFeature.value ||
       isRobloxPayoutFeature.value ||
       isPriceReaderFeature.value ||
@@ -315,7 +317,14 @@ export function useFeatureSettings() {
       savedSnapshot.value !== null &&
       draftSnapshot(configuration.value) !== savedSnapshot.value,
   )
-  const canSave = computed(() => hasChanges.value && !loading.value && !saving.value)
+  const canSave = computed(
+    () =>
+      hasChanges.value &&
+      !loading.value &&
+      !saving.value &&
+      (license.value?.featureCode !== 'role-shop' ||
+        roleShopProductsValid(values.value.ROLE_SHOP_PRODUCTS)),
+  )
 
   function draftSnapshot(config: FeatureConfiguration) {
     const fieldValues = Object.fromEntries(

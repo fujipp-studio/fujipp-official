@@ -67,6 +67,13 @@ export interface FeatureContext {
     refund(jobId: string, input: { errorCode:string; errorMessage:string }): Promise<RobuxPayoutRefund>;
     recoverable(): Promise<{ jobs:RobuxPayoutJob[] }>;
   };
+  roleShop: {
+    begin(input: RoleShopPurchaseInput): Promise<RoleShopPurchase>;
+    claim(id: string): Promise<RoleShopPurchase>;
+    complete(id: string, claimToken: string): Promise<RoleShopPurchase>;
+    refund(id: string, claimToken: string, reason: string): Promise<RoleShopPurchase>;
+    recoverable(): Promise<RoleShopPurchase[]>;
+  };
   memberSpending: MemberSpendingStore;
 }
 
@@ -106,3 +113,6 @@ export interface FeatureModule {
   supportsHotReload?: boolean;
   activate(context: FeatureContext): Promise<FeatureDisposer>;
 }
+
+export interface RoleShopPurchaseInput { memberDiscordId: string; productKey: string; roleId: string; priceSatang: number; idempotencyKey: string; }
+export interface RoleShopPurchase { id: string; memberDiscordId: string; productKey: string; productName: string; roleId: string; priceSatang: number; status: "DEBITED" | "PROCESSING" | "SUCCEEDED" | "REFUNDED"; balanceSatang: number; claimToken: string | null; createdAt: string; }

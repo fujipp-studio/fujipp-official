@@ -10,6 +10,7 @@ const ALLOWED_RPC_METHODS = new Set<keyof RuntimeApi>([
   "beginRobuxPayout", "claimRobuxPayout", "finishRobuxPayout", "refundRobuxPayout",
   "recoverableRobuxPayouts", "addMemberSpending", "setMemberSpending", "getMemberSpending",
   "removeMemberSpending", "memberSpendingLeaderboard", "memberSpendingTotals",
+  "beginRoleShopPurchase", "claimRoleShopPurchase", "completeRoleShopPurchase", "refundRoleShopPurchase", "recoverableRoleShopPurchases",
 ]);
 
 interface WorkerState { child: ChildProcess; fingerprint: string; restartFingerprint: string; stopping: boolean; crashes: number[]; }

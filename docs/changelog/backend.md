@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-27 | Added Wallet-backed Discord role purchases with atomic debits, duplicate protection, refunds and restart recovery, and restored QR images in existing Wallet designs. |
 | 2026-10-26 | Applied lifetime spending corrections to the active monthly cycle by their amount/count differences, with atomic rollback, retry protection, underflow checks and immediate monthly role refresh. |
 | 2026-10-26 | Fixed Member Spending ranking roles under Discord Gateway rate limits, including servers with more than 1,000 members, and added feature-specific error Embeds with private fallbacks and partial-success warnings while preserving configured failure designs. |
 | 2026-10-26 | Added opt-in monthly spending with configurable cycles, retry-safe updates and optional ranking roles, and applied feature Embed and Components V2 designs without restarting bots. Patched the Discord HTTP dependency to pass the security audit. |
