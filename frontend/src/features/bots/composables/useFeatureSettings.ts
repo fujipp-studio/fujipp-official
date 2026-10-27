@@ -735,7 +735,7 @@ export function useFeatureSettings() {
     if (isPriceReaderFeature.value)
       return priceReaderPresentationPreview(preview, presentationSampleValues(slotKey))
     if (isPaymentTriggerFeature.value) return paymentTriggerPresentationPreview(preview, slotKey)
-    return isWalletTopupFeature.value ? walletPresentationPreview(preview) : preview
+    return isWalletTopupFeature.value ? walletPresentationPreview(preview, slotKey) : preview
   }
 
   function toggleWalletMessage(slotKey: string) {

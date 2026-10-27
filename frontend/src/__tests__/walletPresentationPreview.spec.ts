@@ -98,3 +98,28 @@ describe('Wallet runtime presentation preview', () => {
     })
   })
 })
+
+it('repairs Embed QR image variables while retaining slip channel link targets', () => {
+  const original = {
+    mode: 'EMBED',
+    image: { url: '{{slip_channel_url}}' },
+    links: [{ url: '{{slip_channel_url}}' }],
+  }
+  const preview = walletPresentationPreview(original, 'promptpay_qr')
+  expect(preview.image).toEqual({ url: '{{qr_url}}' })
+  expect(preview.links).toEqual(original.links)
+  expect(original.image.url).toBe('{{slip_channel_url}}')
+})
+
+it('repairs Components V2 QR media while retaining slip channel link targets', () => {
+  const original = {
+    mode: 'COMPONENTS_V2',
+    image: { url: '{{slip_channel_url}}' },
+    links: [{ url: '{{slip_channel_url}}' }],
+  }
+  const preview = walletPresentationPreview(original, 'promptpay_qr')
+  const blocks = (preview.components as { components: unknown[] }[])[0]!.components
+  expect(blocks[3]).toMatchObject({ type: 12, items: [{ media: { url: '{{qr_url}}' } }] })
+  expect(blocks[4]).toMatchObject({ components: [{ style: 5, url: '{{slip_channel_url}}' }] })
+  expect(original.image.url).toBe('{{slip_channel_url}}')
+})

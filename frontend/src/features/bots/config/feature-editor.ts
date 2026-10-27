@@ -487,7 +487,10 @@ export const variableDescriptions: Record<string, [english: string, thai: string
   qr_image_url: ['Configured bank QR image URL', 'URL รูป QR ธนาคารที่ตั้งค่าไว้'],
   wallet_number: ['Configured Wallet recipient number', 'หมายเลข Wallet ที่ตั้งค่าไว้'],
   trigger: ['Configured message trigger', 'ข้อความ Trigger ที่ตั้งค่าไว้'],
-  slip_channel_url: ['Link to the slip submission channel', 'ลิงก์ไปยังห้องส่งสลิป'],
+  slip_channel_url: [
+    'Slip channel link (use in a link button, not an image)',
+    'ลิงก์ห้องส่งสลิป ใช้กับปุ่มลิงก์ ส่วนรูป QR ใช้ {{qr_url}}',
+  ],
   account_name: ['PromptPay account name', 'ชื่อบัญชีพร้อมเพย์'],
   truemoney_fee: ['TrueMoney service fee', 'ค่าธรรมเนียม TrueMoney'],
   auto_renew: ['Current automatic renewal setting', 'สถานะการต่ออายุอัตโนมัติ'],

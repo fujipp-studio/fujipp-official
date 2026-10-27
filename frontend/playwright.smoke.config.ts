@@ -14,6 +14,7 @@ export default defineConfig({
     'review-credit.smoke.spec.ts',
     'voice-keeper.smoke.spec.ts',
     'wallet-topup.smoke.spec.ts',
+    'wallet-qr.smoke.spec.ts',
     'roblox-payout.smoke.spec.ts',
     'channel-message-triggers.smoke.spec.ts',
     'payment-trigger.smoke.spec.ts',

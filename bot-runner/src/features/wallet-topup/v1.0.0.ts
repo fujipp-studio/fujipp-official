@@ -8,6 +8,7 @@ import type { FeatureContext, FeatureModule, WalletAdjustmentOperation, WalletAd
 import { RuntimeApiError } from "../../api-client.js";
 import { finalizeSuccessfulTopupRoles, runRoleRemoval } from "./role-actions.js";
 import { topSpenderRolePolicy } from "./role-policy.js";
+import { normalizeWalletQrMedia } from "./presentation-media.js";
 import { LatestSyncCoordinator } from "./sync-coordinator.js";
 
 type TopSpenderSyncResult = { updated: number; errors: string[] };
@@ -267,8 +268,14 @@ async function verifySlip(context: FeatureContext, pending: Map<string, PendingS
   await notify(context,successVars(interaction.user.id,result,"ระบบ","เติมเงินสำเร็จ","-"));
 }
 
+export function renderWalletPresentation(context:FeatureContext,slot:string,values:Record<string,string>,ephemeral:boolean): never {
+  return render(context,slot,values,ephemeral);
+}
+
 function render(context:FeatureContext,slot:string,values:Record<string,string>,ephemeral:boolean): never {
-  const raw=isRecord(context.presentations[slot])?context.presentations[slot]:{};
+  values={slip_channel_url:slipChannelUrl(context),...values};
+  const configured=isRecord(context.presentations[slot])?context.presentations[slot]:{};
+  const raw=(slot==="promptpay_qr"?normalizeWalletQrMedia(configured):configured) as Record<string,unknown>;
   if(slot==="failed"&&!Object.keys(raw).length)return {...featureErrorPayload("wallet-topup",values.failure_reason??"เติมเงินไม่สำเร็จ",{code:values.failure_code??"WALLET_OPERATION_FAILED"}),...(ephemeral?{flags:MessageFlags.Ephemeral}:{})} as never;
   // Advanced overrides may provide the complete Discord payload. Every nested
   // string is templated and `{ "action": "wallet.topup" }` becomes the stable
@@ -303,7 +310,7 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
   const row=buttons.length?new ActionRowBuilder<ButtonBuilder>().addComponents(buttons):undefined;
   if (raw.mode === "EMBED") return {
     content:replace(String(definition.content??""),values)||undefined,
-    embeds:[{title,url:optionalText(definition.url,values),description,color:embedColor(definition.color),author:embedAuthor(definition.author,values),fields:Array.isArray(definition.fields)?deepRender(definition.fields,values):[],footer:embedFooter(definition.footer,values),timestamp:embedTimestamp(definition.timestamp),image:urlObject(replace(String(definition.image_url??""),values)),thumbnail:urlObject(replace(String(definition.thumbnail_url??""),values))}],
+    embeds:[{title,url:optionalText(definition.url,values),description,color:embedColor(definition.color),author:embedAuthor(definition.author,values),fields:Array.isArray(definition.fields)?deepRender(definition.fields,values):[],footer:embedFooter(definition.footer,values),timestamp:embedTimestamp(definition.timestamp),image:urlObject(renderImageUrl(definition.image_url??definition.image,values)),thumbnail:urlObject(renderImageUrl(definition.thumbnail_url??definition.thumbnail,values))}],
     components:row?[row]:[],...(ephemeral?{flags:MessageFlags.Ephemeral}:{})
   } as never;
   if (Array.isArray(definition.components)) {
@@ -312,7 +319,7 @@ function render(context:FeatureContext,slot:string,values:Record<string,string>,
     return {flags:(ephemeral?MessageFlags.Ephemeral:0)|MessageFlags.IsComponentsV2,components} as never;
   }
   const parts:unknown[]=[{type:10,content:`# ${title}\n`},{type:14,divider:true,spacing:2},{type:10,content:description}];
-  const image=replace(String(definition.image_url??""),values); if(image) parts.push({type:12,items:[{media:{url:image}}]});
+  const image=renderImageUrl(definition.image_url??definition.image,values); if(image) parts.push({type:12,items:[{media:{url:image}}]});
   if(row) parts.push(row.toJSON());
   return {flags:(ephemeral?MessageFlags.Ephemeral:0)|MessageFlags.IsComponentsV2,components:[{type:17,components:parts}]} as never;
 }
@@ -352,6 +359,7 @@ function deepRender(value:unknown,values:Record<string,string>):unknown {
   return value;
 }
 function urlObject(url:string){return url?{url}:undefined;}
+function renderImageUrl(value:unknown,values:Record<string,string>){return replace(String(isRecord(value)?value.url??"":value??""),values);}
 function optionalText(value:unknown,values:Record<string,string>){const rendered=replace(String(value??""),values);return rendered||undefined;}
 function embedAuthor(value:unknown,values:Record<string,string>){if(!isRecord(value))return undefined;const name=optionalText(value.name,values);if(!name)return undefined;return{name,url:optionalText(value.url,values),icon_url:optionalText(value.icon_url,values)};}
 function embedFooter(value:unknown,values:Record<string,string>){const footer=isRecord(value)?value:{text:value};const text=optionalText(footer.text,values);if(!text)return undefined;return{text,icon_url:optionalText(footer.icon_url,values)};}

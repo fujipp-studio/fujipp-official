@@ -264,8 +264,8 @@ const sampleByVariable: Record<string, string> = {
   error: 'ไม่พบข้อผิดพลาด',
   avatar: '/images/profile/avatar-placeholder.png',
   member_avatar_url: '/images/profile/avatar-placeholder.png',
-  qr_url: 'ตัวอย่างรูป QR PromptPay',
-  slip_channel_url: '#ตรวจสอบสลิป',
+  qr_url: '/images/preview/promptpay-qr.svg',
+  slip_channel_url: 'https://discord.com/channels/123456789012345678/234567890123456789',
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
