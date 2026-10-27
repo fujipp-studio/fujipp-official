@@ -11,7 +11,7 @@ final class WalletResponses {
     record Topup(UUID transactionId, long creditedSatang, long balanceSatang,
                  String currency, String method, boolean created, OffsetDateTime completedAt) {}
     record PromptPaySession(UUID sessionId, long amountSatang, String currency,
-                            String accountName, String qrUrl, OffsetDateTime expiresAt) {}
+                            String accountName, String qrUrl, OffsetDateTime expiresAt, String qrImageDataUri) {}
     record Adjustment(UUID transactionId, long adjustmentSatang, long balanceSatang,
                       String currency, String operation, boolean created, OffsetDateTime completedAt) {}
     record HistoryEntry(UUID transactionId, String kind, long amountSatang, long balanceAfterSatang,

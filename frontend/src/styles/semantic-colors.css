@@ -7,6 +7,9 @@
  */
 
 :root {
+  /* Payment QR images keep their paper and ink colors in either app theme. */
+  --semantic-color-qr-paper: var(--global-color-white-100);
+  --semantic-color-qr-ink: var(--global-color-gray-800);
   --semantic-color-seasonal-ghost-body: var(--global-color-gray-50);
   --semantic-color-seasonal-ghost-outline: var(--global-color-gray-400);
   --semantic-color-seasonal-ghost-ink: var(--global-color-gray-800);

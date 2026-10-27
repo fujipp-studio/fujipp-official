@@ -17,8 +17,8 @@ function manifestEntry(key: string): ManifestEntry | undefined {
   if (manifest[key]) return manifest[key]
   // A module imported both statically and lazily may be emitted as a shared
   // chunk without a source-path key. Count that chunk and all of its imports.
-  if (!key.endsWith('.ts')) return undefined
-  const name = key.slice(key.lastIndexOf('/') + 1, -3)
+  if (!/\.(ts|vue)$/.test(key)) return undefined
+  const name = key.slice(key.lastIndexOf('/') + 1).replace(/\.(ts|vue)$/, '')
   const shared = Object.values(manifest).filter(entry => entry.name === name)
   return shared.length === 1 ? shared[0] : undefined
 }
@@ -48,10 +48,10 @@ const featureConfigs = [
   'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
   'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig',
 ]
-const featurePreviews: Record<string, string> = {
-  WalletTopupConfig: 'src/features/bots/models/wallet-presentation-preview.ts',
-  PaymentTriggerConfig: 'src/features/bots/models/payment-trigger-presentation-preview.ts',
-  PriceReaderConfig: 'src/features/bots/models/price-reader-presentation-preview.ts',
+const featurePreviews: Record<string, string[]> = {
+  WalletTopupConfig: ['src/features/bots/models/wallet-presentation-preview.ts', 'src/features/bots/models/wallet-qr-watermark.ts'],
+  PaymentTriggerConfig: ['src/features/bots/models/payment-trigger-presentation-preview.ts'],
+  PriceReaderConfig: ['src/features/bots/models/price-reader-presentation-preview.ts'],
 }
 const profiles = [
   {name:'Initial shell', keys:[], js:180, css:50},
@@ -61,10 +61,15 @@ const profiles = [
   {name:'Feature config', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...featureConfigs.map(component => ({
     name: component,
-    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, ...(featurePreviews[component] ? [featurePreviews[component]!] : []), 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
+    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, ...(featurePreviews[component] ?? []), 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
     js:250, css:50,
   })),
-  {name:'Presentation editor', keys:[...settings, 'src/features/bots/components/FeaturePresentationEditor.vue', ...Object.values(featurePreviews), 'src/features/bots/models/role-shop.ts', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:260, css:50},
+  ...['WalletCommandsSettings', 'WalletMilestonesEditor'].map(component => ({
+    name: `Wallet ${component}`,
+    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/WalletTopupConfig.vue', `src/features/bots/components/${component}.vue`, ...featurePreviews.WalletTopupConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50,
+  })),
+  {name:'Wallet QR appearance', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/WalletTopupConfig.vue', 'src/features/bots/components/WalletQrWatermarkSettings.vue', ...featurePreviews.WalletTopupConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
+  {name:'Presentation editor', keys:[...settings, 'src/features/bots/components/FeaturePresentationEditor.vue', ...Object.values(featurePreviews).flat(), 'src/features/bots/models/role-shop.ts', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:260, css:50},
 ]
 const sizes = new Map<string, number>()
 let failed = false

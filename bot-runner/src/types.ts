@@ -89,7 +89,7 @@ export interface MemberSpendingStore {
 }
 
 export interface WalletTopupResult { transactionId: string; creditedSatang: number; balanceSatang: number; currency: string; method: string; created: boolean; completedAt: string; }
-export interface PromptPaySession { sessionId: string; amountSatang: number; currency: string; accountName: string; qrUrl: string; expiresAt: string; }
+export interface PromptPaySession { sessionId: string; amountSatang: number; currency: string; accountName: string; qrUrl: string; expiresAt: string; qrImageDataUri?: string; }
 export type WalletAdjustmentOperation = "ADD" | "REMOVE" | "SET";
 export interface WalletAdjustmentResult { transactionId: string; adjustmentSatang: number; balanceSatang: number; currency: string; operation: WalletAdjustmentOperation; created: boolean; completedAt: string; }
 export interface WalletHistoryEntry { transactionId:string; kind:string; amountSatang:number; balanceAfterSatang:number; method:string; reason:string; createdAt:string; }

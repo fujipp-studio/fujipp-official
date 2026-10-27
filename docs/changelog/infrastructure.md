@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-27 | Included fontconfig and a bundled Thai font so Backend QR text watermarks render in the production container. |
 | 2026-10-21 | Added a private resource-limited VPS PostgreSQL stack, scheduled backups, snapshot verification and isolated Backend migration rehearsals. |
 | 2026-10-21 | Reduced duplicated Frontend CI/CD work with affected test selection, parallel checks, dependency caching, a reusable production build artifact, and Vue-aware dependency parsing that resolves the new CodeQL finding. |
 | 2026-10-20 | Added per-feature configuration bundle budgets, made Vue development tools opt-in, and normalized Maven wrapper line endings so merged CI checkouts remain clean. |

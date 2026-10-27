@@ -280,7 +280,7 @@ export function useFeatureSettings() {
   const presentationJson = ref<Record<string, string>>({})
   const advancedSlots = ref(new Set<string>())
   const walletExpandedSlots = ref(new Set<string>())
-  const roleShopValidator = shallowRef<typeof import('../models/role-shop').roleShopProductsValid>()
+  const featureValidator = shallowRef<(draft: Record<string, EditableValue>) => boolean>()
   const featurePreview =
     shallowRef<(definition: Record<string, unknown>, slotKey: string) => Record<string, unknown>>()
 
@@ -321,8 +321,8 @@ export function useFeatureSettings() {
       hasChanges.value &&
       !loading.value &&
       !saving.value &&
-      (license.value?.featureCode !== 'role-shop' ||
-        (roleShopValidator.value?.(values.value.ROLE_SHOP_PRODUCTS) ?? false)),
+      (!['role-shop', 'wallet-topup'].includes(license.value?.featureCode ?? '') ||
+        (featureValidator.value?.(values.value) ?? false)),
   )
 
   function draftSnapshot(config: FeatureConfiguration) {
@@ -775,7 +775,7 @@ export function useFeatureSettings() {
   async function load() {
     loading.value = true
     error.value = ''
-    roleShopValidator.value = undefined
+    featureValidator.value = undefined
     featurePreview.value = undefined
     permissionCommandFeatures.value = []
     if (!initialized.value) await authStore.initialize()
@@ -792,12 +792,19 @@ export function useFeatureSettings() {
         ? await fetchAdminFeatureConfiguration(flowBotId.value, licenseId.value, session.value)
         : await fetchFeatureConfiguration(licenseId.value, session.value)
       license.value = allLicenses.find((item) => item.id === licenseId.value) ?? null
-      if (license.value?.featureCode === 'role-shop')
-        roleShopValidator.value = (await import('../models/role-shop')).roleShopProductsValid
-      if (isWalletTopupFeature.value)
-        featurePreview.value = (
-          await import('../models/wallet-presentation-preview')
-        ).walletPresentationPreview
+      if (license.value?.featureCode === 'role-shop') {
+        const { roleShopProductsValid } = await import('../models/role-shop')
+        featureValidator.value = (draft) => roleShopProductsValid(draft.ROLE_SHOP_PRODUCTS)
+      }
+      if (isWalletTopupFeature.value) {
+        const [preview, watermark] = await Promise.all([
+          import('../models/wallet-presentation-preview'),
+          import('../models/wallet-qr-watermark'),
+        ])
+        featurePreview.value = preview.walletPresentationPreview
+        featureValidator.value = (draft) =>
+          watermark.walletQrWatermarkValid(draft.PROMPTPAY_QR_WATERMARK)
+      }
       if (isPaymentTriggerFeature.value)
         featurePreview.value = (
           await import('../models/payment-trigger-presentation-preview')

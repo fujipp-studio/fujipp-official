@@ -1,6 +1,10 @@
 package com.fujipp.backend.wallet;
 
 import com.fujipp.backend.store.StoreSecretCipher;
+import com.fujipp.backend.topup.PromptPayQrGenerator;
+import com.fujipp.backend.topup.TopupException;
+import com.fujipp.backend.topup.QrWatermark;
+import tools.jackson.databind.ObjectMapper;
 import com.fujipp.backend.voucher.RedeemTrueMoneyVoucherRequest;
 import com.fujipp.backend.voucher.VoucherRedemptionResponse;
 import com.fujipp.backend.voucher.VoucherService;
@@ -15,9 +19,12 @@ class WalletService {
     private final VoucherService vouchers;
     private final SlipOkAdapter slipOk;
     private final StoreSecretCipher cipher;
+    private final PromptPayQrGenerator promptPayQr;
+    private final ObjectMapper json;
 
-    WalletService(WalletRepository repository, VoucherService vouchers, SlipOkAdapter slipOk, StoreSecretCipher cipher) {
-        this.repository=repository; this.vouchers=vouchers; this.slipOk=slipOk; this.cipher=cipher;
+    WalletService(WalletRepository repository, VoucherService vouchers, SlipOkAdapter slipOk, StoreSecretCipher cipher,
+                  PromptPayQrGenerator promptPayQr,ObjectMapper json) {
+        this.repository=repository; this.vouchers=vouchers; this.slipOk=slipOk; this.cipher=cipher; this.promptPayQr=promptPayQr; this.json=json;
     }
 
     WalletResponses.Balance balance(java.util.UUID botId,String memberId) {
@@ -50,10 +57,17 @@ class WalletService {
         int expiryMinutes = settings.qrExpiryMinutes() == null
                 ? 5
                 : Math.max(1, Math.min(60, settings.qrExpiryMinutes()));
+        PromptPayQrGenerator.PaymentQr image;
+        try {
+            var watermark=QrWatermark.parse(settings.qrWatermark()==null?null:json.readTree(settings.qrWatermark()),settings.botName());
+            image=promptPayQr.generate(settings.promptPayId(),request.amountSatang(),watermark);
+        }
+        catch (IllegalArgumentException error) { throw new WalletException("INVALID_QR_WATERMARK",error.getMessage()); }
+        catch (TopupException error) { throw new WalletException(error.code(),error.getMessage()); }
         WalletRepository.PromptSession session=repository.createPromptPay(request, expiryMinutes);
         String amount=java.math.BigDecimal.valueOf(request.amountSatang(),2).toPlainString();
         String qr="https://promptpay.io/"+URLEncoder.encode(settings.promptPayId(),StandardCharsets.UTF_8)+"/"+amount+".png";
-        return new WalletResponses.PromptPaySession(session.id(),session.amount(),"THB",settings.accountName(),qr,session.expiresAt());
+        return new WalletResponses.PromptPaySession(session.id(),session.amount(),"THB",settings.accountName(),qr,session.expiresAt(),image.imageDataUri());
     }
 
     WalletResponses.Topup verifySlip(WalletRequests.VerifySlip request) {
