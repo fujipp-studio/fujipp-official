@@ -23,21 +23,30 @@ const PriceMapEditor = defineAsyncComponent(() => import('./PriceMapEditor.vue')
 const RobuxPackagesEditor = defineAsyncComponent(() => import('./RobuxPackagesEditor.vue'))
 const StringListEditor = defineAsyncComponent(() => import('./StringListEditor.vue'))
 const ThresholdRoleEditor = defineAsyncComponent(() => import('./ThresholdRoleEditor.vue'))
-const CommandPermissionsEditor = defineAsyncComponent(() => import('./CommandPermissionsEditor.vue'))
-const MessageTriggerRulesEditor = defineAsyncComponent(() => import('./MessageTriggerRulesEditor.vue'))
+const CommandPermissionsEditor = defineAsyncComponent(
+  () => import('./CommandPermissionsEditor.vue'),
+)
+const MessageTriggerRulesEditor = defineAsyncComponent(
+  () => import('./MessageTriggerRulesEditor.vue'),
+)
 const MemberSpendingConfig = defineAsyncComponent(() => import('./MemberSpendingConfig.vue'))
 const BotPresenceConfig = defineAsyncComponent(() => import('./BotPresenceConfig.vue'))
 const BotPermissionsConfig = defineAsyncComponent(() => import('./BotPermissionsConfig.vue'))
 const ReviewCreditConfig = defineAsyncComponent(() => import('./ReviewCreditConfig.vue'))
-const ChannelMessageTriggersConfig = defineAsyncComponent(() => import('./ChannelMessageTriggersConfig.vue'))
+const ChannelMessageTriggersConfig = defineAsyncComponent(
+  () => import('./ChannelMessageTriggersConfig.vue'),
+)
 const PaymentTriggerConfig = defineAsyncComponent(() => import('./PaymentTriggerConfig.vue'))
 const ShopStatusConfig = defineAsyncComponent(() => import('./ShopStatusConfig.vue'))
 const MessageSetsConfig = defineAsyncComponent(() => import('./MessageSetsConfig.vue'))
 const PriceReaderConfig = defineAsyncComponent(() => import('./PriceReaderConfig.vue'))
 const VoiceKeeperConfig = defineAsyncComponent(() => import('./VoiceKeeperConfig.vue'))
+const RoleShopConfig = defineAsyncComponent(() => import('./RoleShopConfig.vue'))
 const WalletTopupConfig = defineAsyncComponent(() => import('./WalletTopupConfig.vue'))
 const RobloxPayoutConfig = defineAsyncComponent(() => import('./RobloxPayoutConfig.vue'))
-const RuntimeExpiryAlertConfig = defineAsyncComponent(() => import('./RuntimeExpiryAlertConfig.vue'))
+const RuntimeExpiryAlertConfig = defineAsyncComponent(
+  () => import('./RuntimeExpiryAlertConfig.vue'),
+)
 
 const { t } = useI18n()
 const {
@@ -63,6 +72,7 @@ const isBotPresence = computed(() => license.value?.featureCode === 'bot-presenc
 const isBotPermissions = computed(() => license.value?.featureCode === 'bot-permissions')
 const isReviewCredit = computed(() => license.value?.featureCode === 'review-credit')
 const isVoiceKeeper = computed(() => license.value?.featureCode === 'voice-keeper')
+const isRoleShop = computed(() => license.value?.featureCode === 'role-shop')
 const isWalletTopup = computed(() => license.value?.featureCode === 'wallet-topup')
 const isMessageTriggers = computed(() => license.value?.featureCode === 'channel-message-triggers')
 const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
@@ -78,6 +88,7 @@ const hasCustomConfig = computed(
     isReviewCredit.value ||
     isVoiceKeeper.value ||
     isWalletTopup.value ||
+    isRoleShop.value ||
     isRobloxPayoutFeature.value ||
     isMessageTriggers.value ||
     isPaymentTrigger.value ||
@@ -95,6 +106,12 @@ const genericFields = computed(
         (!isBotPermissions.value || !botPermissionsConfigKeys.has(field.key)) &&
         (!isReviewCredit.value || !reviewCreditConfigKeys.has(field.key)) &&
         (!isVoiceKeeper.value || !voiceKeeperConfigKeys.has(field.key)) &&
+        (!isRoleShop.value ||
+          ![
+            'ROLE_SHOP_PRODUCTS',
+            'ROLE_SHOP_COMMAND_NAME',
+            'ROLE_SHOP_NOTIFICATION_CHANNEL_ID',
+          ].includes(field.key)) &&
         (!isWalletTopup.value || !walletTopupConfigKeys.has(field.key)) &&
         (!isRobloxPayoutFeature.value || !robloxPayoutConfigKeys.has(field.key)) &&
         (!isMessageTriggers.value || !channelMessageTriggerConfigKeys.has(field.key)) &&
@@ -136,6 +153,7 @@ function robuxGroupRates() {
     <BotPermissionsConfig v-else-if="isBotPermissions" />
     <ReviewCreditConfig v-else-if="isReviewCredit" />
     <VoiceKeeperConfig v-else-if="isVoiceKeeper" />
+    <RoleShopConfig v-else-if="isRoleShop" />
     <WalletTopupConfig v-else-if="isWalletTopup" />
     <RobloxPayoutConfig v-else-if="isRobloxPayoutFeature" />
     <ChannelMessageTriggersConfig v-else-if="isMessageTriggers" />

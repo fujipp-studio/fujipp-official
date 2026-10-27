@@ -147,6 +147,13 @@ export class BotManager {
               begin: (input) => this.api.beginRobuxPayout(bot.id,input), claim: (jobId) => this.api.claimRobuxPayout(bot.id,jobId),
               outcome: (jobId,input) => this.api.finishRobuxPayout(bot.id,jobId,input), refund: (jobId,input) => this.api.refundRobuxPayout(bot.id,jobId,input), recoverable: () => this.api.recoverableRobuxPayouts(bot.id),
             },
+            roleShop: {
+              begin: (input) => this.api.beginRoleShopPurchase(bot.id,input),
+              claim: (id) => this.api.claimRoleShopPurchase(bot.id,id),
+              complete: (id,token) => this.api.completeRoleShopPurchase(bot.id,id,token),
+              refund: (id,token,reason) => this.api.refundRoleShopPurchase(bot.id,id,token,reason),
+              recoverable: () => this.api.recoverableRoleShopPurchases(bot.id),
+            },
             memberSpending: {
               add: (memberDiscordId,deltaSatang,key) => this.api.addMemberSpending(bot.id,memberDiscordId,deltaSatang,key), set: (memberDiscordId,input,key) => this.api.setMemberSpending(bot.id,memberDiscordId,input,key),
               get: (memberDiscordId,month) => this.api.getMemberSpending(bot.id,memberDiscordId,month), remove: (memberDiscordId,key) => this.api.removeMemberSpending(bot.id,memberDiscordId,key),

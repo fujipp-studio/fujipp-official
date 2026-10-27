@@ -28,7 +28,27 @@ function expandActions(value: unknown): unknown {
 }
 
 /** Preview-only conversion matching wallet-topup/v1.0.0.ts render(). Never saved. */
-export function walletPresentationPreview(raw: Definition): Definition {
+export function normalizeWalletQrMedia(value: unknown, media = false): unknown {
+  if (typeof value === 'string')
+    return media ? value.replace(/\{\{slip_channel_url}}/g, '{{qr_url}}') : value
+  if (Array.isArray(value)) return value.map((item) => normalizeWalletQrMedia(item, media))
+  if (isRecord(value))
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        normalizeWalletQrMedia(
+          item,
+          media || ['image_url', 'thumbnail_url', 'image', 'thumbnail', 'media'].includes(key),
+        ),
+      ]),
+    )
+  return value
+}
+
+export function walletPresentationPreview(configured: Definition, slotKey = ''): Definition {
+  const raw = (
+    slotKey === 'promptpay_qr' ? normalizeWalletQrMedia(configured) : configured
+  ) as Definition
   if (raw.mode !== 'COMPONENTS_V2') return raw
   // Complete payload overrides take precedence over flat or nested designs.
   if (Array.isArray(raw.components))
@@ -69,8 +89,9 @@ export function walletPresentationPreview(raw: Definition): Definition {
     { type: 14, divider: true, spacing: 2 },
     { type: 10, content: String(definition.description ?? '') },
   ]
-  if (definition.image_url)
-    children.push({ type: 12, items: [{ media: { url: String(definition.image_url) } }] })
+  const image = definition.image_url ?? definition.image
+  const imageUrl = isRecord(image) ? image.url : image
+  if (imageUrl) children.push({ type: 12, items: [{ media: { url: String(imageUrl) } }] })
   if (row) children.push(row)
   return { mode: 'COMPONENTS_V2', components: [{ type: 17, components: children }] }
 }

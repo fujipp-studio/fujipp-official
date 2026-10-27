@@ -227,6 +227,10 @@ const sampleByVariable: Record<string, string> = {
   roblox_username: 'FujippPlayer',
   roblox_id: '123456789',
   idRoblox: '123456789',
+  product_name: 'VIP',
+  role_mention: '@VIP',
+  product_lines: '• @VIP — 100.00 THB\n• @Premium — 250.00 THB',
+  transaction_id: 'ROLE-A8F2K9',
   group_name: 'Fujipp Community',
   group_id: '987654321',
   group_robux: '24,580',
@@ -264,8 +268,8 @@ const sampleByVariable: Record<string, string> = {
   error: 'ไม่พบข้อผิดพลาด',
   avatar: '/images/profile/avatar-placeholder.png',
   member_avatar_url: '/images/profile/avatar-placeholder.png',
-  qr_url: 'ตัวอย่างรูป QR PromptPay',
-  slip_channel_url: '#ตรวจสอบสลิป',
+  qr_url: '/images/preview/promptpay-qr.svg',
+  slip_channel_url: 'https://discord.com/channels/123456789012345678/234567890123456789',
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

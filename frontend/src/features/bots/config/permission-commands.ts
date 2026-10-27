@@ -19,6 +19,7 @@ export interface PermissionCommandFeature {
 
 // Keep suggestions aligned with command registration and permission gates in bot-runner/src/features.
 const versions: Record<string, string[]> = {
+  'role-shop': ['1.0.0'],
   'shop-status': ['1.0.0'],
   'message-sets': ['1.0.0', '1.1.0'],
   'member-spending': ['1.0.0'],
@@ -33,6 +34,7 @@ export function hasPermissionCommandSuggestions(license: FeatureLicense) {
 }
 export function needsCommandConfiguration(license: FeatureLicense) {
   return [
+    'role-shop',
     'wallet-topup',
     'voice-keeper',
     'review-credit',
@@ -72,7 +74,11 @@ export function permissionCommands(
     case 'message-sets':
       if (license.version === '1.1.0') {
         const root = name('MESSAGE_SETS_COMMAND_NAME', 'ec')
-        commands = [all(root), command(`${root}/send`, 'Send a SET', 'ส่ง SET'), command(`${root}/update`, 'Update a bot message from a SET', 'อัปเดตข้อความเดิมจาก SET')]
+        commands = [
+          all(root),
+          command(`${root}/send`, 'Send a SET', 'ส่ง SET'),
+          command(`${root}/update`, 'Update a bot message from a SET', 'อัปเดตข้อความเดิมจาก SET'),
+        ]
         break
       }
       commands = [
@@ -93,6 +99,15 @@ export function permissionCommands(
         command('spending/list', 'Show spending leaderboard', 'ดูอันดับยอดสะสม'),
         command('spending/total', 'Show total spending', 'ดูยอดรวมทั้งหมด'),
         command('spending/rank', 'Refresh leaderboard roles', 'รีเฟรชยศอันดับ'),
+      ]
+      break
+    case 'role-shop':
+      commands = [
+        command(
+          name('ROLE_SHOP_COMMAND_NAME', 'role-shop-panel'),
+          'Post the role shop panel',
+          'ส่งแผงขายยศ',
+        ),
       ]
       break
     case 'wallet-topup':

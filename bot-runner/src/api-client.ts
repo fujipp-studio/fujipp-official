@@ -17,6 +17,11 @@ export interface RuntimeApi {
   finishRobuxPayout: RuntimeApiClient["finishRobuxPayout"];
   refundRobuxPayout: RuntimeApiClient["refundRobuxPayout"];
   recoverableRobuxPayouts: RuntimeApiClient["recoverableRobuxPayouts"];
+  beginRoleShopPurchase: RuntimeApiClient["beginRoleShopPurchase"];
+  claimRoleShopPurchase: RuntimeApiClient["claimRoleShopPurchase"];
+  completeRoleShopPurchase: RuntimeApiClient["completeRoleShopPurchase"];
+  refundRoleShopPurchase: RuntimeApiClient["refundRoleShopPurchase"];
+  recoverableRoleShopPurchases: RuntimeApiClient["recoverableRoleShopPurchases"];
   addMemberSpending: RuntimeApiClient["addMemberSpending"];
   setMemberSpending: RuntimeApiClient["setMemberSpending"];
   getMemberSpending: RuntimeApiClient["getMemberSpending"];
@@ -102,6 +107,19 @@ export class RuntimeApiClient implements RuntimeApi {
   public finishRobuxPayout(botId:string,jobId:string,input:import("./types.js").RobuxPayoutOutcome){const query=new URLSearchParams({botId});return this.request<{jobId:string;status:string;result:Record<string,unknown>}>(`/internal/v1/robux/jobs/${jobId}/outcome?${query}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});}
   public refundRobuxPayout(botId:string,jobId:string,input:{errorCode:string;errorMessage:string}){const query=new URLSearchParams({botId});return this.request<import("./types.js").RobuxPayoutRefund>(`/internal/v1/robux/jobs/${jobId}/refund?${query}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(input)});}
   public recoverableRobuxPayouts(botId:string){const query=new URLSearchParams({botId});return this.request<{jobs:import("./types.js").RobuxPayoutJob[]}>(`/internal/v1/robux/jobs/recoverable?${query}`,{method:"GET"});}
+
+  public beginRoleShopPurchase(botId: string, input: import("./types.js").RoleShopPurchaseInput) {
+    return this.request<import("./types.js").RoleShopPurchase>("/internal/v1/role-shop/purchases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ botId, ...input }) });
+  }
+  public claimRoleShopPurchase(botId: string, id: string) { return this.roleShopOperation(botId,id,"claim"); }
+  public completeRoleShopPurchase(botId: string, id: string, claimToken: string) { return this.roleShopOperation(botId,id,"complete",{ claimToken }); }
+  public refundRoleShopPurchase(botId: string, id: string, claimToken: string, reason: string) { return this.roleShopOperation(botId,id,"refund",{ claimToken, reason }); }
+  public recoverableRoleShopPurchases(botId: string) {
+    return this.request<import("./types.js").RoleShopPurchase[]>(`/internal/v1/role-shop/purchases/recoverable?${new URLSearchParams({botId})}`, {method:"GET"});
+  }
+  private roleShopOperation(botId: string, id: string, operation: string, body?: Record<string,string>) {
+    return this.request<import("./types.js").RoleShopPurchase>(`/internal/v1/role-shop/purchases/${id}/${operation}?${new URLSearchParams({botId})}`, { method: "POST", headers: { "Content-Type": "application/json" }, ...(body ? {body: JSON.stringify(body)} : {}) });
+  }
 
   public addMemberSpending(botId:string,memberDiscordId:string,deltaSatang:number,operationKey:string=randomUUID()){return this.request<import("./types.js").MemberSpendingEntry>("/internal/v1/member-spending/add",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({botId,memberDiscordId,deltaSatang,operationKey})});}
   public setMemberSpending(botId:string,memberDiscordId:string,input:{amountSatang?:number;txCount?:number},operationKey:string=randomUUID()){return this.request<import("./types.js").MemberSpendingEntry>("/internal/v1/member-spending",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({botId,memberDiscordId,...input,operationKey})});}

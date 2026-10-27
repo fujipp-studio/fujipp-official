@@ -102,3 +102,20 @@ existing ledger result without increasing the balance twice.
 
 SlipOK behavior follows the official [check-slip documentation](https://slipok.com/api-documentation/),
 including duplicate, amount, and receiver checks.
+
+## QR images and slip links
+
+Use `{{qr_url}}` in an image or media field to display the active PromptPay QR.
+Use `{{slip_channel_url}}` in a link button to open `SLIP_CHANNEL_ID`; a Discord
+channel page is not an image. The settings preview uses a bundled example QR
+labelled “PREVIEW ONLY”, and its slip link has a valid Discord channel URL.
+
+For existing `promptpay_qr` designs that placed `{{slip_channel_url}}` in an image
+field, the runner and preview render that image using `{{qr_url}}`. Text and link
+buttons keep the channel URL. This compatibility behavior covers flat/nested
+Embed designs, raw Embed arrays and Components V2 media without modifying saved
+designs.
+
+The `role-shop` feature shares this Wallet with Roblox Payout. Purchases and
+refunds appear in the same history; refunds are adjustments, not top-ups. See
+[Role Shop](role-shop.md) for setup and recovery behavior.
