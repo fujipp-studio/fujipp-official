@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-27 | Documented QR watermark choices, upload limits, payment-image behavior, scan verification and the completed VPS migration. |
 | 2026-10-27 | Documented locally generated Wallet QR attachments, exact payment data, expiry behavior and rolling-deployment compatibility. |
 | 2026-10-27 | Documented Role Shop setup, shared Wallet settlement and recovery, and Wallet QR image and slip-link compatibility. |
 | 2026-10-26 | Documented monthly spending corrections, negative-balance protection and disposable PostgreSQL integration tests. |

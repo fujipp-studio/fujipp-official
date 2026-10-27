@@ -316,6 +316,7 @@ public class StoreService {
         MessageSetsConfigurationValidator.validate(request.values());
         PriceReaderConfigurationValidator.validate(request.values());
         RoleShopConfigurationValidator.validate(request.values());
+        WalletQrConfigurationValidator.validate(request.values());
         PresentationConfigurationValidator.validate(request.presentations());
 
         Map<String, StoreRepository.ConfigDefinition> definitions = new LinkedHashMap<>();

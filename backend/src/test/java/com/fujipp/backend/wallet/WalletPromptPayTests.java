@@ -17,13 +17,13 @@ import static org.mockito.Mockito.*;
 class WalletPromptPayTests {
     private final WalletRepository repository=mock(WalletRepository.class);
     private final WalletService service=new WalletService(repository,mock(VoucherService.class),
-        mock(SlipOkAdapter.class),mock(StoreSecretCipher.class),new PromptPayQrGenerator());
+        mock(SlipOkAdapter.class),mock(StoreSecretCipher.class),new PromptPayQrGenerator(),tools.jackson.databind.json.JsonMapper.builder().build());
     private final UUID bot=UUID.randomUUID();
     private final WalletRequests.CreatePromptPay request=new WalletRequests.CreatePromptPay(bot,"222222222222222222",5000);
 
     private void configure(String identifier) {
         when(repository.settings(bot)).thenReturn(Optional.of(new WalletRepository.Settings(
-            1000L,0L,"FIXED",0,identifier,"Test shop",5,null,null,null,null,null,null)));
+            1000L,0L,"FIXED",0,identifier,"Test shop",5,null,null,null,null,null,null,null,"Test shop")));
     }
 
     @Test void generatesADecodablePngWithTheConfiguredRecipientAndExactAmount() throws Exception {
@@ -47,6 +47,24 @@ class WalletPromptPayTests {
         // Retain the old field while Backend and Runner are rolled out separately.
         assertThat(response.qrUrl()).isEqualTo("https://promptpay.io/0812345678/50.00.png");
         verify(repository).createPromptPay(request,5);
+    }
+
+    @Test void walletSettingsSelectTheWatermarkAndItsValidationRunsBeforeSessionCreation() throws Exception {
+        configure("0812345678");
+        when(repository.settings(bot)).thenReturn(Optional.of(new WalletRepository.Settings(
+            1000L,0L,"FIXED",0,"0812345678","Test shop",5,null,null,null,null,null,null,
+            "{\"mode\":\"TEXT\",\"text\":\"ร้านขนม\"}","Bot name")));
+        when(repository.createPromptPay(request,5)).thenReturn(new WalletRepository.PromptSession(UUID.randomUUID(),5000,OffsetDateTime.now().plusMinutes(5)));
+        var result=service.createPromptPay(request);
+        byte[] png=Base64.getDecoder().decode(result.qrImageDataUri().substring("data:image/png;base64,".length()));
+        assertThat(ImageIO.read(new ByteArrayInputStream(png)).getHeight()).isEqualTo(608);
+        clearInvocations(repository);
+        when(repository.settings(bot)).thenReturn(Optional.of(new WalletRepository.Settings(
+            1000L,0L,"FIXED",0,"0812345678","Test shop",5,null,null,null,null,null,null,
+            "{\"mode\":\"LOGO\"}","Bot name")));
+        assertThatThrownBy(()->service.createPromptPay(request)).isInstanceOf(WalletException.class)
+            .satisfies(error->assertThat(((WalletException)error).code()).isEqualTo("INVALID_QR_WATERMARK"));
+        verify(repository,never()).createPromptPay(any(),anyInt());
     }
 
     @Test void invalidRecipientDoesNotLeaveAnUnusablePendingSession() {

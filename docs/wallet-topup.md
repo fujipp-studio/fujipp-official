@@ -42,6 +42,7 @@ reference these codes without copying message-specific Discord custom IDs.
 - `PROMPTPAY_ID`
 - `PROMPTPAY_ACCOUNT_NAME`
 - `PROMPTPAY_QR_EXPIRY_MINUTES` (1–60 minutes; default 5)
+- `PROMPTPAY_QR_WATERMARK` (optional JSON; default `NONE`)
 - `SLIPOK_BRANCH_ID` (encrypted secret)
 - `SLIPOK_API_KEY` (encrypted secret)
 - `SLIP_CHANNEL_ID`
@@ -132,3 +133,50 @@ designs.
 The `role-shop` feature shares this Wallet with Roblox Payout. Purchases and
 refunds appear in the same history; refunds are adjustments, not top-ups. See
 [Role Shop](role-shop.md) for setup and recovery behavior.
+
+## Optional QR watermark
+
+In Wallet Top-up settings, open **QR appearance** and choose:
+
+- **No watermark** (`NONE`): the default plain payment QR.
+- **Shop name / text** (`TEXT`): one line of up to 60 characters, including Thai.
+  An empty text value uses the bot's Discord username, then its configured name.
+- **Uploaded logo** (`LOGO`): PNG, JPEG or WebP up to 2 MB and 16 megapixels.
+  The browser contains the image within a transparent 160 × 64 PNG and saves it
+  with the private feature configuration. No external image host is needed.
+
+The JSON shape is `{"mode":"NONE","text":"","logoDataUri":""}`. Switching modes
+preserves the draft text and logo; **Remove logo** clears the image and selects
+`NONE`. An invalid or missing logo cannot be saved in `LOGO` mode. The Backend
+accepts only inline PNGs up to 60,000 characters and 320 × 160 pixels, and validates
+image dimensions before decoding. Remote image URLs and SVGs are rejected.
+
+Branding occupies a separate footer beneath the complete QR and its four-module
+white border. The payment amount, recipient and QR pixels are unchanged by the
+watermark. The plain image is 512 × 512; branded images are 512 × 608. Thai text
+uses the bundled Noto Sans Thai font and its SIL Open Font License. The Backend
+runtime includes fontconfig for rendering in the container. No font or image
+service is contacted while creating payments.
+
+Save the settings to apply branding to newly created payment QR images. Existing
+sessions retain their original attachment until payment or expiry. The settings
+preview is an example of placement and cannot be used to pay.
+
+Verification includes frontend upload/save/reload and category-switching tests
+on Desktop/Mobile in Light/Dark modes, exact QR pixel comparisons, and full-image
+ZXing decoding for phone and 13-digit recipients with text and logo watermarks.
+The six synthetic plain/text/logo images also passed the independent macOS
+barcode detector with matching recipient and amount payloads.
+
+### VPS migration (2026-10-27)
+
+`20261027000002_wallet_qr_watermark.sql` was applied to
+`migration_cutover_20261022` on the VPS after a verified local backup and a
+schema-only scratch rehearsal. Reapplying the migration inserted no duplicates;
+unrelated features were unchanged. All three existing Wallet versions default
+to `NONE`. Wallet, ledger and saved-configuration row checksums remained unchanged
+within the transaction, and source SQL was recorded atomically in migration
+history. The scratch database was removed. The backup, schema and atomic apply
+wrapper remain in
+`/opt/fujipp/apps/fujipp-postgres/migrations/wallet-qr-watermark-20261027/`.
+Application rollout follows the repository owner's PR and main-branch deployment.

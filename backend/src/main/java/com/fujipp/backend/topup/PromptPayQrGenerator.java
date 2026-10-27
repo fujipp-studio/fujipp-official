@@ -21,6 +21,10 @@ public class PromptPayQrGenerator {
     private static final String PROMPTPAY_AID = "A000000677010111";
 
     public PaymentQr generate(String configuredId, long amountSatang) {
+        return generate(configuredId,amountSatang,QrWatermark.none());
+    }
+
+    public PaymentQr generate(String configuredId,long amountSatang,QrWatermark watermark) {
         String target = normalize(configuredId);
         String targetTag = target.length() == 13 && target.startsWith("0066") ? "01" : "02";
         String merchantAccount = tlv("00", PROMPTPAY_AID) + tlv(targetTag, target);
@@ -33,19 +37,21 @@ public class PromptPayQrGenerator {
                 + tlv("58", "TH")
                 + "6304";
         String payload = withoutCrc + String.format("%04X", crc16(withoutCrc));
-        return new PaymentQr(payload, pngDataUri(payload));
+        return new PaymentQr(payload, pngDataUri(payload,watermark));
     }
 
-    String pngDataUri(String payload) {
+    String pngDataUri(String payload) { return pngDataUri(payload,QrWatermark.none()); }
+
+    private String pngDataUri(String payload,QrWatermark watermark) {
         try {
             BitMatrix matrix = new QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 512, 512,
-                    Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 2));
+                    Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M, EncodeHintType.MARGIN, 4));
             BufferedImage image = new BufferedImage(matrix.getWidth(), matrix.getHeight(), BufferedImage.TYPE_BYTE_BINARY);
             for (int y = 0; y < matrix.getHeight(); y++) {
                 for (int x = 0; x < matrix.getWidth(); x++) image.setRGB(x, y, matrix.get(x, y) ? 0xFF000000 : 0xFFFFFFFF);
             }
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            ImageIO.write(image, "PNG", output);
+            ImageIO.write(watermark.decorate(image), "PNG", output);
             return "data:image/png;base64," + Base64.getEncoder().encodeToString(output.toByteArray());
         } catch (WriterException | IOException exception) {
             throw new TopupException("PROMPTPAY_QR_FAILED", "Could not generate PromptPay QR", TopupException.Kind.CONFIGURATION);

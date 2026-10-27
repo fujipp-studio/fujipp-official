@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-27 | Added validated Thai text and uploaded-logo footers to locally generated Wallet QR images while preserving payment data and the complete QR. |
 | 2026-10-27 | Generated Wallet PromptPay QR PNGs locally and attached them directly to Discord, preserving images during countdowns and removing expired attachments when the external image service is unavailable. |
 | 2026-10-27 | Added Wallet-backed Discord role purchases with atomic debits, duplicate protection, refunds and restart recovery, and restored QR images in existing Wallet designs. |
 | 2026-10-26 | Applied lifetime spending corrections to the active monthly cycle by their amount/count differences, with atomic rollback, retry protection, underflow checks and immediate monthly role refresh. |

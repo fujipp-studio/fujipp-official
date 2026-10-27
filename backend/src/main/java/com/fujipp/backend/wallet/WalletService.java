@@ -3,6 +3,8 @@ package com.fujipp.backend.wallet;
 import com.fujipp.backend.store.StoreSecretCipher;
 import com.fujipp.backend.topup.PromptPayQrGenerator;
 import com.fujipp.backend.topup.TopupException;
+import com.fujipp.backend.topup.QrWatermark;
+import tools.jackson.databind.ObjectMapper;
 import com.fujipp.backend.voucher.RedeemTrueMoneyVoucherRequest;
 import com.fujipp.backend.voucher.VoucherRedemptionResponse;
 import com.fujipp.backend.voucher.VoucherService;
@@ -18,10 +20,11 @@ class WalletService {
     private final SlipOkAdapter slipOk;
     private final StoreSecretCipher cipher;
     private final PromptPayQrGenerator promptPayQr;
+    private final ObjectMapper json;
 
     WalletService(WalletRepository repository, VoucherService vouchers, SlipOkAdapter slipOk, StoreSecretCipher cipher,
-                  PromptPayQrGenerator promptPayQr) {
-        this.repository=repository; this.vouchers=vouchers; this.slipOk=slipOk; this.cipher=cipher; this.promptPayQr=promptPayQr;
+                  PromptPayQrGenerator promptPayQr,ObjectMapper json) {
+        this.repository=repository; this.vouchers=vouchers; this.slipOk=slipOk; this.cipher=cipher; this.promptPayQr=promptPayQr; this.json=json;
     }
 
     WalletResponses.Balance balance(java.util.UUID botId,String memberId) {
@@ -55,7 +58,11 @@ class WalletService {
                 ? 5
                 : Math.max(1, Math.min(60, settings.qrExpiryMinutes()));
         PromptPayQrGenerator.PaymentQr image;
-        try { image=promptPayQr.generate(settings.promptPayId(),request.amountSatang()); }
+        try {
+            var watermark=QrWatermark.parse(settings.qrWatermark()==null?null:json.readTree(settings.qrWatermark()),settings.botName());
+            image=promptPayQr.generate(settings.promptPayId(),request.amountSatang(),watermark);
+        }
+        catch (IllegalArgumentException error) { throw new WalletException("INVALID_QR_WATERMARK",error.getMessage()); }
         catch (TopupException error) { throw new WalletException(error.code(),error.getMessage()); }
         WalletRepository.PromptSession session=repository.createPromptPay(request, expiryMinutes);
         String amount=java.math.BigDecimal.valueOf(request.amountSatang(),2).toPlainString();

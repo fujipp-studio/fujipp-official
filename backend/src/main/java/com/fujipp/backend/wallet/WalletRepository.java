@@ -24,6 +24,8 @@ class WalletRepository {
     Optional<Settings> settings(UUID botId) {
         List<Settings> rows = jdbc.query("""
             SELECT
+              max(COALESCE(NULLIF(b.discord_username,''),b.name)) bot_name,
+              max(CASE WHEN d.config_key='PROMPTPAY_QR_WATERMARK' THEN COALESCE(v.value,d.default_value)::text END) qr_watermark,
               max(CASE WHEN d.config_key='MIN_TOPUP_SATANG' THEN (COALESCE(v.value,d.default_value) #>> '{}')::bigint END) min_amount,
               max(CASE WHEN d.config_key='TRUEMONEY_FEE_SATANG' THEN (COALESCE(v.value,d.default_value) #>> '{}')::bigint END) voucher_fee,
               max(CASE WHEN d.config_key='TRUEMONEY_FEE_MODE' THEN COALESCE(v.value,d.default_value) #>> '{}' END) voucher_fee_mode,
@@ -38,6 +40,7 @@ class WalletRepository {
               max(CASE WHEN d.config_key='SLIPOK_API_KEY' THEN encode(s.nonce,'base64') END) key_nonce,
               max(CASE WHEN d.config_key='SLIPOK_API_KEY' THEN s.encryption_key_version END) key_version
             FROM private.bot_feature_installations i
+            JOIN bots.bot_instances b ON b.id=i.bot_id
             JOIN private.feature_licenses l ON l.id=i.license_id AND l.status='ACTIVE'
               AND (l.expires_at IS NULL OR l.expires_at > now())
             JOIN shop.feature_products p ON p.id=i.feature_product_id AND p.code='wallet-topup'
@@ -53,7 +56,8 @@ class WalletRepository {
                 rs.getString("promptpay_id"), rs.getString("account_name"),
                 rs.getObject("qr_expiry_minutes", Integer.class),
                 bytes(rs.getString("branch_cipher")), bytes(rs.getString("branch_nonce")), rs.getString("branch_version"),
-                bytes(rs.getString("key_cipher")), bytes(rs.getString("key_nonce")), rs.getString("key_version")
+                bytes(rs.getString("key_cipher")), bytes(rs.getString("key_nonce")), rs.getString("key_version"),
+                rs.getString("qr_watermark"),rs.getString("bot_name")
         ), botId);
         return rows.stream().findFirst();
     }
@@ -142,7 +146,7 @@ class WalletRepository {
     record Settings(Long minimum, Long voucherFee, String voucherFeeMode, Integer voucherFeePercent,
                     String promptPayId, String accountName, Integer qrExpiryMinutes,
                     byte[] branchCipher, byte[] branchNonce, String branchVersion,
-                    byte[] keyCipher, byte[] keyNonce, String keyVersion) {}
+                    byte[] keyCipher, byte[] keyNonce, String keyVersion, String qrWatermark, String botName) {}
     record PromptSession(UUID id,long amount,OffsetDateTime expiresAt) {}
     record Credit(UUID id,long balance,boolean created) {}
     record Adjustment(UUID id,long amount,long balance,boolean created) {}

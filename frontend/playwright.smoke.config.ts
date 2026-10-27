@@ -15,6 +15,7 @@ export default defineConfig({
     'voice-keeper.smoke.spec.ts',
     'wallet-topup.smoke.spec.ts',
     'wallet-qr.smoke.spec.ts',
+    'wallet-watermark.smoke.spec.ts',
     'role-shop.smoke.spec.ts',
     'roblox-payout.smoke.spec.ts',
     'channel-message-triggers.smoke.spec.ts',
