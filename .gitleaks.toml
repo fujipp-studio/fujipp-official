@@ -8,3 +8,11 @@ condition = "AND"
 regexTarget = "line"
 regexes = ['''"discord(?:Application|Guild)Id"\s*:\s*"[0-9]{15,30}"''']
 paths = ['''docs/store-api\.md''']
+
+[[allowlists]]
+description = "Known synthetic Discord member ID in the Payment Trigger API test"
+targetRules = ["discord-client-id"]
+condition = "AND"
+regexTarget = "line"
+regexes = ['''memberDiscordId:\s*"123456789012345678"''']
+paths = ['''^bot-runner/test/payment-voucher-api\.test\.ts$''']

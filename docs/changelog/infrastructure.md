@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-28 | Scoped the secret-scan exception to one synthetic Discord ID in the Payment Trigger API fixture while retaining detection for other IDs and files. |
 | 2026-10-27 | Included fontconfig and a bundled Thai font so Backend QR text watermarks render in the production container. |
 | 2026-10-21 | Added a private resource-limited VPS PostgreSQL stack, scheduled backups, snapshot verification and isolated Backend migration rehearsals. |
 | 2026-10-21 | Reduced duplicated Frontend CI/CD work with affected test selection, parallel checks, dependency caching, a reusable production build artifact, and Vue-aware dependency parsing that resolves the new CodeQL finding. |
