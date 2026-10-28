@@ -130,6 +130,7 @@ export class BotManager {
             runtimeSubscription: Object.freeze(bot.runtimeSubscription),
             installedFeatureCodes: new Set(bot.features.map((item) => item.code)),
             permissions,
+            paymentVoucher: (input) => this.api.paymentVoucher(bot.id, input),
             reportFeatureError: async (errorCode, error, options) => {
               await this.api.reportStatus({
                 botId: bot.id, installationId: feature.installationId, status: options?.recoverable ? "ACTIVE" : "ERROR",

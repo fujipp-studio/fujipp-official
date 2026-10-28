@@ -13,6 +13,8 @@ test("worker environment never receives runner credentials", () => {
 test("supervisor rejects RPC calls for another bot", () => {
   assert.equal(rpcBelongsToBot("bot-a", "walletBalance", ["bot-a", "member"]), true);
   assert.equal(rpcBelongsToBot("bot-a", "walletBalance", ["bot-b", "member"]), false);
+  assert.equal(rpcBelongsToBot("bot-a", "paymentVoucher", ["bot-a", {}]), true);
+  assert.equal(rpcBelongsToBot("bot-a", "paymentVoucher", ["bot-b", {}]), false);
   assert.equal(rpcBelongsToBot("bot-a", "reportStatus", [{ botId: "bot-a", status: "RUNNING" }]), true);
   assert.equal(rpcBelongsToBot("bot-a", "reportStatus", [{ botId: "bot-b", status: "RUNNING" }]), false);
 });

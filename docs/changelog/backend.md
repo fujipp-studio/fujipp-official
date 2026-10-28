@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-28 | Added direct Payment Trigger envelope payments with a link modal, exact-amount verification, invoice and voucher replay protection, and configurable Embed or Components V2 success receipts without crediting customer Wallet balances. |
 | 2026-10-27 | Confirmed saved Member Spending cards before role synchronization, refreshed lifetime ranks after writes, and continued processing other members after role failures with explicit partial-success warnings. |
 | 2026-10-27 | Added validated Thai text and uploaded-logo footers to locally generated Wallet QR images while preserving payment data and the complete QR. |
 | 2026-10-27 | Generated Wallet PromptPay QR PNGs locally and attached them directly to Discord, preserving images during countdowns and removing expired attachments when the external image service is unavailable. |

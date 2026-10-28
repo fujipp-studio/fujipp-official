@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-28 | Documented Payment Trigger envelope payments, direct settlement, duplicate and uncertain-result handling, deployment order and the verified VPS migration. |
 | 2026-10-27 | Documented Member Spending save confirmations, serialized role updates, shared member scans, and recovery after partial role failures. |
 | 2026-10-27 | Documented QR watermark choices, upload limits, payment-image behavior, scan verification and the completed VPS migration. |
 | 2026-10-27 | Documented locally generated Wallet QR attachments, exact payment data, expiry behavior and rolling-deployment compatibility. |

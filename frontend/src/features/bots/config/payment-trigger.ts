@@ -3,6 +3,7 @@ export const paymentTriggerConfigKeys = new Set([
   'BANK_QR_IMAGE_URL',
   'WALLET_NUMBER',
   'WALLET_FEE_SATANG',
+  'TRUEMONEY_ENABLED',
 ])
 
 export const paymentTriggerPresentationCopy: Record<
@@ -37,11 +38,19 @@ export const paymentTriggerPresentationCopy: Record<
       'แสดงเมื่อ Trigger ไม่ระบุยอดหรือระบุยอดไม่ถูกต้อง',
     ],
   },
+  payment_success: {
+    label: ['Payment successful', 'ชำระเงินสำเร็จ'],
+    description: [
+      'Shown after a TrueMoney envelope payment is confirmed.',
+      'แสดงเมื่อยืนยันการรับชำระด้วยซองอั่งเปาสำเร็จ',
+    ],
+  },
 }
 
 export const paymentTriggerButtonDefaults = {
   bank_button: { label: 'สแกน QR ธนาคาร', emoji: '🏦', style: 'success' },
   wallet_button: { label: 'ชำระผ่าน Wallet', emoji: '🟠', style: 'primary' },
+  voucher_button: { label: 'ชำระด้วยซองอั่งเปา', emoji: '🧧', style: 'danger' },
 }
 
 const money = (satang: number) =>
@@ -67,5 +76,11 @@ export function paymentTriggerSampleValues(values: Record<string, unknown>) {
     wallet_number: String(values.WALLET_NUMBER ?? '').trim(),
     trigger: String(values.PAYMENT_TRIGGER_PREFIX || 'p').trim(),
     datetime: '7/10/2569 14:30:00',
+    paid_amount: '10',
+    member_mention: '@ลูกค้าตัวอย่าง',
+    member_id: '123456789012345678',
+    payment_id: 'sample-payment',
+    reference: 'sample-reference',
+    payment_method: 'ซองอั่งเปา TrueMoney',
   }
 }

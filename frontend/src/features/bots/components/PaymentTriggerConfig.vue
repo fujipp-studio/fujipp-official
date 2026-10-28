@@ -6,6 +6,7 @@ import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
 import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import FeatureConfigField from './FeatureConfigField.vue'
+import FeatureSettingToggle from './FeatureSettingToggle.vue'
 import { paymentTriggerSampleValues } from '../config/payment-trigger'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
@@ -204,6 +205,20 @@ const feeValid = computed(
               field-key="WALLET_FEE_SATANG"
               :label="text('Wallet fee', 'ค่าธรรมเนียม Wallet')"
             />
+            <FeatureSettingToggle
+              v-if="field('TRUEMONEY_ENABLED')"
+              :label="text('Accept TrueMoney envelopes', 'รับชำระด้วยซองอั่งเปา')"
+              :model-value="values.TRUEMONEY_ENABLED === true"
+              @update:model-value="values.TRUEMONEY_ENABLED = $event"
+            />
+            <p v-if="field('TRUEMONEY_ENABLED')" class="text-xs text-text-secondary">
+              {{
+                text(
+                  'Opens a form for the envelope link. Use a single-recipient envelope matching the original amount. Money goes to this Wallet number, with no extra fee or customer Wallet credit.',
+                  'เปิดฟอร์มกรอกลิงก์ซองสำหรับผู้รับ 1 คน ยอดต้องตรงยอดตั้งต้น รับเงินเข้าหมายเลข Wallet นี้โดยไม่บวกค่าธรรมเนียมและไม่เพิ่มเครดิตลูกค้า',
+                )
+              }}
+            </p>
           </div>
         </FeatureSettingsCard>
       </section>
@@ -235,6 +250,10 @@ const feeValid = computed(
               <dd class="font-semibold">
                 {{ feeValid ? sample.total_amount : '—' }} {{ text('THB', 'บาท') }}
               </dd>
+            </div>
+            <div v-if="values.TRUEMONEY_ENABLED === true" class="flex justify-between gap-sm">
+              <dt class="text-text-secondary">{{ text('TrueMoney envelope', 'ซองอั่งเปา') }}</dt>
+              <dd>10 {{ text('THB', 'บาท') }}</dd>
             </div>
           </dl>
           <p class="mt-lg border-t border-border-subtle pt-md text-xs text-text-muted">

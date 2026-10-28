@@ -12,7 +12,7 @@ class VoucherExceptionHandler {
     ProblemDetail handleConflict(VoucherConflictException exception) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
-                "ซอง TrueMoney นี้เคยถูกใช้หรือกำลังถูกประมวลผลแล้ว กรุณาใช้ซองใหม่"
+                "ซอง TrueMoney หรือรายการชำระเงินนี้เคยถูกใช้หรือกำลังประมวลผลแล้ว ตรวจสอบสถานะก่อนชำระซ้ำ หากซองถูกใช้กับรายการอื่น กรุณาใช้ซองใหม่"
         );
         problem.setTitle("Voucher conflict");
         problem.setProperty("code", "VOUCHER_ALREADY_USED");

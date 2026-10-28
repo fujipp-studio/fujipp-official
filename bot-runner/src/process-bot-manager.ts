@@ -5,7 +5,7 @@ import type { RuntimeBot } from "./types.js";
 import type { SupervisorRpcResponse, SupervisorToWorker, WorkerToSupervisor } from "./worker-protocol.js";
 
 const ALLOWED_RPC_METHODS = new Set<keyof RuntimeApi>([
-  "reportStatus", "saveFeatureState", "walletBalance", "walletVoucher", "createPromptPay",
+  "reportStatus", "saveFeatureState", "walletBalance", "walletVoucher", "paymentVoucher", "createPromptPay",
   "verifySlip", "adjustWallet", "walletHistory", "walletMonthlySummary", "walletLeaderboard",
   "beginRobuxPayout", "claimRobuxPayout", "finishRobuxPayout", "refundRobuxPayout",
   "recoverableRobuxPayouts", "addMemberSpending", "setMemberSpending", "getMemberSpending",

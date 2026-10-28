@@ -6,20 +6,26 @@ const isRecord = (value: unknown): value is Definition =>
 const styles: Record<string, number> = { primary: 1, secondary: 2, success: 3, danger: 4 }
 
 /** Preview-only payload matching payment-trigger/v1.0.0.ts. Never changes stored designs. */
-export function paymentTriggerPresentationPreview(raw: Definition, slot: string): Definition {
+export function paymentTriggerPresentationPreview(
+  raw: Definition,
+  slot: string,
+  voucherEnabled = false,
+): Definition {
   const configured = isRecord(raw.components) ? raw.components : {}
   const buttons =
     slot === 'method_selector'
-      ? Object.entries(paymentTriggerButtonDefaults).map(([key, defaults]) => {
-          const item = isRecord(configured[key]) ? configured[key] : {}
-          return {
-            type: 2,
-            custom_id: `fujipp:payment:${key === 'bank_button' ? 'bank' : 'wallet'}:1000`,
-            label: String(item.label ?? defaults.label).slice(0, 80),
-            emoji: String(item.emoji ?? defaults.emoji).trim(),
-            style: styles[String(item.style ?? '').toLowerCase()] ?? styles[defaults.style],
-          }
-        })
+      ? Object.entries(paymentTriggerButtonDefaults)
+          .filter(([key]) => key !== 'voucher_button' || voucherEnabled)
+          .map(([key, defaults]) => {
+            const item = isRecord(configured[key]) ? configured[key] : {}
+            return {
+              type: 2,
+              custom_id: `fujipp:payment:${key === 'bank_button' ? 'bank' : key === 'wallet_button' ? 'wallet' : 'voucher'}:1000`,
+              label: String(item.label ?? defaults.label).slice(0, 80),
+              emoji: String(item.emoji ?? defaults.emoji).trim(),
+              style: styles[String(item.style ?? '').toLowerCase()] ?? styles[defaults.style],
+            }
+          })
       : []
   if (String(raw.mode ?? 'COMPONENTS_V2').toUpperCase() === 'COMPONENTS_V2') {
     const source = isRecord(raw.components_v2) ? raw.components_v2 : raw
@@ -33,7 +39,10 @@ export function paymentTriggerPresentationPreview(raw: Definition, slot: string)
     mode: 'EMBED',
     embed: isRecord(raw.embed) ? raw.embed : raw,
     components: Object.fromEntries(
-      buttons.map((button, index) => [index === 0 ? 'bank_button' : 'wallet_button', button]),
+      buttons.map((button, index) => [
+        ['bank_button', 'wallet_button', 'voucher_button'][index]!,
+        button,
+      ]),
     ),
   }
 }

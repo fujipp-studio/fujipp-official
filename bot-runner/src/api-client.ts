@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { BootstrapResponse, PromptPaySession, WalletAdjustmentOperation, WalletAdjustmentResult, WalletTopupResult } from "./types.js";
+import type { BootstrapResponse, PromptPaySession, WalletAdjustmentOperation, WalletAdjustmentResult, WalletTopupResult, VoucherRedemption, FeatureContext } from "./types.js";
 
 export interface RuntimeApi {
   reportStatus(input: Parameters<RuntimeApiClient["reportStatus"]>[0]): Promise<void>;
   saveFeatureState(input: Parameters<RuntimeApiClient["saveFeatureState"]>[0]): Promise<void>;
   walletBalance: RuntimeApiClient["walletBalance"];
   walletVoucher: RuntimeApiClient["walletVoucher"];
+  paymentVoucher: RuntimeApiClient["paymentVoucher"];
   createPromptPay: RuntimeApiClient["createPromptPay"];
   verifySlip: RuntimeApiClient["verifySlip"];
   adjustWallet: RuntimeApiClient["adjustWallet"];
@@ -85,6 +86,14 @@ export class RuntimeApiClient implements RuntimeApi {
 
   public walletVoucher(botId: string, input: { memberDiscordId: string; giftUrl: string; idempotencyKey: string }) {
     return this.request<WalletTopupResult>("/internal/v1/wallet/topups/truemoney", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ botId, ...input }) });
+  }
+
+  public paymentVoucher(botId: string, input: Parameters<NonNullable<FeatureContext["paymentVoucher"]>>[0]) {
+    const { giftUrl, ...payment } = input;
+    return this.request<VoucherRedemption>("/internal/v1/vouchers/truemoney/redeem", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...payment, botId, gift_url: giftUrl }),
+    });
   }
 
   public createPromptPay(botId: string, memberDiscordId: string, amountSatang: number) {
