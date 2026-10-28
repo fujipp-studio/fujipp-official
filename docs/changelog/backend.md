@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-29 | Added Payment Trigger 1.1 navigation and configurable response delivery while preserving invoice identity, legacy buttons and confirmed-payment handling when receipt updates fail. |
 | 2026-10-28 | Rendered Payment Trigger actions at their configured Components V2 positions with runtime payment amounts and invoice IDs, disabled unavailable envelope actions and no duplicate automatic button rows. |
 | 2026-10-28 | Added direct Payment Trigger envelope payments with a link modal, exact-amount verification, invoice and voucher replay protection, and configurable Embed or Components V2 success receipts without crediting customer Wallet balances. |
 | 2026-10-27 | Confirmed saved Member Spending cards before role synchronization, refreshed lifetime ranks after writes, and continued processing other members after role failures with explicit partial-success warnings. |

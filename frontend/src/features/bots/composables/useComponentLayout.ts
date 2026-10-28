@@ -7,7 +7,9 @@ interface Options {
   containerChildren: (block: Block) => Block[]
   componentCount: (slot: string) => number
   actionRowButtons: (block: Block) => Block[]
-  featureButtons: (slot: string) => Array<{ value: string; label: string; button: Block }>
+  featureButtons: (
+    slot: string,
+  ) => Array<{ value: string; label: string; button: Block; responseModes?: boolean }>
   updateButtonFields: (
     slot: string,
     block: number,
@@ -35,11 +37,11 @@ export function useComponentLayout({
     slotKey: string,
     blockIndex: number,
     buttonIndex: number,
-    key: 'label' | 'emoji' | 'url' | 'action' | 'style',
+    key: 'label' | 'emoji' | 'url' | 'action' | 'style' | 'response_mode',
     value: string,
     childIndex?: number,
   ) {
-    if (key !== 'action' && key !== 'style')
+    if (key !== 'action' && key !== 'style' && key !== 'response_mode')
       return updateButtonFields(slotKey, blockIndex, buttonIndex, key, value, childIndex)
     const blocks = componentBlocks(slotKey).map((block) => clone(block))
     const parent = blocks[blockIndex]
@@ -47,7 +49,16 @@ export function useComponentLayout({
     if (!row || row.type !== 1) return
     const buttons = actionRowButtons(row)
     if (!buttons[buttonIndex] || buttons.some((item) => item.type !== 2)) return
-    if (key === 'style') {
+    if (key === 'response_mode') {
+      if (
+        !['UPDATE', 'NEW_MESSAGE'].includes(value) ||
+        !featureButtons(slotKey).some(
+          (item) => item.value === buttons[buttonIndex]!.action && item.responseModes,
+        )
+      )
+        return
+      buttons[buttonIndex]!.response_mode = value
+    } else if (key === 'style') {
       if (![1, 2, 3, 4].includes(Number(value)) || !buttons[buttonIndex]!.action) return
       buttons[buttonIndex]!.style = Number(value)
     } else {

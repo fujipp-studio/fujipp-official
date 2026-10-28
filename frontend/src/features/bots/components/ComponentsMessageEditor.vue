@@ -115,7 +115,11 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
         </div>
       </div>
       <p
-        v-if="featureButtonOptions(messageSlot.key).length && values.TRUEMONEY_ENABLED !== true"
+        v-if="
+          featureButtonOptions(messageSlot.key).some(
+            (option) => option.value === 'payment.voucher',
+          ) && values.TRUEMONEY_ENABLED !== true
+        "
         class="mb-sm text-sm text-text-secondary"
         data-envelope-button-hint
       >

@@ -417,3 +417,131 @@ test("an intentionally button-free custom layout does not restore automatic paym
     assert.deepEqual(sent[0]!.components, [{ type: 10, content: "No buttons" }]);
   } finally { await dispose(); }
 });
+
+function navigationInteraction(customId: string, v2 = true) {
+  const updates: Record<string, unknown>[] = [], replies: Record<string, unknown>[] = [], acknowledgements: string[] = [];
+  const interaction = { customId, guildId: "111111111111111", deferred: false, replied: false,
+    inGuild: () => true, isButton: () => true, message: { id: "888888888888888", flags: { has: () => v2 }, components: [] },
+    deferUpdate: async () => { interaction.deferred = true; acknowledgements.push("UPDATE"); },
+    deferReply: async () => { interaction.deferred = true; acknowledgements.push("NEW_MESSAGE"); },
+    editReply: async (payload: Record<string, unknown>) => { updates.push(payload); },
+    reply: async (payload: Record<string, unknown>) => { replies.push(payload); },
+    followUp: async (payload: Record<string, unknown>) => { replies.push(payload); }, deleteReply: async () => undefined };
+  return { interaction, updates, replies, acknowledgements };
+}
+for (const method of ["bank", "wallet"]) for (const mode of ["u", "n"]) {
+  test(`v1.1 ${method} ${mode} returns to the same invoice and amount`, async () => {
+    const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+    const client = new EventEmitter(), sent: Record<string, unknown>[] = [], base = envelopeContext(client);
+    base.presentations[method === "bank" ? "bank_payment" : "wallet_payment"] = { mode: "COMPONENTS_V2", components_v2: { components: [
+      { type: 17, components: [{ type: 10, content: "{{base_amount}} + {{fee_amount}} = {{total_amount}}" }] }] } };
+    const dispose = await paymentTriggerFeatureV11.activate(base);
+    try {
+      client.emit("messageCreate", adminMessage("p100", sent, { value: false })); await settle();
+      assert.match(JSON.stringify(sent), new RegExp(`v11:bank:10000:${invoiceId}:u`));
+      const state = navigationInteraction(`fujipp:payment:v11:${method}:10000:${invoiceId}:${mode}`);
+      client.emit("interactionCreate", state.interaction); await settle();
+      assert.deepEqual(state.acknowledgements, [mode === "u" ? "UPDATE" : "NEW_MESSAGE"]);
+      const blocks = state.updates[0]!.components as Array<{ components: Array<Record<string, unknown>> }>;
+      assert.equal(blocks.length, 1);
+      const row = blocks[0]!.components[1] as { components: Array<{ custom_id: string }> };
+      assert.equal(row.components[0]!.custom_id, `fujipp:payment:v11:back:10000:${invoiceId}:u`);
+      const back = navigationInteraction(row.components[0]!.custom_id);
+      client.emit("interactionCreate", back.interaction); await settle();
+      assert.match(JSON.stringify(back.updates), new RegExp(`v11:voucher:10000:${invoiceId}:n`));
+      assert.match(JSON.stringify(state.updates), /100 \+ 5 = 105/);
+    } finally { await dispose(); }
+  });
+}
+test("v1.1 inline Back retains position and response choice without leaking authoring metadata", async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), base = context(client);
+  base.presentations.bank_payment = { mode: "COMPONENTS_V2", feature_buttons_layout: "CUSTOM", components_v2: { components: [
+    { type: 1, components: [{ type: 2, action: "payment.back", response_mode: "NEW_MESSAGE", label: "กลับ", style: 4 }] },
+    { type: 17, components: [{ type: 10, content: "QR" }] }] } };
+  const dispose = await paymentTriggerFeatureV11.activate(base);
+  try {
+    const state = navigationInteraction(`fujipp:payment:v11:bank:10000:${invoiceId}:u`);
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.match(JSON.stringify(state.updates), new RegExp(`v11:back:10000:${invoiceId}:n`));
+    assert.equal(JSON.stringify(state.updates).includes('"response_mode"'), false);
+    assert.equal(JSON.stringify(state.updates).includes('"action"'), false);
+    assert.equal((state.updates[0]!.components as Array<{ type: number }>)[0]!.type, 1);
+  } finally { await dispose(); }
+});
+test("v1.1 blocks V2-to-Embed updates privately but permits new Embed messages", async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), base = context(client);
+  base.presentations.bank_payment = { mode: "EMBED", embed: { title: "QR" } };
+  const dispose = await paymentTriggerFeatureV11.activate(base);
+  try {
+    const update = navigationInteraction(`fujipp:payment:v11:bank:10000:${invoiceId}:u`);
+    client.emit("interactionCreate", update.interaction); await settle();
+    assert.equal(update.updates.length, 0); assert.equal(update.acknowledgements.length, 0);
+    assert.equal(update.replies[0]!.flags, MessageFlags.Ephemeral); assert.match(JSON.stringify(update.replies), /ส่งข้อความใหม่/);
+    const send = navigationInteraction(`fujipp:payment:v11:bank:10000:${invoiceId}:n`);
+    client.emit("interactionCreate", send.interaction); await settle();
+    assert.deepEqual(send.acknowledgements, ["NEW_MESSAGE"]); assert.deepEqual(send.updates[0]!.embeds, [{ title: "QR" }]);
+  } finally { await dispose(); }
+});
+for (const mode of ["u", "n"]) test(`v1.1 envelope ${mode} carries receipt mode through the modal`, async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), state = voucherSubmission(), modals: unknown[] = [];
+  const dispose = await paymentTriggerFeatureV11.activate(envelopeContext(client, { paymentVoucher: async input => {
+    assert.equal(input.paymentMessageId, invoiceId); assert.equal(input.expectedAmountSatang, 10000); return confirmedVoucher();
+  } }));
+  try {
+    client.emit("interactionCreate", { customId: `fujipp:payment:v11:voucher:10000:${invoiceId}:${mode}`, guildId: "111111111111111",
+      inGuild: () => true, isButton: () => true, showModal: async (modal: { toJSON: () => unknown }) => { modals.push(modal.toJSON()); } }); await settle();
+    assert.match(JSON.stringify(modals), new RegExp(`v11:redeem:10000:${invoiceId}:${mode}`));
+    state.interaction.customId = `fujipp:payment:v11:redeem:10000:${invoiceId}:${mode}`;
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(state.replies.length, 1); assert.equal(state.receipts.length, mode === "u" ? 0 : 1); assert.equal(state.edits.length, 1);
+    if (mode === "u") { assert.match(JSON.stringify(state.edits), /100 <@666666666666666> ref-1/); assert.equal(JSON.stringify(state.edits).includes('"custom_id":"pay"'), false); }
+    else assert.match(JSON.stringify(state.edits), /"disabled":true/);
+  } finally { await dispose(); }
+});
+test("v1.1 validates receipt format before receiving money", async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), state = voucherSubmission(), base = envelopeContext(client);
+  state.interaction.customId = `fujipp:payment:v11:redeem:10000:${invoiceId}:u`;
+  Object.assign(state.interaction.message, { flags: { has: () => true } });
+  base.presentations.payment_success = { mode: "EMBED", embed: { title: "Success" } };
+  const dispose = await paymentTriggerFeatureV11.activate({ ...base, paymentVoucher: async () => assert.fail("must not redeem") });
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(state.edits.length, 0); assert.equal(state.receipts.length, 0);
+    assertFeatureError(state.replies[0], "Payment Trigger", "PAYMENT_VOUCHER_FAILED");
+  } finally { await dispose(); }
+});
+
+test("v1.1 preserves the original invoice when an old selector is used after upgrade", async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), state = navigationInteraction("fujipp:payment:bank:10000");
+  Object.assign(state.interaction, { update: async (payload: Record<string, unknown>) => { state.updates.push(payload); } });
+  Object.assign(state.interaction.message, { components: [{ toJSON: () => ({ type: 1, components: [{ type: 2, custom_id: `fujipp:payment:voucher:10000:${invoiceId}` }] }) }] });
+  const dispose = await paymentTriggerFeatureV11.activate(context(client));
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.match(JSON.stringify(state.updates), new RegExp(`v11:back:10000:${invoiceId}:u`));
+  } finally { await dispose(); }
+});
+
+test("v1.1 receipt update failure keeps the confirmed payment and disables its source controls", async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), state = voucherSubmission(), errors: unknown[][] = [];
+  state.interaction.customId = `fujipp:payment:v11:redeem:10000:${invoiceId}:u`;
+  let edits = 0, redemptions = 0;
+  state.interaction.message.edit = async payload => { if (++edits === 1) throw new Error("receipt edit failed"); state.edits.push(payload); };
+  const dispose = await paymentTriggerFeatureV11.activate(envelopeContext(client, {
+    paymentVoucher: async () => { redemptions++; return confirmedVoucher(); },
+    reportFeatureError: async (...args) => { errors.push(args); },
+  }));
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.equal(redemptions, 1); assert.equal(errors[0]![0], "PAYMENT_RECEIPT_FAILED");
+    assert.match(String(state.replies[0]!.content), /รับชำระเงิน 100 บาทสำเร็จ/);
+    assert.match(JSON.stringify(state.edits), /"disabled":true/);
+    assert.equal(JSON.stringify(state.receipts).includes('"ref-1"'), false);
+  } finally { await dispose(); }
+});

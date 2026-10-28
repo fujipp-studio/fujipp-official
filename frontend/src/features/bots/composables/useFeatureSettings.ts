@@ -366,18 +366,19 @@ export function useFeatureSettings() {
     draggedComponent,
     advancedSlots,
     featureButtons: (slotKey) =>
-      slotKey === 'method_selector'
-        ? (paymentLayout.value?.paymentTriggerFeatureButtons(presentations.value[slotKey] ?? {}) ??
-          [])
-        : [],
+      paymentLayout.value?.paymentTriggerFeatureButtons(
+        presentations.value[slotKey] ?? {},
+        slotKey,
+        license.value?.version,
+      ) ?? [],
     projectComponentBlocks: (slotKey, blocks) =>
-      slotKey === 'method_selector'
-        ? (paymentLayout.value?.paymentTriggerEditableComponents(
-            presentations.value[slotKey] ?? {},
-            values.value.TRUEMONEY_ENABLED === true,
-            blocks,
-          ) ?? blocks)
-        : blocks,
+      paymentLayout.value?.paymentTriggerEditableComponents(
+        presentations.value[slotKey] ?? {},
+        values.value.TRUEMONEY_ENABLED === true,
+        blocks,
+        slotKey,
+        license.value?.version,
+      ) ?? blocks,
   })
   const {
     updatePresentation,
@@ -831,6 +832,7 @@ export function useFeatureSettings() {
             definition,
             slotKey,
             values.value.TRUEMONEY_ENABLED === true,
+            license.value?.version,
           )
       }
       if (isPriceReaderFeature.value) {

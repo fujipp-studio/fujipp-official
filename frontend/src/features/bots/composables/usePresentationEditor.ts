@@ -13,7 +13,12 @@ interface Options {
   advancedSlots: Ref<Set<string>>
   featureButtons?: (
     slotKey: string,
-  ) => Array<{ value: string; label: string; button: Record<string, unknown> }>
+  ) => Array<{
+    value: string
+    label: string
+    button: Record<string, unknown>
+    responseModes?: boolean
+  }>
   projectComponentBlocks?: (
     slotKey: string,
     blocks: Array<Record<string, unknown>>,

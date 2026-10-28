@@ -386,3 +386,128 @@ for (const theme of ['LIGHT', 'DARK']) {
     })
   })
 }
+
+for (const theme of ['LIGHT', 'DARK'])
+  for (const mode of ['EMBED', 'COMPONENTS_V2'] as const) {
+    test(`Payment Trigger 1.1 Back and action responses ${mode} in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+      const { paymentLicense, config } = paymentTriggerFixture(mode, '1.1.0')
+      await page.route('https://fixture.invalid/*.png', (route) =>
+        route.fulfill({
+          contentType: 'image/svg+xml',
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="white"/><path d="M8 8h30v30H8z M82 8h30v30H82z M8 82h30v30H8z M50 50h20v20H50z" fill="black"/></svg>',
+        }),
+      )
+      const errors: string[] = []
+      page.on('pageerror', (error) => errors.push(error.message))
+      await page.route('**/api/v1/feature-licenses', (route) =>
+        route.fulfill({ json: [paymentLicense] }),
+      )
+      await page.route('**/api/v2/feature-licenses*', (route) =>
+        route.fulfill({ json: { items: [paymentLicense], nextCursor: null, hasMore: false } }),
+      )
+      let saved: { presentations: Record<string, Record<string, unknown>> } | undefined
+      await page.route('**/configuration', async (route) => {
+        if (route.request().method() === 'PUT') {
+          saved = route.request().postDataJSON()
+          for (const slot of config.presentations)
+            if (saved!.presentations[slot.key])
+              slot.overrideDefinition = saved!.presentations[slot.key]!
+          config.revision++
+        }
+        await route.fulfill({ json: config })
+      })
+      const url = `/my-bot/fixture-bot/settings/packages/fixture-license/${mode === 'EMBED' ? 'embed' : 'components-v2'}?locale=th&message=bank_payment`
+      await page.goto(url)
+      await page.addStyleTag({
+        content: '#__vue-devtools-container__ { display: none !important; }',
+      })
+      const editor = page.locator('#feature-presentation-editor')
+      const save = page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true })
+      await expect(save).toBeDisabled()
+      if (mode === 'COMPONENTS_V2') {
+        await expect(editor.locator('[data-envelope-button-hint]')).toHaveCount(0)
+        const container = editor.locator('[data-component-block="0"]')
+        const back = container.locator('[data-feature-action="payment.back"]')
+        await expect(back).toBeVisible()
+        await back
+          .getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true })
+          .selectOption('NEW_MESSAGE')
+        const row = container
+          .locator('[data-container-child]')
+          .filter({ has: page.locator('[data-feature-action="payment.back"]') })
+        await row.getByRole('combobox', { name: 'ย้ายไป', exact: true }).selectOption('root')
+        await expect(container.locator('[data-feature-action="payment.back"]')).toHaveCount(0)
+        const outside = editor.locator('[data-component-block="1"]')
+        await expect(outside.locator('[data-feature-action="payment.back"]')).toBeVisible()
+        await expect(
+          outside.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
+        ).toHaveValue('NEW_MESSAGE')
+        await outside.getByRole('combobox', { name: 'ย้ายไป', exact: true }).selectOption('0')
+        await back.getByRole('button', { name: 'ลบ', exact: true }).click()
+        const picker = container.locator('[data-feature-picker-location="container"]')
+        await picker.locator('summary').click()
+        await picker.getByRole('button', { name: 'กลับไปเลือกช่องทาง', exact: true }).click()
+        await back
+          .getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true })
+          .selectOption('NEW_MESSAGE')
+        await back
+          .getByRole('textbox', { name: 'ข้อความปุ่ม', exact: true })
+          .fill('เลือกช่องทางอื่น')
+        await expect(
+          editor
+            .locator('.preview-shell .preview-container')
+            .getByRole('button', { name: /เลือกช่องทางอื่น/ }),
+        ).toHaveCount(1)
+      } else {
+        const back = editor.locator('[data-system-component="back_button"]')
+        await expect(back).toBeVisible()
+        await back
+          .getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true })
+          .selectOption('NEW_MESSAGE')
+        await back
+          .getByRole('textbox', { name: 'ข้อความบนปุ่ม', exact: true })
+          .fill('เลือกช่องทางอื่น')
+      }
+      await editor
+        .locator(
+          mode === 'COMPONENTS_V2'
+            ? '[data-feature-action="payment.back"]'
+            : '[data-system-component="back_button"]',
+        )
+        .screenshot({
+          path: testInfo.outputPath('payment-v11-back-controls.png'),
+          animations: 'disabled',
+          scale: 'css',
+        })
+      await editor.screenshot({
+        path: testInfo.outputPath('payment-v11-back-editor.png'),
+        animations: 'disabled',
+        scale: 'css',
+      })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      await save.click()
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
+        .click()
+      await expect(save).toBeDisabled()
+      expect(JSON.stringify(saved!.presentations.bank_payment)).toContain('NEW_MESSAGE')
+      expect(JSON.stringify(saved!.presentations.bank_payment)).toContain('เลือกช่องทางอื่น')
+      await page.reload()
+      await expect(save).toBeDisabled()
+      await expect(
+        editor.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
+      ).toHaveValue('NEW_MESSAGE')
+      await page.goto(url.replace('bank_payment', 'wallet_payment'))
+      await expect(
+        editor.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
+      ).toHaveValue('UPDATE')
+      await expect(save).toBeDisabled()
+      expect(errors).toEqual([])
+    })
+  }

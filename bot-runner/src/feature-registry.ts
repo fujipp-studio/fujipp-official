@@ -11,7 +11,7 @@ import { runtimeExpiryAlertFeature } from "./features/runtime-expiry-alert/index
 import { memberSpendingFeature } from "./features/member-spending/index.js";
 import { botPermissionsFeature } from "./features/bot-permissions/index.js";
 import { channelMessageTriggersFeature } from "./features/channel-message-triggers/index.js";
-import { paymentTriggerFeature } from "./features/payment-trigger/index.js";
+import { paymentTriggerFeature, paymentTriggerFeatureV11 } from "./features/payment-trigger/index.js";
 import { robloxPayoutTestFeature } from "./features/roblox-payout-test/index.js";
 import type { FeatureModule } from "./types.js";
 
@@ -46,6 +46,7 @@ const modules = new Map<string, FeatureModule>([
   [moduleKey(memberSpendingFeature.runtimeKey, memberSpendingFeature.version), memberSpendingFeature],
   [moduleKey(botPermissionsFeature.runtimeKey, botPermissionsFeature.version), botPermissionsFeature],
   [moduleKey(channelMessageTriggersFeature.runtimeKey, channelMessageTriggersFeature.version), channelMessageTriggersFeature],
+  [moduleKey(paymentTriggerFeatureV11.runtimeKey, paymentTriggerFeatureV11.version), paymentTriggerFeatureV11],
   [moduleKey(paymentTriggerFeature.runtimeKey, paymentTriggerFeature.version), paymentTriggerFeature],
   [moduleKey(robloxPayoutTestFeature.runtimeKey, robloxPayoutTestFeature.version), robloxPayoutTestFeature],
 ]);

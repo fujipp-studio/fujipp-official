@@ -96,3 +96,34 @@ The migration is recorded as `20261028000001:payment_trigger_vouchers`; migratio
 deployment must honor that history instead of running the SQL a second time.
 Application containers still require deployment of the matching feature code
 before envelope payments can be enabled.
+
+## Version 1.1.0: Back and response choices
+
+Upgrade the package to **1.1.0**, then open the **Bank QR payment** or **Wallet
+payment** message. A **กลับไปเลือกช่องทาง** button returns to the payment-method
+selector using the same amount and invoice. The Components V2 editor projects a
+Back row inside the last Container for older designs. Use **+ ปุ่ม Feature** to
+add another Back button at the root, inside any Container, or in a button row;
+move, rename, recolor, or delete it as usual. Embed messages expose its settings
+under feature components.
+
+Each feature button has **เมื่อกดปุ่มนี้** with **อัปเดตข้อความเดิม** or
+**ส่งข้อความใหม่**. Bank, Wallet, and Back default to updating the original
+message. The envelope button defaults to sending a new receipt; its response
+choice applies after a confirmed payment, while clicking it still opens the
+link modal. Updating a receipt replaces the payment controls with the success
+design. Sending a receipt separately disables the controls on its source message.
+Copies created by navigation share one invoice and the backend's duplicate-payment
+protection.
+
+Discord permits changing an Embed to Components V2, but cannot change a
+Components V2 message back to Embed. For that transition, select **ส่งข้อความใหม่**
+or use Components V2 for both messages. Incompatible updates show a private error;
+an incompatible envelope receipt is rejected before redeeming money.
+
+Deploy the updated Runner and Frontend with
+`20261029000001_payment_trigger_v1_1.sql`. The migration publishes 1.1.0 and clones
+its configuration and message slots. Existing licenses stay on their current
+version until upgraded through the normal package upgrade action, which preserves
+saved configuration and message designs. Post a fresh trigger to use the new
+per-button responses. Old 1.0 buttons and open envelope modals remain supported.
