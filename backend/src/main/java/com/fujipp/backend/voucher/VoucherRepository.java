@@ -63,8 +63,8 @@ class VoucherRepository {
                 """
                 INSERT INTO private.truemoney_voucher_redemptions (
                     bot_id, member_discord_id, recipient_phone, voucher_hash,
-                    request_fingerprint, idempotency_key
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    request_fingerprint, idempotency_key, payment_message_id, expected_amount_satang
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT DO NOTHING
                 RETURNING id
                 """,
@@ -72,8 +72,37 @@ class VoucherRepository {
                         ? Optional.of(resultSet.getObject(1, UUID.class))
                         : Optional.empty(),
                 request.botId(), request.memberDiscordId(), phone, voucherHash,
-                requestFingerprint, request.idempotencyKey()
+                requestFingerprint, request.idempotencyKey(), request.paymentMessageId(), request.expectedAmountSatang()
         );
+    }
+
+    Optional<String> findPaymentRecipientPhone(UUID botId) {
+        return jdbcTemplate.query("""
+                SELECT COALESCE(value.value, definition.default_value) #>> '{}'
+                FROM private.bot_feature_installations installation
+                JOIN private.feature_licenses license ON license.id = installation.license_id
+                  AND license.status = 'ACTIVE' AND (license.expires_at IS NULL OR license.expires_at > now())
+                JOIN shop.feature_products product ON product.id = installation.feature_product_id AND product.code = 'payment-trigger'
+                JOIN private.feature_config_sets config ON config.license_id = license.id
+                  AND config.feature_version_id = installation.feature_version_id
+                JOIN shop.feature_config_definitions definition ON definition.feature_version_id = config.feature_version_id
+                  AND definition.config_key = 'WALLET_NUMBER' AND definition.is_secret = false
+                LEFT JOIN private.feature_config_values value ON value.config_set_id = config.id AND value.definition_id = definition.id
+                JOIN bots.bot_instances bot ON bot.id = installation.bot_id AND bot.status NOT IN ('SUSPENDED', 'DECOMMISSIONED')
+                WHERE installation.bot_id = ? AND installation.status = 'ACTIVE' AND installation.removed_at IS NULL
+                  AND COALESCE(value.value, definition.default_value) IS NOT NULL
+                  AND EXISTS (
+                    SELECT 1 FROM shop.feature_config_definitions enabled
+                    LEFT JOIN private.feature_config_values enabled_value ON enabled_value.config_set_id = config.id
+                      AND enabled_value.definition_id = enabled.id
+                    WHERE enabled.feature_version_id = config.feature_version_id AND enabled.config_key = 'TRUEMONEY_ENABLED'
+                      AND COALESCE(enabled_value.value, enabled.default_value) = 'true'::jsonb
+                  )
+                """, (rs, row) -> rs.getString(1), botId).stream().findFirst();
+    }
+
+    Optional<RedemptionRow> findByPayment(UUID botId, String messageId) {
+        return find("WHERE bot_id = ? AND payment_message_id = ? AND status IN ('REDEEMING', 'SUCCEEDED', 'RECONCILIATION_REQUIRED')", botId, messageId);
     }
 
     Optional<RedemptionRow> findById(UUID id) {

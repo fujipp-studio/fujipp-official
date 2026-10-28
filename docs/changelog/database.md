@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-28 | Installed Payment Trigger invoice claims, exact-amount constraints, disabled envelope defaults and success-message templates on VPS PostgreSQL while preserving existing voucher, wallet, configuration and saved design records. |
 | 2026-10-27 | Installed optional QR watermark settings on VPS PostgreSQL for every Wallet version with a plain-QR default and unchanged wallet and saved configuration data. |
 | 2026-10-27 | Installed private role purchases and a draft Role Shop catalog on VPS PostgreSQL, with restricted access, duplicate protection and configuration/presentation defaults. |
 | 2026-10-26 | Added private monthly spending balances and an append-only ledger, opt-in tracking and cycle-day settings, monthly roles and card variables with restricted VPS backend access. |

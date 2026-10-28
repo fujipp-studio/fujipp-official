@@ -79,4 +79,29 @@ describe('Payment Trigger preview', () => {
       wallet_number: '',
     })
   })
+  it.each(['EMBED', 'COMPONENTS_V2'] as const)(
+    'shows the envelope button in %s only when enabled without changing the saved design',
+    (mode) => {
+      const { config } = paymentTriggerFixture(mode)
+      const definition = config.presentations[0]!.defaultDefinition
+      const original = structuredClone(definition)
+      const preview = paymentTriggerPresentationPreview(definition, 'method_selector', true)
+      const buttons =
+        mode === 'EMBED'
+          ? Object.values(preview.components as object)
+          : (preview.components as Array<{ components: unknown[] }>).at(-1)!.components
+      expect(buttons).toHaveLength(3)
+      expect(buttons[2]).toMatchObject({ label: 'ชำระด้วยซองอั่งเปา', emoji: '🧧', style: 4 })
+      expect(definition).toEqual(original)
+      const receipt = config.presentations.find(
+        (slot) => slot.key === 'payment_success',
+      )!.defaultDefinition
+      const receiptPreview = paymentTriggerPresentationPreview(receipt, 'payment_success', true)
+      expect(
+        mode === 'EMBED'
+          ? Object.values(receiptPreview.components as object)
+          : receiptPreview.components,
+      ).toHaveLength(mode === 'EMBED' ? 0 : 1)
+    },
+  )
 })

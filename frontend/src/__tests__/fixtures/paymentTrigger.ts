@@ -2,9 +2,38 @@ import type { FeatureConfiguration } from '@/features/bots/api'
 import { configuration, license } from './domain'
 
 const definitions: Record<string, Record<string, unknown>> = {
+  payment_success: {
+    mode: 'COMPONENTS_V2',
+    embed: {
+      color: 5763719,
+      title: '✅ ชำระเงินสำเร็จ',
+      description:
+        'รับชำระเงินจาก {{member_mention}} ผ่าน {{payment_method}}\n\n**ยอดชำระ:** {{paid_amount}} บาท\n**เลขรายการ:** {{payment_id}}\n**อ้างอิง:** {{reference}}',
+      footer: { text: '{{datetime}}' },
+    },
+    components_v2: {
+      components: [
+        {
+          type: 17,
+          accent_color: 5763719,
+          components: [
+            { type: 10, content: '# ✅ ชำระเงินสำเร็จ' },
+            { type: 14, divider: true, spacing: 1 },
+            {
+              type: 10,
+              content:
+                'รับชำระเงินจาก {{member_mention}} ผ่าน {{payment_method}}\n\n**ยอดชำระ:** `{{paid_amount}} บาท`\n**เลขรายการ:** `{{payment_id}}`\n**อ้างอิง:** `{{reference}}`',
+            },
+            { type: 10, content: '{{datetime}}' },
+          ],
+        },
+      ],
+    },
+  },
   method_selector: {
     mode: 'COMPONENTS_V2',
     components: {
+      voucher_button: { label: 'ชำระด้วยซองอั่งเปา', emoji: '🧧', style: 'danger' },
       bank_button: {
         label: 'สแกน QR ธนาคาร',
         emoji: '🏦',
@@ -241,6 +270,7 @@ export function paymentTriggerFixture(mode: 'EMBED' | 'COMPONENTS_V2' = 'COMPONE
         value: 500,
         validation: { minimum: 0, maximum: 100000 },
       },
+      { key: 'TRUEMONEY_ENABLED', type: 'BOOLEAN', value: false, validation: null },
       { key: 'FUTURE_SETTING', type: 'STRING', value: 'preserved', validation: null },
     ].map((item) => ({
       label: item.key,
@@ -252,34 +282,41 @@ export function paymentTriggerFixture(mode: 'EMBED' | 'COMPONENTS_V2' = 'COMPONE
       ui: null,
       ...item,
     })),
-    presentations: Object.entries(definitions).map(([key, source], index) => {
-      const definition = structuredClone(source)
-      definition.mode = mode
-      definition.future = { retained: true }
-      if (key === 'method_selector') {
-        const components = definition.components as Record<string, Record<string, unknown>>
-        components.bank_button!.future = 'keep'
-      }
-      return {
-        slotId: `payment-slot-${index + 1}`,
-        key,
-        label: key,
-        description: '',
-        type: 'COMPONENTS_V2',
-        availableVariables: [
-          'amount',
-          'base_amount',
-          'fee_amount',
-          'total_amount',
-          'datetime',
-          'qr_image_url',
-          'wallet_number',
-          'trigger',
-        ],
-        defaultDefinition: definition,
-        overrideDefinition: null,
-      }
-    }),
+    presentations: Object.entries(definitions)
+      .sort(([a], [b]) => (a === 'payment_success' ? 1 : b === 'payment_success' ? -1 : 0))
+      .map(([key, source], index) => {
+        const definition = structuredClone(source)
+        definition.mode = mode
+        definition.future = { retained: true }
+        if (key === 'method_selector') {
+          const components = definition.components as Record<string, Record<string, unknown>>
+          components.bank_button!.future = 'keep'
+        }
+        return {
+          slotId: `payment-slot-${index + 1}`,
+          key,
+          label: key,
+          description: '',
+          type: 'COMPONENTS_V2',
+          availableVariables: [
+            'amount',
+            'base_amount',
+            'fee_amount',
+            'total_amount',
+            'datetime',
+            'qr_image_url',
+            'wallet_number',
+            'trigger',
+            'paid_amount',
+            'member_mention',
+            'payment_id',
+            'reference',
+            'payment_method',
+          ],
+          defaultDefinition: definition,
+          overrideDefinition: null,
+        }
+      }),
   }
   return { paymentLicense, config }
 }

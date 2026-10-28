@@ -41,6 +41,14 @@ class TrueMoneyVoucherAdapter {
     }
 
     Outcome redeem(String phone, String giftUrl) {
+        return redeem(phone, giftUrl, null);
+    }
+
+    Outcome redeemPayment(String phone, String giftUrl, long expectedAmountSatang) {
+        return redeem(phone, giftUrl, expectedAmountSatang);
+    }
+
+    private Outcome redeem(String phone, String giftUrl, Long expectedAmountSatang) {
         String voucherCode = voucherCode(giftUrl);
         JsonNode verification = request(
                 HttpMethod.GET,
@@ -50,6 +58,7 @@ class TrueMoneyVoucherAdapter {
         if (!"active".equals(verification.path("data").path("voucher").path("status").asString(""))) {
             throw new VoucherException("VOUCHER_INVALID", "Voucher is not active");
         }
+        if (expectedAmountSatang != null) validatePaymentVoucher(verification.path("data").path("voucher"), expectedAmountSatang);
 
         JsonNode redeemed = redeemWithOneBadRequestRetry(voucherCode, phone);
         JsonNode voucher = redeemed.path("data").path("voucher");
@@ -65,6 +74,20 @@ class TrueMoneyVoucherAdapter {
             return new Outcome(new BigDecimal(amount), issuer, reference);
         } catch (NumberFormatException exception) {
             throw new VoucherException("UPSTREAM_INVALID_AMOUNT", "TrueMoney returned an invalid amount");
+        }
+    }
+
+    static void validatePaymentVoucher(JsonNode voucher, long expectedAmountSatang) {
+        if (!"1".equals(voucher.path("member").asString(""))) {
+            throw new VoucherException("VOUCHER_NOT_SINGLE_RECIPIENT", "กรุณาสร้างซองอั่งเปาสำหรับผู้รับ 1 คนเท่านั้น");
+        }
+        try {
+            long amount = new BigDecimal(voucher.path("amount_baht").asString("")).movePointRight(2).longValueExact();
+            if (amount != expectedAmountSatang) {
+                throw new VoucherException("VOUCHER_AMOUNT_MISMATCH", "ยอดซองอั่งเปาต้องตรงกับยอดรายการ โดยไม่มีค่าธรรมเนียมเพิ่มเติม");
+            }
+        } catch (NumberFormatException | ArithmeticException exception) {
+            throw new VoucherException("VOUCHER_INVALID", "ไม่สามารถตรวจสอบยอดซองอั่งเปาได้ ยังไม่ได้รับเงินจากซอง");
         }
     }
 

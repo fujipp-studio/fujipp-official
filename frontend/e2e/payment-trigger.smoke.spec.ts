@@ -93,6 +93,10 @@ for (const theme of ['LIGHT', 'DARK']) {
       await fee.fill('250')
       await expect(form).toContainText('เท่ากับ 2.50 บาท')
       await expect(totals).toContainText('12.5 บาท')
+      await form.getByRole('switch', { name: 'รับชำระด้วยซองอั่งเปา', exact: true }).click()
+      await expect(
+        form.getByRole('switch', { name: 'รับชำระด้วยซองอั่งเปา', exact: true }),
+      ).toBeChecked()
       await category('QR ธนาคาร')
       const qr = form.getByRole('textbox', { name: /URL รูป QR ธนาคาร/ })
       await qr.fill('http://fixture.invalid/newqr.png')
@@ -123,6 +127,18 @@ for (const theme of ['LIGHT', 'DARK']) {
         design.locator('.preview-shell').getByRole('button', { name: /ชำระผ่าน Wallet/ }),
       ).toHaveCount(1)
       await expect(design.locator('.preview-shell')).toContainText('2.5 บาท')
+      await expect(
+        design.locator('.preview-shell').getByRole('button', { name: /ชำระด้วยซองอั่งเปา/ }),
+      ).toHaveCount(1)
+      await pick('ชำระเงินสำเร็จ')
+      await expect(design.locator('.preview-shell')).toContainText('ชำระเงินสำเร็จ')
+      await expect(design.locator('.preview-shell')).toContainText('10 บาท')
+      await expect(design.locator('.preview-shell')).toContainText('sample-payment')
+      await design.screenshot({
+        path: testInfo.outputPath('payment-success.png'),
+        animations: 'disabled',
+        scale: 'css',
+      })
       await pick('ชำระผ่าน Wallet')
       await expect(design.locator('.preview-shell')).toContainText('12.5 บาท')
       await expect(design.locator('.preview-shell')).toContainText('0901234567')
@@ -179,6 +195,7 @@ for (const theme of ['LIGHT', 'DARK']) {
         BANK_QR_IMAGE_URL: 'https://fixture.invalid/newqr.png',
         WALLET_NUMBER: '0901234567',
         WALLET_FEE_SATANG: 250,
+        TRUEMONEY_ENABLED: true,
         FUTURE_SETTING: 'preserved',
       })
       expect(saved?.presentations.method_selector).toEqual(

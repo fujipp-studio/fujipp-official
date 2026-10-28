@@ -119,6 +119,124 @@ function settle(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+const invoiceId = "444444444444444";
+const voucherModalId = `fujipp:payment:redeem:10000:${invoiceId}`;
+const giftUrl = "https://gift.truemoney.com/campaign/?v=testVoucher";
+function envelopeContext(client: EventEmitter, overrides: Partial<FeatureContext> = {}): FeatureContext {
+  const base = context(client);
+  return { ...base, config: { ...base.config, TRUEMONEY_ENABLED: true },
+    presentations: { ...base.presentations, payment_success: { mode: "COMPONENTS_V2", components_v2: {
+      components: [{ type: 10, content: "{{paid_amount}} {{member_mention}} {{reference}}" }],
+    } } }, ...overrides };
+}
+function voucherSubmission() {
+  const replies: Record<string, unknown>[] = [], receipts: Record<string, unknown>[] = [], edits: Record<string, unknown>[] = [];
+  const interaction = { customId: voucherModalId, id: "777777777777777", user: { id: "666666666666666" },
+    guildId: "111111111111111", deferred: false, replied: false, isButton: () => false, isModalSubmit: () => true,
+    inGuild: () => true, isFromMessage: () => true, fields: { getTextInputValue: () => giftUrl },
+    deferReply: async (payload: Record<string, unknown>) => { interaction.deferred = true; assert.equal(payload.flags, MessageFlags.Ephemeral); },
+    editReply: async (payload: Record<string, unknown>) => { replies.push(payload); },
+    followUp: async (payload: Record<string, unknown>) => { receipts.push(payload); },
+    message: { components: [{ toJSON: () => ({ type: 1, components: [{ type: 2, custom_id: "pay", disabled: false }] }) }],
+      edit: async (payload: Record<string, unknown>) => { edits.push(payload); } },
+  };
+  return { interaction, replies, receipts, edits };
+}
+function confirmedVoucher(): import("../src/types.js").VoucherRedemption {
+  return { id: "payment-1", botId: "bot-1", memberDiscordId: "666666666666666", status: "SUCCEEDED", amountSatang: 10000, reference: "ref-1", failureCode: null, failureMessage: null };
+}
+
+test("envelopes add a third invoice-specific button only when enabled", async () => {
+  for (const enabled of [true, false]) {
+    const client = new EventEmitter(), sent: Record<string, unknown>[] = [], base = envelopeContext(client);
+    const dispose = await paymentTriggerFeature.activate({ ...base, config: { ...base.config, TRUEMONEY_ENABLED: enabled } });
+    try {
+      client.emit("messageCreate", adminMessage("p100", sent, { value: false })); await settle();
+      const row = (sent[0]!.components as Array<{ components?: Array<{ custom_id: string }> }>)[1]!;
+      assert.equal(row.components!.length, enabled ? 3 : 2);
+      if (enabled) assert.equal(row.components![2]!.custom_id, `fujipp:payment:voucher:10000:${invoiceId}`);
+    } finally { await dispose(); }
+  }
+});
+
+test("the envelope button opens a required link modal without redeeming money", async () => {
+  const client = new EventEmitter(), modals: Array<{ toJSON(): unknown }> = [];
+  const dispose = await paymentTriggerFeature.activate(envelopeContext(client, { paymentVoucher: async () => assert.fail("must not redeem") }));
+  try {
+    client.emit("interactionCreate", { customId: `fujipp:payment:voucher:10000:${invoiceId}`, guildId: "111111111111111",
+      isButton: () => true, inGuild: () => true, showModal: async (modal: { toJSON(): unknown }) => { modals.push(modal); } });
+    await settle();
+    const modal = modals[0]!.toJSON() as { custom_id: string; components: Array<{ components: Array<{ required: boolean; custom_id: string }> }> };
+    assert.equal(modal.custom_id, voucherModalId);
+    assert.equal(modal.components[0]!.components[0]!.custom_id, "gift_url");
+    assert.equal(modal.components[0]!.components[0]!.required, true);
+  } finally { await dispose(); }
+});
+
+for (const mode of ["EMBED", "COMPONENTS_V2"]) {
+  test(`confirmed envelope posts public ${mode} receipt and disables old buttons`, async () => {
+    const client = new EventEmitter(), state = voucherSubmission();
+    const definition = mode === "EMBED"
+      ? { mode, embed: { title: "ชำระเงินสำเร็จ", description: "{{paid_amount}} {{member_mention}} {{reference}}" } }
+      : { mode, components_v2: { components: [{ type: 10, content: "{{paid_amount}} {{member_mention}} {{reference}}" }] } };
+    const dispose = await paymentTriggerFeature.activate(envelopeContext(client, {
+      presentations: { payment_success: definition }, paymentVoucher: async (input) => {
+        assert.equal(state.interaction.deferred, true);
+        assert.deepEqual(input, { memberDiscordId: "666666666666666", giftUrl, paymentMessageId: invoiceId, expectedAmountSatang: 10000, idempotencyKey: "payment:777777777777777" });
+        return confirmedVoucher();
+      },
+    }));
+    try {
+      client.emit("interactionCreate", state.interaction); await settle();
+      assert.equal(state.receipts.length, 1); assert.equal(state.replies.length, 1);
+      assert.equal(state.receipts[0]!.flags, mode === "COMPONENTS_V2" ? MessageFlags.IsComponentsV2 : undefined);
+      assert.match(JSON.stringify(state.receipts), /100 <@666666666666666> ref-1/);
+      assert.deepEqual(state.edits[0], { components: [{ type: 1, components: [{ type: 2, custom_id: "pay", disabled: true }] }] });
+      assert.equal(JSON.stringify(state.receipts).includes(giftUrl), false);
+    } finally { await dispose(); }
+  });
+}
+for (const status of ["VERIFY_FAILED", "REDEEMING", "RECONCILIATION_REQUIRED"]) {
+  test(`envelope ${status} never posts success or disables the selector`, async () => {
+    const client = new EventEmitter(), state = voucherSubmission(), errors: unknown[][] = [];
+    const dispose = await paymentTriggerFeature.activate(envelopeContext(client, {
+      paymentVoucher: async () => ({ ...confirmedVoucher(), status, amountSatang: null, failureMessage: "ยอดไม่ตรง" }),
+      reportFeatureError: async (...args) => { errors.push(args); },
+    }));
+    try {
+      client.emit("interactionCreate", state.interaction); await settle();
+      assert.equal(state.receipts.length, 0); assert.equal(state.edits.length, 0);
+      assertFeatureError(state.replies[0], "Payment Trigger", "PAYMENT_VOUCHER_FAILED");
+      assert.deepEqual(errors[0]![2], { recoverable: true });
+    } finally { await dispose(); }
+  });
+}
+test("a broken receipt or invalid URL cannot redeem money", async () => {
+  for (const brokenDesign of [true, false]) {
+    const client = new EventEmitter(), state = voucherSubmission();
+    if (!brokenDesign) state.interaction.fields.getTextInputValue = () => "https://evil.invalid/secret";
+    const dispose = await paymentTriggerFeature.activate(envelopeContext(client, {
+      ...(brokenDesign ? { presentations: {} } : {}), paymentVoucher: async () => assert.fail("must not redeem"),
+    }));
+    try {
+      client.emit("interactionCreate", state.interaction); await settle();
+      assert.equal(state.receipts.length, 0);
+      assertFeatureError(state.replies[0], "Payment Trigger", "PAYMENT_VOUCHER_FAILED");
+    } finally { await dispose(); }
+  }
+});
+test("failure to post a public receipt does not turn received money into a payment failure", async () => {
+  const client = new EventEmitter(), state = voucherSubmission(), errors: unknown[][] = [];
+  state.interaction.followUp = async () => { throw new Error("Missing permissions"); };
+  const dispose = await paymentTriggerFeature.activate(envelopeContext(client, { paymentVoucher: async () => confirmedVoucher(),
+    reportFeatureError: async (...args) => { errors.push(args); } }));
+  try {
+    client.emit("interactionCreate", state.interaction); await settle();
+    assert.match(String(state.replies[0]!.content), /รับชำระเงิน 100 บาทสำเร็จ/);
+    assert.equal(errors[0]![0], "PAYMENT_RECEIPT_FAILED"); assert.equal(state.edits.length, 1);
+  } finally { await dispose(); }
+});
+
 test("a broken payment design reports a recoverable failure and sends an Embed in the trigger channel", async () => {
   const client = new EventEmitter(), sent: Array<Record<string, unknown>> = [], errors: unknown[][] = [];
   const dispose = await paymentTriggerFeature.activate(context(client, {

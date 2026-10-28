@@ -7,12 +7,17 @@ import {
   type GuildTextBasedChannel,
   type Interaction,
   type Message,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  type ModalSubmitInteraction,
   MessageFlags,
   PermissionFlagsBits,
 } from "discord.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 
 const ACTION_PREFIX = "fujipp:payment:";
+const VOUCHER_MODAL_PREFIX = `${ACTION_PREFIX}redeem:`;
 const MAX_AMOUNT_SATANG = 100_000_000;
 
 type PaymentMethod = "bank" | "wallet";
@@ -36,6 +41,14 @@ export const paymentTriggerFeature: FeatureModule = {
       });
     };
     const onInteractionCreate = (interaction: Interaction) => {
+      if (!interaction.isButton() && interaction.isModalSubmit() && interaction.customId.startsWith(VOUCHER_MODAL_PREFIX)) {
+        void handlePaymentVoucher(context, interaction).catch((error) => {
+          void context.reportFeatureError("PAYMENT_VOUCHER_FAILED", error, { recoverable: true }).catch(() => undefined);
+          void replyFeatureError(interaction, "payment-trigger", error, { code: "PAYMENT_VOUCHER_FAILED",
+            hint: "ตรวจสอบยอดและสถานะรายการก่อนชำระซ้ำ หากผลไม่ชัดเจนให้ติดต่อผู้ดูแลร้าน" });
+        });
+        return;
+      }
       if (
         !interaction.isButton() ||
         !interaction.customId.startsWith(ACTION_PREFIX)
@@ -94,6 +107,7 @@ async function handlePaymentTrigger(
       parsed.kind === "payment" ? "method_selector" : "invalid_amount",
       variables,
       parsed.kind === "payment" ? parsed.amountSatang : undefined,
+      message.id,
     ),
   );
 }
@@ -104,6 +118,16 @@ async function handlePaymentMethod(
 ): Promise<void> {
   if (!interaction.inGuild()) return;
   if (context.guildId && interaction.guildId !== context.guildId) return;
+  const voucher = parseVoucherAction(interaction.customId, "voucher");
+  if (voucher) {
+    if (context.config.TRUEMONEY_ENABLED !== true) throw new Error("ร้านยังไม่เปิดรับชำระด้วยซองอั่งเปา");
+    const input = new TextInputBuilder().setCustomId("gift_url").setLabel(`ลิงก์ซองอั่งเปา ${money(voucher.amountSatang)} บาท`)
+      .setStyle(TextInputStyle.Short).setPlaceholder("https://gift.truemoney.com/campaign/?v=...")
+      .setRequired(true).setMaxLength(500);
+    await interaction.showModal(new ModalBuilder().setCustomId(`${VOUCHER_MODAL_PREFIX}${voucher.amountSatang}:${voucher.messageId}`)
+      .setTitle("ชำระเงินด้วยซองอั่งเปา").addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input)));
+    return;
+  }
   const action = parseAction(interaction.customId);
   if (!action) return;
   const slot = action.method === "bank" ? "bank_payment" : "wallet_payment";
@@ -114,6 +138,58 @@ async function handlePaymentMethod(
       baseVariables(context, action.amountSatang),
     ) as never,
   );
+}
+
+async function handlePaymentVoucher(context: FeatureContext, interaction: ModalSubmitInteraction): Promise<void> {
+  if (!interaction.inGuild() || (context.guildId && interaction.guildId !== context.guildId)) return;
+  const action = parseVoucherAction(interaction.customId, "redeem");
+  if (!action) return;
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (context.config.TRUEMONEY_ENABLED !== true || !context.paymentVoucher) throw new Error("ร้านยังไม่เปิดรับชำระด้วยซองอั่งเปา");
+  const giftUrl = interaction.fields.getTextInputValue("gift_url").trim();
+  if (!/^https:\/\/gift\.truemoney\.com\/campaign\/\?v=[A-Za-z0-9_-]+$/.test(giftUrl))
+    throw new Error("กรุณากรอกลิงก์ซองอั่งเปา TrueMoney ที่ถูกต้อง");
+  // Validate the configured success design before asking the backend to receive money.
+  const receiptContext = { ...context, presentations: { payment_success: context.presentations.payment_success } };
+  renderPresentation(receiptContext, "payment_success", baseVariables(context, action.amountSatang));
+  const result = await context.paymentVoucher({ memberDiscordId: interaction.user.id, giftUrl,
+    paymentMessageId: action.messageId, expectedAmountSatang: action.amountSatang, idempotencyKey: `payment:${interaction.id}` });
+  if (result.status !== "SUCCEEDED" || result.amountSatang !== action.amountSatang) {
+    throw new Error(result.status === "REDEEMING" || result.status === "RECONCILIATION_REQUIRED"
+      ? "รายการกำลังประมวลผลหรือรอตรวจสอบ กรุณาติดต่อผู้ดูแลและอย่าชำระซ้ำ"
+      : result.failureMessage ?? "ยังไม่สามารถยืนยันการชำระเงินได้ กรุณาติดต่อผู้ดูแลและอย่าชำระซ้ำ");
+  }
+  const success = renderPresentation(receiptContext, "payment_success", {
+    ...baseVariables(context, action.amountSatang), fee_amount: "0", total_amount: money(result.amountSatang),
+    paid_amount: money(result.amountSatang), member_mention: `<@${interaction.user.id}>`,
+    member_id: interaction.user.id, payment_id: result.id, reference: result.reference ?? "", payment_method: "ซองอั่งเปา TrueMoney",
+  });
+  // Success is posted separately so either format works even if the selector used Components V2.
+  try {
+    await interaction.editReply({ content: `รับชำระเงิน ${money(result.amountSatang)} บาทสำเร็จแล้ว เลขรายการ ${result.id}`, allowedMentions: { parse: [] } });
+    await interaction.followUp(success);
+  } catch (error) {
+    await context.reportFeatureError("PAYMENT_RECEIPT_FAILED", error, { recoverable: true }).catch(() => undefined);
+    await replyFeatureError(interaction, "payment-trigger", `รับชำระเงิน ${money(result.amountSatang)} บาทสำเร็จแล้ว แต่ส่งข้อความยืนยันไม่สำเร็จ เลขรายการ ${result.id} กรุณาอย่าชำระซ้ำ`,
+      { code: "PAYMENT_RECEIPT_FAILED", warning: true, followUp: true });
+  }
+  if (interaction.isFromMessage()) {
+    const disableButtons = (components: unknown[]): unknown[] => components.map((component) => {
+      if (!isRecord(component)) return component;
+      return { ...component, ...(component.type === 2 ? { disabled: true } : {}),
+        ...(Array.isArray(component.components) ? { components: disableButtons(component.components) } : {}) };
+    });
+    await interaction.message.edit({ components: disableButtons(interaction.message.components.map(component => component.toJSON())) } as never)
+      .catch(() => undefined);
+  }
+}
+
+function parseVoucherAction(customId: string, action: "voucher" | "redeem"): { amountSatang: number; messageId: string } | null {
+  const match = customId.match(new RegExp(`^${ACTION_PREFIX}${action}:(\\d+):(\\d{15,30})$`));
+  if (!match) return null;
+  const amountSatang = Number(match[1]);
+  return Number.isSafeInteger(amountSatang) && amountSatang > 0 && amountSatang <= MAX_AMOUNT_SATANG
+    ? { amountSatang, messageId: match[2]! } : null;
 }
 
 function parseTrigger(
@@ -179,6 +255,7 @@ function renderPresentation(
   slot: string,
   variables: Record<string, string>,
   selectorAmountSatang?: number,
+  selectorMessageId?: string,
 ): Record<string, unknown> {
   const definition = isRecord(context.presentations[slot])
     ? context.presentations[slot]
@@ -188,7 +265,7 @@ function renderPresentation(
   const actions =
     selectorAmountSatang === undefined
       ? []
-      : paymentButtons(definition, selectorAmountSatang);
+      : paymentButtons(definition, selectorAmountSatang, context.config.TRUEMONEY_ENABLED === true ? selectorMessageId : undefined);
 
   if (mode === "COMPONENTS_V2") {
     const source = isRecord(definition.components_v2)
@@ -226,6 +303,7 @@ function renderPresentation(
 function paymentButtons(
   definition: Record<string, unknown>,
   amountSatang: number,
+  messageId?: string,
 ): ButtonBuilder[] {
   const configured = isRecord(definition.components)
     ? definition.components
@@ -245,6 +323,8 @@ function paymentButtons(
       "🟠",
       ButtonStyle.Primary,
     ),
+    ...(messageId ? [configuredButton(configured.voucher_button, `${ACTION_PREFIX}voucher:${amountSatang}:${messageId}`,
+      "ชำระด้วยซองอั่งเปา", "🧧", ButtonStyle.Danger)] : []),
   ];
 }
 

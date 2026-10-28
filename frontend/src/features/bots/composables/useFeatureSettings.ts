@@ -571,7 +571,10 @@ export function useFeatureSettings() {
       }
     }
     if (isPaymentTriggerFeature.value) {
-      return paymentTriggerSampleValues(values.value)
+      const sample = paymentTriggerSampleValues(values.value)
+      return slotKey === 'payment_success'
+        ? { ...sample, fee_amount: '0', total_amount: sample.paid_amount }
+        : sample
     }
     if (isPriceReaderFeature.value)
       return priceReaderSampleValues(
@@ -805,10 +808,12 @@ export function useFeatureSettings() {
         featureValidator.value = (draft) =>
           watermark.walletQrWatermarkValid(draft.PROMPTPAY_QR_WATERMARK)
       }
-      if (isPaymentTriggerFeature.value)
-        featurePreview.value = (
-          await import('../models/payment-trigger-presentation-preview')
-        ).paymentTriggerPresentationPreview
+      if (isPaymentTriggerFeature.value) {
+        const paymentPreview = (await import('../models/payment-trigger-presentation-preview'))
+          .paymentTriggerPresentationPreview
+        featurePreview.value = (definition, slotKey) =>
+          paymentPreview(definition, slotKey, values.value.TRUEMONEY_ENABLED === true)
+      }
       if (isPriceReaderFeature.value) {
         const { priceReaderPresentationPreview } =
           await import('../models/price-reader-presentation-preview')

@@ -49,6 +49,7 @@ export interface FeatureContext {
     canUse(interaction: ChatInputCommandInteraction | ModalSubmitInteraction, commandKey?: string, defaultAllowed?: boolean): boolean;
   };
   reportFeatureError(errorCode: string, error: unknown, options?: { recoverable: boolean }): Promise<void>;
+  paymentVoucher?: (input: { memberDiscordId: string; giftUrl: string; paymentMessageId: string; expectedAmountSatang: number; idempotencyKey: string }) => Promise<VoucherRedemption>;
   saveRuntimeState(state: Record<string, unknown>): Promise<void>;
   wallet: {
     balance(memberDiscordId: string): Promise<{ balanceSatang: number; currency: string }>;
@@ -88,6 +89,7 @@ export interface MemberSpendingStore {
   totals(month?:string):Promise<{amountSatang:number;txCount:number}>;
 }
 
+export interface VoucherRedemption { id: string; botId: string; memberDiscordId: string; status: string; amountSatang: number | null; reference: string | null; failureCode: string | null; failureMessage: string | null; }
 export interface WalletTopupResult { transactionId: string; creditedSatang: number; balanceSatang: number; currency: string; method: string; created: boolean; completedAt: string; }
 export interface PromptPaySession { sessionId: string; amountSatang: number; currency: string; accountName: string; qrUrl: string; expiresAt: string; qrImageDataUri?: string; }
 export type WalletAdjustmentOperation = "ADD" | "REMOVE" | "SET";

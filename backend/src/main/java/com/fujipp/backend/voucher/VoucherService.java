@@ -24,15 +24,18 @@ public class VoucherService {
     }
 
     public VoucherRedemptionResponse redeem(RedeemTrueMoneyVoucherRequest request) {
-        String phone = repository.findRecipientPhone(request.botId())
+        boolean payment = request.paymentMessageId() != null;
+        String phone = (payment ? repository.findPaymentRecipientPhone(request.botId()) : repository.findRecipientPhone(request.botId()))
                 .filter(value -> value.matches("^0[0-9]{8,9}$"))
                 .orElseThrow(() -> new VoucherException(
                         "FEATURE_NOT_READY",
-                        "Bot requires an active wallet-topup installation with TRUEMONEY_PHONE configured"
+                        payment ? "Payment Trigger ต้องเปิดรับซองอั่งเปาและตั้งหมายเลข Wallet ให้ถูกต้อง"
+                                : "Bot requires an active wallet-topup installation with TRUEMONEY_PHONE configured"
                 ));
         String voucherHash = sha256(request.giftUrl());
         String fingerprint = sha256(
                 request.botId() + "\0" + request.memberDiscordId() + "\0" + phone + "\0" + voucherHash
+                        + (payment ? "\0payment:" + request.paymentMessageId() + ":" + request.expectedAmountSatang() : "")
         );
 
         var claim = repository.claim(request, phone, voucherHash, fingerprint);
@@ -40,8 +43,9 @@ public class VoucherService {
             VoucherRepository.RedemptionRow existing = repository
                     .findByIdempotency(request.botId(), request.idempotencyKey())
                     .or(() -> repository.findByVoucherHash(voucherHash))
+                    .or(() -> payment ? repository.findByPayment(request.botId(), request.paymentMessageId()) : java.util.Optional.empty())
                     .orElseThrow(() -> new VoucherConflictException(
-                            "Voucher redemption conflicts with an existing operation"
+                        "ซองหรือรายการชำระเงินนี้ถูกใช้หรือกำลังประมวลผลแล้ว กรุณาตรวจสอบก่อนชำระซ้ำ"
                     ));
             if (!fingerprint.equals(existing.requestFingerprint())) {
                 throw new VoucherConflictException(
@@ -56,8 +60,13 @@ public class VoucherService {
         }
 
         try {
-            TrueMoneyVoucherAdapter.Outcome outcome = adapter.redeem(phone, request.giftUrl());
+            TrueMoneyVoucherAdapter.Outcome outcome = payment
+                    ? adapter.redeemPayment(phone, request.giftUrl(), request.expectedAmountSatang())
+                    : adapter.redeem(phone, request.giftUrl());
             long amountSatang = exactPositiveSatang(outcome.amountBaht());
+            if (payment && amountSatang != request.expectedAmountSatang()) {
+                throw new VoucherException("REDEMPTION_OUTCOME_UNKNOWN", "ยอดเงินที่รับจริงไม่ตรงกับรายการ กรุณาติดต่อผู้ดูแลและอย่าชำระซ้ำ");
+            }
             if (outcome.reference() == null || outcome.reference().isBlank()) {
                 throw new VoucherException(
                         "UPSTREAM_INVALID_REFERENCE",
@@ -69,9 +78,9 @@ public class VoucherService {
             ).response();
         } catch (VoucherException exception) {
             VoucherStatus status;
-            if ("VOUCHER_INVALID".equals(exception.code()) || "BAD_GIFT_URL".equals(exception.code())) {
+            if (java.util.Set.of("VOUCHER_INVALID", "BAD_GIFT_URL", "VOUCHER_AMOUNT_MISMATCH", "VOUCHER_NOT_SINGLE_RECIPIENT").contains(exception.code())) {
                 status = VoucherStatus.VERIFY_FAILED;
-            } else if ("REDEMPTION_OUTCOME_UNKNOWN".equals(exception.code())) {
+            } else if (payment || "REDEMPTION_OUTCOME_UNKNOWN".equals(exception.code())) {
                 status = VoucherStatus.RECONCILIATION_REQUIRED;
             } else {
                 status = VoucherStatus.REDEEM_FAILED;
@@ -81,7 +90,7 @@ public class VoucherService {
             ).response();
         } catch (RuntimeException exception) {
             return repository.fail(
-                    claim.get(), VoucherStatus.REDEEM_FAILED,
+                    claim.get(), payment ? VoucherStatus.RECONCILIATION_REQUIRED : VoucherStatus.REDEEM_FAILED,
                     "UPSTREAM_FAILURE", "TrueMoney request failed"
             ).response();
         }
