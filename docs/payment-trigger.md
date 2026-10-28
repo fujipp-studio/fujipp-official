@@ -122,8 +122,29 @@ or use Components V2 for both messages. Incompatible updates show a private erro
 an incompatible envelope receipt is rejected before redeeming money.
 
 Deploy the updated Runner and Frontend with
-`20261029000001_payment_trigger_v1_1.sql`. The migration publishes 1.1.0 and clones
-its configuration and message slots. Existing licenses stay on their current
+`20261029000001_payment_trigger_v1_1.sql`. The migration publishes 1.1.0, marks 1.0.0 as `DEPRECATED` to satisfy the
+one-published-version constraint, and clones its configuration and message slots. Existing licenses stay on their current
 version until upgraded through the normal package upgrade action, which preserves
 saved configuration and message designs. Post a fresh trigger to use the new
 per-button responses. Old 1.0 buttons and open envelope modals remain supported.
+
+
+## VPS migration 1.1.0 (2026-10-29)
+
+Migration `20261029000001_payment_trigger_v1_1.sql` was applied to VPS database
+`migration_cutover_20261022` after a verified full backup and successful rehearsal
+against a restored copy of the production database. The migration and history
+entry `20261029000001:payment_trigger_v1_1` committed in one transaction.
+
+Verification confirmed five configuration keys and five message slots for 1.1.0,
+including Back-button and response-mode defaults. Existing configuration, saved
+designs, licenses, installations and financial records were preserved, including
+238 voucher records; private ledger access remained restricted and the Backend
+stayed healthy. Existing installations remained on their acquired versions. The
+rehearsal database was removed.
+
+The backup, exact SQL and verification logs are retained in the private directory
+`/opt/fujipp/apps/fujipp-postgres/migrations/payment-trigger-v1-1-20261029-verified/`.
+Migration deployment must honor the recorded history and skip reapplying this SQL.
+The VPS Runner did not yet contain the 1.1.0 module at migration time: deploy the
+matching Runner and Frontend before upgrading a package to 1.1.0.

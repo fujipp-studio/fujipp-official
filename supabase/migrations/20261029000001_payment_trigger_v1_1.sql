@@ -9,6 +9,12 @@ BEGIN
     JOIN shop.feature_products product ON product.id = version.feature_product_id
     WHERE product.code = 'payment-trigger' AND version.version = '1.0.0';
 
+    -- The catalog permits one published version per product. Installed licenses
+    -- retain the supported older version until their owner explicitly upgrades.
+    UPDATE shop.feature_versions
+       SET status = 'DEPRECATED', updated_at = now()
+     WHERE id = source_id AND status = 'PUBLISHED';
+
     INSERT INTO shop.feature_versions (id, feature_product_id, version, runtime_key, changelog, status, published_at)
     SELECT target_id, feature_product_id, '1.1.0', runtime_key,
            'Back buttons in bank and Wallet screens, with per-button update or new-message responses.',
