@@ -12,11 +12,28 @@ const roles = {
   bank_button: 'payment.bank',
   wallet_button: 'payment.wallet',
   voucher_button: 'payment.voucher',
+  back_button: 'payment.back',
 }
 
-export function paymentTriggerFeatureButtons(raw: Definition) {
+export function paymentTriggerFeatureButtons(
+  raw: Definition,
+  slot = 'method_selector',
+  version = '1.0.0',
+) {
+  const navigation = version !== '1.0.0' && Boolean(version)
+  if (
+    slot !== 'method_selector' &&
+    !(navigation && ['bank_payment', 'wallet_payment'].includes(slot))
+  )
+    return []
+  const defaultsByRole =
+    slot === 'method_selector'
+      ? paymentTriggerButtonDefaults
+      : {
+          back_button: { label: 'กลับไปเลือกช่องทาง', emoji: '↩️', style: 'secondary' },
+        }
   const configured = isRecord(raw.components) ? raw.components : {}
-  return Object.entries(paymentTriggerButtonDefaults).map(([key, defaults]) => {
+  return Object.entries(defaultsByRole).map(([key, defaults]) => {
     const item = isRecord(configured[key]) ? configured[key] : {}
     const style = Number(item.style)
     const button = {
@@ -24,11 +41,21 @@ export function paymentTriggerFeatureButtons(raw: Definition) {
       action: roles[key as keyof typeof roles],
       label: String(item.label ?? defaults.label).slice(0, 80),
       emoji: typeof item.emoji === 'string' ? item.emoji.trim() : (item.emoji ?? defaults.emoji),
+      ...(navigation
+        ? {
+            response_mode:
+              item.response_mode === 'UPDATE' || item.response_mode === 'NEW_MESSAGE'
+                ? item.response_mode
+                : key === 'voucher_button'
+                  ? 'NEW_MESSAGE'
+                  : 'UPDATE',
+          }
+        : {}),
       style: [1, 2, 3, 4].includes(style)
         ? style
         : (styles[String(item.style ?? '').toLowerCase()] ?? styles[defaults.style]),
     }
-    return { value: button.action, label: button.label, button }
+    return { value: button.action, label: button.label, button, responseModes: navigation }
   })
 }
 
@@ -46,15 +73,30 @@ export function paymentTriggerEditableComponents(
   raw: Definition,
   voucherEnabled: boolean,
   blocks?: Definition[],
+  slot = 'method_selector',
+  version = '1.0.0',
 ): Definition[] {
   const source = isRecord(raw.components_v2) ? raw.components_v2 : raw
   const body =
     blocks ?? (Array.isArray(source.components) ? (source.components as Definition[]) : [])
   if (raw.feature_buttons_layout === 'CUSTOM' || hasFeatureButtons(body)) return body
-  const buttons = paymentTriggerFeatureButtons(raw).filter(
+  const buttons = paymentTriggerFeatureButtons(raw, slot, version).filter(
     (item) => item.value !== 'payment.voucher' || voucherEnabled,
   )
-  return [...body, { type: 1, components: buttons.map((item) => item.button) }]
+  if (!buttons.length) return body
+  const row = { type: 1, components: buttons.map((item) => item.button) }
+  if (slot !== 'method_selector') {
+    const index = body
+      .map((block) => block.type === 17 && Array.isArray(block.components))
+      .lastIndexOf(true)
+    if (index >= 0)
+      return body.map((block, i) =>
+        i === index
+          ? { ...block, components: [...(block.components as Definition[]), row] }
+          : block,
+      )
+  }
+  return [...body, row]
 }
 
 /** Preview-only resolution mirrors the bot's feature actions and keeps authoring metadata out of payloads. */
@@ -62,15 +104,15 @@ export function paymentTriggerPresentationPreview(
   raw: Definition,
   slot: string,
   voucherEnabled = false,
+  version = '1.0.0',
 ): Definition {
-  const buttons = paymentTriggerFeatureButtons(raw)
-  const selector = slot === 'method_selector'
+  const buttons = paymentTriggerFeatureButtons(raw, slot, version)
   function resolve(value: unknown): unknown {
     if (Array.isArray(value)) return value.map(resolve)
     if (!isRecord(value)) return value
     const choice = buttons.find((item) => item.value === value.action)
     if (choice) {
-      const { action: _action, ...defaultButton } = choice.button
+      const { action: _action, response_mode: _responseMode, ...defaultButton } = choice.button
       const style = Number(value.style)
       return {
         ...defaultButton,
@@ -95,7 +137,7 @@ export function paymentTriggerPresentationPreview(
     return {
       mode: 'COMPONENTS_V2',
       components: resolve(
-        selector ? paymentTriggerEditableComponents(raw, voucherEnabled, blocks) : blocks,
+        paymentTriggerEditableComponents(raw, voucherEnabled, blocks, slot, version),
       ),
     }
   }
@@ -103,7 +145,7 @@ export function paymentTriggerPresentationPreview(
     mode: 'EMBED',
     embed: isRecord(raw.embed) ? raw.embed : raw,
     components: Object.fromEntries(
-      selector
+      buttons.length
         ? buttons
             .filter((item) => item.value !== 'payment.voucher' || voucherEnabled)
             .map((item) => {

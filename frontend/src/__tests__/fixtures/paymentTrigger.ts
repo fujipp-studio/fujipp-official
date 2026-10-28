@@ -236,12 +236,15 @@ const definitions: Record<string, Record<string, unknown>> = {
   },
 }
 
-export function paymentTriggerFixture(mode: 'EMBED' | 'COMPONENTS_V2' = 'COMPONENTS_V2') {
+export function paymentTriggerFixture(
+  mode: 'EMBED' | 'COMPONENTS_V2' = 'COMPONENTS_V2',
+  version = '1.0.0',
+) {
   const paymentLicense = {
     ...license,
     featureCode: 'payment-trigger',
     featureName: 'Payment Trigger',
-    version: '1.0.0',
+    version,
   }
   const config: FeatureConfiguration = {
     ...structuredClone(configuration),
@@ -287,6 +290,15 @@ export function paymentTriggerFixture(mode: 'EMBED' | 'COMPONENTS_V2' = 'COMPONE
       .map(([key, source], index) => {
         const definition = structuredClone(source)
         definition.mode = mode
+        if (version === '1.1.0' && ['bank_payment', 'wallet_payment'].includes(key))
+          definition.components = {
+            back_button: {
+              label: 'กลับไปเลือกช่องทาง',
+              emoji: '↩️',
+              style: 'secondary',
+              response_mode: 'UPDATE',
+            },
+          }
         definition.future = { retained: true }
         if (key === 'method_selector') {
           const components = definition.components as Record<string, Record<string, unknown>>

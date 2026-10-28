@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import type { FeatureConfiguration } from '../api'
+import PaymentResponseModeField from './PaymentResponseModeField.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const props = defineProps<{ messageSlot: FeatureConfiguration['presentations'][number] }>()
@@ -12,26 +13,25 @@ const { text, license, systemComponents, updateSystemComponent, componentStyleOp
 const { presentations, presentationJson } = useFeatureEditor()
 const items = computed(() => {
   const saved = systemComponents(props.messageSlot.key)
-  if (
-    license.value?.featureCode !== 'payment-trigger' ||
-    props.messageSlot.key !== 'method_selector' ||
-    saved.some((item) => item.role === 'voucher_button')
-  )
-    return saved
+  if (license.value?.featureCode !== 'payment-trigger') return saved
   const defaults = props.messageSlot.defaultDefinition.components as
     Record<string, unknown> | undefined
-  return defaults?.voucher_button
-    ? [
-        ...saved,
-        { role: 'voucher_button', config: defaults.voucher_button as Record<string, unknown> },
-      ]
-    : saved
+  const roles =
+    props.messageSlot.key === 'method_selector'
+      ? ['voucher_button']
+      : license.value.version !== '1.0.0' &&
+          ['bank_payment', 'wallet_payment'].includes(props.messageSlot.key)
+        ? ['back_button']
+        : []
+  return [
+    ...saved,
+    ...roles
+      .filter((role) => !saved.some((item) => item.role === role) && defaults?.[role])
+      .map((role) => ({ role, config: defaults![role] as Record<string, unknown> })),
+  ]
 })
 function updateItem(role: string, key: string, value: string) {
-  if (
-    role === 'voucher_button' &&
-    !systemComponents(props.messageSlot.key).some((item) => item.role === role)
-  ) {
+  if (!systemComponents(props.messageSlot.key).some((item) => item.role === role)) {
     const raw = presentations.value[props.messageSlot.key]!
     // Flat Components V2 designs store their blocks at the root. Keep those
     // blocks in the nested representation before adding system-button options.
@@ -41,7 +41,7 @@ function updateItem(role: string, key: string, value: string) {
       ...(configured && typeof configured === 'object' && !Array.isArray(configured)
         ? configured
         : {}),
-      voucher_button: { ...items.value.find((item) => item.role === role)!.config },
+      [role]: { ...items.value.find((item) => item.role === role)!.config },
     }
     presentationJson.value[props.messageSlot.key] = JSON.stringify(raw, null, 2)
   }
@@ -55,7 +55,9 @@ const label = (role: string) =>
         ? text('Wallet button', 'ปุ่ม Wallet')
         : role === 'voucher_button'
           ? text('Envelope button', 'ปุ่มซองอั่งเปา')
-          : role
+          : role === 'back_button'
+            ? text('Back button', 'ปุ่มกลับ')
+            : role
     : role
 </script>
 
@@ -79,6 +81,20 @@ const label = (role: string) =>
           item.role.includes('select') ? t('botSettings.selection') : t('botSettings.button')
         }}</span>
       </div>
+      <PaymentResponseModeField
+        v-if="
+          license?.featureCode === 'payment-trigger' &&
+          license.version &&
+          license.version !== '1.0.0'
+        "
+        :model-value="
+          String(
+            item.config.response_mode ??
+              (item.role === 'voucher_button' ? 'NEW_MESSAGE' : 'UPDATE'),
+          )
+        "
+        @update:model-value="updateItem(item.role, 'response_mode', $event)"
+      />
       <div class="component-editor-grid">
         <AppTextField
           :model-value="String(item.config.label ?? item.config.placeholder ?? '')"

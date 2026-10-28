@@ -166,3 +166,21 @@ describe('Payment Trigger custom button layouts', () => {
     )
   })
 })
+
+it.each(['bank_payment', 'wallet_payment'])(
+  'v1.1 projects a movable Back inside the %s container without mutating saved designs',
+  (slot) => {
+    const { config } = paymentTriggerFixture()
+    const raw = config.presentations.find((item) => item.key === slot)!.defaultDefinition
+    const original = structuredClone(raw)
+    const preview = paymentTriggerPresentationPreview(raw, slot, false, '1.1.0')
+    expect(preview.components).toHaveLength(1)
+    expect(JSON.stringify(preview.components)).toContain('fujipp:payment:back:1000')
+    expect(JSON.stringify(preview.components)).not.toContain('response_mode')
+    expect(JSON.stringify(preview.components)).not.toContain('"action"')
+    expect(raw).toEqual(original)
+    expect(
+      JSON.stringify(paymentTriggerPresentationPreview(raw, slot, false).components),
+    ).not.toContain('payment:back')
+  },
+)

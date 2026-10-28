@@ -2,19 +2,24 @@
 import { useI18n } from 'vue-i18n'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import FeatureButtonPicker from './FeatureButtonPicker.vue'
+import PaymentResponseModeField from './PaymentResponseModeField.vue'
 
 withDefaults(
   defineProps<{
     buttons: Record<string, unknown>[]
     componentCount: number
     componentEmoji: (value: unknown) => string
-    featureButtons?: Array<{ value: string; label: string }>
+    featureButtons?: Array<{ value: string; label: string; responseModes?: boolean }>
   }>(),
   { featureButtons: () => [] },
 )
 const emit = defineEmits<{
   add: []
-  update: [index: number, key: 'label' | 'emoji' | 'url' | 'action' | 'style', value: string]
+  update: [
+    index: number,
+    key: 'label' | 'emoji' | 'url' | 'action' | 'style' | 'response_mode',
+    value: string,
+  ]
   addFeature: [action: string]
   remove: [index: number]
   move: [index: number, direction: -1 | 1]
@@ -92,6 +97,18 @@ const { text } = useFeatureEditor()
           </select>
         </label>
       </div>
+      <PaymentResponseModeField
+        v-if="
+          featureButtons.some((option) => option.value === button.action && option.responseModes)
+        "
+        :model-value="
+          String(
+            button.response_mode ??
+              (button.action === 'payment.voucher' ? 'NEW_MESSAGE' : 'UPDATE'),
+          )
+        "
+        @update:model-value="emit('update', index, 'response_mode', $event)"
+      />
       <div
         class="grid min-w-0 grid-cols-1 gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]"
       >

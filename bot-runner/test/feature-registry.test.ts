@@ -156,3 +156,9 @@ test("resolves Payment Trigger version 1.0.0 with message content intent", () =>
   assert.equal(feature?.version, "1.0.0");
   assert.deepEqual(feature?.intents, ["Guilds", "GuildMessages", "MessageContent"]);
 });
+
+
+test("resolves Payment Trigger 1.1 while preserving 1.0", () => {
+  assert.equal(getFeature("payment-trigger", "1.1.0")?.version, "1.1.0");
+  assert.equal(getFeature("payment-trigger", "1.0.0")?.version, "1.0.0");
+});
