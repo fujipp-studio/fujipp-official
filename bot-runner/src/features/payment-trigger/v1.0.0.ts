@@ -11,6 +11,7 @@ import {
   TextInputBuilder,
   TextInputStyle,
   type ModalSubmitInteraction,
+  type APIMessageComponentEmoji,
   MessageFlags,
   PermissionFlagsBits,
 } from "discord.js";
@@ -262,8 +263,7 @@ function renderPresentation(
     : null;
   if (!definition) throw new Error(`Presentation ${slot} is not configured`);
   const mode = String(definition.mode ?? "COMPONENTS_V2").toUpperCase();
-  const actions =
-    selectorAmountSatang === undefined
+  const legacyActions = () => selectorAmountSatang === undefined
       ? []
       : paymentButtons(definition, selectorAmountSatang, context.config.TRUEMONEY_ENABLED === true ? selectorMessageId : undefined);
 
@@ -276,18 +276,22 @@ function renderPresentation(
     const components = normalizeComponentColors(
       deepRender(source.components, variables),
     );
-    if (actions.length)
-      components.push(
-        new ActionRowBuilder<ButtonBuilder>().addComponents(actions).toJSON(),
-      );
+    const explicitButtons = definition.feature_buttons_layout === "CUSTOM" || containsPaymentAction(components);
+    const resolved = selectorAmountSatang === undefined ? components : resolvePaymentActions(components, definition,
+      selectorAmountSatang, selectorMessageId, context.config.TRUEMONEY_ENABLED === true);
+    if (!explicitButtons) {
+      const actions = legacyActions();
+      if (actions.length) resolved.push(new ActionRowBuilder<ButtonBuilder>().addComponents(actions).toJSON());
+    }
     return {
       flags: MessageFlags.IsComponentsV2,
-      components,
+      components: resolved,
       allowedMentions: { parse: [] },
     };
   }
 
   const source = isRecord(definition.embed) ? definition.embed : definition;
+  const actions = legacyActions();
   const embed = deepRender(source, variables) as Record<string, unknown>;
   const payload: Record<string, unknown> = {
     embeds: [normalizeEmbed(embed)],
@@ -298,6 +302,37 @@ function renderPresentation(
       new ActionRowBuilder<ButtonBuilder>().addComponents(actions).toJSON(),
     ];
   return payload;
+}
+
+function containsPaymentAction(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsPaymentAction);
+  return isRecord(value) && ((typeof value.action === "string" && value.action.startsWith("payment."))
+    || Object.values(value).some(containsPaymentAction));
+}
+
+function resolvePaymentActions(components: unknown[], definition: Record<string, unknown>, amount: number,
+  messageId: string | undefined, voucherEnabled: boolean): unknown[] {
+  const configured = isRecord(definition.components) ? definition.components : {};
+  const actions: Record<string, { role: string; method: string; label: string; emoji: string; style: ButtonStyle }> = {
+    "payment.bank": { role: "bank_button", method: "bank", label: "สแกน QR ธนาคาร", emoji: "🏦", style: ButtonStyle.Success },
+    "payment.wallet": { role: "wallet_button", method: "wallet", label: "ชำระผ่าน Wallet", emoji: "🟠", style: ButtonStyle.Primary },
+    "payment.voucher": { role: "voucher_button", method: "voucher", label: "ชำระด้วยซองอั่งเปา", emoji: "🧧", style: ButtonStyle.Danger },
+  };
+  function resolve(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(resolve);
+    if (!isRecord(value)) return value;
+    if (typeof value.action === "string" && value.action.startsWith("payment.")) {
+      const action = actions[value.action];
+      if (!action) throw new Error("Unknown Payment Trigger button action");
+      const rootValue = configured[action.role];
+      const root = isRecord(rootValue) ? rootValue : {};
+      const id = `${ACTION_PREFIX}${action.method}:${amount}${action.method === "voucher" ? `:${messageId}` : ""}`;
+      return configuredButton({ ...root, ...value }, id, action.label, action.emoji, action.style)
+        .setDisabled(value.disabled === true || (action.method === "voucher" && (!voucherEnabled || !messageId))).toJSON();
+    }
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, resolve(item)]));
+  }
+  return components.map(resolve);
 }
 
 function paymentButtons(
@@ -345,10 +380,9 @@ function configuredButton(
   const button = new ButtonBuilder()
     .setCustomId(customId)
     .setLabel(String(config.label ?? fallbackLabel).slice(0, 80))
-    .setStyle(
-      styles[String(config.style ?? "").toLowerCase()] ?? fallbackStyle,
-    );
-  const emoji = String(config.emoji ?? fallbackEmoji).trim();
+    .setStyle([1, 2, 3, 4].includes(Number(config.style)) ? Number(config.style) :
+      styles[String(config.style ?? "").toLowerCase()] ?? fallbackStyle);
+  const emoji = isRecord(config.emoji) ? config.emoji as APIMessageComponentEmoji : String(config.emoji ?? fallbackEmoji).trim();
   if (emoji)
     try {
       button.setEmoji(emoji);

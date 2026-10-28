@@ -2,19 +2,23 @@
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import ComponentButtonRowEditor from './ComponentButtonRowEditor.vue'
+import FeatureButtonPicker from './FeatureButtonPicker.vue'
 import PresentationSystemComponentsEditor from './PresentationSystemComponentsEditor.vue'
+import { useComponentLayout } from '../composables/useComponentLayout'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import type { FeatureConfiguration } from '../api'
 
 const { t } = useI18n()
 const props = defineProps<{ messageSlot: FeatureConfiguration['presentations'][number] }>()
 const {
+  values,
+  text,
+  setComponentBlocks,
   supportsBlockBuilder,
   componentBlocks,
   componentCount,
   componentColor,
   draggedComponent,
-  dropComponentBlock,
   blockSummary,
   moveComponentBlock,
   removeComponentBlock,
@@ -37,8 +41,9 @@ const {
   removeMediaItem,
   actionRowButtons,
   componentEmoji,
-  updateActionRowButton,
+  updateActionRowButton: updateButtonFields,
   addActionRowButton,
+  featureButtonOptions,
   removeActionRowButton,
   moveActionRowButton,
   updateSeparator,
@@ -63,8 +68,26 @@ const {
   availableCoFeatures,
 } = useFeatureEditor()
 
-function startBlockDrag(event: DragEvent, index: number) {
-  draggedComponent.value = { slotKey: props.messageSlot.key, index }
+const {
+  updateActionRowButton,
+  addFeatureButton,
+  relocateComponentBlock,
+  componentDestinations,
+  dropComponentBlock,
+} = useComponentLayout({
+  componentBlocks,
+  setComponentBlocks,
+  containerChildren,
+  componentCount,
+  actionRowButtons,
+  updateButtonFields,
+  featureButtons: featureButtonOptions,
+  text,
+  draggedComponent,
+})
+
+function startBlockDrag(event: DragEvent, index: number, childIndex?: number) {
+  draggedComponent.value = { slotKey: props.messageSlot.key, index, childIndex }
   if (!event.dataTransfer) return
   event.dataTransfer.effectAllowed = 'move'
   event.dataTransfer.setData('application/x-fujipp-component', props.messageSlot.key)
@@ -74,10 +97,10 @@ function startBlockDrag(event: DragEvent, index: number) {
     event.dataTransfer.setDragImage(block, event.clientX - bounds.left, event.clientY - bounds.top)
   }
 }
-function dropBlock(event: DragEvent, index: number) {
+function dropBlock(event: DragEvent, index: number, childIndex?: number) {
   if (draggedComponent.value?.slotKey !== props.messageSlot.key) return
   event.preventDefault()
-  dropComponentBlock(props.messageSlot.key, index)
+  dropComponentBlock(props.messageSlot.key, index, childIndex)
 }
 </script>
 <template>
@@ -91,6 +114,18 @@ function dropBlock(event: DragEvent, index: number) {
           </p>
         </div>
       </div>
+      <p
+        v-if="featureButtonOptions(messageSlot.key).length && values.TRUEMONEY_ENABLED !== true"
+        class="mb-sm text-sm text-text-secondary"
+        data-envelope-button-hint
+      >
+        {{
+          text(
+            'Envelope payments are off. Enable them in Payment Trigger → Wallet to activate the envelope button.',
+            'ยังปิดรับซองอั่งเปาอยู่ เปิดรับได้ที่ Payment Trigger → Wallet เพื่อให้ปุ่มซองอั่งเปาใช้งานได้',
+          )
+        }}
+      </p>
       <div class="component-container-caption">
         <span>{{ t('botSettings.messageBlocks') }}</span>
         <small>{{ componentCount(messageSlot.key) }}/40</small>
@@ -99,8 +134,9 @@ function dropBlock(event: DragEvent, index: number) {
         v-for="(block, blockIndex) in componentBlocks(messageSlot.key)"
         :key="blockIndex"
         class="builder-item"
+        :data-component-block="blockIndex"
         @dragover="draggedComponent?.slotKey === messageSlot.key && $event.preventDefault()"
-        @drop="dropBlock($event, blockIndex)"
+        @drop.stop="dropBlock($event, blockIndex)"
       >
         <div class="flex items-center gap-xs">
           <span
@@ -132,6 +168,33 @@ function dropBlock(event: DragEvent, index: number) {
             {{ t('botSettings.delete') }}
           </button>
         </div>
+        <label
+          v-if="block.type !== 17 && componentDestinations(messageSlot.key, blockIndex).length"
+          class="component-field mt-xs"
+        >
+          <span>{{ text('Move to', 'ย้ายไป') }}</span>
+          <select
+            class="field-control h-10"
+            value=""
+            @change="
+              relocateComponentBlock(
+                messageSlot.key,
+                blockIndex,
+                undefined,
+                ($event.target as HTMLSelectElement).value,
+              )
+            "
+          >
+            <option value="" disabled>{{ text('Choose position…', 'เลือกตำแหน่ง…') }}</option>
+            <option
+              v-for="option in componentDestinations(messageSlot.key, blockIndex)"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
         <textarea
           v-if="block.type === 10"
           :value="String(block.content ?? '')"
@@ -401,6 +464,8 @@ function dropBlock(event: DragEvent, index: number) {
           :buttons="actionRowButtons(block)"
           :component-count="componentCount(messageSlot.key)"
           :component-emoji="componentEmoji"
+          :feature-buttons="featureButtonOptions(messageSlot.key)"
+          @add-feature="addFeatureButton(messageSlot.key, $event, blockIndex)"
           @add="addActionRowButton(messageSlot.key, blockIndex)"
           @update="
             (index, key, value) =>
@@ -460,7 +525,11 @@ function dropBlock(event: DragEvent, index: number) {
               </div>
             </label>
           </div>
-          <div class="component-container-children">
+          <div
+            class="component-container-children"
+            @dragover="draggedComponent?.slotKey === messageSlot.key && $event.preventDefault()"
+            @drop.stop="dropBlock($event, blockIndex, -1)"
+          >
             <div class="component-container-caption">
               <span>{{ t('botSettings.containerChildren') }}</span>
               <small>{{ containerChildren(block).length }}</small>
@@ -469,8 +538,19 @@ function dropBlock(event: DragEvent, index: number) {
               v-for="(child, childIndex) in containerChildren(block)"
               :key="childIndex"
               class="builder-item"
+              :data-container-child="childIndex"
+              @dragover="draggedComponent?.slotKey === messageSlot.key && $event.preventDefault()"
+              @drop.stop="dropBlock($event, blockIndex, childIndex)"
             >
               <div class="flex items-center gap-xs">
+                <span
+                  class="component-drag-handle"
+                  :title="t('botSettings.dragToReorder')"
+                  draggable="true"
+                  @dragstart.stop="startBlockDrag($event, blockIndex, childIndex)"
+                  @dragend="draggedComponent = null"
+                  >⠿</span
+                >
                 <strong class="min-w-0 flex-1 truncate text-sm">{{ blockSummary(child) }}</strong>
                 <button
                   type="button"
@@ -494,6 +574,30 @@ function dropBlock(event: DragEvent, index: number) {
                   {{ t('botSettings.delete') }}
                 </button>
               </div>
+              <label class="component-field mt-xs"
+                ><span>{{ text('Move to', 'ย้ายไป') }}</span>
+                <select
+                  class="field-control h-10"
+                  value=""
+                  @change="
+                    relocateComponentBlock(
+                      messageSlot.key,
+                      blockIndex,
+                      childIndex,
+                      ($event.target as HTMLSelectElement).value,
+                    )
+                  "
+                >
+                  <option value="" disabled>{{ text('Choose position…', 'เลือกตำแหน่ง…') }}</option>
+                  <option
+                    v-for="option in componentDestinations(messageSlot.key, blockIndex, childIndex)"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+              </label>
               <textarea
                 v-if="child.type === 10 || child.type === 9"
                 :value="
@@ -584,6 +688,8 @@ function dropBlock(event: DragEvent, index: number) {
                 :buttons="actionRowButtons(child)"
                 :component-count="componentCount(messageSlot.key)"
                 :component-emoji="componentEmoji"
+                :feature-buttons="featureButtonOptions(messageSlot.key)"
+                @add-feature="addFeatureButton(messageSlot.key, $event, blockIndex, childIndex)"
                 @add="addActionRowButton(messageSlot.key, blockIndex, childIndex)"
                 @update="
                   (index, key, value) =>
@@ -612,6 +718,12 @@ function dropBlock(event: DragEvent, index: number) {
               </p>
             </div>
             <div class="mt-xs flex flex-wrap gap-xs">
+              <FeatureButtonPicker
+                data-feature-picker-location="container"
+                :options="featureButtonOptions(messageSlot.key)"
+                :disabled="componentCount(messageSlot.key) + 2 > 40"
+                @select="addFeatureButton(messageSlot.key, $event, blockIndex)"
+              />
               <button
                 type="button"
                 class="builder-add"
@@ -652,6 +764,12 @@ function dropBlock(event: DragEvent, index: number) {
         </div>
       </div>
       <div class="mt-sm flex flex-wrap gap-xs">
+        <FeatureButtonPicker
+          data-feature-picker-location="root"
+          :options="featureButtonOptions(messageSlot.key)"
+          :disabled="componentCount(messageSlot.key) + 2 > 40"
+          @select="addFeatureButton(messageSlot.key, $event)"
+        />
         <button
           type="button"
           class="builder-add"
@@ -691,7 +809,10 @@ function dropBlock(event: DragEvent, index: number) {
         </button>
       </div>
     </template>
-    <PresentationSystemComponentsEditor :message-slot="messageSlot" />
+    <PresentationSystemComponentsEditor
+      v-if="!featureButtonOptions(messageSlot.key).length"
+      :message-slot="messageSlot"
+    />
     <div class="mt-md border-t border-border-subtle pt-md">
       <div class="builder-heading">
         <div>

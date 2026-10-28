@@ -371,3 +371,49 @@ test("ignores payment triggers from non-administrators", async () => {
   assert.equal(sent, false);
   await dispose();
 });
+
+for (const enabled of [false, true]) {
+  test(`custom payment buttons remain inside their container and use runtime invoice IDs (envelopes ${enabled})`, async () => {
+    const client = new EventEmitter(), sent: Record<string, unknown>[] = [];
+    const base = envelopeContext(client);
+    const dispose = await paymentTriggerFeature.activate({ ...base, config: { ...base.config, TRUEMONEY_ENABLED: enabled },
+      presentations: { method_selector: { mode: "COMPONENTS_V2", feature_buttons_layout: "CUSTOM",
+        components: { bank_button: { label: "Root bank label", style: "success" } },
+        components_v2: { components: [{ type: 17, accent_color: "#5865f2", components: [
+          { type: 10, content: "Pay {{amount}}" },
+          { type: 1, components: [
+            { type: 2, action: "payment.voucher", label: "Envelope", style: 3, emoji: { name: "🧧" } },
+            { type: 2, action: "payment.bank", style: 4 },
+            { type: 2, style: 5, label: "Help", url: "https://example.com" },
+          ] },
+        ] }] },
+      } },
+    });
+    try {
+      client.emit("messageCreate", adminMessage("p100", sent, { value: false })); await settle();
+      const blocks = sent[0]!.components as Array<{ components: Array<Record<string, unknown>> }>;
+      assert.equal(blocks.length, 1);
+      const buttons = blocks[0]!.components[1]!.components as Array<Record<string, unknown>>;
+      assert.equal(buttons.length, 3);
+      assert.equal(buttons[0]!.custom_id, `fujipp:payment:voucher:10000:${invoiceId}`);
+      assert.equal(buttons[0]!.disabled, !enabled);
+      assert.deepEqual(buttons[0]!.emoji, { name: "🧧" });
+      assert.equal(buttons[1]!.custom_id, "fujipp:payment:bank:10000");
+      assert.equal(buttons[1]!.label, "Root bank label");
+      assert.equal(buttons[1]!.style, 4);
+      assert.equal(buttons[2]!.url, "https://example.com");
+      assert.equal(JSON.stringify(sent[0]).includes('"action"'), false);
+    } finally { await dispose(); }
+  });
+}
+
+test("an intentionally button-free custom layout does not restore automatic payment buttons", async () => {
+  const client = new EventEmitter(), sent: Record<string, unknown>[] = [];
+  const dispose = await paymentTriggerFeature.activate(envelopeContext(client, { presentations: {
+    method_selector: { mode: "COMPONENTS_V2", feature_buttons_layout: "CUSTOM", components_v2: { components: [{ type: 10, content: "No buttons" }] } },
+  } }));
+  try {
+    client.emit("messageCreate", adminMessage("p100", sent, { value: false })); await settle();
+    assert.deepEqual(sent[0]!.components, [{ type: 10, content: "No buttons" }]);
+  } finally { await dispose(); }
+});

@@ -14,10 +14,6 @@ import {
 import { priceReaderSampleValues, validatePriceReaderDraft } from '../config/price-reader'
 import { parseMessageSets, validateMessageSets } from '../config/message-sets'
 import { clone, invalidActionRowPath } from '../models/presentation'
-import {
-  paymentTriggerPresentationCopy,
-  paymentTriggerSampleValues,
-} from '../config/payment-trigger'
 import { memberSpendingPresentationCopy } from '../config/member-spending'
 import { walletPresentationCopy } from '../config/wallet-topup'
 import { parseReviewList, reviewCreditListKeys } from '../config/review-credit'
@@ -157,7 +153,7 @@ export function useFeatureSettings() {
           : isWalletTopupFeature.value
             ? walletPresentationCopy[slot.key]
             : isPaymentTriggerFeature.value
-              ? paymentTriggerPresentationCopy[slot.key]
+              ? paymentLayout.value?.paymentTriggerPresentationCopy[slot.key]
               : undefined
     return copy ? text(...copy.label) : slot.label
   }
@@ -194,7 +190,7 @@ export function useFeatureSettings() {
           : isWalletTopupFeature.value
             ? walletPresentationCopy[slot.key]
             : isPaymentTriggerFeature.value
-              ? paymentTriggerPresentationCopy[slot.key]
+              ? paymentLayout.value?.paymentTriggerPresentationCopy[slot.key]
               : undefined
     return copy ? text(...copy.description) : slot.description
   }
@@ -283,6 +279,8 @@ export function useFeatureSettings() {
   const featureValidator = shallowRef<(draft: Record<string, EditableValue>) => boolean>()
   const featurePreview =
     shallowRef<(definition: Record<string, unknown>, slotKey: string) => Record<string, unknown>>()
+  const paymentLayout =
+    shallowRef<typeof import('../models/payment-trigger-presentation-preview')>()
 
   const valueLength = (value: unknown) => String(value ?? '').length
 
@@ -304,7 +302,7 @@ export function useFeatureSettings() {
         walletActiveSlotKey.value = key
     },
   )
-  const draggedComponent = ref<{ slotKey: string; index: number } | null>(null)
+  const draggedComponent = ref<{ slotKey: string; index: number; childIndex?: number } | null>(null)
   const error = ref('')
   const toastOpen = ref(false)
   const toastMessage = ref('')
@@ -367,6 +365,19 @@ export function useFeatureSettings() {
     availableCoFeatures,
     draggedComponent,
     advancedSlots,
+    featureButtons: (slotKey) =>
+      slotKey === 'method_selector'
+        ? (paymentLayout.value?.paymentTriggerFeatureButtons(presentations.value[slotKey] ?? {}) ??
+          [])
+        : [],
+    projectComponentBlocks: (slotKey, blocks) =>
+      slotKey === 'method_selector'
+        ? (paymentLayout.value?.paymentTriggerEditableComponents(
+            presentations.value[slotKey] ?? {},
+            values.value.TRUEMONEY_ENABLED === true,
+            blocks,
+          ) ?? blocks)
+        : blocks,
   })
   const {
     updatePresentation,
@@ -386,6 +397,7 @@ export function useFeatureSettings() {
     updateLink,
     removeLink,
     componentBlocks,
+    setComponentBlocks,
     supportsBlockBuilder,
     systemComponents,
     updateSystemComponent,
@@ -417,6 +429,7 @@ export function useFeatureSettings() {
     componentEmoji,
     updateActionRowButton,
     addActionRowButton,
+    featureButtonOptions,
     removeActionRowButton,
     moveActionRowButton,
     updateSeparator,
@@ -571,7 +584,8 @@ export function useFeatureSettings() {
       }
     }
     if (isPaymentTriggerFeature.value) {
-      const sample = paymentTriggerSampleValues(values.value)
+      const sample = paymentLayout.value?.paymentTriggerSampleValues(values.value)
+      if (!sample) return {}
       return slotKey === 'payment_success'
         ? { ...sample, fee_amount: '0', total_amount: sample.paid_amount }
         : sample
@@ -780,6 +794,7 @@ export function useFeatureSettings() {
     error.value = ''
     featureValidator.value = undefined
     featurePreview.value = undefined
+    paymentLayout.value = undefined
     permissionCommandFeatures.value = []
     if (!initialized.value) await authStore.initialize()
     if (!session.value) {
@@ -809,10 +824,14 @@ export function useFeatureSettings() {
           watermark.walletQrWatermarkValid(draft.PROMPTPAY_QR_WATERMARK)
       }
       if (isPaymentTriggerFeature.value) {
-        const paymentPreview = (await import('../models/payment-trigger-presentation-preview'))
-          .paymentTriggerPresentationPreview
+        const payment = await import('../models/payment-trigger-presentation-preview')
+        paymentLayout.value = payment
         featurePreview.value = (definition, slotKey) =>
-          paymentPreview(definition, slotKey, values.value.TRUEMONEY_ENABLED === true)
+          payment.paymentTriggerPresentationPreview(
+            definition,
+            slotKey,
+            values.value.TRUEMONEY_ENABLED === true,
+          )
       }
       if (isPriceReaderFeature.value) {
         const { priceReaderPresentationPreview } =
@@ -1053,6 +1072,7 @@ export function useFeatureSettings() {
     removeLink,
     supportsBlockBuilder,
     componentBlocks,
+    setComponentBlocks,
     draggedComponent,
     dropComponentBlock,
     blockSummary,
@@ -1071,6 +1091,7 @@ export function useFeatureSettings() {
     componentEmoji,
     updateActionRowButton,
     addActionRowButton,
+    featureButtonOptions,
     removeActionRowButton,
     moveActionRowButton,
     updateSeparator,

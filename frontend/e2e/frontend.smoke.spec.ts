@@ -60,10 +60,12 @@ test('selects Container text without dragging the block and reorders from the ha
   await expect(blocks.last().locator('textarea')).toHaveValue('Second block')
   await textarea.fill(original)
   await expect(saveAll).toBeDisabled()
-  await blocks
-    .first()
-    .locator('.component-drag-handle')
-    .dragTo(blocks.last(), { targetPosition: { x: 20, y: 20 } })
+  const rootHandle = blocks.first().locator(':scope > div > .component-drag-handle')
+  await expect(rootHandle).toHaveCount(1)
+  await expect(
+    blocks.first().locator('.component-container-children .component-drag-handle'),
+  ).toHaveCount(1)
+  await rootHandle.dragTo(blocks.last(), { targetPosition: { x: 20, y: 20 } })
   await expect(blocks.first().locator('textarea')).toHaveValue('Second block')
   await expect(blocks.last().locator('.component-container-children textarea')).toHaveValue(
     original,

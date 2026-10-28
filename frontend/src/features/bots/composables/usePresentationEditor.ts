@@ -9,8 +9,15 @@ interface Options {
   t: (key: string) => string
   text: (english: string, thai: string) => string
   availableCoFeatures: Ref<typeof coFeatureCatalog>
-  draggedComponent: Ref<{ slotKey: string; index: number } | null>
+  draggedComponent: Ref<{ slotKey: string; index: number; childIndex?: number } | null>
   advancedSlots: Ref<Set<string>>
+  featureButtons?: (
+    slotKey: string,
+  ) => Array<{ value: string; label: string; button: Record<string, unknown> }>
+  projectComponentBlocks?: (
+    slotKey: string,
+    blocks: Array<Record<string, unknown>>,
+  ) => Array<Record<string, unknown>>
 }
 
 export function usePresentationEditor({
@@ -22,6 +29,8 @@ export function usePresentationEditor({
   availableCoFeatures,
   draggedComponent,
   advancedSlots,
+  featureButtons = () => [],
+  projectComponentBlocks = (_slotKey, blocks) => blocks,
 }: Options) {
   function isRecord(value: unknown): value is Record<string, unknown> {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -298,7 +307,7 @@ export function usePresentationEditor({
   function componentBlocks(slotKey: string) {
     const raw = visualDefinition(slotKey).components
     if (!Array.isArray(raw)) return [] as Array<Record<string, unknown>>
-    return raw as Array<Record<string, unknown>>
+    return projectComponentBlocks(slotKey, raw as Array<Record<string, unknown>>)
   }
 
   function supportsBlockBuilder(slotKey: string) {
@@ -375,6 +384,8 @@ export function usePresentationEditor({
 
   function setComponentBlocks(slotKey: string, blocks: Array<Record<string, unknown>>) {
     updatePresentation(slotKey, 'components', blocks)
+    if (featureButtons(slotKey).length)
+      updateRootPresentation(slotKey, 'feature_buttons_layout', 'CUSTOM')
   }
 
   function containerChildren(block: Record<string, unknown>) {
@@ -1020,6 +1031,7 @@ export function usePresentationEditor({
     componentEmoji,
     updateActionRowButton,
     addActionRowButton,
+    featureButtonOptions: featureButtons,
     removeActionRowButton,
     moveActionRowButton,
     updateSeparator,

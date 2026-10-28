@@ -217,6 +217,68 @@ for (const theme of ['LIGHT', 'DARK']) {
         ),
       )
       const editor = page.locator('#feature-presentation-editor')
+      if (mode === 'COMPONENTS_V2') {
+        await expect(save).toBeDisabled()
+        const implicitRow = editor.locator('[data-component-block="1"]')
+        await implicitRow.getByRole('combobox', { name: 'ย้ายไป', exact: true }).selectOption('0')
+        await expect(editor.locator('[data-component-block="1"]')).toHaveCount(0)
+        const container = editor.locator('[data-component-block="0"]')
+        const bank = container.locator('[data-feature-action="payment.bank"]')
+        const voucher = container.locator('[data-feature-action="payment.voucher"]')
+        await bank.getByRole('textbox', { name: 'ข้อความปุ่ม', exact: true }).fill('โอนผ่านธนาคาร')
+        await bank.getByRole('combobox', { name: 'สีปุ่ม', exact: true }).selectOption('4')
+        await voucher.getByRole('button', { name: 'ลบ', exact: true }).click()
+        const picker = container.locator('[data-feature-picker-location="row"]')
+        await picker.locator('summary').click()
+        await picker.getByRole('button', { name: 'ชำระด้วยซองอั่งเปา', exact: true }).click()
+        await expect(voucher).toBeVisible()
+        await voucher.getByRole('button', { name: 'เลื่อนปุ่ม 3 ไปทางซ้าย', exact: true }).click()
+        await voucher.getByRole('button', { name: 'เลื่อนปุ่ม 2 ไปทางซ้าย', exact: true }).click()
+        const preview = editor.locator('.preview-shell')
+        await expect(
+          preview.locator('.preview-container').getByRole('button', { name: /โอนผ่านธนาคาร/ }),
+        ).toHaveCount(1)
+        await expect(
+          preview.locator('.preview-container').getByRole('button', { name: /ชำระด้วยซองอั่งเปา/ }),
+        ).toHaveCount(1)
+        await expect(preview.getByRole('button')).toHaveCount(3)
+        await preview.screenshot({
+          path: testInfo.outputPath('feature-buttons-inside-container.png'),
+          animations: 'disabled',
+          scale: 'css',
+        })
+        await save.click()
+        await page
+          .getByRole('dialog')
+          .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
+          .click()
+        await expect(save).toBeDisabled()
+        const definition = saved!.presentations.method_selector!
+        expect(definition.feature_buttons_layout).toBe('CUSTOM')
+        const blocks = (
+          definition.components_v2 as {
+            components: Array<{
+              components: Array<{
+                type: number
+                components?: Array<{ action: string; label: string }>
+              }>
+            }>
+          }
+        ).components
+        expect(blocks).toHaveLength(1)
+        const row = blocks[0]!.components.find((child) => child.type === 1)!
+        expect(row.components!.map((button) => button.action)).toEqual([
+          'payment.voucher',
+          'payment.bank',
+          'payment.wallet',
+        ])
+        expect(row.components![1]!.label).toBe('โอนผ่านธนาคาร')
+        await page.reload()
+        await expect(save).toBeDisabled()
+        await expect(editor.locator('[data-feature-action="payment.voucher"]')).toBeVisible()
+        expect(errors).toEqual([])
+        return
+      }
       const bank = editor.locator('[data-system-component="bank_button"]')
       const wallet = editor.locator('[data-system-component="wallet_button"]')
       await expect(bank).toBeVisible()
@@ -285,4 +347,42 @@ for (const theme of ['LIGHT', 'DARK']) {
       expect(errors).toEqual([])
     })
   }
+}
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`offers the envelope button while disabled in ${theme}`, async ({ page }, testInfo) => {
+    await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+    const { paymentLicense, config } = paymentTriggerFixture('COMPONENTS_V2')
+    await page.route('**/api/v1/feature-licenses', (route) =>
+      route.fulfill({ json: [paymentLicense] }),
+    )
+    await page.route('**/api/v2/feature-licenses*', (route) =>
+      route.fulfill({ json: { items: [paymentLicense], nextCursor: null, hasMore: false } }),
+    )
+    await page.route('**/configuration', (route) => route.fulfill({ json: config }))
+    await page.goto(
+      '/my-bot/fixture-bot/settings/packages/fixture-license/components-v2?locale=th&message=method_selector',
+    )
+    const editor = page.locator('#feature-presentation-editor')
+    await expect(editor.locator('[data-envelope-button-hint]')).toContainText(
+      'ยังปิดรับซองอั่งเปาอยู่',
+    )
+    const container = editor.locator('[data-component-block="0"]')
+    const picker = container.locator('[data-feature-picker-location="container"]')
+    await picker.locator('summary').click()
+    await expect(
+      picker.getByRole('button', { name: 'ชำระด้วยซองอั่งเปา', exact: true }),
+    ).toBeEnabled()
+    await picker.getByRole('button', { name: 'ชำระด้วยซองอั่งเปา', exact: true }).click()
+    const preview = editor.locator('.preview-shell')
+    await expect(
+      preview.locator('.preview-container').getByRole('button', { name: /ชำระด้วยซองอั่งเปา/ }),
+    ).toBeDisabled()
+    await expect(container.locator('[data-feature-action="payment.voucher"]')).toBeVisible()
+    await preview.screenshot({
+      path: testInfo.outputPath('envelope-button-disabled.png'),
+      animations: 'disabled',
+      scale: 'css',
+    })
+  })
 }

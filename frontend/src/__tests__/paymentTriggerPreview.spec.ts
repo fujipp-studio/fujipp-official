@@ -105,3 +105,64 @@ describe('Payment Trigger preview', () => {
     },
   )
 })
+
+describe('Payment Trigger custom button layouts', () => {
+  it('keeps chosen buttons inside their container without appending another row', () => {
+    const raw = {
+      mode: 'COMPONENTS_V2',
+      feature_buttons_layout: 'CUSTOM',
+      components_v2: {
+        components: [
+          {
+            type: 17,
+            components: [
+              { type: 10, content: 'Pay here' },
+              {
+                type: 1,
+                components: [
+                  { type: 2, action: 'payment.voucher', label: 'Envelope', style: 3, emoji: '🧧' },
+                  { type: 2, style: 5, label: 'Help', url: 'https://example.com' },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    }
+    const original = structuredClone(raw)
+    const enabled = paymentTriggerPresentationPreview(raw, 'method_selector', true)
+    const disabled = paymentTriggerPresentationPreview(raw, 'method_selector', false)
+    expect(enabled.components).toHaveLength(1)
+    expect(enabled.components).toMatchObject([
+      {
+        components: [
+          { content: 'Pay here' },
+          {
+            components: [
+              {
+                label: 'Envelope',
+                style: 3,
+                disabled: false,
+                custom_id: 'fujipp:payment:voucher:1000:123456789012345678',
+              },
+              { style: 5, url: 'https://example.com' },
+            ],
+          },
+        ],
+      },
+    ])
+    expect(JSON.stringify(enabled.components)).not.toContain('"action"')
+    expect(JSON.stringify(disabled.components)).toContain('"disabled":true')
+    expect(raw).toEqual(original)
+  })
+  it('allows a deliberate layout without any payment buttons', () => {
+    const raw = {
+      mode: 'COMPONENTS_V2',
+      feature_buttons_layout: 'CUSTOM',
+      components_v2: { components: [{ type: 10, content: 'Body' }] },
+    }
+    expect(paymentTriggerPresentationPreview(raw, 'method_selector', true).components).toEqual(
+      raw.components_v2.components,
+    )
+  })
+})
