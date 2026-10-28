@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-28 | Added selectable Payment Trigger feature buttons, drag and keyboard placement inside or outside Containers, persistent custom ordering and disabled-envelope guidance while keeping configuration pages within their bundle budgets. |
 | 2026-10-28 | Added opt-in Payment Trigger envelope settings, button customization and payment-success previews, preserving saved message designs across Desktop/Mobile and Light/Dark themes. |
 | 2026-10-27 | Added optional Wallet QR text or uploaded-logo watermarks with previews, upload validation and saved settings; kept configuration categories within their bundle budget. |
 | 2026-10-27 | Kept feature settings within the production bundle budget by loading feature-specific previews and Role Shop validation on demand, while preserving validation and counting required lazy/shared chunks in budget checks. |

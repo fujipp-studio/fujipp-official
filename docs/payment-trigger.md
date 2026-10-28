@@ -32,6 +32,32 @@ backend holds its invoice claim to prevent a second charge. The private redempti
 ledger records the payment message ID and expected amount; raw gift links are not
 stored. A voucher cannot pay another invoice or subsequently credit Wallet Top-up.
 
+## Place feature buttons in Components V2
+
+Open the payment-method message in the Components V2 editor. Existing payment
+buttons appear as an editable row without changing the saved design until an edit
+is made. Use **ย้ายไป** or drag the row into a Container, out to the message root,
+or between Containers. The arrow controls reorder rows and individual buttons.
+
+Choose **+ ปุ่ม Feature** at the message root, inside a Container, or in an
+existing button row, then select Bank QR, Wallet, or TrueMoney envelope. A button's
+**การทำงานของปุ่ม** selector changes its function; text, emoji and color remain
+editable. Link buttons can share a row with feature buttons. Each row supports up
+to five buttons and the message retains the 40-component limit.
+
+The envelope option remains available in the editor when envelope payments are
+off. An explicitly placed envelope button is shown disabled in the preview and
+in Discord until receiving envelopes is enabled in **Payment Trigger → Wallet**.
+Send a new trigger after enabling it; already posted messages retain their old
+button state.
+
+Custom layouts keep the selected order and placement without an extra automatic
+button row. Removing all payment buttons intentionally keeps them removed. Older
+designs that have not been edited keep their original automatic buttons. This
+layout update requires matching Runner and Frontend code, with Runner deployed
+before authors save layouts containing feature buttons; it needs no additional
+database migration.
+
 ## Deployment
 
 Apply `20261028000001_payment_trigger_vouchers.sql` through the repository's

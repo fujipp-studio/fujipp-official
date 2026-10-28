@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { ref } from 'vue'
+import {
+  paymentTriggerEditableComponents,
+  paymentTriggerFeatureButtons,
+  paymentTriggerPresentationPreview,
+} from '../features/bots/models/payment-trigger-presentation-preview'
 
+import { useComponentLayout } from '../features/bots/composables/useComponentLayout'
 import { usePresentationEditor } from '../features/bots/composables/usePresentationEditor'
 import type { PresentationMode } from '../features/bots/models/presentation'
 
@@ -385,5 +391,106 @@ describe('usePresentationEditor presentation storage', () => {
         },
       },
     ])
+  })
+})
+
+function paymentLayoutSetup(voucherEnabled = false) {
+  const definition: Record<string, unknown> = {
+    mode: 'COMPONENTS_V2',
+    components: { bank_button: { label: 'Custom bank', style: 'success' } },
+    embed: { title: 'Keep Embed' },
+    components_v2: { components: [{ type: 17, components: [{ type: 10, content: 'Body' }] }] },
+    future: true,
+  }
+  const presentations = ref({ slot: structuredClone(definition) })
+  const dragged = ref<{ slotKey: string; index: number; childIndex?: number } | null>(null)
+  const baseEditor = usePresentationEditor({
+    presentations,
+    presentationJson: ref({ slot: JSON.stringify(definition) }),
+    presentationMode: ref('COMPONENTS_V2'),
+    t: (key) => key,
+    text: (english) => english,
+    availableCoFeatures: ref([]),
+    draggedComponent: dragged,
+    advancedSlots: ref(new Set<string>()),
+    featureButtons: () => paymentTriggerFeatureButtons(presentations.value.slot),
+    projectComponentBlocks: (_slot, blocks) =>
+      paymentTriggerEditableComponents(presentations.value.slot, voucherEnabled, blocks),
+  })
+  const editor = {
+    ...baseEditor,
+    ...useComponentLayout({
+      ...baseEditor,
+      featureButtons: baseEditor.featureButtonOptions,
+      updateButtonFields: baseEditor.updateActionRowButton,
+      text: (english) => english,
+      draggedComponent: dragged,
+    }),
+  }
+  return { definition, presentations, editor, dragged }
+}
+
+describe('editable feature buttons', () => {
+  it('projects legacy buttons without changing saved data and moves them into and out of containers', () => {
+    const { definition, presentations, editor } = paymentLayoutSetup()
+    expect(editor.componentBlocks('slot')).toHaveLength(2)
+    expect(presentations.value.slot).toEqual(definition)
+    editor.relocateComponentBlock('slot', 1, undefined, '0')
+    expect(editor.componentBlocks('slot')).toHaveLength(1)
+    expect(editor.containerChildren(editor.componentBlocks('slot')[0]!)[1]).toMatchObject({
+      type: 1,
+      components: [{ action: 'payment.bank', label: 'Custom bank' }, { action: 'payment.wallet' }],
+    })
+    expect(presentations.value.slot.feature_buttons_layout).toBe('CUSTOM')
+    expect(presentations.value.slot.embed).toEqual(definition.embed)
+    editor.relocateComponentBlock('slot', 0, 1, 'root')
+    expect(editor.componentBlocks('slot')).toHaveLength(2)
+    expect(editor.actionRowButtons(editor.componentBlocks('slot')[1]!)).toHaveLength(2)
+  })
+  it('offers all actions including an envelope button while payments are off, and edits their function and style', () => {
+    const { editor, presentations } = paymentLayoutSetup()
+    expect(editor.featureButtonOptions('slot').map((item) => item.value)).toEqual([
+      'payment.bank',
+      'payment.wallet',
+      'payment.voucher',
+    ])
+    editor.addFeatureButton('slot', 'payment.voucher', 0)
+    const row = () => editor.containerChildren(editor.componentBlocks('slot')[0]!)[1]!
+    expect(row()).toMatchObject({ components: [{ action: 'payment.voucher' }] })
+    editor.updateActionRowButton('slot', 0, 0, 'action', 'payment.wallet', 1)
+    editor.updateActionRowButton('slot', 0, 0, 'style', '4', 1)
+    editor.updateActionRowButton('slot', 0, 0, 'emoji', '⭐', 1)
+    expect(row()).toMatchObject({
+      components: [{ action: 'payment.wallet', style: 4, emoji: { name: '⭐' } }],
+    })
+    editor.updateActionRowButton('slot', 0, 0, 'action', 'link', 1)
+    expect(row()).toMatchObject({ components: [{ style: 5, url: 'https://example.com' }] })
+    expect(editor.actionRowButtons(row())[0]).not.toHaveProperty('action')
+    expect(presentations.value.slot.future).toBe(true)
+  })
+  it('keeps an intentionally removed automatic row removed after serialization and limits feature rows to five buttons', () => {
+    const { editor, presentations } = paymentLayoutSetup(true)
+    editor.removeComponentBlock('slot', 1)
+    const saved = JSON.parse(JSON.stringify(presentations.value.slot))
+    expect(
+      paymentTriggerPresentationPreview(saved, 'method_selector', true).components,
+    ).toHaveLength(1)
+    editor.addFeatureButton('slot', 'payment.bank', 0)
+    for (let i = 0; i < 8; i++) editor.addFeatureButton('slot', 'payment.wallet', 0, 1)
+    expect(
+      editor.actionRowButtons(editor.containerChildren(editor.componentBlocks('slot')[0]!)[1]!),
+    ).toHaveLength(5)
+  })
+  it('drags a feature row into a container and back to the root without duplicating it', () => {
+    const { editor, dragged } = paymentLayoutSetup()
+    dragged.value = { slotKey: 'slot', index: 1 }
+    editor.dropComponentBlock('slot', 0, -1)
+    expect(editor.componentBlocks('slot')).toHaveLength(1)
+    expect(editor.containerChildren(editor.componentBlocks('slot')[0]!)).toHaveLength(2)
+    dragged.value = { slotKey: 'slot', index: 0, childIndex: 1 }
+    editor.dropComponentBlock('slot', 1)
+    expect(editor.componentBlocks('slot')).toHaveLength(2)
+    expect(editor.containerChildren(editor.componentBlocks('slot')[0]!)).toHaveLength(1)
+    expect(dragged.value).toBeNull()
   })
 })

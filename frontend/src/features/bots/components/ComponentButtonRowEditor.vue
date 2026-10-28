@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
+import { useFeatureEditor } from '../composables/featureEditorContext'
+import FeatureButtonPicker from './FeatureButtonPicker.vue'
 
-defineProps<{
-  buttons: Record<string, unknown>[]
-  componentCount: number
-  componentEmoji: (value: unknown) => string
-}>()
+withDefaults(
+  defineProps<{
+    buttons: Record<string, unknown>[]
+    componentCount: number
+    componentEmoji: (value: unknown) => string
+    featureButtons?: Array<{ value: string; label: string }>
+  }>(),
+  { featureButtons: () => [] },
+)
 const emit = defineEmits<{
   add: []
-  update: [index: number, key: 'label' | 'emoji' | 'url', value: string]
+  update: [index: number, key: 'label' | 'emoji' | 'url' | 'action' | 'style', value: string]
+  addFeature: [action: string]
   remove: [index: number]
   move: [index: number, direction: -1 | 1]
 }>()
 const { t } = useI18n()
+const { text } = useFeatureEditor()
 </script>
 
 <template>
@@ -23,7 +31,12 @@ const { t } = useI18n()
     <p class="text-xs text-text-muted">
       {{ t('botSettings.buttonsInRow', { count: buttons.length }) }}
     </p>
-    <div v-for="(button, index) in buttons" :key="index" class="builder-subitem min-w-0">
+    <div
+      v-for="(button, index) in buttons"
+      :key="index"
+      class="builder-subitem min-w-0"
+      :data-feature-action="button.action"
+    >
       <div class="builder-subitem-heading flex-wrap">
         <strong>
           {{ t(Number(button.style) === 5 ? 'botSettings.linkButton' : 'botSettings.button') }}
@@ -50,6 +63,34 @@ const { t } = useI18n()
             {{ t('botSettings.delete') }}
           </button>
         </div>
+      </div>
+      <div v-if="featureButtons.length" class="mb-xs grid min-w-0 gap-xs tablet:grid-cols-2">
+        <label class="component-field"
+          ><span>{{ text('Button action', 'การทำงานของปุ่ม') }}</span>
+          <select
+            class="field-control h-10"
+            :value="String(button.action ?? 'link')"
+            @change="emit('update', index, 'action', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="link">{{ t('botSettings.linkButton') }}</option>
+            <option v-for="option in featureButtons" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label v-if="button.action" class="component-field"
+          ><span>{{ text('Button color', 'สีปุ่ม') }}</span>
+          <select
+            class="field-control h-10"
+            :value="String(button.style ?? 1)"
+            @change="emit('update', index, 'style', ($event.target as HTMLSelectElement).value)"
+          >
+            <option value="1">Primary · Blurple</option>
+            <option value="2">Secondary · Gray</option>
+            <option value="3">Success · Green</option>
+            <option value="4">Danger · Red</option>
+          </select>
+        </label>
       </div>
       <div
         class="grid min-w-0 grid-cols-1 gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]"
@@ -92,5 +133,11 @@ const { t } = useI18n()
     >
       + {{ t('botSettings.addButtonInRow') }}
     </button>
+    <FeatureButtonPicker
+      data-feature-picker-location="row"
+      :options="featureButtons"
+      :disabled="buttons.length >= 5 || componentCount >= 40"
+      @select="emit('addFeature', $event)"
+    />
   </div>
 </template>
