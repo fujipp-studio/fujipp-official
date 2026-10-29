@@ -314,6 +314,7 @@ public class StoreService {
         }
 
         MessageSetsConfigurationValidator.validate(request.values());
+        TicketConfigurationValidator.validate(request.values());
         PriceReaderConfigurationValidator.validate(request.values());
         RoleShopConfigurationValidator.validate(request.values());
         WalletQrConfigurationValidator.validate(request.values());

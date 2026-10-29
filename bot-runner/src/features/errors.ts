@@ -1,6 +1,7 @@
 import { MessageFlags, type APIEmbed, type RepliableInteraction } from "discord.js";
 
 const features = {
+  "ticket": ["Ticket", "ตรวจสอบหมวดห้อง ทีมดูแล และสิทธิ์ View Channel / Manage Channels / Manage Roles / Read Message History ของบอท"],
   "member-spending": ["Member Spending Card", "ตรวจสอบการตั้งค่าฐานข้อมูลและสิทธิ์จัดการยศของบอท หากยอดถูกบันทึกแล้ว อย่าเพิ่มรายการเดิมซ้ำ"],
   "message-sets": ["Message Sets", "ตรวจสอบ SET, Message ID, ดีไซน์ และสิทธิ์ส่งข้อความของบอท"],
   "shop-status": ["Shop Status", "ตรวจสอบห้องประกาศและสิทธิ์จัดการห้อง ส่งข้อความ และแนบ Embed ของบอท"],
