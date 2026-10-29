@@ -51,6 +51,11 @@ export interface FeatureContext {
   reportFeatureError(errorCode: string, error: unknown, options?: { recoverable: boolean }): Promise<void>;
   paymentVoucher?: (input: { memberDiscordId: string; giftUrl: string; paymentMessageId: string; expectedAmountSatang: number; idempotencyKey: string }) => Promise<VoucherRedemption>;
   saveRuntimeState(state: Record<string, unknown>): Promise<void>;
+  tickets: {
+    list(): Promise<Array<{ channelId: string; name: string; state: import('./features/ticket/config.js').TicketState; archived: boolean }>>;
+    save(channelId: string, name: string, state: import('./features/ticket/config.js').TicketState): Promise<void>;
+    archive(channelId: string, messages: unknown[]): Promise<void>;
+  };
   wallet: {
     balance(memberDiscordId: string): Promise<{ balanceSatang: number; currency: string }>;
     voucher(input: { memberDiscordId: string; giftUrl: string; idempotencyKey: string }): Promise<WalletTopupResult>;

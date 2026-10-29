@@ -29,6 +29,9 @@ export interface RuntimeApi {
   removeMemberSpending: RuntimeApiClient["removeMemberSpending"];
   memberSpendingLeaderboard: RuntimeApiClient["memberSpendingLeaderboard"];
   memberSpendingTotals: RuntimeApiClient["memberSpendingTotals"];
+  ticketList: RuntimeApiClient["ticketList"];
+  ticketSave: RuntimeApiClient["ticketSave"];
+  ticketArchive: RuntimeApiClient["ticketArchive"];
 }
 
 export class RuntimeApiClient implements RuntimeApi {
@@ -38,6 +41,16 @@ export class RuntimeApiClient implements RuntimeApi {
     private readonly baseUrl: string,
     private readonly token: string,
   ) {}
+
+  public ticketList(botId: string, installationId: string) {
+    return this.request<Awaited<ReturnType<FeatureContext['tickets']['list']>>>(`/internal/v1/runtime/bots/${encodeURIComponent(botId)}/tickets?installationId=${encodeURIComponent(installationId)}`, { method: 'GET' });
+  }
+  public ticketSave(botId: string, installationId: string, channelId: string, name: string, state: import('./features/ticket/config.js').TicketState) {
+    return this.request<void>(`/internal/v1/runtime/bots/${encodeURIComponent(botId)}/tickets/${encodeURIComponent(channelId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ installationId, name, state }) });
+  }
+  public ticketArchive(botId: string, installationId: string, channelId: string, messages: unknown[]) {
+    return this.request<void>(`/internal/v1/runtime/bots/${encodeURIComponent(botId)}/tickets/${encodeURIComponent(channelId)}/archive`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ installationId, messages }) });
+  }
 
   public async bootstrap(signal?: AbortSignal): Promise<BootstrapResponse | null> {
     const response = await this.fetch("/internal/v1/runtime/bootstrap", {

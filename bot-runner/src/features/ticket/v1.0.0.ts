@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags,
+  ActionRowBuilder, ApplicationFlagsBitField, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags,
   ModalBuilder, LabelBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
   TextInputBuilder, TextInputStyle, escapeMarkdown,
   type Interaction, type TextChannel, type MessageCreateOptions,
@@ -8,9 +8,9 @@ import {
 } from "discord.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 import { renderTemplate } from "../presentation.js";
-import { ticketTranscript } from "./history.js";
+import { ticketArchive, ticketTranscript } from "./history.js";
 import { replyFeatureError } from "../errors.js";
-import { readTicketConfig, readTicketTopic, ticketDue, ticketTopic, type TicketCategory, type TicketState } from "./config.js";
+import { readTicketConfig, readTicketTopic, ticketDue, ticketChannelName, type TicketCategory, type TicketState } from "./config.js";
 
 type TicketInteraction = ChatInputCommandInteraction | ModalSubmitInteraction | StringSelectMenuInteraction | ButtonInteraction;
 
@@ -31,6 +31,7 @@ export const ticketFeature: FeatureModule = {
     let sweeping = false;
     const pending = new Set<Promise<unknown>>();
     const exporting = new Set<string>();
+    const tickets = new Map<string, { name: string; state: TicketState; archived: boolean }>();
     const historyButton = () => new ButtonBuilder().setCustomId(`${prefix}history`).setLabel("อ่านประวัติแชท").setStyle(ButtonStyle.Secondary);
     const report = (code: string, error: unknown) => context.reportFeatureError(code, error, { recoverable: true }).catch(() => undefined);
     const track = (operation: Promise<unknown>) => {
@@ -48,42 +49,66 @@ export const ticketFeature: FeatureModule = {
       if (!row) throw new Error("หัวข้อนี้เปลี่ยนแล้ว กรุณาเลือกหัวข้อจากแผงล่าสุด");
       return row;
     };
+    const saveTicket = async (channelId: string, name: string, state: TicketState) => {
+      await context.tickets.save(channelId, name, state);
+      tickets.set(channelId, { name, state, archived: tickets.get(channelId)?.archived ?? false });
+    };
+    const syncTickets = async (channels: Awaited<ReturnType<Awaited<ReturnType<typeof guild>>["channels"]["fetch"]>>) => {
+      for (const entry of await context.tickets.list()) tickets.set(entry.channelId, entry);
+      // Import old topic metadata before clearing it. Ordinary topics are untouched.
+      for (const channel of channels.values()) {
+        if (channel?.type !== ChannelType.GuildText) continue;
+        const legacy = readTicketTopic(context.installationId, channel.topic);
+        if (!legacy) continue;
+        if (!tickets.has(channel.id)) await saveTicket(channel.id, channel.name, legacy);
+        await channel.setTopic(null);
+      }
+    };
     const close = async (channel: TextChannel, state: TicketState, actor: string) => {
-      if (state.status === "CLOSED") return;
-      // Persist intent first so a restart resumes an interrupted permission change.
       state = { ...state, status: "CLOSING" };
-      await channel.setTopic(ticketTopic(context.installationId, state));
+      await saveTicket(channel.id, channel.name, state);
+      const me = await (await guild()).members.fetchMe({ force: true });
+      if (!channel.permissionsFor(me)?.has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles]))
+        throw new Error("บอทต้องมี View Channel, Read Message History, Manage Channels และ Manage Roles จึงจะเก็บประวัติและลบห้องได้");
+      const application = await context.client.application!.fetch();
+      if (!application.flags?.any([ApplicationFlagsBitField.Flags.GatewayMessageContent, ApplicationFlagsBitField.Flags.GatewayMessageContentLimited]))
+        throw new Error("เปิด Message Content Intent ใน Discord Developer Portal ก่อน เพื่อเก็บแชทได้ครบ ระบบยังไม่ลบห้อง");
       await channel.permissionOverwrites.edit(state.ownerId, {
         SendMessages: false, AddReactions: false, CreatePublicThreads: false,
         CreatePrivateThreads: false, SendMessagesInThreads: false,
       });
-      await channel.send({ content: `🔒 ปิดตั๋วแล้ว · ${actor}\nเก็บห้องและประวัติไว้ให้อ่านย้อนหลัง`, allowedMentions: { parse: [] },
-        ...(config.discordHistoryEnabled ? { components: [new ActionRowBuilder<ButtonBuilder>().addComponents(historyButton())] } : {}) });
-      await channel.setTopic(ticketTopic(context.installationId, { ...state, status: "CLOSED" }));
+      const messages = await ticketArchive(channel, () => stopped);
+      await context.tickets.archive(channel.id, messages);
+      tickets.get(channel.id)!.archived = true;
+      await channel.delete(`Ticket closed: ${actor}`);
+      await saveTicket(channel.id, channel.name, { ...state, status: "CLOSED" });
     };
-    const canClose = async (interaction: TicketInteraction, state: TicketState) => {
-      if (interaction.user.id === state.ownerId) return true;
+    const canClose = async (interaction: TicketInteraction) => {
       const member = await (await guild()).members.fetch({ user: interaction.user.id, force: true });
       return member.permissions.has(PermissionFlagsBits.Administrator)
-        || state.supportRoleIds.some((id) => member.roles.cache.has(id));
+        || config.behavior.closeUserIds.includes(interaction.user.id)
+        || config.behavior.closeRoleIds.some((id) => member.roles.cache.has(id));
+    };
+    const canRead = async (interaction: TicketInteraction, state: TicketState) => {
+      if (interaction.user.id === state.ownerId || await canClose(interaction)) return true;
+      const member = await (await guild()).members.fetch({ user: interaction.user.id, force: true });
+      return state.supportRoleIds.some(id => member.roles.cache.has(id));
     };
     const open = async (interaction: TicketInteraction, category: TicketCategory, answers: Array<{ label: string; value: string }>) => {
       const server = await guild();
       const channels = await server.channels.fetch();
-      const existing = channels.find((channel) => {
-        if (channel?.type !== ChannelType.GuildText) return false;
-        const state = readTicketTopic(context.installationId, channel.topic);
-        return state?.ownerId === interaction.user.id && state.categoryKey === category.key && state.status !== "CLOSED";
-      });
-      if (existing) {
-        await interaction.editReply({ content: `คุณมีตั๋วในหัวข้อนี้อยู่แล้ว: <#${existing.id}>`, allowedMentions: { parse: [] } });
+      await syncTickets(channels);
+      const existing = [...tickets.entries()].filter(([id, entry]) => channels.has(id) && entry.state.ownerId === interaction.user.id && entry.state.status !== "CLOSED");
+      if (existing.length >= config.behavior.maxOpenPerUser) {
+        await interaction.editReply({ content: `คุณเปิดตั๋วค้างได้สูงสุด ${config.behavior.maxOpenPerUser} ตั๋ว: ${existing.map(([id]) => `<#${id}>`).join(" ")}`, allowedMentions: { parse: [] } });
         return;
       }
       const parent = channels.get(category.categoryId);
       if (!parent || parent.type !== ChannelType.GuildCategory) throw new Error("ไม่พบหมวดห้อง Discord ของหัวข้อนี้ กรุณาแจ้งผู้ดูแล");
       const me = server.members.me ?? await server.members.fetchMe();
-      if (category.supportRoleIds.includes(server.id)) throw new Error("ทีมดูแลต้องไม่ใช้ Role @everyone");
-      for (const roleId of category.supportRoleIds) {
+      const teamRoles = [...new Set([...category.supportRoleIds, ...config.behavior.closeRoleIds])];
+      if (teamRoles.includes(server.id)) throw new Error("ทีมดูแลต้องไม่ใช้ Role @everyone");
+      for (const roleId of teamRoles) {
         const role = await server.roles.fetch(roleId);
         if (!role || role.id === server.roles.everyone.id) throw new Error(`ไม่พบ Role ทีมดูแล: ${roleId}`);
       }
@@ -97,24 +122,20 @@ export const ticketFeature: FeatureModule = {
       const read = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory];
       const write = [...read, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks];
       const channel = await server.channels.create({
-        name: `ticket-${category.key}-${interaction.user.id.slice(-6)}`,
+        name: ticketChannelName(category.channelNameTemplate, category.key, interaction.user, Date.now().toString(36)),
         type: ChannelType.GuildText, parent: parent.id,
-        topic: ticketTopic(context.installationId, state),
         permissionOverwrites: [
           { id: server.id, deny: [PermissionFlagsBits.ViewChannel] },
           { id: me.id, allow: [...write, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles] },
           { id: interaction.user.id, allow: write, deny: [PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads] },
-          ...category.supportRoleIds.map((id) => ({ id, allow: write })),
+          ...teamRoles.map((id) => ({ id, allow: write })),
+          ...config.behavior.closeUserIds.filter(id => id !== interaction.user.id && id !== me.id && id !== server.id && !teamRoles.includes(id)).map(id => ({ id, type: 1 as const, allow: write })),
         ],
         reason: `Ticket ${category.key} opened by ${interaction.user.id}`,
       });
+      try { await saveTicket(channel.id, channel.name, state); }
+      catch (error) { await channel.delete("Ticket registration failed").catch(() => undefined); throw error; }
       try {
-        for (const answer of answers) await channel.send({
-          flags: MessageFlags.IsComponentsV2,
-          components: [{ type: 17, components: [
-            { type: 10, content: `**${escapeMarkdown(answer.label)}**\n${escapeMarkdown(answer.value || "—")}` },
-          ] }], allowedMentions: { parse: [] },
-        });
         const payload = renderTemplate(context, "opened", {
           user: `<@${interaction.user.id}>`, user_name: escapeMarkdown(interaction.user.displayName),
           category: escapeMarkdown(category.label), channel: `<#${channel.id}>`,
@@ -125,6 +146,13 @@ export const ticketFeature: FeatureModule = {
           ...(config.discordHistoryEnabled ? [historyButton()] : []),
           new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger),
         )));
+        for (const answer of answers) await channel.send({
+          flags: MessageFlags.IsComponentsV2,
+          components: [{ type: 17, components: [
+            { type: 10, content: `**${escapeMarkdown(answer.label)}**\n${escapeMarkdown(answer.value || "—")}` },
+          ] }], allowedMentions: { parse: [] },
+        });
+
       } catch (error) {
         await report("TICKET_WELCOME_FAILED", error);
         await interaction.editReply({ content: `สร้างตั๋วแล้ว: <#${channel.id}> แต่ส่งรายละเอียดไม่ครบ กรุณาแจ้งทีมดูแล ใช้ /${config.command} close เพื่อปิดตั๋ว`, allowedMentions: { parse: [] } });
@@ -143,7 +171,7 @@ export const ticketFeature: FeatureModule = {
           const channel = await (await guild()).channels.fetch(interaction.channelId);
           if (!channel?.isSendable() || channel.isDMBased()) throw new Error("ไม่พบห้องสำหรับส่งแผง Ticket");
           const menu = new StringSelectMenuBuilder().setCustomId(`${prefix}select`).setPlaceholder("เลือกหัวข้อเพื่อเปิดตั๋ว")
-            .addOptions(config.categories.map((row) => ({ label: row.label, value: row.key, ...(row.description ? { description: row.description } : {}) })));
+            .addOptions(config.categories.map((row) => ({ label: row.label, value: row.key, ...(row.description ? { description: row.description } : {}), ...(row.emoji ? { emoji: row.emoji } : {}) })));
           await channel.send(withRow(renderTemplate(context, "panel", {}), new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)));
           await interaction.editReply("ส่งแผง Ticket แล้ว");
           return;
@@ -189,13 +217,13 @@ export const ticketFeature: FeatureModule = {
       else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const channel = await (await guild()).channels.fetch(interaction.channelId!);
       if (!channel || channel.type !== ChannelType.GuildText) throw new Error("คำสั่งนี้ใช้ได้เฉพาะในห้อง Ticket");
-      const state = readTicketTopic(context.installationId, channel.topic);
+      const state = tickets.get(channel.id)?.state;
       if (!state) throw new Error("ห้องนี้ไม่ใช่ตั๋วของ Feature นี้");
       const readingHistory = interaction.isChatInputCommand() ? interaction.options.getSubcommand() === "history" : interaction.isButton() && interaction.customId === `${prefix}history`;
       if (readingHistory) {
         if (!config.discordHistoryEnabled) throw new Error("ปิดการอ่านประวัติใน Discord ไว้ สามารถเปิดตัวเลือกนี้บนหน้าเว็บจัดการบอท");
         const member = await (await guild()).members.fetch({ user: interaction.user.id, force: true });
-        if (!channel.permissionsFor(member).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]) || !await canClose(interaction, state))
+        if (!channel.permissionsFor(member).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]) || !await canRead(interaction, state))
           throw new Error("คุณไม่มีสิทธิ์อ่านประวัติของตั๋วนี้");
         const me = (await guild()).members.me ?? await (await guild()).members.fetchMe();
         if (!channel.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]))
@@ -209,23 +237,19 @@ export const ticketFeature: FeatureModule = {
         } finally { exporting.delete(channel.id); }
         return;
       }
-      if (!await canClose(interaction, state)) throw new Error("เฉพาะผู้เปิดตั๋ว ทีมดูแล หรือ Administrator เท่านั้นที่ปิดตั๋วได้");
-      if (state.status === "CLOSED") {
-        await interaction.editReply({ content: "ตั๋วนี้ปิดแล้ว", components: [] });
-        return;
-      }
-      if (!confirming) {
-        await interaction.editReply({ content: "ยืนยันปิดตั๋วนี้? หลังปิด ผู้เปิดตั๋วจะอ่านประวัติได้แต่ส่งข้อความไม่ได้",
+      if (!await canClose(interaction)) throw new Error("เฉพาะ Administrator หรือ Role/User ที่ได้รับสิทธิ์ปิดตั๋วบนเว็บเท่านั้น");
+      if (!confirming && config.behavior.confirmClose) {
+        await interaction.editReply({ content: "ยืนยันปิดตั๋วนี้? ระบบจะเก็บประวัติบนเว็บแล้วลบห้อง Discord",
           components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${prefix}confirm-close`).setLabel("ยืนยันปิดตั๋ว").setStyle(ButtonStyle.Danger))] });
         return;
       }
+      await interaction.editReply({ content: "กำลังเก็บประวัติและลบห้อง Ticket…", components: [] });
       await serialize(async () => {
         const fresh = await channel.fetch(true);
-        const current = readTicketTopic(context.installationId, fresh.topic);
+        const current = tickets.get(fresh.id)?.state;
         if (!current) throw new Error("ไม่พบตั๋ว");
-        await close(fresh, current, `<@${interaction.user.id}>`);
+        await close(fresh, current, interaction.user.id);
       });
-      await interaction.editReply({ content: "ปิดตั๋วแล้ว", components: [] });
     };
     const sweep = async () => {
       if (stopped || sweeping) return;
@@ -233,11 +257,17 @@ export const ticketFeature: FeatureModule = {
       try {
         await serialize(async () => {
           const channels = await (await guild()).channels.fetch();
-          for (const channel of channels.values()) {
+          await syncTickets(channels);
+          for (const [channelId, entry] of tickets) {
             if (stopped) break;
-            if (channel?.type !== ChannelType.GuildText) continue;
-            const state = readTicketTopic(context.installationId, channel.topic);
-            if (!state || state.status === "CLOSED") continue;
+            const state = entry.state;
+            if (state.status === "CLOSED") continue;
+            const channel = channels.get(channelId);
+            if (!channel) {
+              if (state.status === "CLOSING" && entry.archived) await saveTicket(channelId, entry.name, { ...state, status: "CLOSED" });
+              continue;
+            }
+            if (channel.type !== ChannelType.GuildText) continue;
             try {
               if (state.status === "CLOSING") { await close(channel, state, "ดำเนินการปิดตั๋วต่อหลังรีสตาร์ต"); continue; }
               if (!state.autoCloseMinutes) continue;

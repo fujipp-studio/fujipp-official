@@ -2,6 +2,8 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Documented Ticket deletion, close permissions, channel naming, legacy topic import, archive limits and deployment order. |
+| 2026-10-29 | Documented the Ticket publication migration and THB 100 one-time purchase. |
 | 2026-10-29 | Documented how saving valid Ticket topic settings recovers failed activation. |
 | 2026-10-29 | Documented Ticket setup and history limits alongside Payment Trigger emoji-only Back controls, website dropdowns and deployment requirements. |
 | 2026-10-29 | Documented Payment Trigger 1.1 Back-button placement, response choices, upgrade behavior, Discord format restrictions and the verified VPS migration with pending application deployment. |
