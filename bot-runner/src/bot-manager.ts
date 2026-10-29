@@ -138,6 +138,11 @@ export class BotManager {
               }).catch(() => undefined);
             },
             saveRuntimeState: (state) => this.api.saveFeatureState({ botId: bot.id, installationId: feature.installationId, state }),
+            tickets: {
+              list: () => this.api.ticketList(bot.id, feature.installationId),
+              save: (channelId, name, state) => this.api.ticketSave(bot.id, feature.installationId, channelId, name, state),
+              archive: (channelId, messages) => this.api.ticketArchive(bot.id, feature.installationId, channelId, messages),
+            },
             wallet: {
               balance: (memberDiscordId) => this.api.walletBalance(bot.id, memberDiscordId), voucher: (input) => this.api.walletVoucher(bot.id, input),
               createPromptPay: (memberDiscordId, amountSatang) => this.api.createPromptPay(bot.id, memberDiscordId, amountSatang), verifySlip: (input) => this.api.verifySlip(bot.id, input),

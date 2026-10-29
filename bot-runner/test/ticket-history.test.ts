@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Collection, type Message, type TextChannel } from "discord.js";
-import { ticketTranscript } from "../src/features/ticket/history.js";
+import { ticketArchive, ticketTranscript } from "../src/features/ticket/history.js";
 
 function message(index: number) {
   return {
     id: String(100000000000000000n + BigInt(index)), createdAt: new Date(1790000000000 + index),
     author: { id: "222222222222222222", displayName: "Alice" }, editedTimestamp: null,
     content: `ข้อความที่ ${index} <script>alert(1)</script>`, reference: null,
-    embeds: [{ title: "Order", description: "Product", fields: [{ name: "Quantity", value: "1" }] }],
+    embeds: [{ title: "Order", description: "Product", fields: [{ name: "Quantity", value: "1" }], toJSON: () => ({ title: "Order", description: "Product" }) }],
     components: [{ toJSON: () => ({ type: 17, components: [{ type: 10, content: "Form response" }] }) }],
     attachments: new Collection([["file", { name: "receipt.png", url: "https://cdn.discordapp.com/attachments/1/2/receipt.png" }]]),
   } as unknown as Message;
@@ -50,4 +50,16 @@ test("permission failures do not produce misleading empty exports and cleanup ca
   (f.value.messages as any).fetch = async () => { throw Error("No read permission"); };
   await assert.rejects(ticketTranscript(f.value), /No read permission/);
   await assert.rejects(ticketTranscript(channel(1).value, () => true), /cancelled/);
+});
+
+test("archives complete paginated conversations as message data and refuses truncated deletion", async () => {
+  const f = channel(105);
+  const result = await ticketArchive(f.value);
+  assert.equal(result.length, 105);
+  assert.equal(result[0]!.id, message(1).id);
+  assert.equal(result[104]!.id, message(105).id);
+  assert.match(JSON.stringify(result), /Form response/);
+  await assert.rejects(ticketArchive(channel(10001).value), /10,000/);
+  await assert.rejects(ticketArchive(channel(1500, 4000).value), /10 MiB/);
+  await assert.rejects(ticketArchive(channel(1).value, () => true), /cancelled/);
 });

@@ -56,3 +56,36 @@ export async function ticketTranscript(channel: Pick<TextChannel, "id" | "name" 
     ...(truncated ? ["PARTIAL EXPORT: only the most recent messages within 2000 messages / 5 MiB. Read earlier history on the bot management website."] : []), ""];
   return { attachment: Buffer.from([...header, ...entries.map((item) => item.body)].join("\n\n"), "utf8"), count: entries.length, truncated };
 }
+
+/** Complete bounded archive. Refuse channel deletion when a complete snapshot cannot be saved. */
+export async function ticketArchive(channel: Pick<TextChannel, "messages">, cancelled: () => boolean = () => false) {
+  const entries: Record<string, unknown>[] = [];
+  let before: string | undefined;
+  let bytes = 2;
+  while (!cancelled()) {
+    const page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}), cache: false });
+    if (!page.size) break;
+    const ordered = [...page.values()].sort((a,b) => BigInt(a.id) > BigInt(b.id) ? -1 : 1);
+    for (const message of ordered) {
+      const entry = {
+        id: message.id, content: message.content, timestamp: message.createdAt.toISOString(),
+        edited_timestamp: message.editedAt?.toISOString() ?? null,
+        author: { id: message.author.id, username: message.author.username, global_name: message.author.displayName, bot: message.author.bot },
+        member: { nick: message.member?.displayName },
+        message_reference: { message_id: message.reference?.messageId },
+        embeds: message.embeds.map(e => e.toJSON()), components: message.components.map(c => c.toJSON()),
+        attachments: [...message.attachments.values()].map(a => ({ filename: a.name, url: a.url })),
+      };
+      bytes += Buffer.byteLength(JSON.stringify(entry), "utf8") + 1;
+      if (entries.length >= 10000 || bytes > 10 * 1024 * 1024)
+        throw new Error("เก็บประวัติเกินขีดจำกัด 10,000 ข้อความ / 10 MiB จึงยังไม่ลบห้อง กรุณาให้ผู้ดูแลส่งออกประวัติก่อน");
+      entries.push(entry);
+    }
+    const next = ordered.at(-1)!.id;
+    if (before && BigInt(next) >= BigInt(before)) throw new Error("อ่านประวัติไม่ครบ จึงยังไม่ลบห้อง");
+    before = next;
+    if (page.size < 100) break;
+  }
+  if (cancelled()) throw new Error("Ticket archive cancelled");
+  return entries.reverse();
+}
