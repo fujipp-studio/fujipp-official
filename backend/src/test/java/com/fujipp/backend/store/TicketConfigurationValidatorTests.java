@@ -70,4 +70,21 @@ class TicketConfigurationValidatorTests {
             assertThatThrownBy(() -> TicketConfigurationValidator.validate(Map.of("TICKET_DISCORD_HISTORY_ENABLED", mapper.valueToTree(value))))
                 .isInstanceOf(StoreValidationException.class);
     }
+    @Test void validatesOpeningLimitsConfirmationAndClosingPermissions() {
+        var behavior=mapper.readTree("{\"maxOpenPerUser\":1,\"confirmClose\":true,\"closeRoleIds\":[],\"closeUserIds\":[]}");
+        assertThatCode(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).doesNotThrowAnyException();
+        for(String invalid: new String[]{"{}","{\"maxOpenPerUser\":0,\"confirmClose\":true,\"closeRoleIds\":[],\"closeUserIds\":[]}",
+                "{\"maxOpenPerUser\":26,\"confirmClose\":true,\"closeRoleIds\":[],\"closeUserIds\":[]}",
+                "{\"maxOpenPerUser\":1,\"confirmClose\":true,\"closeRoleIds\":[\"bad\"],\"closeUserIds\":[]}"})
+            assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",mapper.readTree(invalid)))).isInstanceOf(StoreValidationException.class);
+    }
+    @Test void supportsCustomEmojiAndDocumentedChannelNameVariables() {
+        var category=(tools.jackson.databind.node.ObjectNode)mapper.readTree(CATEGORY);
+        category.put("emoji","<a:cart:123456789012345678>").put("channelNameTemplate","order-{{username}}-{{id}}");
+        assertThatCode(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).doesNotThrowAnyException();
+        category.put("channelNameTemplate","{{unknown}}");
+        assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).isInstanceOf(StoreValidationException.class);
+        category.put("channelNameTemplate","ticket").put("emoji","<script>");
+        assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).isInstanceOf(StoreValidationException.class);
+    }
 }

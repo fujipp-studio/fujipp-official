@@ -31,17 +31,18 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({
+@WebMvcTest(value = {
         StoreCatalogController.class,
         BotController.class,
         TicketHistoryController.class,
         AdminTicketHistoryController.class,
+        RuntimeTicketController.class,
         StoreOrderController.class,
         FeatureLicenseController.class,
         AdminFeatureController.class,
         AdminBotController.class,
         AdminUserController.class
-})
+}, properties = "app.runtime.runner-tokens=test-runner-token-with-at-least-32-characters")
 @Import({SecurityConfig.class, ApiExceptionHandler.class, StoreExceptionHandler.class})
 class StoreControllerTests {
 
@@ -55,6 +56,8 @@ class StoreControllerTests {
     private StoreService storeService;
     @MockitoBean
     private TicketHistoryService ticketHistoryService;
+    @MockitoBean
+    private RuntimeTicketService runtimeTickets;
 
     @MockitoBean
     private AdminFeatureService adminFeatureService;
@@ -81,6 +84,20 @@ class StoreControllerTests {
         mockMvc.perform(get("/api/v1/store/features"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray());
+    }
+
+    @Test
+    void ticketRegistryAndArchivesRequireTheRunnerCredential() throws Exception {
+        String path="/internal/v1/runtime/bots/"+UUID.randomUUID()+"/tickets?installationId="+UUID.randomUUID();
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        authorizeUser();
+        mockMvc.perform(get(path).with(jwt())).andExpect(status().isUnauthorized());
+        mockMvc.perform(get(path).header("X-Runner-Token","test-runner-token-with-at-least-32-characters"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control","no-store"));
+        mockMvc.perform(put("/internal/v1/runtime/bots/"+UUID.randomUUID()+"/tickets/111111111111111111/archive")
+                .with(jwt()).contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

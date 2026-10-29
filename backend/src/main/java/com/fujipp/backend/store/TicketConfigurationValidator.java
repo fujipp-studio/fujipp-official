@@ -9,6 +9,14 @@ final class TicketConfigurationValidator {
     private TicketConfigurationValidator() {}
 
     static void validate(Map<String, JsonNode> values) {
+        JsonNode behavior = values.get("TICKET_BEHAVIOR");
+        if (behavior != null) {
+            JsonNode limit = behavior.path("maxOpenPerUser");
+            if (!behavior.isObject() || !limit.isIntegralNumber() || !limit.canConvertToInt() || limit.asInt() < 1 || limit.asInt() > 25
+                    || !behavior.path("confirmClose").isBoolean()) fail("Ticket limit must be 1–25 with a boolean close confirmation setting");
+            ids(behavior.path("closeRoleIds"), 10);
+            ids(behavior.path("closeUserIds"), 25);
+        }
         JsonNode history = values.get("TICKET_DISCORD_HISTORY_ENABLED");
         if (history != null && !history.isBoolean()) fail("Ticket Discord history setting must be boolean");
         JsonNode command = values.get("TICKET_COMMAND_NAME");
@@ -23,6 +31,19 @@ final class TicketConfigurationValidator {
                     || !text(row.path("label"), 100, false) || !text(row.path("description"), 100, true)
                     || !id(row.path("categoryId"))) fail("Ticket categories require a unique key, label and Discord category ID");
             JsonNode roles = row.path("supportRoleIds");
+            if (row.has("emoji")) {
+                String emoji = row.path("emoji").asText();
+                if (!row.path("emoji").isTextual() || emoji.length() > 100 || (!emoji.isEmpty()
+                        && !emoji.matches("<a?:[A-Za-z0-9_]{2,32}:[0-9]{15,30}>")
+                        && !(emoji.length() <= 32 && emoji.codePoints().anyMatch(c -> c >= 0x1F000 || (c >= 0x2000 && c <= 0x32FF)) && !emoji.matches("(?s).*[<>\\r\\n].*"))))
+                    fail("Use a Unicode emoji or a Discord custom emoji such as <:name:123456789012345678>");
+            }
+            if (row.has("channelNameTemplate")) {
+                String template = row.path("channelNameTemplate").asText();
+                if (!text(row.path("channelNameTemplate"),100,false) || template.matches("(?s).*[\\p{Cc}\\p{Cf}/\\\\].*")
+                        || template.replaceAll("\\{\\{(username|user_id|topic|id)\\}\\}", "").matches("(?s).*[{}].*"))
+                    fail("Ticket names support {{username}}, {{user_id}}, {{topic}} and {{id}}");
+            }
             if (!roles.isArray() || roles.size() > 10) fail("Configure at most 10 support roles per ticket category");
             var roleIds = new HashSet<String>();
             for (JsonNode role : roles)
@@ -47,6 +68,11 @@ final class TicketConfigurationValidator {
         }
     }
     private static boolean key(JsonNode node) { return node.isTextual() && node.asText().matches("[a-z0-9_-]{1,32}"); }
+    private static void ids(JsonNode values, int max) {
+        var unique = new HashSet<String>();
+        if (!values.isArray() || values.size() > max) fail("Invalid Ticket closing role/user list");
+        for (JsonNode value : values) if (!id(value) || !unique.add(value.asText())) fail("Ticket closing IDs must be valid and unique");
+    }
     private static boolean id(JsonNode node) { return node.isTextual() && node.asText().matches("[0-9]{15,30}"); }
     private static boolean text(JsonNode node, int max, boolean empty) {
         return node.isTextual() && node.asText().length() <= max && (empty || !node.asText().isBlank());

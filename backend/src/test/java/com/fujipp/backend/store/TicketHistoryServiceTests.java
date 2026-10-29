@@ -20,7 +20,8 @@ class TicketHistoryServiceTests {
     private final JdbcTemplate jdbc = mock(JdbcTemplate.class);
     private final DiscordTicketClient discord = mock(DiscordTicketClient.class);
     private final ObjectMapper json = new ObjectMapper();
-    private final TicketHistoryService service = new TicketHistoryService(bots, admins, users, cipher, jdbc, discord, json);
+    private final TicketRecordRepository records = mock(TicketRecordRepository.class);
+    private final TicketHistoryService service = new TicketHistoryService(bots, admins, users, cipher, jdbc, discord, json, records);
 
     private void authorize() {
         when(users.getActiveAccount(owner.toString())).thenReturn(new CurrentUserRepository.AccountProfile(owner, AppRole.USER,
@@ -113,5 +114,32 @@ class TicketHistoryServiceTests {
         when(discord.channels("private-test-token", guild)).thenReturn(json.createArrayNode());
         assertThat(service.list(admin.toString(), botId, true)).isEmpty();
         verify(bots).findBotCredential(botId, owner, "DISCORD_TOKEN");
+    }
+    @Test void archivedConversationsRemainReadableWithoutDiscordOrABotToken() {
+        authorize();
+        var state=json.readTree("{\"ownerId\":\"333333333333333333\",\"categoryKey\":\"order\",\"status\":\"CLOSED\",\"openedAt\":1790000000000}");
+        var messages=json.createArrayNode();
+        for(String id:List.of("444444444444444444","555555555555555555","666666666666666666"))
+            messages.add(json.valueToTree(new TicketHistoryService.Message(id,"333333333333333333","Alice",false,"2026-10-29T00:00:00Z",null,"Saved",List.of(),List.of(),null)));
+        var entry=new TicketRecordRepository.Entry(installation,room,"archived-ticket",state,messages,true);
+        when(records.list(botId)).thenReturn(List.of(entry));
+        when(records.find(botId,room)).thenReturn(Optional.of(entry));
+        when(bots.findBotCredential(botId,owner,"DISCORD_TOKEN")).thenReturn(null);
+        assertThat(service.list(owner.toString(),botId,false)).singleElement().satisfies(t->assertThat(t.archived()).isTrue());
+        var recent=service.messages(owner.toString(),botId,false,room,null,2);
+        assertThat(recent.items()).extracting(TicketHistoryService.Message::id).containsExactly("555555555555555555","666666666666666666");
+        assertThat(recent.hasMore()).isTrue();
+        var older=service.messages(owner.toString(),botId,false,room,recent.nextBefore(),2);
+        assertThat(older.items()).extracting(TicketHistoryService.Message::id).containsExactly("444444444444444444");
+        assertThat(older.hasMore()).isFalse();
+        verifyNoInteractions(discord,cipher);
+    }
+    @Test void registeredLiveRoomsDoNotRequireAMetadataTopic() {
+        authorize();
+        var state=json.readTree("{\"ownerId\":\"333333333333333333\",\"categoryKey\":\"order\",\"status\":\"OPEN\",\"openedAt\":1790000000000}");
+        when(records.find(botId,room)).thenReturn(Optional.of(new TicketRecordRepository.Entry(installation,room,"ticket",state,null,false)));
+        when(discord.channel("private-test-token",room)).thenReturn(json.createObjectNode().put("id",room).put("guild_id",guild).put("type",0));
+        when(discord.messages("private-test-token",room,null,50)).thenReturn(json.createArrayNode());
+        assertThat(service.messages(owner.toString(),botId,false,room,null,50).items()).isEmpty();
     }
 }
