@@ -39,8 +39,12 @@ export function paymentTriggerFeatureButtons(
     const button = {
       type: 2,
       action: roles[key as keyof typeof roles],
+      ...(item.display_mode === 'EMOJI_ONLY' ? { display_mode: 'EMOJI_ONLY' } : {}),
       label: String(item.label ?? defaults.label).slice(0, 80),
-      emoji: typeof item.emoji === 'string' ? item.emoji.trim() : (item.emoji ?? defaults.emoji),
+      emoji:
+        typeof item.emoji === 'string'
+          ? item.emoji.trim()
+          : (item.emoji ?? (item.display_mode === 'EMOJI_ONLY' ? '◀️' : defaults.emoji)),
       ...(navigation
         ? {
             response_mode:
@@ -112,15 +116,22 @@ export function paymentTriggerPresentationPreview(
     if (!isRecord(value)) return value
     const choice = buttons.find((item) => item.value === value.action)
     if (choice) {
-      const { action: _action, response_mode: _responseMode, ...defaultButton } = choice.button
+      const {
+        action: _action,
+        response_mode: _responseMode,
+        display_mode: _displayMode,
+        ...defaultButton
+      } = choice.button
       const style = Number(value.style)
+      const iconOnly = (value.display_mode ?? choice.button.display_mode) === 'EMOJI_ONLY'
       return {
         ...defaultButton,
-        label: String(value.label ?? defaultButton.label).slice(0, 80),
+        label: iconOnly ? '' : String(value.label ?? defaultButton.label).slice(0, 80),
+        ...(iconOnly ? { aria_label: String(value.label ?? defaultButton.label).trim() || 'Back' } : {}),
         emoji:
           typeof value.emoji === 'string'
-            ? value.emoji.trim()
-            : (value.emoji ?? defaultButton.emoji),
+            ? value.emoji.trim() || (iconOnly ? '◀️' : '')
+            : (value.emoji ?? (iconOnly ? '◀️' : defaultButton.emoji)),
         style: [1, 2, 3, 4].includes(style)
           ? style
           : (styles[String(value.style ?? '').toLowerCase()] ?? defaultButton.style),

@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-10-29 | Documented Ticket setup, access rules, auto-close recovery, conversation history limits and deployment requirements. |
+| 2026-10-29 | Documented Ticket setup and history limits alongside Payment Trigger emoji-only Back controls, website dropdowns and deployment requirements. |
 | 2026-10-29 | Documented Payment Trigger 1.1 Back-button placement, response choices, upgrade behavior, Discord format restrictions and the verified VPS migration with pending application deployment. |
 | 2026-10-28 | Documented adding and moving Payment Trigger feature buttons, custom-layout behavior and enabling envelope buttons on newly posted payment requests. |
 | 2026-10-28 | Documented Payment Trigger envelope payments, direct settlement, duplicate and uncertain-result handling, deployment order and the verified VPS migration. |

@@ -32,6 +32,11 @@
   cursor: pointer;
   transition: background-color 200ms ease;
 }
+.discord-preview-button.preview-button--icon-only {
+  min-width: 32px;
+  padding-inline: var(--space-xs);
+}
+
 .discord-preview-button:is(.preview-button--primary, .preview-button--1) {
   --button-background: var(--discord-button-primary);
   --button-hover: var(--discord-button-primary-hover);

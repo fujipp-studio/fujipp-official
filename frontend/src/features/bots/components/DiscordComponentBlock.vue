@@ -150,9 +150,13 @@ function fileName() {
   <DiscordPreviewButton
     v-else-if="block.type === 2"
     type="button"
-    :class="['preview-component-button', `preview-button--${style}`]"
+    :class="[
+      'preview-component-button',
+      `preview-button--${style}`,
+      { 'preview-button--icon-only': label === '' && Boolean(emoji) },
+    ]"
+    :aria-label="renderText(block.aria_label ?? label)"
     :disabled="block.disabled === true"
-    :aria-label="label"
     @click="interact"
   >
     <span v-if="emoji" v-html="emoji" /><span v-if="block.label">{{ label }}</span>

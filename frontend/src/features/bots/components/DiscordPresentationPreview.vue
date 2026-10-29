@@ -147,7 +147,10 @@ const buttons = computed(() => {
     coFeatures.value.map((item) => coFeatureRoles[String(item.action ?? '')]).filter(Boolean),
   )
   return systemComponentEntries.value
-    .filter(({ role, config }) => !delegatedRoles.has(role) && config.label)
+    .filter(
+      ({ role, config }) =>
+        !delegatedRoles.has(role) && (config.label || (config.type === 2 && config.emoji)),
+    )
     .map(({ config }) => config)
     .slice(0, 5)
 })
@@ -387,7 +390,10 @@ function buttonClass(button: Record<string, unknown>) {
   const raw = button.style ?? 2
   const style =
     typeof raw === 'string' ? (namedStyles[raw.toLowerCase()] ?? Number(raw)) : Number(raw)
-  return buttonStyles[style] ?? buttonStyles[2]
+  return [
+    buttonStyles[style] ?? buttonStyles[2],
+    { 'preview-button--icon-only': button.label === '' && button.emoji },
+  ]
 }
 function buttonEmoji(button: Record<string, unknown>) {
   const emoji = button.emoji
@@ -563,6 +569,7 @@ function actionButtonClass(style: string) {
               :key="`component-button-${index}`"
               type="button"
               :class="buttonClass(button)"
+              :aria-label="button.aria_label ? render(button.aria_label) : undefined"
               :disabled="button.disabled === true"
               @click="
                 simulateInteraction(
@@ -636,6 +643,7 @@ function actionButtonClass(style: string) {
             :key="index"
             type="button"
             :class="buttonClass(button)"
+            :aria-label="button.aria_label ? render(button.aria_label) : undefined"
             :disabled="button.disabled === true"
             @click="
               simulateInteraction(
