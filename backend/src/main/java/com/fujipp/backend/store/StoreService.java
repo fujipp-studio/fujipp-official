@@ -376,6 +376,9 @@ public class StoreService {
                 || !request.secrets().isEmpty()
                 || !request.presentations().isEmpty()) {
             repository.bumpConfigRevision(license.configSetId());
+            if (request.values().containsKey("TICKET_CATEGORIES")) {
+                repository.retryTicketActivation(licenseId);
+            }
             runtime.invalidateBootstrap();
         }
         StoreRepository.LicenseContext refreshed = ownedLicense(licenseId, userId);

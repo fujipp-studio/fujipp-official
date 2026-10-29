@@ -1136,6 +1136,21 @@ public class StoreRepository {
         return Map.copyOf(slots);
     }
 
+    public void retryTicketActivation(UUID licenseId) {
+        // Failed installations are excluded from runtime bootstrap. Retry only
+        // after a validated topic configuration has been saved by its owner.
+        jdbcTemplate.update("""
+                UPDATE private.bot_feature_installations AS installation
+                   SET status = 'INSTALLING', last_error_code = NULL, last_error_message = NULL
+                  FROM shop.feature_products AS product
+                 WHERE installation.license_id = ?
+                   AND installation.feature_product_id = product.id AND product.code = 'ticket'
+                   AND installation.status = 'ERROR'
+                   AND installation.last_error_code = 'FEATURE_ACTIVATION_FAILED'
+                   AND installation.removed_at IS NULL
+                """, licenseId);
+    }
+
     public void bumpConfigRevision(UUID configSetId) {
         jdbcTemplate.update(
                 """

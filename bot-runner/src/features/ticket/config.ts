@@ -34,6 +34,8 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
     throw new Error("Configure 1–25 ticket categories");
   const keys = new Set<string>();
   for (const row of categories) {
+    if (record(row) && row.categoryId === "")
+      throw new Error("Configure the Discord Category ID for every Ticket topic in bot settings before starting Ticket");
     if (!record(row) || typeof row.key !== "string" || !keyPattern.test(row.key) || keys.has(row.key)
       || !text(row.label, 100) || !text(row.description, 100, true)
       || typeof row.categoryId !== "string" || !idPattern.test(row.categoryId)
