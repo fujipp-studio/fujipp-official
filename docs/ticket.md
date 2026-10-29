@@ -1,123 +1,132 @@
 # Ticket
 
-`ticket@1.0.0` provides private Discord text-channel tickets. The public panel
-contains a topic dropdown. Each topic chooses its Discord category, support
-roles, optional form and automatic closing policy independently.
+`ticket@1.0.0` creates private Discord text channels from a topic dropdown.
+Settings use four categories: **Topics & forms**, **Ticket behaviour**, **History**
+and **Commands**.
 
-## Setup and commands
+## Deployment and setup
 
-1. Deploy `20261029000002_create_ticket_feature.sql`, Backend, Frontend and Runner.
-   The migration creates a draft product and version. Publish and grant/install
-   them through the existing admin workflow when ready.
-2. In Ticket settings, replace the empty Discord category IDs for **สั่งซื้อ**
-   and **แจ้งปัญหา**. Both topics include editable forms by default. Add support
-   role IDs, or leave them empty to use administrators only.
-   If Ticket previously failed to activate with incomplete settings, saving valid
-   topic settings retries activation automatically. Saving only a command name
-   or message design does not retry topics that have not been validated.
-3. Give the bot View Channel, Manage Channels, Manage Roles, Send Messages,
-   Embed Links and Read Message History in the selected categories. Do not use
-   the server's `@everyone` role as a support role.
-4. Use `/ticket panel` in the public destination channel. Administrators can
-   post panels by default; Bot Permissions can grant `ticket/panel` to others.
-   `TICKET_COMMAND_NAME` customizes the root command.
+1. Apply the catalog migration `20261029000002_create_ticket_feature.sql` and,
+   for the approved THB 100 one-time offer, `20261029000003_publish_ticket_one_time_offer.sql`.
+2. Apply `20261029000004_ticket_controls_and_archives.sql` before deploying the
+   updated Backend, Runner and Frontend. It adds a private ticket registry,
+   conversation snapshots and the `TICKET_BEHAVIOR` configuration definition.
+3. Configure a Discord category ID for every topic. Order and support include
+   editable forms by default. Add support role IDs to grant room access.
+4. Give the bot View Channel, Manage Channels, Manage Roles, Send Messages,
+   Embed Links and Read Message History. Enable Message Content Intent in the
+   Discord Developer Portal so member message content can be archived.
+5. Use `/ticket panel` to post the dropdown. Administrators may post panels;
+   Bot Permissions can grant `ticket/panel` to other members. Change
+   `TICKET_COMMAND_NAME` to rename `/ticket`. Saving valid topic settings also
+   retries an earlier activation failure; command/design-only saves do not.
 
-Members select a topic and submit its form, when enabled. The bot then creates
-a private text channel visible to the opener, configured support roles, bot and
-administrators. It posts form answers with notifications suppressed and includes
-a close button. Each member can have one active ticket per topic; repeated or
-concurrent clicks return the existing channel.
+## Topics, emoji and channel names
 
-The opener, a configured support member or an administrator can request closure
-with the button or `/ticket close`. A private confirmation precedes the change.
-Closing denies the opener message, reaction and thread-writing permissions;
-the channel and history remain available. Administrators retain Discord's
-permission bypass. Closed channels remain in their category and count toward
-Discord's channel limits; administrators can move or remove them as needed.
+`TICKET_CATEGORIES` contains 1–25 stable topic keys. Each topic chooses a Discord
+category, up to 10 support roles, a description, optional emoji and room name.
+An emoji may be a Unicode emoji, `<:name:123456789012345678>` or animated
+`<a:name:123456789012345678>`. Custom emoji must be usable by the Discord bot.
+Post a new panel after changing dropdown labels, descriptions or emoji.
 
-## Forms and timers
+The default `channelNameTemplate` is `ticket-{{topic}}-{{id}}`. Supported tokens:
 
-`TICKET_CATEGORIES` contains 1–25 topics with stable keys. Each topic supports up
-to 10 unique support roles and an optional form with 1–5 questions. Questions
-support short or paragraph answers, required switches and placeholders.
-Answers are limited to 1,000 characters per question. Dropdown labels and
-descriptions allow 100 characters; form titles and question labels allow 45.
+| Token | Value |
+| --- | --- |
+| `{{username}}` | Discord username of the opener |
+| `{{user_id}}` | Discord user ID of the opener |
+| `{{topic}}` | Stable topic key |
+| `{{id}}` | Identifier generated when opening the ticket |
 
-`autoCloseMinutes` accepts 0–43200 minutes. Zero disables automatic closure.
-Automatic closing is optional per topic and disabled by default. Enabling its
-switch starts at 1440 minutes (24 hours), which can be changed, with
-`autoCloseMode: IDLE`:
+Names are normalized, spaces become hyphens, unsafe separators/control characters
+are removed and the final name is limited to 100 characters. Names apply to newly
+opened tickets. New rooms have no system metadata in their channel topic.
 
-- `IDLE` counts from the latest message, including bot messages.
-- `OPENED` counts from channel creation regardless of subsequent activity.
+## Forms and welcome messages
 
-The Runner checks every minute while online and checks again on startup.
-Timers therefore may run up to a minute late under normal conditions and
-resume when an offline bot returns. Permission or history-read failures leave
-the ticket retryable and record a recoverable feature error.
+An optional modal can contain 1–5 short or paragraph questions with required
+switches and placeholders. Each answer allows up to 1,000 characters. The room
+opens after submission. The `opened` welcome design is sent **before** the saved
+question/answer messages. Both Embed and Components V2 designs are supported.
 
-The channel topic stores an installation-scoped ticket marker, opener, support
-roles, creation time, timer policy and status. Keep this topic intact. This
-avoids growing the installation's 16 KiB runtime state with ticket records and
-survives Runner restarts. Only channels carrying this installation's marker
-are processed. Settings changes apply to new tickets; existing tickets retain
-the support roles and timer policy captured when they opened. An interrupted
-close persists `CLOSING` before changing permissions and retries after restart.
+The `panel` and `opened` slots retain the existing message editors. The Runner
+adds dropdown and close/history controls automatically. Welcome variables are
+`{{user}}`, `{{user_name}}`, `{{category}}`, `{{channel}}` and `{{auto_close}}`.
 
-## Message designs
+## Opening limits and close permissions
 
-The `panel` and `opened` presentation slots support the existing Embed and
-Components V2 editors. The Runner adds the topic dropdown or close button.
-The opened message supports `{{user}}`, `{{user_name}}`, `{{category}}`,
-`{{channel}}` and `{{auto_close}}`. Existing panels retain their posted dropdown;
-post a new panel after adding or renaming topics. Selections for deleted topics
-receive a private error.
+`TICKET_BEHAVIOR` defaults to:
 
-## Conversation history
+```json
+{"maxOpenPerUser":1,"confirmClose":true,"closeRoleIds":[],"closeUserIds":[]}
+```
 
-Open **Ticket history** from the bot settings menu or **Read ticket history**
-from the Ticket feature settings. The website lists retained open and closed
-ticket channels and supports searching by channel, member ID or topic,
-filtering open/closed tickets, and loading earlier messages. Conversations show
-author names and IDs, Thailand timestamps, edited indicators, reply references,
-form/Embed text and Discord attachment links. Refresh retrieves the latest
-messages; this view does not automatically poll Discord.
+The opening limit is 1–25 tickets per person **across all topics** of this bot.
+Open and closing tickets count; closed tickets do not. Opens are serialized so
+concurrent submissions cannot bypass the limit in the bot process.
 
-Only the bot's current owner and website administrators may use the web reader.
-The Backend verifies bot ownership, configured guild and installation markers
-before reading messages. Discord credentials remain on the Backend and responses
-use `Cache-Control: no-store`. Opening the page does not require the Runner to
-be online, provided the bot's token and Discord permissions remain valid.
+Only members with Discord Administrator permission can close by default. The
+opener and support roles do not automatically receive close permission. Add up
+to 10 closing roles or 25 closing users on the website to grant that permission.
+These extra roles/users also receive access to newly created rooms. Existing
+rooms retain their Discord access permissions; close authorization uses current
+settings and freshly fetched Discord membership.
 
-`TICKET_DISCORD_HISTORY_ENABLED` is an optional boolean, default `false`.
-When enabled, newly opened/closed tickets include an **อ่านประวัติแชท** button,
-and `/<TICKET_COMMAND_NAME> history` downloads a private UTF-8 text transcript.
-The opener, configured support team and Discord administrators must still have
-View Channel and Read Message History in that ticket. Exports include at most
-the latest 2,000 messages / 5 MiB of text and explicitly mark a partial export;
-the website can page further back. Disabling the option removes the command
-and rejects existing history buttons. The web reader remains available.
+`confirmClose` controls the private confirmation for the close button and
+`/ticket close`. When disabled, an authorized action begins closing immediately.
+The Runner stores `CLOSING`, locks the opener's writing permissions, fetches and
+saves the conversation, deletes the Discord channel, then records `CLOSED`.
+The bot refreshes its channel permissions and application Message Content Intent
+flags before archiving, refusing deletion if it cannot read the full content.
+If archiving or deletion fails, it retains the room/closing intent for retry.
+Closing never silently substitutes a partial transcript. Snapshots are limited
+to 10,000 messages / 10 MiB; exceeding a limit keeps the room and reports the need
+for a manual export. A crash after deletion is reconciled using the saved archive.
 
-Enable **Message Content Intent** in the bot application's Discord Developer
-Portal settings to receive member message text, embeds, components and
-attachments over the API. Discord may require approval for verified apps.
-The bot also needs View Channel and Read Message History. If these are missing,
-Discord can return empty message content or an empty history.
+## Optional automatic deletion
 
-History is read from the existing Discord channel, without a separate archive
-database. Deleting a channel or message removes it from this reader. The reader
-shows the latest retained version of an edited message, not an edit/deletion
-audit trail. Downloaded attachments link to Discord and can expire; refresh the
-history to obtain current links while the original message remains available.
+Each topic has `autoCloseMinutes` from 0–43200. Zero disables the timer; enabling
+it in the UI starts at 1440 minutes. `IDLE` counts from the newest message,
+including bot messages. `OPENED` counts from creation regardless of activity.
+The Runner checks each minute while online and on startup, so deadlines resume
+after an outage. Timed closing archives and deletes automatically; it does not
+wait for human confirmation. Turning on manual confirmation does not change this.
+Existing tickets retain the timer policy and support roles captured when opened.
+
+## Durable identity and conversation history
+
+`private.ticket_channels` holds bot/installation-scoped identities, state and
+saved conversation messages. It is not exposed to browser database clients.
+Runner endpoints require the internal runner credential and check the active
+Ticket installation/license and the actual channel guild before registration.
+The Runner imports its old `fujipp-ticket:...` topics into the registry before
+clearing those topics. It leaves ordinary or other installations' topics alone.
+Old closed rooms are retained until explicitly closed/deleted through the bot.
+
+The web reader supports search, open/closed filters, chronological pagination,
+Thailand timestamps, authors/IDs, replies, edited indicators, forms, embeds,
+Components V2 text and safe Discord attachment links. Open rooms use live Discord
+messages; archived conversations remain readable after channel deletion, without
+a Discord request or valid bot token. Only the current bot owner and website
+administrators can read them. Responses use `Cache-Control: no-store`.
+
+`TICKET_DISCORD_HISTORY_ENABLED` remains optional and defaults to `false`. When
+on, the history button and `/ticket history` provide a private UTF-8 download
+while the room exists, for its opener, support team, authorized closers or admins
+who still have View Channel and Read Message History. Downloads show up to the
+newest 2,000 messages / 5 MiB and explicitly mark partial exports. After deletion,
+use the website. Disabling Discord history does not disable web archives.
+
+Snapshots preserve the conversation as read when closing, not an audit of prior
+edits/deletions. Deleting a room outside the bot before archiving cannot recover
+its contents. Files are linked, not copied; Discord attachment URLs may expire.
 
 ## Validation
 
-- Runner: `node --import tsx --test test/ticket.test.ts`
-- Transcript: `node --import tsx --test test/ticket-history.test.ts`
-- Backend: `./mvnw --batch-mode -Dtest=TicketConfigurationValidatorTests,StoreServiceTests test`
-- Frontend unit: `bun run test:unit --run src/__tests__/Ticket.spec.ts`
-- Browser: `bunx playwright test --config playwright.smoke.config.ts ticket.smoke.spec.ts`
-- History browser: `bunx playwright test --config playwright.smoke.config.ts ticket-history.smoke.spec.ts`
+- Runner: `npm run build && npm test`
+- Backend: `./mvnw --batch-mode test`
+- Frontend: `bun run build`, `bun run test:unit --run`, `bun run lint`
+- Browser: `bunx playwright test --config playwright.smoke.config.ts ticket.smoke.spec.ts ticket-history.smoke.spec.ts`
 
-The browser checks use synthetic data. A live Discord server must still verify
-the deployed bot's role hierarchy and category permissions.
+Browser tests use synthetic conversations. A live Discord server must still
+verify the bot's permissions, custom emoji access and role hierarchy.
