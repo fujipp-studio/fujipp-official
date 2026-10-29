@@ -38,6 +38,7 @@ const ChannelMessageTriggersConfig = defineAsyncComponent(
 )
 const PaymentTriggerConfig = defineAsyncComponent(() => import('./PaymentTriggerConfig.vue'))
 const ShopStatusConfig = defineAsyncComponent(() => import('./ShopStatusConfig.vue'))
+const TicketConfig = defineAsyncComponent(() => import('./TicketConfig.vue'))
 const MessageSetsConfig = defineAsyncComponent(() => import('./MessageSetsConfig.vue'))
 const PriceReaderConfig = defineAsyncComponent(() => import('./PriceReaderConfig.vue'))
 const VoiceKeeperConfig = defineAsyncComponent(() => import('./VoiceKeeperConfig.vue'))
@@ -78,6 +79,7 @@ const isMessageTriggers = computed(() => license.value?.featureCode === 'channel
 const isPaymentTrigger = computed(() => license.value?.featureCode === 'payment-trigger')
 const isPriceReader = computed(() => license.value?.featureCode === 'price-reader')
 const isShopStatus = computed(() => license.value?.featureCode === 'shop-status')
+const isTicket = computed(() => license.value?.featureCode === 'ticket')
 const isMessageSets = computed(() => license.value?.featureCode === 'message-sets')
 const hasCustomConfig = computed(
   () =>
@@ -94,7 +96,8 @@ const hasCustomConfig = computed(
     isPaymentTrigger.value ||
     isPriceReader.value ||
     isMessageSets.value ||
-    isShopStatus.value,
+    isShopStatus.value ||
+    isTicket.value,
 )
 const genericFields = computed(
   () =>
@@ -118,7 +121,8 @@ const genericFields = computed(
         (!isPaymentTrigger.value || !paymentTriggerConfigKeys.has(field.key)) &&
         (!isPriceReader.value || !priceReaderConfigKeys.has(field.key)) &&
         (!isMessageSets.value || !messageSetsConfigKeys.has(field.key)) &&
-        (!isShopStatus.value || !shopStatusConfigKeys.has(field.key)),
+        (!isShopStatus.value || !shopStatusConfigKeys.has(field.key)) &&
+        (!isTicket.value || !['TICKET_COMMAND_NAME', 'TICKET_CATEGORIES', 'TICKET_DISCORD_HISTORY_ENABLED'].includes(field.key)),
     ) ?? [],
 )
 
@@ -161,6 +165,7 @@ function robuxGroupRates() {
     <PriceReaderConfig v-else-if="isPriceReader" />
     <MessageSetsConfig v-else-if="isMessageSets" />
     <ShopStatusConfig v-else-if="isShopStatus" />
+    <TicketConfig v-else-if="isTicket" />
     <div
       v-if="genericFields.length"
       class="grid gap-md desktop:grid-cols-2"

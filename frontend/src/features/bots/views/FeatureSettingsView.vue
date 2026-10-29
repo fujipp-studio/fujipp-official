@@ -61,6 +61,7 @@ const hasCustomConfig = computed(
     isMessageTriggers.value ||
     isPaymentTrigger.value ||
     license.value?.featureCode === 'shop-status' ||
+    license.value?.featureCode === 'ticket' ||
     editor.isPriceReaderFeature.value,
 )
 watch(

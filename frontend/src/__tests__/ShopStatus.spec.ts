@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseShopRules, validateShopDraft } from '@/features/bots/config/shop-status'
+import { parseShopRules, validateShopDraft } from '@/features/bots/config/shop-status-validation'
 import {
   permissionCommands,
   needsCommandConfiguration,

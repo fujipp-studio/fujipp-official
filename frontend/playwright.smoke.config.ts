@@ -17,6 +17,8 @@ export default defineConfig({
     'wallet-qr.smoke.spec.ts',
     'wallet-watermark.smoke.spec.ts',
     'role-shop.smoke.spec.ts',
+    'ticket.smoke.spec.ts',
+    'ticket-history.smoke.spec.ts',
     'roblox-payout.smoke.spec.ts',
     'channel-message-triggers.smoke.spec.ts',
     'payment-trigger.smoke.spec.ts',

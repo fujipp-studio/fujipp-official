@@ -1,5 +1,6 @@
 export default {
   shellTitle: 'ตั้งค่าบอท',
+  ticketHistory: 'ประวัติแชท Ticket',
   back: 'ย้อนกลับ',
   main: 'หน้าหลัก',
   breadcrumbLabel: 'เส้นทางหน้าตั้งค่าบอท',

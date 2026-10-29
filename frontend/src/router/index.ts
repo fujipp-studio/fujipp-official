@@ -190,6 +190,11 @@ export function createAppRouter(
             component: () => import('../features/bots/views/BotSettingsView.vue'),
           },
           {
+            path: 'tickets',
+            name: 'bot-ticket-history',
+            component: () => import('../features/bots/views/TicketHistoryView.vue'),
+          },
+          {
             path: 'config',
             name: 'bot-config-settings',
             component: () => import('../features/bots/views/BotSettingsView.vue'),
@@ -322,6 +327,11 @@ export function createAppRouter(
             path: '',
             name: 'admin-bot-settings',
             component: () => import('../features/bots/views/BotSettingsView.vue'),
+          },
+          {
+            path: 'tickets',
+            name: 'admin-bot-ticket-history',
+            component: () => import('../features/bots/views/TicketHistoryView.vue'),
           },
           {
             path: 'config',
