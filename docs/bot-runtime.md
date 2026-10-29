@@ -329,6 +329,11 @@ databases. Run `./mvnw --batch-mode test` from `backend/` and remove the disposa
 database afterward. These tests cover concurrent corrections, ledger rollback,
 retry recognition, disabled tracking, and preservation of previous cycles.
 
+## Ticket
+
+For private ticket channels, topic dropdowns, optional forms and automatic
+closing, see [Ticket](ticket.md). Ticket is bundled as `ticket@1.0.0`.
+
 ## Shop Status
 
 The bundled `shop-status@1.0.0` feature registers `/shop open` and `/shop close`.
