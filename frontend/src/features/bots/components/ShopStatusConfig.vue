@@ -10,12 +10,11 @@ import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureCommandsSettings from './FeatureCommandsSettings.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import {
-  parseShopRules,
-  validateShopDraft,
   type ShopPermission,
   type ShopPermissionRule,
   type ShopPermissionSetting,
 } from '../config/shop-status'
+import { parseShopRules, validateShopDraft } from '../config/shop-status-validation'
 
 const { values, text } = useFeatureEditor()
 const id = useId()

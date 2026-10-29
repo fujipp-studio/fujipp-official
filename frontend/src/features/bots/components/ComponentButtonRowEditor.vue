@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import AppTextField from '@/shared/ui/fields/AppTextField.vue'
+import PaymentBackButtonAppearance from './PaymentBackButtonAppearance.vue'
 import { useI18n } from 'vue-i18n'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import FeatureButtonPicker from './FeatureButtonPicker.vue'
@@ -17,7 +19,7 @@ const emit = defineEmits<{
   add: []
   update: [
     index: number,
-    key: 'label' | 'emoji' | 'url' | 'action' | 'style' | 'response_mode',
+    key: 'label' | 'emoji' | 'url' | 'action' | 'style' | 'response_mode' | 'display_mode',
     value: string,
   ]
   addFeature: [action: string]
@@ -70,33 +72,32 @@ const { text } = useFeatureEditor()
         </div>
       </div>
       <div v-if="featureButtons.length" class="mb-xs grid min-w-0 gap-xs tablet:grid-cols-2">
-        <label class="component-field"
-          ><span>{{ text('Button action', 'การทำงานของปุ่ม') }}</span>
-          <select
-            class="field-control h-10"
-            :value="String(button.action ?? 'link')"
-            @change="emit('update', index, 'action', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="link">{{ t('botSettings.linkButton') }}</option>
-            <option v-for="option in featureButtons" :key="option.value" :value="option.value">
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
-        <label v-if="button.action" class="component-field"
-          ><span>{{ text('Button color', 'สีปุ่ม') }}</span>
-          <select
-            class="field-control h-10"
-            :value="String(button.style ?? 1)"
-            @change="emit('update', index, 'style', ($event.target as HTMLSelectElement).value)"
-          >
-            <option value="1">Primary · Blurple</option>
-            <option value="2">Secondary · Gray</option>
-            <option value="3">Success · Green</option>
-            <option value="4">Danger · Red</option>
-          </select>
-        </label>
+        <AppTextField
+          variant="dropdown"
+          :model-value="String(button.action ?? 'link')"
+          :label="text('Button action', 'การทำงานของปุ่ม')"
+          :options="[{ value: 'link', label: t('botSettings.linkButton') }, ...featureButtons]"
+          @update:model-value="emit('update', index, 'action', $event)"
+        />
+        <AppTextField
+          v-if="button.action"
+          variant="dropdown"
+          :model-value="String(button.style ?? 1)"
+          :label="text('Button color', 'สีปุ่ม')"
+          :options="[
+            { value: '1', label: 'Primary · Blurple' },
+            { value: '2', label: 'Secondary · Gray' },
+            { value: '3', label: 'Success · Green' },
+            { value: '4', label: 'Danger · Red' },
+          ]"
+          @update:model-value="emit('update', index, 'style', $event)"
+        />
       </div>
+      <PaymentBackButtonAppearance
+        v-if="button.action === 'payment.back'"
+        :model-value="String(button.display_mode ?? 'TEXT')"
+        @update:model-value="emit('update', index, 'display_mode', $event)"
+      />
       <PaymentResponseModeField
         v-if="
           featureButtons.some((option) => option.value === button.action && option.responseModes)
@@ -112,7 +113,7 @@ const { text } = useFeatureEditor()
       <div
         class="grid min-w-0 grid-cols-1 gap-xs tablet:grid-cols-[minmax(0,1fr)_6rem_minmax(0,1.5fr)]"
       >
-        <label class="component-field">
+        <label v-if="button.display_mode !== 'EMOJI_ONLY'" class="component-field">
           <span>{{ t('botSettings.buttonLabel') }}</span>
           <input
             :value="String(button.label ?? '')"

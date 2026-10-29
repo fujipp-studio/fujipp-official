@@ -464,16 +464,19 @@ function configuredButton(
   };
   const button = new ButtonBuilder()
     .setCustomId(customId)
-    .setLabel(String(config.label ?? fallbackLabel).slice(0, 80))
     .setStyle([1, 2, 3, 4].includes(Number(config.style)) ? Number(config.style) :
       styles[String(config.style ?? "").toLowerCase()] ?? fallbackStyle);
-  const emoji = isRecord(config.emoji) ? config.emoji as APIMessageComponentEmoji : String(config.emoji ?? fallbackEmoji).trim();
+  const emoji = isRecord(config.emoji) ? config.emoji as APIMessageComponentEmoji : String(config.emoji ?? (config.display_mode === "EMOJI_ONLY" ? "◀️" : fallbackEmoji)).trim();
   if (emoji)
     try {
       button.setEmoji(emoji);
     } catch {
       /* Invalid configured emoji is omitted. */
     }
+  if (config.display_mode === "EMOJI_ONLY") {
+    try { button.toJSON(); } catch { button.setEmoji("◀️"); }
+    if (!("emoji" in button.data) || !button.data.emoji) button.setEmoji("◀️");
+  } else button.setLabel(String(config.label ?? fallbackLabel).slice(0, 80));
   return button;
 }
 

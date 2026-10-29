@@ -34,6 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest({
         StoreCatalogController.class,
         BotController.class,
+        TicketHistoryController.class,
+        AdminTicketHistoryController.class,
         StoreOrderController.class,
         FeatureLicenseController.class,
         AdminFeatureController.class,
@@ -51,6 +53,8 @@ class StoreControllerTests {
 
     @MockitoBean
     private StoreService storeService;
+    @MockitoBean
+    private TicketHistoryService ticketHistoryService;
 
     @MockitoBean
     private AdminFeatureService adminFeatureService;
@@ -235,6 +239,26 @@ class StoreControllerTests {
 
     private void authorizeUser() {
         authorizeAs(AppRole.USER);
+    }
+
+    @Test
+    void ticketHistoryRequiresLoginAndNeverAllowsRegularUsersIntoAdminEndpoints() throws Exception {
+        String path = "/api/v1/bots/11111111-1111-4111-8111-111111111111/tickets";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        authorizeAs(AppRole.USER);
+        mockMvc.perform(get("/api/v1/admin/bots/11111111-1111-4111-8111-111111111111/tickets").with(jwt()))
+            .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(ticketHistoryService);
+    }
+
+    @Test
+    void ticketHistoryIsNeverCachedAndPassesTheAuthenticatedSubject() throws Exception {
+        authorizeUser(); UUID botId = UUID.randomUUID();
+        when(ticketHistoryService.list("ticket-user", botId, false)).thenReturn(List.of());
+        mockMvc.perform(get("/api/v1/bots/{botId}/tickets", botId).with(jwt().jwt(jwt -> jwt.subject("ticket-user"))))
+            .andExpect(status().isOk())
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")));
+        verify(ticketHistoryService).list("ticket-user", botId, false);
     }
 
     private void authorizeAs(AppRole role) {

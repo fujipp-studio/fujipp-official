@@ -1,5 +1,6 @@
 export default {
   shellTitle: 'Bot settings',
+  ticketHistory: 'Ticket history',
   back: 'Back',
   main: 'Main',
   breadcrumbLabel: 'Bot settings breadcrumb',

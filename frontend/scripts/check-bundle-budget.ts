@@ -46,9 +46,11 @@ const settings = ['src/features/bots/views/BotSettingsFlowView.vue', 'src/featur
 const featureConfigs = [
   'MemberSpendingConfig', 'BotPresenceConfig', 'BotPermissionsConfig', 'ReviewCreditConfig',
   'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
-  'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig',
+  'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig', 'TicketConfig',
 ]
 const featurePreviews: Record<string, string[]> = {
+  ShopStatusConfig: ['src/features/bots/config/shop-status-validation.ts'],
+  TicketConfig: ['src/features/bots/models/ticket-presentation-preview.ts', 'src/features/bots/config/ticket-config.ts'],
   WalletTopupConfig: ['src/features/bots/models/wallet-presentation-preview.ts', 'src/features/bots/models/wallet-qr-watermark.ts'],
   PaymentTriggerConfig: ['src/features/bots/models/payment-trigger-presentation-preview.ts'],
   PriceReaderConfig: ['src/features/bots/models/price-reader-presentation-preview.ts'],
@@ -58,6 +60,7 @@ const profiles = [
   {name:'Home', keys:['src/features/home/views/HomeView.vue', ...translations('home')], js:150, css:50},
   {name:'Work', keys:['src/features/work/views/WorkListView.vue', ...translations()], js:160, css:50},
   {name:'My Bot', keys:['src/features/bots/views/MyBotsView.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:230, css:50},
+  {name:'Ticket history', keys:['src/features/bots/views/BotSettingsFlowView.vue', 'src/features/bots/views/TicketHistoryView.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Feature config', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...featureConfigs.map(component => ({
     name: component,

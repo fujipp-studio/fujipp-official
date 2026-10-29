@@ -1,5 +1,19 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { paymentTriggerFixture } from '../src/__tests__/fixtures/paymentTrigger'
+
+const dropdownLabels: Record<string, string> = {
+  '0': 'Container 1',
+  '4': 'Danger · Red',
+  root: 'นอก Container',
+  NEW_MESSAGE: 'ส่งข้อความใหม่',
+  UPDATE: 'อัปเดตข้อความเดิม',
+  EMOJI_ONLY: '◀️ อีโมจิอย่างเดียว',
+  TEXT: 'อีโมจิพร้อมข้อความ',
+}
+async function choose(control: Locator, value: string) {
+  await control.click()
+  await control.page().getByRole('option', { name: dropdownLabels[value]!, exact: true }).click()
+}
 
 for (const theme of ['LIGHT', 'DARK']) {
   for (const mode of ['EMBED', 'COMPONENTS_V2'] as const) {
@@ -220,17 +234,17 @@ for (const theme of ['LIGHT', 'DARK']) {
       if (mode === 'COMPONENTS_V2') {
         await expect(save).toBeDisabled()
         const implicitRow = editor.locator('[data-component-block="1"]')
-        await implicitRow.getByRole('combobox', { name: 'ย้ายไป', exact: true }).selectOption('0')
+        await choose(implicitRow.getByRole('combobox', { name: 'ย้ายไป', exact: true }), '0')
         await expect(editor.locator('[data-component-block="1"]')).toHaveCount(0)
         const container = editor.locator('[data-component-block="0"]')
         const bank = container.locator('[data-feature-action="payment.bank"]')
         const voucher = container.locator('[data-feature-action="payment.voucher"]')
         await bank.getByRole('textbox', { name: 'ข้อความปุ่ม', exact: true }).fill('โอนผ่านธนาคาร')
-        await bank.getByRole('combobox', { name: 'สีปุ่ม', exact: true }).selectOption('4')
+        await choose(bank.getByRole('combobox', { name: 'สีปุ่ม', exact: true }), '4')
         await voucher.getByRole('button', { name: 'ลบ', exact: true }).click()
         const picker = container.locator('[data-feature-picker-location="row"]')
-        await picker.locator('summary').click()
-        await picker.getByRole('button', { name: 'ชำระด้วยซองอั่งเปา', exact: true }).click()
+        await picker.getByRole('combobox', { name: 'เพิ่มปุ่ม Feature', exact: true }).click()
+        await page.getByRole('option', { name: 'ชำระด้วยซองอั่งเปา', exact: true }).click()
         await expect(voucher).toBeVisible()
         await voucher.getByRole('button', { name: 'เลื่อนปุ่ม 3 ไปทางซ้าย', exact: true }).click()
         await voucher.getByRole('button', { name: 'เลื่อนปุ่ม 2 ไปทางซ้าย', exact: true }).click()
@@ -369,11 +383,11 @@ for (const theme of ['LIGHT', 'DARK']) {
     )
     const container = editor.locator('[data-component-block="0"]')
     const picker = container.locator('[data-feature-picker-location="container"]')
-    await picker.locator('summary').click()
+    await picker.getByRole('combobox', { name: 'เพิ่มปุ่ม Feature', exact: true }).click()
     await expect(
-      picker.getByRole('button', { name: 'ชำระด้วยซองอั่งเปา', exact: true }),
+      page.getByRole('option', { name: 'ชำระด้วยซองอั่งเปา', exact: true }),
     ).toBeEnabled()
-    await picker.getByRole('button', { name: 'ชำระด้วยซองอั่งเปา', exact: true }).click()
+    await page.getByRole('option', { name: 'ชำระด้วยซองอั่งเปา', exact: true }).click()
     const preview = editor.locator('.preview-shell')
     await expect(
       preview.locator('.preview-container').getByRole('button', { name: /ชำระด้วยซองอั่งเปา/ }),
@@ -432,27 +446,42 @@ for (const theme of ['LIGHT', 'DARK'])
         const container = editor.locator('[data-component-block="0"]')
         const back = container.locator('[data-feature-action="payment.back"]')
         await expect(back).toBeVisible()
-        await back
-          .getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true })
-          .selectOption('NEW_MESSAGE')
+        await choose(
+          back.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
+          'NEW_MESSAGE',
+        )
         const row = container
           .locator('[data-container-child]')
           .filter({ has: page.locator('[data-feature-action="payment.back"]') })
-        await row.getByRole('combobox', { name: 'ย้ายไป', exact: true }).selectOption('root')
+        await row.getByRole('combobox', { name: 'ย้ายไป', exact: true }).click()
+        await page.getByRole('listbox', { name: 'ย้ายไป', exact: true }).screenshot({
+          path: testInfo.outputPath('website-move-dropdown.png'),
+          animations: 'disabled',
+          scale: 'css',
+        })
+        await page.getByRole('option', { name: 'นอก Container', exact: true }).click()
         await expect(container.locator('[data-feature-action="payment.back"]')).toHaveCount(0)
         const outside = editor.locator('[data-component-block="1"]')
         await expect(outside.locator('[data-feature-action="payment.back"]')).toBeVisible()
         await expect(
           outside.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
-        ).toHaveValue('NEW_MESSAGE')
-        await outside.getByRole('combobox', { name: 'ย้ายไป', exact: true }).selectOption('0')
+        ).toContainText('ส่งข้อความใหม่')
+        await choose(outside.getByRole('combobox', { name: 'ย้ายไป', exact: true }), '0')
         await back.getByRole('button', { name: 'ลบ', exact: true }).click()
         const picker = container.locator('[data-feature-picker-location="container"]')
-        await picker.locator('summary').click()
-        await picker.getByRole('button', { name: 'กลับไปเลือกช่องทาง', exact: true }).click()
-        await back
-          .getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true })
-          .selectOption('NEW_MESSAGE')
+        const pickerBefore = await picker.boundingBox()
+        await picker.getByRole('combobox', { name: 'เพิ่มปุ่ม Feature', exact: true }).click()
+        expect((await picker.boundingBox())!.height).toBe(pickerBefore!.height)
+        await page.getByRole('listbox', { name: 'เพิ่มปุ่ม Feature', exact: true }).screenshot({
+          path: testInfo.outputPath('website-feature-button-menu.png'),
+          animations: 'disabled',
+          scale: 'css',
+        })
+        await page.getByRole('option', { name: 'กลับไปเลือกช่องทาง', exact: true }).click()
+        await choose(
+          back.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
+          'NEW_MESSAGE',
+        )
         await back
           .getByRole('textbox', { name: 'ข้อความปุ่ม', exact: true })
           .fill('เลือกช่องทางอื่น')
@@ -464,13 +493,43 @@ for (const theme of ['LIGHT', 'DARK'])
       } else {
         const back = editor.locator('[data-system-component="back_button"]')
         await expect(back).toBeVisible()
-        await back
-          .getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true })
-          .selectOption('NEW_MESSAGE')
+        await choose(
+          back.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
+          'NEW_MESSAGE',
+        )
         await back
           .getByRole('textbox', { name: 'ข้อความบนปุ่ม', exact: true })
           .fill('เลือกช่องทางอื่น')
       }
+      const appearance = editor.getByRole('combobox', { name: 'รูปแบบปุ่มกลับ', exact: true })
+      await choose(appearance, 'EMOJI_ONLY')
+      const previewBack = editor
+        .locator('.preview-shell')
+        .getByRole('button', { name: 'เลือกช่องทางอื่น', exact: true })
+      if (mode === 'EMBED' && (page.viewportSize()?.width ?? 0) < 768)
+        await editor.getByRole('button', { name: 'ตัวอย่าง', exact: true }).click()
+      await expect(previewBack).toHaveClass(/preview-button--icon-only/)
+      await expect(previewBack).not.toContainText('เลือกช่องทางอื่น')
+      await expect(previewBack.locator('img')).toHaveAttribute('src', /\/25c0\.svg$/)
+      await previewBack.screenshot({
+        path: testInfo.outputPath('back-emoji-only-preview.png'),
+        animations: 'disabled',
+        scale: 'css',
+      })
+      if (mode === 'EMBED' && (page.viewportSize()?.width ?? 0) < 768)
+        await editor.getByRole('button', { name: 'แก้ไข', exact: true }).click()
+      const controls = editor.locator(
+        mode === 'COMPONENTS_V2'
+          ? '[data-feature-action="payment.back"]'
+          : '[data-system-component="back_button"]',
+      )
+      expect(
+        await controls.evaluate((el) =>
+          [...el.querySelectorAll('.text-field__control')].every(
+            (field) => field.getBoundingClientRect().right <= el.getBoundingClientRect().right + 1,
+          ),
+        ),
+      ).toBe(true)
       await editor
         .locator(
           mode === 'COMPONENTS_V2'
@@ -479,6 +538,8 @@ for (const theme of ['LIGHT', 'DARK'])
         )
         .screenshot({
           path: testInfo.outputPath('payment-v11-back-controls.png'),
+          style:
+            '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .vue-devtools__anchor { visibility: hidden !important; }',
           animations: 'disabled',
           scale: 'css',
         })
@@ -496,17 +557,28 @@ for (const theme of ['LIGHT', 'DARK'])
         .getByRole('button', { name: 'ยืนยันการบันทึก', exact: true })
         .click()
       await expect(save).toBeDisabled()
+      expect(JSON.stringify(saved!.presentations.bank_payment)).toContain('EMOJI_ONLY')
+      expect(JSON.stringify(saved!.presentations.bank_payment)).toContain('◀️')
       expect(JSON.stringify(saved!.presentations.bank_payment)).toContain('NEW_MESSAGE')
       expect(JSON.stringify(saved!.presentations.bank_payment)).toContain('เลือกช่องทางอื่น')
       await page.reload()
       await expect(save).toBeDisabled()
       await expect(
         editor.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
-      ).toHaveValue('NEW_MESSAGE')
+      ).toContainText('ส่งข้อความใหม่')
+      await expect(appearance).toContainText('◀️ อีโมจิอย่างเดียว')
+      await choose(appearance, 'TEXT')
+      const restoredLabel = editor.getByRole('textbox', {
+        name: mode === 'EMBED' ? 'ข้อความบนปุ่ม' : 'ข้อความปุ่ม',
+        exact: true,
+      })
+      await expect(restoredLabel).toHaveValue('เลือกช่องทางอื่น')
+      await choose(appearance, 'EMOJI_ONLY')
+      await expect(save).toBeDisabled()
       await page.goto(url.replace('bank_payment', 'wallet_payment'))
       await expect(
         editor.getByRole('combobox', { name: 'เมื่อกดปุ่มนี้', exact: true }),
-      ).toHaveValue('UPDATE')
+      ).toContainText('อัปเดตข้อความเดิม')
       await expect(save).toBeDisabled()
       expect(errors).toEqual([])
     })

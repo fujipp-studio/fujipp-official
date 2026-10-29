@@ -172,33 +172,18 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
             {{ t('botSettings.delete') }}
           </button>
         </div>
-        <label
+        <AppTextField
           v-if="block.type !== 17 && componentDestinations(messageSlot.key, blockIndex).length"
-          class="component-field mt-xs"
-        >
-          <span>{{ text('Move to', 'ย้ายไป') }}</span>
-          <select
-            class="field-control h-10"
-            value=""
-            @change="
-              relocateComponentBlock(
-                messageSlot.key,
-                blockIndex,
-                undefined,
-                ($event.target as HTMLSelectElement).value,
-              )
-            "
-          >
-            <option value="" disabled>{{ text('Choose position…', 'เลือกตำแหน่ง…') }}</option>
-            <option
-              v-for="option in componentDestinations(messageSlot.key, blockIndex)"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-        </label>
+          class="mt-xs"
+          variant="dropdown"
+          model-value=""
+          :label="text('Move to', 'ย้ายไป')"
+          :placeholder="text('Choose position…', 'เลือกตำแหน่ง…')"
+          :options="componentDestinations(messageSlot.key, blockIndex)"
+          @update:model-value="
+            relocateComponentBlock(messageSlot.key, blockIndex, undefined, $event)
+          "
+        />
         <textarea
           v-if="block.type === 10"
           :value="String(block.content ?? '')"
@@ -261,23 +246,16 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
             + {{ t('botSettings.content') }}
           </button>
           <div class="grid gap-xs tablet:grid-cols-2">
-            <label class="component-field">
-              <span>{{ t('botSettings.section') }} accessory</span>
-              <select
-                class="field-control h-10"
-                :value="sectionAccessoryType(block)"
-                @change="
-                  setSectionAccessory(
-                    messageSlot.key,
-                    blockIndex,
-                    ($event.target as HTMLSelectElement).value,
-                  )
-                "
-              >
-                <option value="thumbnail">{{ t('botSettings.accessoryImage') }}</option>
-                <option value="link">{{ t('botSettings.linkButton') }}</option>
-              </select>
-            </label>
+            <AppTextField
+              variant="dropdown"
+              :model-value="sectionAccessoryType(block)"
+              :label="t('botSettings.section') + ' accessory'"
+              :options="[
+                { value: 'thumbnail', label: t('botSettings.accessoryImage') },
+                { value: 'link', label: t('botSettings.linkButton') },
+              ]"
+              @update:model-value="setSectionAccessory(messageSlot.key, blockIndex, $event)"
+            />
             <label class="component-field">
               <span>URL</span>
               <input
@@ -429,24 +407,18 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
           </button>
         </div>
         <div v-if="block.type === 14" class="mt-xs grid gap-sm tablet:grid-cols-2">
-          <label class="component-field"
-            ><span>{{ t('botSettings.size') }}</span
-            ><select
-              class="field-control h-10"
-              :value="Number(block.spacing ?? 1)"
-              @change="
-                updateSeparator(
-                  messageSlot.key,
-                  blockIndex,
-                  'spacing',
-                  Number(($event.target as HTMLSelectElement).value),
-                )
-              "
-            >
-              <option :value="1">{{ t('botSettings.small') }}</option>
-              <option :value="2">{{ t('botSettings.large') }}</option>
-            </select></label
-          >
+          <AppTextField
+            variant="dropdown"
+            :model-value="String(block.spacing ?? 1)"
+            :label="t('botSettings.size')"
+            :options="[
+              { value: '1', label: t('botSettings.small') },
+              { value: '2', label: t('botSettings.large') },
+            ]"
+            @update:model-value="
+              updateSeparator(messageSlot.key, blockIndex, 'spacing', Number($event))
+            "
+          />
           <label
             class="flex items-center gap-xs self-end rounded-md border border-border-subtle p-sm text-sm font-medium"
             ><input
@@ -578,30 +550,17 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
                   {{ t('botSettings.delete') }}
                 </button>
               </div>
-              <label class="component-field mt-xs"
-                ><span>{{ text('Move to', 'ย้ายไป') }}</span>
-                <select
-                  class="field-control h-10"
-                  value=""
-                  @change="
-                    relocateComponentBlock(
-                      messageSlot.key,
-                      blockIndex,
-                      childIndex,
-                      ($event.target as HTMLSelectElement).value,
-                    )
-                  "
-                >
-                  <option value="" disabled>{{ text('Choose position…', 'เลือกตำแหน่ง…') }}</option>
-                  <option
-                    v-for="option in componentDestinations(messageSlot.key, blockIndex, childIndex)"
-                    :key="option.value"
-                    :value="option.value"
-                  >
-                    {{ option.label }}
-                  </option>
-                </select>
-              </label>
+              <AppTextField
+                class="mt-xs"
+                variant="dropdown"
+                model-value=""
+                :label="text('Move to', 'ย้ายไป')"
+                :placeholder="text('Choose position…', 'เลือกตำแหน่ง…')"
+                :options="componentDestinations(messageSlot.key, blockIndex, childIndex)"
+                @update:model-value="
+                  relocateComponentBlock(messageSlot.key, blockIndex, childIndex, $event)
+                "
+              />
               <textarea
                 v-if="child.type === 10 || child.type === 9"
                 :value="
@@ -654,22 +613,24 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
                 "
               />
               <div v-if="child.type === 14" class="mt-xs grid gap-xs tablet:grid-cols-2">
-                <select
-                  class="field-control h-10"
-                  :value="Number(child.spacing ?? 1)"
-                  @change="
+                <AppTextField
+                  variant="dropdown"
+                  :model-value="String(child.spacing ?? 1)"
+                  :label="t('botSettings.size')"
+                  :options="[
+                    { value: '1', label: t('botSettings.small') },
+                    { value: '2', label: t('botSettings.large') },
+                  ]"
+                  @update:model-value="
                     updateContainerChild(
                       messageSlot.key,
                       blockIndex,
                       childIndex,
                       'spacing',
-                      Number(($event.target as HTMLSelectElement).value),
+                      Number($event),
                     )
                   "
-                >
-                  <option :value="1">{{ t('botSettings.small') }}</option>
-                  <option :value="2">{{ t('botSettings.large') }}</option>
-                </select>
+                />
                 <label class="component-check-field">
                   <input
                     type="checkbox"
@@ -721,7 +682,7 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
                 {{ t('botSettings.thisChildKeepsItsConfiguredMediaOr') }}
               </p>
             </div>
-            <div class="mt-xs flex flex-wrap gap-xs">
+            <div class="mt-xs flex flex-wrap items-start gap-xs">
               <FeatureButtonPicker
                 data-feature-picker-location="container"
                 :options="featureButtonOptions(messageSlot.key)"
@@ -767,7 +728,7 @@ function dropBlock(event: DragEvent, index: number, childIndex?: number) {
           </div>
         </div>
       </div>
-      <div class="mt-sm flex flex-wrap gap-xs">
+      <div class="mt-sm flex flex-wrap items-start gap-xs">
         <FeatureButtonPicker
           data-feature-picker-location="root"
           :options="featureButtonOptions(messageSlot.key)"

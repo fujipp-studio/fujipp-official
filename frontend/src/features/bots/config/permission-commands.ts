@@ -19,6 +19,7 @@ export interface PermissionCommandFeature {
 
 // Keep suggestions aligned with command registration and permission gates in bot-runner/src/features.
 const versions: Record<string, string[]> = {
+  ticket: ['1.0.0'],
   'role-shop': ['1.0.0'],
   'shop-status': ['1.0.0'],
   'message-sets': ['1.0.0', '1.1.0'],
@@ -34,6 +35,7 @@ export function hasPermissionCommandSuggestions(license: FeatureLicense) {
 }
 export function needsCommandConfiguration(license: FeatureLicense) {
   return [
+    'ticket',
     'role-shop',
     'wallet-topup',
     'voice-keeper',
@@ -62,6 +64,11 @@ export function permissionCommands(
     command(name, `All subcommands of /${name}`, `ทุกคำสั่งย่อยของ /${name}`)
   let commands: PermissionCommand[] = []
   switch (license.featureCode) {
+    case 'ticket': {
+      const root = name('TICKET_COMMAND_NAME', 'ticket')
+      commands = [command(`${root}/panel`, 'Post the ticket dropdown panel', 'ส่งแผงเลือกหัวข้อ Ticket')]
+      break
+    }
     case 'shop-status': {
       const root = name('SHOP_COMMAND_NAME', 'shop')
       commands = [

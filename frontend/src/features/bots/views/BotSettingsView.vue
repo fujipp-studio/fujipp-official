@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useBotSettingsData } from '../composables/useBotSettingsData'
+import { Ticket } from 'lucide-vue-next'
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useQueryClient } from '@tanstack/vue-query'
@@ -359,6 +360,10 @@ onMounted(async () => {
         <button class="setting-card" type="button" @click="openView('packages')">
           <AppIcon class="setting-card-icon" :source="icons.shop.package" />
           <span>{{ t('botSettings.packageSettings') }}</span>
+        </button>
+        <button v-if="assignedLicenses.some((item) => item.featureCode === 'ticket')" class="setting-card" type="button" @click="router.push({ name: adminMode ? 'admin-bot-ticket-history' : 'bot-ticket-history', params: { botId } })">
+          <Ticket :size="32" />
+          <span>{{ text('Ticket history', 'ประวัติแชท Ticket') }}</span>
         </button>
       </div>
     </section>

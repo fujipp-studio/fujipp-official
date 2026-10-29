@@ -1,4 +1,3 @@
-import { validateShopDraft } from '../config/shop-status'
 import {
   walletConfigCopy,
   robloxConfigCopy,
@@ -87,6 +86,7 @@ export function useFeatureSettings() {
   const usesPresentationDesigner = computed(
     () =>
       license.value?.featureCode === 'role-shop' ||
+      license.value?.featureCode === 'ticket' ||
       isWalletTopupFeature.value ||
       isRobloxPayoutFeature.value ||
       isPriceReaderFeature.value ||
@@ -319,7 +319,7 @@ export function useFeatureSettings() {
       hasChanges.value &&
       !loading.value &&
       !saving.value &&
-      (!['role-shop', 'wallet-topup'].includes(license.value?.featureCode ?? '') ||
+      (!['role-shop', 'wallet-topup', 'ticket'].includes(license.value?.featureCode ?? '') ||
         (featureValidator.value?.(values.value) ?? false)),
   )
 
@@ -521,6 +521,8 @@ export function useFeatureSettings() {
   }
 
   function presentationSampleValues(slotKey: string): Record<string, string> {
+    if (license.value?.featureCode === 'ticket')
+      return { user: '@Fujipp', user_name: 'Fujipp', category: text('Order', 'สั่งซื้อ'), channel: '#ticket-order', auto_close: text('1440 minutes after the last message', '1440 นาทีหลังไม่มีข้อความใหม่') }
     if (isShopStatusFeature.value)
       return {
         status: slotKey === 'shop_open' ? text('Open', 'เปิดร้าน') : text('Closed', 'ปิดร้าน'),
@@ -815,6 +817,18 @@ export function useFeatureSettings() {
         const { roleShopProductsValid } = await import('../models/role-shop')
         featureValidator.value = (draft) => roleShopProductsValid(draft.ROLE_SHOP_PRODUCTS)
       }
+      if (isShopStatusFeature.value) {
+        const { validateShopDraft } = await import('../config/shop-status-validation')
+        featureValidator.value = validateShopDraft
+      }
+      if (license.value?.featureCode === 'ticket') {
+        const [{ ticketPresentationPreview }, { validateTicketDraft }] = await Promise.all([
+          import('../models/ticket-presentation-preview'),
+          import('../config/ticket-config'),
+        ])
+        featureValidator.value = validateTicketDraft
+        featurePreview.value = (definition, slotKey) => ticketPresentationPreview(definition, slotKey, values.value.TICKET_DISCORD_HISTORY_ENABLED === true)
+      }
       if (isWalletTopupFeature.value) {
         const [preview, watermark] = await Promise.all([
           import('../models/wallet-presentation-preview'),
@@ -922,7 +936,7 @@ export function useFeatureSettings() {
             'ตรวจสอบชื่อคำสั่งและชื่อ SET (สูงสุด 20 รายการ)',
           ),
         )
-      if (isShopStatusFeature.value && !validateShopDraft(values.value)) {
+      if (isShopStatusFeature.value && !featureValidator.value?.(values.value)) {
         saveConfirmationOpen.value = false
         throw new Error(
           text(
@@ -930,6 +944,10 @@ export function useFeatureSettings() {
             'ตรวจสอบชื่อคำสั่งร้าน ข้อความประกาศ ชื่อห้อง (สูงสุด 100 ตัวอักษร) และกฎสิทธิ์ห้อง',
           ),
         )
+      }
+      if (license.value?.featureCode === 'ticket' && !featureValidator.value?.(values.value)) {
+        saveConfirmationOpen.value = false
+        throw new Error(text('Check ticket categories, Discord IDs, timers and form questions.', 'ตรวจสอบหัวข้อ Ticket, Discord ID, เวลาปิด และคำถามในแบบฟอร์ม'))
       }
       const normalValues: Record<string, FeatureConfigValue> = {}
       if (isPriceReaderFeature.value && !validatePriceReaderDraft(values.value)) {

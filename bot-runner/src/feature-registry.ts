@@ -19,8 +19,10 @@ import { messageSetsFeature } from "./features/message-sets/v1.0.0.js";
 import { shopStatusFeature } from "./features/shop-status/v1.0.0.js";
 
 import { roleShopFeature } from "./features/role-shop/v1.0.0.js";
+import { ticketFeature } from "./features/ticket/v1.0.0.js";
 
 const modules = new Map<string, FeatureModule>([
+  [moduleKey(ticketFeature.runtimeKey, ticketFeature.version), ticketFeature],
   [moduleKey(roleShopFeature.runtimeKey, roleShopFeature.version), roleShopFeature],
   [moduleKey(shopStatusFeature.runtimeKey, shopStatusFeature.version), shopStatusFeature],
   [moduleKey(messageSetsFeatureV11.runtimeKey, messageSetsFeatureV11.version), messageSetsFeatureV11],

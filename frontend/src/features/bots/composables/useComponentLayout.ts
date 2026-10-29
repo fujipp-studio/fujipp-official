@@ -37,11 +37,11 @@ export function useComponentLayout({
     slotKey: string,
     blockIndex: number,
     buttonIndex: number,
-    key: 'label' | 'emoji' | 'url' | 'action' | 'style' | 'response_mode',
+    key: 'label' | 'emoji' | 'url' | 'action' | 'style' | 'response_mode' | 'display_mode',
     value: string,
     childIndex?: number,
   ) {
-    if (key !== 'action' && key !== 'style' && key !== 'response_mode')
+    if (key !== 'action' && key !== 'style' && key !== 'response_mode' && key !== 'display_mode')
       return updateButtonFields(slotKey, blockIndex, buttonIndex, key, value, childIndex)
     const blocks = componentBlocks(slotKey).map((block) => clone(block))
     const parent = blocks[blockIndex]
@@ -49,7 +49,15 @@ export function useComponentLayout({
     if (!row || row.type !== 1) return
     const buttons = actionRowButtons(row)
     if (!buttons[buttonIndex] || buttons.some((item) => item.type !== 2)) return
-    if (key === 'response_mode') {
+    if (key === 'display_mode') {
+      if (
+        buttons[buttonIndex]!.action !== 'payment.back' ||
+        !['TEXT', 'EMOJI_ONLY'].includes(value)
+      )
+        return
+      buttons[buttonIndex]!.display_mode = value
+      if (value === 'EMOJI_ONLY') buttons[buttonIndex]!.emoji = '◀️'
+    } else if (key === 'response_mode') {
       if (
         !['UPDATE', 'NEW_MESSAGE'].includes(value) ||
         !featureButtons(slotKey).some(

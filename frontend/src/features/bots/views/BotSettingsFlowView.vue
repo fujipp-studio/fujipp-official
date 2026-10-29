@@ -28,6 +28,8 @@ const featureParentRoute = computed(
 )
 const trail = computed(() => {
   if (route.name === 'bot-settings' || route.name === 'admin-bot-settings') return []
+  if (route.name === 'bot-ticket-history' || route.name === 'admin-bot-ticket-history')
+    return [t('botSettings.ticketHistory')]
   if (route.name === 'bot-config-settings' || route.name === 'admin-bot-config-settings')
     return [t('botSettings.botConfig')]
   if (route.name === 'bot-runtime-settings' || route.name === 'admin-bot-runtime-settings')
