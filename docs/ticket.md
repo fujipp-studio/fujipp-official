@@ -7,8 +7,9 @@ roles, optional form and automatic closing policy independently.
 ## Setup and commands
 
 1. Deploy `20261029000002_create_ticket_feature.sql`, Backend, Frontend and Runner.
-   The migration creates a draft product and version. Publish and grant/install
-   them through the existing admin workflow when ready.
+   Then deploy `20261029000003_publish_ticket_one_time_offer.sql` to activate the
+   product, publish version 1.0.0 and offer a THB 100 one-time purchase for one bot
+   installation. The original catalog migration creates the product as a draft.
 2. In Ticket settings, replace the empty Discord category IDs for **สั่งซื้อ**
    and **แจ้งปัญหา**. Both topics include editable forms by default. Add support
    role IDs, or leave them empty to use administrators only.

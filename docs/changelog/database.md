@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-29 | Added Ticket publication and an active THB 100 one-time offer for one bot installation. |
 | 2026-10-29 | Added a draft Ticket catalog migration with order and support forms, optional auto-close timers and disabled-by-default Discord history. |
 | 2026-10-29 | Installed Payment Trigger 1.1 on VPS with Back-button defaults and the required single-published-version transition, preserving existing installations, configuration, saved designs and financial records. |
 | 2026-10-28 | Installed Payment Trigger invoice claims, exact-amount constraints, disabled envelope defaults and success-message templates on VPS PostgreSQL while preserving existing voucher, wallet, configuration and saved design records. |
