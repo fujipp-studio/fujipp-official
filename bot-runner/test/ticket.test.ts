@@ -100,6 +100,11 @@ test("validates category and form limits, duplicate keys and timer types", () =>
   assert.doesNotThrow(() => readTicketConfig({ TICKET_CATEGORIES: [category({ formEnabled: false, fields: [], autoCloseMinutes: 0 })] }));
 });
 
+test("unconfigured catalog topics explain where to set Discord category IDs", () => {
+  assert.throws(() => readTicketConfig({ TICKET_CATEGORIES: [category({ categoryId: "" })] }),
+    /Configure the Discord Category ID.*bot settings/);
+});
+
 test("catalog defaults match the bundled runtime and enable both requested forms", () => {
   const migration = readFileSync(new URL("../../supabase/migrations/20261029000002_create_ticket_feature.sql", import.meta.url), "utf8");
   const raw = migration.match(/'JSON', true, false, '([^']+)'::jsonb/);

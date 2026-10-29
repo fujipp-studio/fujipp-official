@@ -18,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,6 +30,7 @@ class StoreServiceTests {
     private final StoreSecretCipher secretCipher = mock(StoreSecretCipher.class);
     private final RuntimeSlotService runtimeSlotService = mock(RuntimeSlotService.class);
     private final DiscordBotProfileClient discordProfiles = mock(DiscordBotProfileClient.class);
+    private final com.fujipp.backend.runtime.RuntimeService runtime = mock(com.fujipp.backend.runtime.RuntimeService.class);
     private final StoreService service = new StoreService(
             repository,
             currentUserService,
@@ -37,7 +39,7 @@ class StoreServiceTests {
             discordProfiles,
             new ObjectMapper(),
             new com.fujipp.backend.pagination.CursorCodec(new ObjectMapper()),
-            mock(com.fujipp.backend.runtime.RuntimeService.class)
+            runtime
     );
 
     @Test
@@ -247,6 +249,72 @@ class StoreServiceTests {
                 .isInstanceOf(StoreValidationException.class).hasMessageContaining("different");
         verify(repository, never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(repository, never()).bumpConfigRevision(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void correctedTicketTopicsRetryActivationBeforeRefreshingRuntime() {
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        authorize(userId);
+        var license = new StoreRepository.LicenseContext(
+                licenseId, UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+                UUID.randomUUID(), 2, null);
+        var mapper = new ObjectMapper();
+        var categories = mapper.readTree("""
+                [{"key":"order","label":"Order","description":"","categoryId":"111111111111111111",
+                  "supportRoleIds":[],"autoCloseMinutes":0,"autoCloseMode":"IDLE",
+                  "formEnabled":false,"formTitle":"Order","fields":[]}]
+                """);
+        UUID definitionId = UUID.randomUUID();
+        when(repository.findLicense(licenseId, userId)).thenReturn(Optional.of(license));
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+                new StoreRepository.ConfigDefinition(definitionId, "TICKET_CATEGORIES", "JSON", false)));
+
+        service.updateConfiguration(userId.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(Map.of("TICKET_CATEGORIES", categories), Map.of(), Map.of()));
+
+        var writes = inOrder(repository, runtime);
+        writes.verify(repository).upsertConfigValue(license, definitionId, categories);
+        writes.verify(repository).bumpConfigRevision(license.configSetId());
+        writes.verify(repository).retryTicketActivation(licenseId);
+        writes.verify(runtime).invalidateBootstrap();
+    }
+
+    @Test
+    void invalidTicketTopicsCannotRetryActivationOrWriteConfiguration() {
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        authorize(userId);
+        var license = new StoreRepository.LicenseContext(
+                licenseId, UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+                UUID.randomUUID(), 2, null);
+        when(repository.findLicense(licenseId, userId)).thenReturn(Optional.of(license));
+
+        assertThatThrownBy(() -> service.updateConfiguration(userId.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(
+                        Map.of("TICKET_CATEGORIES", new ObjectMapper().readTree("[{\"categoryId\":\"\"}]")), Map.of(), Map.of())))
+                .isInstanceOf(StoreValidationException.class);
+
+        verify(repository, never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).retryTicketActivation(org.mockito.ArgumentMatchers.any());
+        verify(runtime, never()).invalidateBootstrap();
+    }
+
+    @Test
+    void savingOnlyTicketCommandDoesNotRetryUnvalidatedTopics() {
+        UUID userId = UUID.randomUUID(), licenseId = UUID.randomUUID();
+        authorize(userId);
+        var license = new StoreRepository.LicenseContext(
+                licenseId, UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", null,
+                UUID.randomUUID(), 2, null);
+        when(repository.findLicense(licenseId, userId)).thenReturn(Optional.of(license));
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+                new StoreRepository.ConfigDefinition(UUID.randomUUID(), "TICKET_COMMAND_NAME", "STRING", false)));
+
+        service.updateConfiguration(userId.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(Map.of("TICKET_COMMAND_NAME", new ObjectMapper().valueToTree("tk")), Map.of(), Map.of()));
+
+        verify(repository, never()).retryTicketActivation(org.mockito.ArgumentMatchers.any());
+        verify(repository).bumpConfigRevision(license.configSetId());
+        verify(runtime).invalidateBootstrap();
     }
 
     private void authorize(UUID userId) {

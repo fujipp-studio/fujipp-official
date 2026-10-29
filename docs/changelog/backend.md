@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-29 | Retry failed Ticket activation after valid topic settings are saved, while preserving unrelated installations and errors; explain missing Discord category IDs in startup errors. |
 | 2026-10-29 | Added private tickets with optional forms, auto-close and protected history, plus emoji-only Payment Trigger Back buttons that preserve invoice navigation. |
 | 2026-10-29 | Added Payment Trigger 1.1 navigation and configurable response delivery while preserving invoice identity, legacy buttons and confirmed-payment handling when receipt updates fail. |
 | 2026-10-28 | Rendered Payment Trigger actions at their configured Components V2 positions with runtime payment amounts and invoice IDs, disabled unavailable envelope actions and no duplicate automatic button rows. |

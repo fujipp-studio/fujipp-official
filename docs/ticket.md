@@ -12,6 +12,9 @@ roles, optional form and automatic closing policy independently.
 2. In Ticket settings, replace the empty Discord category IDs for **สั่งซื้อ**
    and **แจ้งปัญหา**. Both topics include editable forms by default. Add support
    role IDs, or leave them empty to use administrators only.
+   If Ticket previously failed to activate with incomplete settings, saving valid
+   topic settings retries activation automatically. Saving only a command name
+   or message design does not retry topics that have not been validated.
 3. Give the bot View Channel, Manage Channels, Manage Roles, Send Messages,
    Embed Links and Read Message History in the selected categories. Do not use
    the server's `@everyone` role as a support role.
