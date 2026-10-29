@@ -129,6 +129,25 @@ saved configuration and message designs. Post a fresh trigger to use the new
 per-button responses. Old 1.0 buttons and open envelope modals remain supported.
 
 
+## Back button appearance and website controls
+
+In a Back button's settings, choose **รูปแบบปุ่มกลับ → ◀️ อีโมจิอย่างเดียว**
+to send only the arrow. **อีโมจิพร้อมข้อความ** restores the saved text. The
+emoji-only preset selects `◀️`; the Emoji field can still change it to another
+Unicode or Discord custom emoji. Secondary gray works well for navigation.
+The button keeps its original invoice, action and response-mode setting.
+
+Both Embed and Components V2 previews show the icon without visible label text
+and retain an accessible name. The Runner omits the Discord label field instead
+of sending an invalid empty label; a missing emoji falls back to `◀️`.
+
+The layout editor uses the website dropdown for placement, button actions,
+colors, response modes and layout options. **+ ปุ่ม Feature** opens the same
+website menu without expanding the toolbar or stretching adjacent buttons. Its
+options remain available at the message root, inside Containers and within rows.
+These presentation settings need matching Runner and Frontend code, with no new
+database migration.
+
 ## VPS migration 1.1.0 (2026-10-29)
 
 Migration `20261029000001_payment_trigger_v1_1.sql` was applied to VPS database

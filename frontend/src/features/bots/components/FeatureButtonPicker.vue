@@ -1,43 +1,41 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
-const props = defineProps<{
-  options: Array<{ value: string; label: string }>
-  disabled?: boolean
-}>()
+defineProps<{ options: Array<{ value: string; label: string }>; disabled?: boolean }>()
 const emit = defineEmits<{ select: [action: string] }>()
 const { text } = useFeatureEditor()
-const menu = ref<HTMLDetailsElement>()
-function choose(action: string) {
-  if (props.disabled) return
-  emit('select', action)
-  if (menu.value) menu.value.open = false
-}
 </script>
 
 <template>
-  <details v-if="options.length" ref="menu" class="min-w-0" data-feature-button-picker>
-    <summary
-      class="builder-add cursor-pointer"
-      :aria-disabled="disabled"
-      :tabindex="disabled ? -1 : 0"
-      @click="disabled && $event.preventDefault()"
-    >
-      + {{ text('Feature button', 'ปุ่ม Feature') }}
-    </summary>
-    <div
-      class="mt-xs flex flex-wrap gap-xs rounded-lg border border-border-subtle bg-bg-default p-sm"
-    >
-      <button
-        v-for="option in options"
-        :key="option.value"
-        type="button"
-        class="builder-add"
-        :disabled="disabled"
-        @click="choose(option.value)"
-      >
-        {{ option.label }}
-      </button>
-    </div>
-  </details>
+  <AppTextField
+    v-if="options.length"
+    class="feature-button-picker min-w-0 self-start"
+    data-feature-button-picker
+    variant="dropdown"
+    model-value=""
+    :label="text('Add feature button', 'เพิ่มปุ่ม Feature')"
+    :placeholder="text('+ Feature button', '+ ปุ่ม Feature')"
+    :options="options"
+    :disabled="disabled"
+    @update:model-value="emit('select', $event)"
+  />
 </template>
+
+<style scoped>
+.feature-button-picker {
+  width: auto;
+  max-width: 100%;
+}
+/* Keep the accessible label while the action itself is the visible prompt. */
+.feature-button-picker :deep(.text-field__label) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+</style>

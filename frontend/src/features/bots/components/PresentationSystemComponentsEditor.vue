@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import type { FeatureConfiguration } from '../api'
+import PaymentBackButtonAppearance from './PaymentBackButtonAppearance.vue'
 import PaymentResponseModeField from './PaymentResponseModeField.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
@@ -46,6 +47,8 @@ function updateItem(role: string, key: string, value: string) {
     presentationJson.value[props.messageSlot.key] = JSON.stringify(raw, null, 2)
   }
   updateSystemComponent(props.messageSlot.key, role, key, value)
+  if (key === 'display_mode' && value === 'EMOJI_ONLY')
+    updateSystemComponent(props.messageSlot.key, role, 'emoji', '◀️')
 }
 const label = (role: string) =>
   license.value?.featureCode === 'payment-trigger'
@@ -81,6 +84,11 @@ const label = (role: string) =>
           item.role.includes('select') ? t('botSettings.selection') : t('botSettings.button')
         }}</span>
       </div>
+      <PaymentBackButtonAppearance
+        v-if="item.role === 'back_button'"
+        :model-value="String(item.config.display_mode ?? 'TEXT')"
+        @update:model-value="updateItem(item.role, 'display_mode', $event)"
+      />
       <PaymentResponseModeField
         v-if="
           license?.featureCode === 'payment-trigger' &&
@@ -97,6 +105,7 @@ const label = (role: string) =>
       />
       <div class="component-editor-grid">
         <AppTextField
+          v-if="item.config.display_mode !== 'EMOJI_ONLY'"
           :model-value="String(item.config.label ?? item.config.placeholder ?? '')"
           :label="
             item.role.includes('select')

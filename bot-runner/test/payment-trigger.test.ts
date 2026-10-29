@@ -545,3 +545,22 @@ test("v1.1 receipt update failure keeps the confirmed payment and disables its s
     assert.equal(JSON.stringify(state.receipts).includes('"ref-1"'), false);
   } finally { await dispose(); }
 });
+
+for (const mode of ["EMBED", "COMPONENTS_V2"]) test(`v1.1 ${mode} renders a label-free Back button without losing its saved text`, async () => {
+  const { paymentTriggerFeatureV11 } = await import("../src/features/payment-trigger/index.js");
+  const client = new EventEmitter(), base = context(client);
+  base.presentations.bank_payment = { mode, embed: { title: "QR" },
+    components: { back_button: { label: "Back to payment methods", display_mode: "EMOJI_ONLY", emoji: "" } },
+    components_v2: { components: [{ type: 10, content: "QR" }] } };
+  const original = structuredClone(base.presentations.bank_payment);
+  const dispose = await paymentTriggerFeatureV11.activate(base);
+  try {
+    const state = navigationInteraction(`fujipp:payment:v11:bank:10000:${invoiceId}:n`);
+    client.emit("interactionCreate", state.interaction); await settle();
+    const serialized = JSON.stringify(state.updates);
+    assert.match(serialized, /"emoji":\{"name":"◀️"/);
+    assert.equal(serialized.includes('"label"'), false);
+    assert.equal(serialized.includes('display_mode'), false);
+    assert.deepEqual(base.presentations.bank_payment, original);
+  } finally { await dispose(); }
+});

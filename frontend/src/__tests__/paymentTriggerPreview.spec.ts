@@ -184,3 +184,23 @@ it.each(['bank_payment', 'wallet_payment'])(
     ).not.toContain('payment:back')
   },
 )
+
+it.each(['EMBED', 'COMPONENTS_V2'] as const)(
+  'previews a label-free Back button with an accessible name in %s',
+  (mode) => {
+    const raw = {
+      mode,
+      embed: { title: 'Bank' },
+      components: { back_button: { label: 'Return to methods', display_mode: 'EMOJI_ONLY' } },
+      components_v2: { components: [{ type: 10, content: 'Bank' }] },
+    }
+    const original = structuredClone(raw)
+    const preview = paymentTriggerPresentationPreview(raw, 'bank_payment', false, '1.1.0')
+    const serialized = JSON.stringify(preview)
+    expect(serialized).toContain('"label":""')
+    expect(serialized).toContain('"aria_label":"Return to methods"')
+    expect(serialized).toContain('◀️')
+    expect(serialized).not.toContain('display_mode')
+    expect(raw).toEqual(original)
+  },
+)

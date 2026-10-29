@@ -492,7 +492,7 @@
   }
   .builder-heading button,
   .builder-add,
-  .builder-item button {
+  .builder-item button:not(.text-field__input, .text-field__option, .text-field__secret-toggle) {
     border: 1px solid var(--semantic-color-border-border-default);
     border-radius: var(--corner-radius-md);
     padding: var(--space-xs) var(--space-sm);
@@ -512,6 +512,7 @@
   }
   .builder-subitem {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-xs);
     border: 1px solid var(--semantic-color-border-border-subtle);
     border-radius: var(--corner-radius-md);
@@ -580,6 +581,9 @@
     background: var(--semantic-color-background-bg-elevated);
     color: var(--semantic-color-text-text-muted);
     font-size: 0.625rem;
+  }
+  .builder-item .text-field {
+    min-width: 0;
   }
   .component-editor-grid {
     display: grid;
