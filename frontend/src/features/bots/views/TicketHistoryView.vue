@@ -185,8 +185,8 @@ onBeforeUnmount(() => {
     >
       {{
         text(
-          'History comes from retained Discord ticket channels. Deleted channels and deleted messages cannot be recovered here. The bot application needs Message Content Intent and Read Message History.',
-          'ประวัติดึงจากห้อง Ticket ที่ยังเก็บไว้บน Discord ห้องหรือข้อความที่ลบแล้วไม่สามารถเรียกคืนจากหน้านี้ได้ แอปบอทต้องเปิด Message Content Intent และมีสิทธิ์ Read Message History',
+          'Open tickets load live Discord messages. Closing a ticket saves its conversation here before deleting the channel. Discord attachment links may expire; files are not copied. The bot needs Message Content Intent and Read Message History.',
+          'ตั๋วที่เปิดอยู่ดึงแชทจาก Discord ตอนปิดระบบจะเก็บบทสนทนาที่นี่ก่อนลบห้อง ลิงก์ไฟล์ Discord อาจหมดอายุเพราะไม่ได้คัดลอกตัวไฟล์ บอทต้องเปิด Message Content Intent และมีสิทธิ์ Read Message History',
         )
       }}
     </p>
@@ -255,6 +255,14 @@ onBeforeUnmount(() => {
           <p class="mt-xs text-sm text-text-secondary">
             {{ status(selected.status) }} · {{ text('Opened', 'เปิดเมื่อ') }}
             {{ date(selected.openedAt) }}
+          </p>
+          <p v-if="selected.archived" class="mt-sm text-sm text-text-secondary">
+            {{
+              text(
+                'Saved conversation — available after the Discord channel is deleted.',
+                'ประวัติที่บันทึกไว้ — อ่านได้หลังลบห้อง Discord แล้ว',
+              )
+            }}
           </p>
         </header>
         <AppRequestError

@@ -1,5 +1,5 @@
 import type { FeatureConfiguration } from '@/features/bots/api'
-import { newTicketCategory } from '@/features/bots/config/ticket-config'
+import { newTicketCategory, defaultTicketBehavior } from '@/features/bots/config/ticket-config'
 import { configuration, license } from './domain'
 
 export function ticketFixture() {
@@ -30,6 +30,7 @@ export function ticketFixture() {
       { key: 'TICKET_COMMAND_NAME', type: 'STRING', value: 'ticket' },
       { key: 'TICKET_CATEGORIES', type: 'JSON', value: topics },
       { key: 'TICKET_DISCORD_HISTORY_ENABLED', type: 'BOOLEAN', value: false },
+      { key: 'TICKET_BEHAVIOR', type: 'JSON', value: defaultTicketBehavior },
     ].map((field) => ({
       ...field,
       label: field.key,

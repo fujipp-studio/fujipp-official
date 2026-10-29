@@ -18,6 +18,7 @@ const tickets = [
     categoryKey: 'support',
     ownerId: '444444444444444444',
     status: 'CLOSED',
+    archived: true,
     openedAt: 1793240000000,
   },
 ]

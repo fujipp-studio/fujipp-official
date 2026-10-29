@@ -9,6 +9,8 @@ export interface TicketCategory {
   key: string
   label: string
   description: string
+  emoji?: string
+  channelNameTemplate?: string
   categoryId: string
   supportRoleIds: string[]
   autoCloseMinutes: number
@@ -17,7 +19,38 @@ export interface TicketCategory {
   formTitle: string
   fields: TicketField[]
 }
-export const ticketConfigKeys = new Set(['TICKET_COMMAND_NAME', 'TICKET_CATEGORIES', 'TICKET_DISCORD_HISTORY_ENABLED'])
+export const ticketConfigKeys = new Set([
+  'TICKET_COMMAND_NAME',
+  'TICKET_CATEGORIES',
+  'TICKET_DISCORD_HISTORY_ENABLED',
+  'TICKET_BEHAVIOR',
+])
+export interface TicketBehavior {
+  maxOpenPerUser: number
+  confirmClose: boolean
+  closeRoleIds: string[]
+  closeUserIds: string[]
+}
+export const defaultTicketBehavior: TicketBehavior = {
+  maxOpenPerUser: 1,
+  confirmClose: true,
+  closeRoleIds: [],
+  closeUserIds: [],
+}
+export const validTicketEmoji = (value: unknown) =>
+  typeof value === 'string' &&
+  (value === '' ||
+    /^<a?:[A-Za-z0-9_]{2,32}:\d{15,30}>$/.test(value) ||
+    (/^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u.test(
+      value,
+    ) &&
+      value.length <= 32))
+export const validTicketName = (value: unknown) =>
+  typeof value === 'string' &&
+  !!value.trim() &&
+  value.length <= 100 &&
+  !/[\p{Cc}\p{Cf}/\\]/u.test(value) &&
+  !/[{}]/.test(value.replace(/\{\{(username|user_id|topic|id)\}\}/g, ''))
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 const key = (value: unknown) => typeof value === 'string' && /^[a-z0-9_-]{1,32}$/.test(value)
@@ -26,9 +59,37 @@ const text = (value: unknown, max: number, empty = false) =>
   typeof value === 'string' && value.length <= max && (empty || !!value.trim())
 
 export function validateTicketDraft(values: Record<string, unknown>): boolean {
-  if (values.TICKET_DISCORD_HISTORY_ENABLED !== undefined && typeof values.TICKET_DISCORD_HISTORY_ENABLED !== 'boolean') return false
+  if (
+    values.TICKET_DISCORD_HISTORY_ENABLED !== undefined &&
+    typeof values.TICKET_DISCORD_HISTORY_ENABLED !== 'boolean'
+  )
+    return false
   if (!key(values.TICKET_COMMAND_NAME ?? 'ticket')) return false
   try {
+    const behavior: unknown = JSON.parse(
+      String(values.TICKET_BEHAVIOR ?? JSON.stringify(defaultTicketBehavior)),
+    )
+    if (
+      !record(behavior) ||
+      !Number.isInteger(behavior.maxOpenPerUser) ||
+      Number(behavior.maxOpenPerUser) < 1 ||
+      Number(behavior.maxOpenPerUser) > 25 ||
+      typeof behavior.confirmClose !== 'boolean'
+    )
+      return false
+    for (const [field, max] of [
+      ['closeRoleIds', 10],
+      ['closeUserIds', 25],
+    ] as const) {
+      const ids = behavior[field]
+      if (
+        !Array.isArray(ids) ||
+        ids.length > max ||
+        !ids.every(id) ||
+        new Set(ids).size !== ids.length
+      )
+        return false
+    }
     const rows: unknown = JSON.parse(String(values.TICKET_CATEGORIES ?? '[]'))
     if (!Array.isArray(rows) || !rows.length || rows.length > 25) return false
     const keys = new Set<string>()
@@ -56,6 +117,9 @@ export function validateTicketDraft(values: Record<string, unknown>): boolean {
       )
         return false
       keys.add(String(row.key))
+      if (row.emoji !== undefined && !validTicketEmoji(row.emoji)) return false
+      if (row.channelNameTemplate !== undefined && !validTicketName(row.channelNameTemplate))
+        return false
       const fields = new Set<string>()
       return row.fields.every((field: unknown) => {
         if (
@@ -82,6 +146,8 @@ export function newTicketCategory(key: string, label = ''): TicketCategory {
     key,
     label,
     description: '',
+    emoji: '',
+    channelNameTemplate: 'ticket-{{topic}}-{{id}}',
     categoryId: '',
     supportRoleIds: [],
     autoCloseMinutes: 0,

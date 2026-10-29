@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { validateTicketDraft } from '@/features/bots/config/ticket-config'
+import {
+  validateTicketDraft,
+  defaultTicketBehavior,
+  validTicketEmoji,
+  validTicketName,
+} from '@/features/bots/config/ticket-config'
 import { permissionCommands } from '@/features/bots/config/permission-commands'
 import { ticketFixture } from './fixtures/ticket'
 import { ticketPresentationPreview } from '@/features/bots/models/ticket-presentation-preview'
@@ -84,5 +89,48 @@ describe('Ticket configuration', () => {
     const rows = JSON.parse(value.TICKET_CATEGORIES)
     rows[0] = { ...rows[0], formEnabled: false, fields: [], autoCloseMinutes: 0 }
     expect(validateTicketDraft({ ...value, TICKET_CATEGORIES: JSON.stringify(rows) })).toBe(true)
+  })
+  it('validates limits and explicit closing permissions without changing old drafts', () => {
+    expect(validateTicketDraft(draft())).toBe(true)
+    expect(
+      validateTicketDraft({
+        ...draft(),
+        TICKET_BEHAVIOR: JSON.stringify({
+          ...defaultTicketBehavior,
+          maxOpenPerUser: 3,
+          confirmClose: false,
+          closeRoleIds: ['222222222222222222'],
+        }),
+      }),
+    ).toBe(true)
+    for (const patch of [
+      { maxOpenPerUser: 0 },
+      { maxOpenPerUser: 26 },
+      { maxOpenPerUser: 1.5 },
+      { confirmClose: 'true' },
+      { closeUserIds: ['invalid'] },
+      { closeRoleIds: ['222222222222222222', '222222222222222222'] },
+    ])
+      expect(
+        validateTicketDraft({
+          ...draft(),
+          TICKET_BEHAVIOR: JSON.stringify({ ...defaultTicketBehavior, ...patch }),
+        }),
+      ).toBe(false)
+  })
+  it('accepts custom animated or Unicode emoji and documented channel name variables', () => {
+    for (const emoji of [
+      '',
+      '🛒',
+      '🇹🇭',
+      '<:cart:123456789012345678>',
+      '<a:cart:123456789012345678>',
+    ])
+      expect(validTicketEmoji(emoji)).toBe(true)
+    for (const emoji of ['plain text', 'word🙂', '<script>', '<:bad:abc>'])
+      expect(validTicketEmoji(emoji)).toBe(false)
+    expect(validTicketName('ซื้อ-{{username}}-{{topic}}-{{id}}')).toBe(true)
+    for (const value of ['', '{{unknown}}', 'a\nb', '../room'])
+      expect(validTicketName(value)).toBe(false)
   })
 })

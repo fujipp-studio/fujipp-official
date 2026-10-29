@@ -8,6 +8,7 @@ export interface TicketHistoryItem {
   ownerId: string
   status: 'OPEN' | 'CLOSING' | 'CLOSED'
   openedAt: number
+  archived?: boolean
 }
 export interface TicketMessage {
   id: string
