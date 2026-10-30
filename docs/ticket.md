@@ -1,8 +1,8 @@
 # Ticket
 
 `ticket@1.0.0` creates private Discord text channels from a topic dropdown.
-Settings use five categories: **Topics & forms**, **Ticket behaviour**, **History**,
-**Ticket numbers** and **Commands & buttons**.
+Settings use six categories: **Topics & forms**, **Ticket behaviour**, **History**,
+**Ticket numbers**, **Notifications** and **Commands & buttons**.
 
 ## Deployment and setup
 
@@ -203,6 +203,23 @@ in the ticket; authorized closers approve or reject in their private menu.
 Pending/rejected requests keep the original deadline. Approval sets this
 Ticket's auto-close policy to Off and survives restarts, without changing the
 topic defaults or other tickets. A closing/closed ticket cannot be exempted.
+
+## Auto-close cancellation announcements
+
+Under **Notifications**, enable or disable **Announce auto-close cancellation**
+and edit the message sent into the ticket room. This applies both when an
+authorized closer cancels the timer directly and when an exemption request is
+approved, through either enabled access method. Existing configurations keep
+announcements enabled with the default message.
+
+The custom message accepts Markdown and up to 2,000 characters; enabled
+announcements require nonblank text. Mentions are displayed without sending
+pings. Turning the announcement off does not change the timer cancellation or
+the private confirmation shown to the person using the command/button. Requests
+and rejection notices keep their existing behavior. The timer is saved before
+announcing; a failed announcement is reported without undoing cancellation or
+showing it as a failed operation. This optional setting uses `TICKET_BEHAVIOR`
+and needs no additional migration.
 
 ## Opening latency
 
