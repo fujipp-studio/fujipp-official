@@ -4,14 +4,40 @@ import { makeFingerprint, makeRestartFingerprint } from "./bot-manager.js";
 import type { RuntimeBot } from "./types.js";
 import type { SupervisorRpcResponse, SupervisorToWorker, WorkerToSupervisor } from "./worker-protocol.js";
 
-const ALLOWED_RPC_METHODS = new Set<keyof RuntimeApi>([
-  "reportStatus", "saveFeatureState", "walletBalance", "walletVoucher", "paymentVoucher", "createPromptPay",
-  "verifySlip", "adjustWallet", "walletHistory", "walletMonthlySummary", "walletLeaderboard",
-  "beginRobuxPayout", "claimRobuxPayout", "finishRobuxPayout", "refundRobuxPayout",
-  "recoverableRobuxPayouts", "addMemberSpending", "setMemberSpending", "getMemberSpending",
-  "removeMemberSpending", "memberSpendingLeaderboard", "memberSpendingTotals",
-  "beginRoleShopPurchase", "claimRoleShopPurchase", "completeRoleShopPurchase", "refundRoleShopPurchase", "recoverableRoleShopPurchases",
-]);
+// Every exposed RuntimeApi method needs an explicit supervisor decision.
+// Keep this exhaustive so new feature APIs cannot silently miss the worker bridge.
+const ALLOWED_RPC_METHODS = {
+  reportStatus: true,
+  saveFeatureState: true,
+  walletBalance: true,
+  walletVoucher: true,
+  paymentVoucher: true,
+  createPromptPay: true,
+  verifySlip: true,
+  adjustWallet: true,
+  walletHistory: true,
+  walletMonthlySummary: true,
+  walletLeaderboard: true,
+  beginRobuxPayout: true,
+  claimRobuxPayout: true,
+  finishRobuxPayout: true,
+  refundRobuxPayout: true,
+  recoverableRobuxPayouts: true,
+  addMemberSpending: true,
+  setMemberSpending: true,
+  getMemberSpending: true,
+  removeMemberSpending: true,
+  memberSpendingLeaderboard: true,
+  memberSpendingTotals: true,
+  beginRoleShopPurchase: true,
+  claimRoleShopPurchase: true,
+  completeRoleShopPurchase: true,
+  refundRoleShopPurchase: true,
+  recoverableRoleShopPurchases: true,
+  ticketList: true,
+  ticketSave: true,
+  ticketArchive: true,
+} satisfies Record<keyof RuntimeApi, true>;
 
 interface WorkerState { child: ChildProcess; fingerprint: string; restartFingerprint: string; stopping: boolean; crashes: number[]; }
 
@@ -68,22 +94,25 @@ export class ProcessBotManager {
     });
     const state: WorkerState = { child, fingerprint, restartFingerprint: makeRestartFingerprint(bot), stopping: false, crashes };
     this.workers.set(bot.id, state);
-    child.on("message", (message: WorkerToSupervisor) => void this.handleMessage(bot.id, message));
+    child.on("message", (message: WorkerToSupervisor) => void this.handleMessage(bot.id, state, message));
     child.once("exit", (code, signal) => void this.handleExit(bot.id, state, code, signal));
     child.send({ type: "start", bot } satisfies SupervisorToWorker);
   }
 
-  private async handleMessage(botId: string, message: WorkerToSupervisor): Promise<void> {
+  private async handleMessage(botId: string, state: WorkerState, message: WorkerToSupervisor): Promise<void> {
     if (message.type === "updated") {
-      const state = this.workers.get(botId);
       const desired = this.desired.get(botId);
-      if (state && desired && message.fingerprint === makeFingerprint(desired)) state.fingerprint = message.fingerprint;
+      if (this.workers.get(botId) === state && desired && message.fingerprint === makeFingerprint(desired)) state.fingerprint = message.fingerprint;
       return;
     }
     if (message.type !== "rpc") return;
-    const state = this.workers.get(botId);
-    if (!state || !ALLOWED_RPC_METHODS.has(message.method as keyof RuntimeApi)) {
-      return this.respond(state?.child, { type: "rpc-error", requestId: message.requestId, error: "RPC method is not allowed" });
+    if (!Object.hasOwn(ALLOWED_RPC_METHODS, message.method)) {
+      return this.respond(state.child, { type: "rpc-error", requestId: message.requestId, error: "RPC method is not allowed" });
+    }
+    // A stopping worker still needs its own replies to drain activation and
+    // disposal work. Never route those replies to a replacement worker.
+    if (!state.child.connected || (!state.stopping && this.workers.get(botId) !== state)) {
+      return this.respond(state.child, { type: "rpc-error", requestId: message.requestId, error: "RPC worker is no longer active" });
     }
     if (!rpcBelongsToBot(botId, message.method, message.args)) {
       return this.respond(state.child, { type: "rpc-error", requestId: message.requestId, error: "RPC bot scope mismatch" });
