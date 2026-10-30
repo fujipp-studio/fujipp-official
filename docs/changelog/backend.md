@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Added sequential Ticket numbers, private permission-aware controls, per-ticket timer exemption requests and Thailand-month archive cleanup, with fewer opening API calls and grouped welcome/answer cards. |
 | 2026-10-30 | Allowed Ticket registry/archive calls through the worker supervisor and kept RPC replies attached to their originating worker during configuration restarts, preserving bot isolation. |
 | 2026-10-30 | Ticket closure now archives conversations before deleting rooms, with configurable confirmation, names, emoji, opening limits and administrator/role/user closing permissions. |
 | 2026-10-29 | Retry failed Ticket activation after valid topic settings are saved, while preserving unrelated installations and errors; explain missing Discord category IDs in startup errors. |
