@@ -11,7 +11,7 @@ import { renderTemplate } from "../presentation.js";
 import { ticketOpeningMessages } from "./messages.js";
 import { ticketArchive, ticketTranscript } from "./history.js";
 import { replyFeatureError } from "../errors.js";
-import { readTicketConfig, readTicketTopic, ticketDue, ticketChannelName, type TicketCategory, type TicketState } from "./config.js";
+import { readTicketConfig, readTicketTopic, ticketDue, ticketChannelName, ticketActionEnabled, type TicketAction, type TicketCategory, type TicketState } from "./config.js";
 
 type TicketInteraction = ChatInputCommandInteraction | ModalSubmitInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ButtonInteraction;
 
@@ -23,6 +23,19 @@ export const ticketFeature: FeatureModule = {
     if (!context.guildId) throw new Error("Ticket requires a configured Discord server");
     const config = readTicketConfig(context.config);
     const prefix = `ticket:${context.installationId}:`;
+    const enabled = (action: TicketAction, via: "COMMAND" | "BUTTON") => (action !== "history" || config.discordHistoryEnabled) && ticketActionEnabled(config.actions,action,via);
+    const anyButtons = () => (["close","schedule","autoClose","addUser","history"] as const).some(action => enabled(action,"BUTTON"));
+    const welcomeControls = () => {
+      if (!anyButtons()) return undefined;
+      const row = new ActionRowBuilder<ButtonBuilder>();
+      if ((config.behavior.controlStyle ?? "MANAGE") === "MANAGE") return row.addComponents(new ButtonBuilder().setCustomId(`${prefix}manage`).setLabel("จัดการตั๋ว").setStyle(ButtonStyle.Secondary));
+      if (enabled("close","BUTTON")) row.addComponents(new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger));
+      if (enabled("schedule","BUTTON")) row.addComponents(new ButtonBuilder().setCustomId(`${prefix}set-timer`).setLabel("ตั้งเวลาปิด").setStyle(ButtonStyle.Secondary));
+      if (enabled("autoClose","BUTTON")) row.addComponents(new ButtonBuilder().setCustomId(`${prefix}request-exemption`).setLabel("ยกเว้นปิดอัตโนมัติ").setStyle(ButtonStyle.Secondary));
+      if (enabled("addUser","BUTTON")) row.addComponents(new ButtonBuilder().setCustomId(`${prefix}participants`).setLabel("เพิ่มสมาชิก").setStyle(ButtonStyle.Secondary));
+      if (enabled("history","BUTTON")) row.addComponents(new ButtonBuilder().setCustomId(`${prefix}history`).setLabel("อ่านประวัติแชท").setStyle(ButtonStyle.Secondary));
+      return row;
+    };
     let stopped = false;
     let queue: Promise<void> = Promise.resolve();
     let registration: Promise<void> = Promise.resolve();
@@ -120,24 +133,24 @@ export const ticketFeature: FeatureModule = {
       const member = await (await guild()).members.fetch({ user: interaction.user.id, force: true });
       return state.supportRoleIds.some(id => member.roles.cache.has(id));
     };
-    const showControls = async (interaction: TicketInteraction, state: TicketState) => {
-    const allowed = await canClose(interaction);
-    const readable = await canRead(interaction,state);
-    const requestPending = state.exemption?.status === "PENDING";
-    const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger).setDisabled(!allowed || state.status === "CLOSED"),
-      new ButtonBuilder().setCustomId(`${prefix}request-exemption`).setLabel(allowed ? "ยกเลิกปิดอัตโนมัติ" : "ขอยกเว้นปิดอัตโนมัติ").setStyle(ButtonStyle.Secondary).setDisabled(state.status !== "OPEN" || !state.autoCloseMinutes || (!allowed && (interaction.user.id !== state.ownerId || requestPending))),
-      ...(config.discordHistoryEnabled ? [historyButton().setDisabled(!readable)] : []),
-    );
-    const decisions = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder().setCustomId(`${prefix}approve-exemption`).setLabel("อนุมัติยกเว้น").setStyle(ButtonStyle.Success).setDisabled(!allowed || state.status !== "OPEN"),
-      new ButtonBuilder().setCustomId(`${prefix}deny-exemption`).setLabel("ปฏิเสธคำขอ").setStyle(ButtonStyle.Secondary).setDisabled(!allowed || state.status !== "OPEN"),
-    );
-    const invite = new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+    const participantPicker = (allowed: boolean, state: TicketState) => new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
       new UserSelectMenuBuilder().setCustomId(`${prefix}add-user`).setPlaceholder("เพิ่มสมาชิกเข้าร่วมตั๋ว")
         .setMinValues(1).setMaxValues(1).setDisabled(!allowed || state.status !== "OPEN" || (state.participantIds?.length ?? 0) >= 25),
     );
-    await interaction.editReply({content:`จัดการตั๋ว${state.ticketNumber === undefined ? "" : ` #${String(state.ticketNumber).padStart(5,"0")}`} · ${allowed ? "คุณมีสิทธิ์ปิดตั๋ว" : "คุณไม่มีสิทธิ์ปิดตั๋ว"}${requestPending ? "\nมีคำขอยกเว้นปิดอัตโนมัติรออนุมัติ" : ""}`,components:[controls,invite,...(requestPending?[decisions]:[])],allowedMentions:{parse:[]}});
+    const showControls = async (interaction: TicketInteraction, state: TicketState) => {
+      const allowed = await canClose(interaction);
+      const requestPending = state.exemption?.status === "PENDING";
+      const controls = new ActionRowBuilder<ButtonBuilder>();
+      if (enabled("close","BUTTON")) controls.addComponents(new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger).setDisabled(!allowed || state.status === "CLOSED"));
+      if (enabled("schedule","BUTTON")) controls.addComponents(new ButtonBuilder().setCustomId(`${prefix}set-timer`).setLabel("ตั้งเวลาปิด").setStyle(ButtonStyle.Secondary).setDisabled(!allowed || state.status !== "OPEN"));
+      if (enabled("autoClose","BUTTON")) controls.addComponents(new ButtonBuilder().setCustomId(`${prefix}request-exemption`).setLabel(allowed ? "ยกเลิกปิดอัตโนมัติ" : "ขอยกเว้นปิดอัตโนมัติ").setStyle(ButtonStyle.Secondary).setDisabled(state.status !== "OPEN" || !state.autoCloseMinutes || (!allowed && (interaction.user.id !== state.ownerId || requestPending))));
+      if (enabled("history","BUTTON")) controls.addComponents(historyButton().setDisabled(!await canRead(interaction,state)));
+      const decisions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder().setCustomId(`${prefix}approve-exemption`).setLabel("อนุมัติยกเว้น").setStyle(ButtonStyle.Success).setDisabled(!allowed || state.status !== "OPEN"),
+        new ButtonBuilder().setCustomId(`${prefix}deny-exemption`).setLabel("ปฏิเสธคำขอ").setStyle(ButtonStyle.Secondary).setDisabled(!allowed || state.status !== "OPEN"),
+      );
+      await interaction.editReply({content:`จัดการตั๋ว${state.ticketNumber === undefined ? "" : ` #${String(state.ticketNumber).padStart(5,"0")}`} · ${allowed ? "คุณมีสิทธิ์ปิดตั๋ว" : "คุณไม่มีสิทธิ์ปิดตั๋ว"}${requestPending ? "\nมีคำขอยกเว้นปิดอัตโนมัติรออนุมัติ" : ""}`,
+        components:[...(controls.components.length?[controls]:[]),...(enabled("addUser","BUTTON")?[participantPicker(allowed,state)]:[]),...(requestPending && enabled("autoClose","BUTTON")?[decisions]:[])],allowedMentions:{parse:[]}});
     };
     const open = async (interaction: TicketInteraction, category: TicketCategory, answers: Array<{ label: string; value: string }>) => {
       const server = await guild();
@@ -190,13 +203,11 @@ export const ticketFeature: FeatureModule = {
           category: escapeMarkdown(category.label), channel: `<#${channel.id}>`,
           auto_close: category.autoCloseMinutes === 0 ? "ปิดอัตโนมัติ: ไม่เปิดใช้งาน"
             : `${category.autoCloseMinutes} นาที ${category.autoCloseMode === "IDLE" ? "หลังไม่มีข้อความใหม่" : "หลังเปิดตั๋ว"}`,
-        }, answers, new ActionRowBuilder<ButtonBuilder>().addComponents(
-          new ButtonBuilder().setCustomId(`${prefix}manage`).setLabel("จัดการตั๋ว").setStyle(ButtonStyle.Secondary),
-        ));
+        }, answers, welcomeControls());
         for (const payload of payloads) await channel.send(payload);
       } catch (error) {
         await report("TICKET_WELCOME_FAILED", error);
-        await interaction.editReply({ content: `สร้างตั๋วแล้ว: <#${channel.id}> แต่ส่งรายละเอียดไม่ครบ กรุณาแจ้งทีมดูแล ใช้ /${config.command} close เพื่อปิดตั๋ว`, allowedMentions: { parse: [] } });
+        await interaction.editReply({ content: `สร้างตั๋วแล้ว: <#${channel.id}> แต่ส่งรายละเอียดไม่ครบ กรุณาแจ้งทีมดูแล`, allowedMentions: { parse: [] } });
         return;
       }
       console.info(`Ticket opened: bot ${context.botId}, ${Date.now() - startedAt}ms`);
@@ -243,7 +254,20 @@ export const ticketFeature: FeatureModule = {
           if (!category.formEnabled) await serialize(() => open(interaction, category, []));
           return;
         }
-        if (interaction.isModalSubmit()) {
+        if (interaction.isButton() && interaction.customId === `${prefix}set-timer`) {
+          if (!enabled("schedule","BUTTON")) throw new Error("ปิดปุ่มตั้งเวลาไว้ในการตั้งค่า Ticket บนเว็บ");
+          const state = tickets.get(interaction.channelId!)?.state;
+          if (!state || state.status !== "OPEN") throw new Error("ตั้งเวลาได้เฉพาะตั๋วที่ยังเปิดอยู่");
+          if (!await canClose(interaction)) { await interaction.deferReply({flags:MessageFlags.Ephemeral}); await showControls(interaction,state); return; }
+          await interaction.showModal(new ModalBuilder().setCustomId(`${prefix}timer`).setTitle("ตั้งเวลาปิดตั๋วนี้").addLabelComponents(
+            new LabelBuilder().setLabel("เวลาปิด (นาที) ตั้งได้ 1–43200").setTextInputComponent(new TextInputBuilder().setCustomId("minutes").setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(5).setValue(String(state.autoCloseMinutes || 60))),
+            new LabelBuilder().setLabel("เริ่มนับเวลา").setStringSelectMenuComponent(new StringSelectMenuBuilder().setCustomId("mode").setMinValues(1).setMaxValues(1).addOptions(
+              {label:"นับจากตอนตั้งเวลา",value:"FROM_NOW",default:true}, {label:"นับเมื่อไม่มีข้อความใหม่",value:"IDLE"},
+            )),
+          ));
+          return;
+        }
+        if (interaction.isModalSubmit() && interaction.customId !== `${prefix}timer`) {
           if (!interaction.customId.startsWith(`${prefix}form:`)) return;
           const category = categoryFor(interaction.customId.slice(`${prefix}form:`.length));
           if (!category.formEnabled) throw new Error("แบบฟอร์มเปลี่ยนแล้ว กรุณาเลือกหัวข้ออีกครั้ง");
@@ -256,7 +280,7 @@ export const ticketFeature: FeatureModule = {
           await serialize(() => open(interaction, category, answers));
           return;
         }
-        if (![`${prefix}add-user`, `${prefix}manage`, `${prefix}request-exemption`, `${prefix}approve-exemption`, `${prefix}deny-exemption`, `${prefix}close`, `${prefix}confirm-close`, `${prefix}history`].includes(interaction.customId)) return;
+        if (![`${prefix}timer`, `${prefix}participants`, `${prefix}add-user`, `${prefix}manage`, `${prefix}request-exemption`, `${prefix}approve-exemption`, `${prefix}deny-exemption`, `${prefix}close`, `${prefix}confirm-close`, `${prefix}history`].includes(interaction.customId)) return;
       }
       const confirming = interaction.isButton() && interaction.customId === `${prefix}confirm-close`;
       if (confirming) await interaction.deferUpdate();
@@ -265,7 +289,34 @@ export const ticketFeature: FeatureModule = {
       if (!channel || channel.type !== ChannelType.GuildText) throw new Error("คำสั่งนี้ใช้ได้เฉพาะในห้อง Ticket");
       const state = tickets.get(channel.id)?.state;
       if (!state) throw new Error("ห้องนี้ไม่ใช่ตั๋วของ Feature นี้");
-      const action = (interaction.isButton() || interaction.isUserSelectMenu()) ? interaction.customId.slice(prefix.length) : interaction.isChatInputCommand() ? interaction.options.getSubcommand() : "";
+      const action = (interaction.isButton() || interaction.isUserSelectMenu()) ? interaction.customId.slice(prefix.length) : interaction.isChatInputCommand() ? interaction.options.getSubcommand() : interaction.isModalSubmit() && interaction.customId === `${prefix}timer` ? "auto-close" : "";
+      const via = interaction.isChatInputCommand() ? "COMMAND" : "BUTTON";
+      const actionKey: TicketAction | undefined = ["close","confirm-close"].includes(action) ? "close" : action === "auto-close" ? "schedule" : ["no-auto-close","request-exemption","approve-exemption","deny-exemption"].includes(action) ? "autoClose" : ["participants","add-user"].includes(action) ? "addUser" : action === "history" ? "history" : undefined;
+      if (actionKey === "history" && !config.discordHistoryEnabled) throw new Error("ปิดการอ่านประวัติใน Discord ไว้ สามารถเปิดตัวเลือกนี้บนหน้าเว็บจัดการบอท");
+      // Confirmation belongs to its preceding close command or button, even when only commands are enabled.
+      if (actionKey && !(confirming ? enabled("close","COMMAND") || enabled("close","BUTTON") : enabled(actionKey,via))) throw new Error("ช่องทางคำสั่งหรือปุ่มนี้ถูกปิดไว้ในการตั้งค่า Ticket บนเว็บ");
+      if (action === "auto-close") {
+        await serialize(async () => {
+          const current = tickets.get(channel.id)?.state;
+          if (!current || current.status !== "OPEN") throw new Error("ตั้งเวลาได้เฉพาะตั๋วที่ยังเปิดอยู่");
+          if (!await canClose(interaction)) throw new Error("เฉพาะผู้มีสิทธิ์ปิดตั๋วเท่านั้นที่ตั้งเวลาได้");
+          const minutes = interaction.isModalSubmit() ? Number(interaction.fields.getTextInputValue("minutes")) : interaction.isChatInputCommand() ? interaction.options.getInteger("minutes",true) : NaN;
+          const mode = interaction.isModalSubmit() ? interaction.fields.getStringSelectValues("mode")[0] : interaction.isChatInputCommand() ? interaction.options.getString("mode") ?? "FROM_NOW" : undefined;
+          if (!Number.isInteger(minutes) || minutes < 1 || minutes > 43200 || !["FROM_NOW","IDLE"].includes(String(mode))) throw new Error("ตั้งเวลา 1–43200 นาที และเลือกจุดเริ่มนับเวลาให้ถูกต้อง");
+          const next: TicketState = {...current,autoCloseMinutes:minutes,autoCloseMode:mode === "IDLE"?"IDLE":"OPENED",autoCloseStartAt:Date.now()};
+          delete next.exemption;
+          await saveTicket(channel.id,channel.name,next);
+          const content = `ตั้งปิดตั๋วอัตโนมัติ ${minutes} นาที ${mode === "IDLE"?"เมื่อไม่มีข้อความใหม่":"นับจากตอนนี้"}แล้ว`;
+          await interaction.editReply({content,components:[]});
+          await channel.send({content,allowedMentions:{parse:[]}});
+        });
+        return;
+      }
+      if (!actionKey && action !== "manage") throw new Error("ไม่พบการทำงาน Ticket นี้");
+      if (action === "participants") {
+        await interaction.editReply({content:"เลือกสมาชิกที่จะเพิ่มเข้าร่วมตั๋ว",components:[participantPicker(await canClose(interaction),state)],allowedMentions:{parse:[]}});
+        return;
+      }
       if (action === "add-user") {
         await serialize(async () => {
           const current = tickets.get(channel.id)?.state;
@@ -294,7 +345,10 @@ export const ticketFeature: FeatureModule = {
         });
         return;
       }
-      if (action === "manage") { await showControls(interaction,state); return; }
+      if (action === "manage") {
+        if (!anyButtons()) throw new Error("ปิดปุ่ม Ticket ไว้ ใช้คำสั่งที่เปิดไว้หรือตั้งค่าบนเว็บ");
+        await showControls(interaction,state); return;
+      }
       if (["no-auto-close","request-exemption","approve-exemption","deny-exemption"].includes(action)) {
         await serialize(async () => {
           const current = tickets.get(channel.id)?.state;
@@ -310,7 +364,7 @@ export const ticketFeature: FeatureModule = {
             if (interaction.user.id !== current.ownerId) throw new Error("เฉพาะผู้เปิดตั๋วส่งคำขอยกเว้นได้");
             if (current.exemption?.status === "PENDING") throw new Error("มีคำขอรออนุมัติอยู่แล้ว");
             await saveTicket(channel.id,channel.name,{...current,exemption:{requestedBy:interaction.user.id,requestedAt:Date.now(),status:"PENDING"}});
-            await channel.send({content:"มีคำขอยกเว้นปิดตั๋วอัตโนมัติ ผู้ดูแลกดจัดการตั๋วเพื่ออนุมัติหรือปฏิเสธ",components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${prefix}manage`).setLabel("ดูคำขอ").setStyle(ButtonStyle.Secondary))],allowedMentions:{parse:[]}});
+            await channel.send({content:enabled("autoClose","BUTTON")?"มีคำขอยกเว้นปิดตั๋วอัตโนมัติ ผู้ดูแลกดดูคำขอเพื่ออนุมัติหรือปฏิเสธ":`มีคำขอยกเว้นปิดตั๋วอัตโนมัติ ผู้ดูแลใช้ /${config.command} approve-exemption หรือ /${config.command} deny-exemption`,components:enabled("autoClose","BUTTON")?[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${prefix}manage`).setLabel("ดูคำขอ").setStyle(ButtonStyle.Secondary))]:[],allowedMentions:{parse:[]}});
             await interaction.editReply({content:"ส่งคำขอแล้ว ระหว่างรออนุมัติจะยังใช้เวลาปิดเดิม",components:[]});
           } else {
             if (!await canClose(interaction)) throw new Error("เฉพาะผู้มีสิทธิ์ปิดตั๋วเท่านั้นที่ตัดสินคำขอได้");
@@ -397,11 +451,17 @@ export const ticketFeature: FeatureModule = {
       if (existing && existing.id !== runtimeState.commandId) throw new Error(`Command /${config.command} is owned by another feature`);
       const definition = new SlashCommandBuilder().setName(config.command).setDescription("ระบบ Ticket")
         .setDMPermission(false)
-        .addSubcommand((sub) => sub.setName("panel").setDescription("ส่งแผงเลือกหัวข้อเปิดตั๋ว"))
-        .addSubcommand((sub) => sub.setName("close").setDescription("ขอปิดตั๋วในห้องนี้"))
-        .addSubcommand((sub) => sub.setName("add-user").setDescription("เพิ่มสมาชิกเข้าร่วมตั๋วนี้").addUserOption(option => option.setName("member").setDescription("สมาชิกที่จะเพิ่มเข้าตั๋ว").setRequired(true)))
-        .addSubcommand((sub) => sub.setName("no-auto-close").setDescription("ยกเลิกปิดอัตโนมัติทันทีสำหรับผู้ดูแล หรือส่งคำขอสำหรับผู้เปิดตั๋ว"));
-      if (config.discordHistoryEnabled) definition.addSubcommand((sub) => sub.setName("history").setDescription("อ่านและดาวน์โหลดประวัติแชทตั๋วนี้"));
+        .addSubcommand((sub) => sub.setName("panel").setDescription("ส่งแผงเลือกหัวข้อเปิดตั๋ว"));
+      if (enabled("close","COMMAND")) definition.addSubcommand(sub => sub.setName("close").setDescription("ขอปิดตั๋วในห้องนี้"));
+      if (enabled("addUser","COMMAND")) definition.addSubcommand(sub => sub.setName("add-user").setDescription("เพิ่มสมาชิกเข้าร่วมตั๋วนี้").addUserOption(option => option.setName("member").setDescription("สมาชิกที่จะเพิ่มเข้าตั๋ว").setRequired(true)));
+      if (enabled("schedule","COMMAND")) definition.addSubcommand(sub => sub.setName("auto-close").setDescription("ตั้งเวลาปิดอัตโนมัติสำหรับตั๋วนี้")
+        .addIntegerOption(option => option.setName("minutes").setDescription("เวลาปิด 1–43200 นาที").setRequired(true).setMinValue(1).setMaxValue(43200))
+        .addStringOption(option => option.setName("mode").setDescription("เริ่มนับเวลา").addChoices({name:"นับจากตอนตั้งเวลา",value:"FROM_NOW"},{name:"นับเมื่อไม่มีข้อความใหม่",value:"IDLE"})));
+      if (enabled("autoClose","COMMAND")) definition
+        .addSubcommand(sub => sub.setName("no-auto-close").setDescription("ยกเลิกปิดอัตโนมัติทันทีสำหรับผู้ดูแล หรือส่งคำขอสำหรับผู้เปิดตั๋ว"))
+        .addSubcommand(sub => sub.setName("approve-exemption").setDescription("อนุมัติคำขอยกเว้นการปิดตั๋วอัตโนมัติ"))
+        .addSubcommand(sub => sub.setName("deny-exemption").setDescription("ปฏิเสธคำขอยกเว้นการปิดตั๋วอัตโนมัติ"));
+      if (enabled("history","COMMAND")) definition.addSubcommand(sub => sub.setName("history").setDescription("อ่านและดาวน์โหลดประวัติแชทตั๋วนี้"));
       const command = await commands.create(definition.toJSON());
       const old = runtimeState.previousCommandId ?? runtimeState.commandId;
       const next: Record<string, unknown> = { ...runtimeState, commandId: command.id };

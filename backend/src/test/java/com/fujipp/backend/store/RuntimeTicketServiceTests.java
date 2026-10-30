@@ -81,4 +81,14 @@ class RuntimeTicketServiceTests {
         assertThatThrownBy(()->service.archive(bot,installation,channel,duplicate)).isInstanceOf(StoreValidationException.class);
         assertThatThrownBy(()->service.archive(bot,installation,"../channels",raw)).isInstanceOf(StoreValidationException.class);
     }
+    @Test void validatesOptionalTimerStartForRescheduledTickets() {
+        var value=(tools.jackson.databind.node.ObjectNode)state("OPEN");
+        value.put("autoCloseStartAt",1790000100000L);
+        assertThatCode(()->RuntimeTicketService.validateState(value)).doesNotThrowAnyException();
+        for(String raw:List.of("null","-1","0","0.5","\"123\"","9007199254740992")) {
+            value.set("autoCloseStartAt",json.readTree(raw));
+            assertThatThrownBy(()->RuntimeTicketService.validateState(value)).isInstanceOf(StoreValidationException.class);
+        }
+    }
+
 }

@@ -687,3 +687,107 @@ test('reset failures never block creating a ticket and untrusted or unrelated me
   await f.interaction('select', { message: unrelated, customId: `${prefix}unrelated` }).send();
   assert.equal(untrusted.edits.length, 0); assert.equal(unrelated.edits.length, 0);
 });
+
+function configureActions(f: ReturnType<typeof fixture>, actions: Record<string, unknown>, controlStyle = 'DIRECT') {
+  (f.context.config as any).TICKET_BEHAVIOR = { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [], closeUserIds: [], controlStyle, actions };
+}
+
+test('legacy configurations keep management controls and reject malformed action settings', () => {
+  const config = { TICKET_CATEGORIES: [category()] };
+  assert.equal(readTicketConfig(config).actions.close, 'BOTH');
+  assert.equal(readTicketConfig(config).actions.schedule, 'OFF');
+  for (const actions of [null, [], 'BOTH', { close: null }, { close: ['BOTH'] }, { close: 'UNKNOWN' }, { unknown: 'OFF' }]) {
+    assert.throws(() => readTicketConfig({ ...config, TICKET_BEHAVIOR: { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [], closeUserIds: [], actions } }));
+  }
+});
+
+test('direct close-only welcome preserves forms and registers independent commands for other actions', async t => {
+  const f = fixture([category({ formEnabled: false, fields: [] })]);
+  configureActions(f, { close: 'BUTTON', schedule: 'COMMAND', autoClose: 'COMMAND', addUser: 'COMMAND', history: 'OFF' });
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('select').send();
+  const controls = f.channels.get('888888888888888881').sent[0].components.at(-1).toJSON().components;
+  assert.deepEqual(controls.map((control: any) => [control.custom_id, control.label]), [[`${prefix}close`, 'ปิดตั๋ว']]);
+  assert.deepEqual(f.commands.get('command').options.map((option: any) => option.name), ['panel', 'add-user', 'auto-close', 'no-auto-close', 'approve-exemption', 'deny-exemption']);
+});
+
+test('command-only rooms omit buttons, allow close confirmation and deny stale buttons', async t => {
+  const f = fixture([category({ formEnabled: false, fields: [] })]);
+  configureActions(f, { close: 'COMMAND', schedule: 'COMMAND', autoClose: 'COMMAND', addUser: 'COMMAND', history: 'COMMAND' });
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('select').send();
+  const room = f.channels.get('888888888888888881');
+  assert.equal(JSON.stringify(room.sent).includes('"custom_id"'), false);
+  const stale = f.interaction('button', { channelId: room.id, user: { id: administrator } }); await stale.send();
+  assert.match(stale.replies.at(-1).embeds[0].description, /ถูกปิดไว้/);
+  const command = f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'close' } }); await command.send();
+  assert.equal(command.replies.at(-1).components[0].toJSON().components[0].custom_id, `${prefix}confirm-close`);
+  await f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}confirm-close` }).send();
+  assert.deepEqual(f.deleted, [room.id]);
+});
+
+test('buttons-only actions omit slash commands and block stale commands or disabled actions', async t => {
+  const f = fixture();
+  configureActions(f, { close: 'OFF', schedule: 'BUTTON', autoClose: 'BUTTON', addUser: 'BUTTON', history: 'OFF' });
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  assert.deepEqual(f.commands.get('command').options.map((option: any) => option.name), ['panel']);
+  await f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'no-auto-close' } }).send();
+  await f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'add-user', getUser: () => ({ id: stranger }) } }).send();
+  await f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}confirm-close` }).send();
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
+  assert.equal(f.records.get(room.id)?.state.participantIds, undefined);
+  assert.equal(f.deleted.length, 0);
+  const picker = f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}participants` }); await picker.send();
+  assert.equal(picker.replies.at(-1).components[0].toJSON().components[0].type, 5);
+});
+
+test('command-only exemption requests can be approved or denied without management buttons', async t => {
+  const f = fixture(); configureActions(f, { autoClose: 'COMMAND' });
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const command = (name: string, user = owner) => f.interaction('command', { channelId: room.id, user: { id: user }, options: { getSubcommand: () => name } }).send();
+  await command('no-auto-close');
+  assert.deepEqual(room.sent.at(-1).components, []);
+  assert.match(room.sent.at(-1).content, /approve-exemption/);
+  await command('approve-exemption', stranger);
+  assert.equal(f.records.get(room.id)?.state.exemption?.status, 'PENDING');
+  await command('deny-exemption', administrator);
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
+  await command('no-auto-close'); await command('approve-exemption', administrator);
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 0);
+});
+
+test('setting a timer starts now instead of at old opening time and survives restart', async t => {
+  t.mock.timers.enable({ apis: ['Date','setInterval'], now: Date.now() });
+  const f = fixture(); configureActions(f, { schedule: 'BOTH' });
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ autoCloseMinutes: 0, exemption: { requestedBy: owner, requestedAt: Date.now()-1000, status: 'PENDING' } })));
+  const dispose = await ticketFeature.activate(f.context); await flush();
+  await f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'auto-close', getInteger: () => 1, getString: () => 'FROM_NOW' } }).send();
+  const saved = f.records.get(room.id)!.state;
+  assert.equal(saved.autoCloseStartAt, Date.now()); assert.equal(saved.exemption, undefined);
+  assert.equal(ticketDue(saved, saved.openedAt, Date.now()+59999), false);
+  assert.equal(ticketDue(saved, saved.openedAt, Date.now()+60000), true);
+  await dispose();
+  t.after(await ticketFeature.activate({ ...f.context, runtimeState: f.saves.at(-1) })); await flush();
+  assert.equal(f.deleted.length, 0);
+  t.mock.timers.tick(60001); await flush();
+  assert.deepEqual(f.deleted, [room.id]);
+});
+
+test('timer button opens a modal and validates authority and minutes again at submission', async t => {
+  const f = fixture(); configureActions(f, { schedule: 'BOTH' });
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ autoCloseMinutes: 0 })));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const button = f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}set-timer` }); await button.send();
+  assert.equal(button.value.modal.custom_id, `${prefix}timer`);
+  assert.equal(button.value.modal.components[1].component.type, 3);
+  const submit = (user: string, minutes: string) => f.interaction('modal', { channelId: room.id, user: { id: user }, customId: `${prefix}timer`, fields: { getTextInputValue: () => minutes, getStringSelectValues: () => ['IDLE'] } }).send();
+  await submit(owner, '30'); await submit(administrator, '0'); await submit(administrator, '1.5'); await submit(administrator, '43201');
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 0);
+  await submit(administrator, '30');
+  const saved = f.records.get(room.id)!.state;
+  assert.equal(saved.autoCloseMinutes, 30); assert.equal(saved.autoCloseMode, 'IDLE');
+  assert.equal(ticketDue(saved, saved.openedAt, saved.autoCloseStartAt!+1800000), true);
+  assert.equal(ticketDue(saved, saved.autoCloseStartAt!+1000, saved.autoCloseStartAt!+1800000), false);
+});

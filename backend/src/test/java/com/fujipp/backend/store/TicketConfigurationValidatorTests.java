@@ -94,4 +94,18 @@ class TicketConfigurationValidatorTests {
         ((tools.jackson.databind.node.ObjectNode)category.path("welcome")).put("imageUrl","javascript:alert(1)");
         assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).isInstanceOf(StoreValidationException.class);
     }
+    @Test void supportsIndependentCommandButtonOptionsAndRejectsInvalidModes() {
+        var behavior=(tools.jackson.databind.node.ObjectNode)mapper.readTree("{\"maxOpenPerUser\":1,\"confirmClose\":true,\"closeRoleIds\":[],\"closeUserIds\":[]}");
+        behavior.put("controlStyle","DIRECT");
+        behavior.set("actions",mapper.readTree("{\"close\":\"BUTTON\",\"schedule\":\"COMMAND\",\"autoClose\":\"COMMAND\",\"addUser\":\"BOTH\",\"history\":\"OFF\"}"));
+        assertThatCode(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).doesNotThrowAnyException();
+        for(String raw:java.util.List.of("null","[]","{\"close\":null}","{\"close\":[\"BOTH\"]}","{\"close\":\"INVALID\"}","{\"unknown\":\"OFF\"}")) {
+            behavior.set("actions",mapper.readTree(raw));
+            assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).isInstanceOf(StoreValidationException.class);
+        }
+        behavior.remove("actions");
+        behavior.put("controlStyle","INVALID");
+        assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).isInstanceOf(StoreValidationException.class);
+    }
+
 }
