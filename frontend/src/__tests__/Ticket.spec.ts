@@ -192,4 +192,24 @@ describe('Ticket configuration', () => {
       }),
     ).toBe(false)
   })
+  it('validates optional cancellation messages without requiring existing drafts to change', () => {
+    expect(validateTicketDraft(draft())).toBe(true)
+    const notice = (value: unknown) => ({
+      ...draft(),
+      TICKET_BEHAVIOR: JSON.stringify({ ...defaultTicketBehavior, cancellationNotice: value }),
+    })
+    expect(validateTicketDraft(notice({ enabled: true, message: '**Open**\nThank you' }))).toBe(
+      true,
+    )
+    expect(validateTicketDraft(notice({ enabled: false, message: '' }))).toBe(true)
+    for (const invalid of [
+      null,
+      {},
+      { enabled: 'true', message: 'Hello' },
+      { enabled: true, message: ' ' },
+      { enabled: false, message: null },
+      { enabled: true, message: 'a'.repeat(2001) },
+    ])
+      expect(validateTicketDraft(notice(invalid))).toBe(false)
+  })
 })

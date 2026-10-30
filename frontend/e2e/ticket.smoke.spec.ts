@@ -179,6 +179,28 @@ for (const theme of ['LIGHT', 'DARK']) {
       style:
         '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
     })
+    await category('Notifications')
+    const announcement = form.getByRole('switch', {
+      name: 'Announce auto-close cancellation',
+      exact: true,
+    })
+    const noticeText = form.getByRole('textbox', { name: /^Cancellation message/ })
+    await expect(announcement).toBeChecked()
+    await noticeText.fill('')
+    await expect(save).toBeDisabled()
+    await announcement.click()
+    await expect(noticeText).toHaveCount(0)
+    await expect(save).toBeEnabled()
+    await announcement.click()
+    await expect(noticeText).toHaveValue('')
+    await noticeText.fill('**This ticket stays open**\nPlease wait for our team.')
+    await expect(save).toBeEnabled()
+    await form.screenshot({
+      path: testInfo.outputPath(`ticket-notification-${theme.toLowerCase()}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+    })
     await category('Ticket numbers')
     const number = form.getByRole('spinbutton', { name: 'Next ticket number', exact: true })
     await expect(number).toHaveValue('17')
@@ -224,6 +246,10 @@ for (const theme of ['LIGHT', 'DARK']) {
       closeRoleIds: ['222222222222222222'],
       closeUserIds: ['333333333333333333'],
       controlStyle: 'DIRECT',
+      cancellationNotice: {
+        enabled: true,
+        message: '**This ticket stays open**\nPlease wait for our team.',
+      },
       actions: {
         close: 'BUTTON',
         schedule: 'COMMAND',

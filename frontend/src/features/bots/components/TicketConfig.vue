@@ -21,6 +21,9 @@ import {
 const TicketCounterSettings = defineAsyncComponent(() => import('./TicketCounterSettings.vue'))
 const TicketTopicWelcome = defineAsyncComponent(() => import('./TicketTopicWelcome.vue'))
 const TicketActionSettings = defineAsyncComponent(() => import('./TicketActionSettings.vue'))
+const TicketCancellationNotice = defineAsyncComponent(
+  () => import('./TicketCancellationNotice.vue'),
+)
 const { values, text } = useFeatureEditor()
 const route = useRoute()
 const id = useId()
@@ -30,6 +33,11 @@ const categories = computed(() => [
   { key: 'behavior', label: text('Ticket behaviour', 'พฤติกรรมตั๋ว'), icon: Settings2 },
   { key: 'number', label: text('Ticket numbers', 'เลขตั๋ว'), icon: Hash },
   { key: 'history', label: text('History', 'ประวัติแชท'), icon: MessageSquareText },
+  {
+    key: 'notifications',
+    label: text('Notifications', 'ข้อความแจ้งเตือน'),
+    icon: MessageSquareText,
+  },
   { key: 'command', label: text('Commands & buttons', 'คำสั่งและปุ่ม'), icon: Terminal },
 ])
 const behavior = ref<TicketBehavior>({ ...defaultTicketBehavior })
@@ -559,6 +567,20 @@ const valid = computed(() => validateTicketDraft(values.value))
           :model-value="behavior"
           :command="String(values.TICKET_COMMAND_NAME || 'ticket')"
           :history-enabled="values.TICKET_DISCORD_HISTORY_ENABLED === true"
+          @update:model-value="setActionBehavior"
+        />
+      </FeatureSettingsCard>
+      <FeatureSettingsCard
+        v-show="activeCategory === 'notifications'"
+        :id="id + '-panel-notifications'"
+        role="tabpanel"
+        :aria-labelledby="id + '-tab-notifications'"
+        :title="text('Ticket notifications', 'ข้อความแจ้งเตือน Ticket')"
+        :icon="MessageSquareText"
+      >
+        <TicketCancellationNotice
+          v-if="activeCategory === 'notifications'"
+          :model-value="behavior"
           @update:model-value="setActionBehavior"
         />
       </FeatureSettingsCard>

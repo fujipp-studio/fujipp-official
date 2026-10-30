@@ -48,7 +48,16 @@ export function readTicketActions(value: unknown): TicketActions {
     throw new Error('Invalid Ticket action options')
   return { ...defaultTicketActions, ...value } as TicketActions
 }
+export interface TicketCancellationNotice {
+  enabled: boolean
+  message: string
+}
+export const defaultTicketCancellationNotice: TicketCancellationNotice = {
+  enabled: true,
+  message: 'ยกเลิกการปิดอัตโนมัติของตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง',
+}
 export interface TicketBehavior {
+  cancellationNotice?: TicketCancellationNotice
   controlStyle?: 'MANAGE' | 'DIRECT'
   actions?: Partial<TicketActions>
   maxOpenPerUser: number
@@ -122,6 +131,14 @@ export function validateTicketDraft(values: Record<string, unknown>): boolean {
     )
       return false
     readTicketActions(behavior.actions)
+    const notice = behavior.cancellationNotice
+    if (
+      notice !== undefined &&
+      (!record(notice) ||
+        typeof notice.enabled !== 'boolean' ||
+        !text(notice.message, 2000, !notice.enabled))
+    )
+      return false
     const rows: unknown = JSON.parse(String(values.TICKET_CATEGORIES ?? '[]'))
     if (!Array.isArray(rows) || !rows.length || rows.length > 25) return false
     const keys = new Set<string>()
