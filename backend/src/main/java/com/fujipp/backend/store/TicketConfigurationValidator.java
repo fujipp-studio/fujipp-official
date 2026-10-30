@@ -17,6 +17,10 @@ final class TicketConfigurationValidator {
             ids(behavior.path("closeRoleIds"), 10);
             ids(behavior.path("closeUserIds"), 25);
             if (behavior.has("controlStyle") && (!behavior.path("controlStyle").isTextual() || !Set.of("MANAGE","DIRECT").contains(behavior.path("controlStyle").asText()))) fail("Invalid Ticket control style");
+            if (behavior.has("cancellationNotice")) {
+                JsonNode notice = behavior.path("cancellationNotice");
+                if (!notice.isObject() || !notice.path("enabled").isBoolean() || !text(notice.path("message"),2000,!notice.path("enabled").asBoolean())) fail("Ticket cancellation message requires a boolean switch and up to 2000 characters");
+            }
             if (behavior.has("actions")) {
                 JsonNode actions = behavior.path("actions");
                 if (!actions.isObject()) fail("Ticket actions must be an object");

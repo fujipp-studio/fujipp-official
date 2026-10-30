@@ -108,4 +108,18 @@ class TicketConfigurationValidatorTests {
         assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).isInstanceOf(StoreValidationException.class);
     }
 
+    @Test void cancellationMessagesAreOptionalAndRespectTheDiscordTextLimit() {
+        var behavior=(tools.jackson.databind.node.ObjectNode)mapper.readTree("{\"maxOpenPerUser\":1,\"confirmClose\":true,\"closeRoleIds\":[],\"closeUserIds\":[]}");
+        for(String raw:java.util.List.of("{\"enabled\":true,\"message\":\"**Open**\"}","{\"enabled\":false,\"message\":\"\"}")) {
+            behavior.set("cancellationNotice",mapper.readTree(raw));
+            assertThatCode(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).doesNotThrowAnyException();
+        }
+        for(String raw:java.util.List.of("null","{}","{\"enabled\":\"true\",\"message\":\"Hello\"}","{\"enabled\":true,\"message\":\" \"}","{\"enabled\":false,\"message\":null}")) {
+            behavior.set("cancellationNotice",mapper.readTree(raw));
+            assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).isInstanceOf(StoreValidationException.class);
+        }
+        behavior.set("cancellationNotice",mapper.createObjectNode().put("enabled",true).put("message","a".repeat(2001)));
+        assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_BEHAVIOR",behavior))).isInstanceOf(StoreValidationException.class);
+    }
+
 }

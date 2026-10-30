@@ -791,3 +791,43 @@ test('timer button opens a modal and validates authority and minutes again at su
   assert.equal(ticketDue(saved, saved.openedAt, saved.autoCloseStartAt!+1800000), true);
   assert.equal(ticketDue(saved, saved.autoCloseStartAt!+1000, saved.autoCloseStartAt!+1800000), false);
 });
+
+test('cancellation notices default on and validate opt-in text and Discord message limits', () => {
+  const base = { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [], closeUserIds: [] };
+  assert.equal(readTicketConfig({ TICKET_CATEGORIES: [category()] }).cancellationNotice.enabled, true);
+  for (const cancellationNotice of [null, {}, { enabled: 'true', message: 'Hello' }, { enabled: true, message: '  ' }, { enabled: false, message: null }, { enabled: true, message: 'a'.repeat(2001) }]) {
+    assert.throws(() => readTicketConfig({ TICKET_CATEGORIES: [category()], TICKET_BEHAVIOR: { ...base, cancellationNotice } }));
+  }
+  assert.doesNotThrow(() => readTicketConfig({ TICKET_CATEGORIES: [category()], TICKET_BEHAVIOR: { ...base, cancellationNotice: { enabled: false, message: '' } } }));
+});
+
+test('custom cancellation announcements and disabled announcements work for direct commands and approvals', async t => {
+  for (const approve of [false,true]) for (const enabled of [false,true]) {
+    const f = fixture(); configureActions(f, { autoClose: 'BOTH' });
+    const message = '**ตั๋วนี้เปิดต่อได้**\n@everyone รอผู้ดูแลปิดเอง';
+    (f.context.config.TICKET_BEHAVIOR as any).cancellationNotice = { enabled, message };
+    const room = f.makeChannel('999999999999999999', ticketTopic(installation, state(approve ? { exemption: { requestedBy: owner, requestedAt: Date.now(), status: 'PENDING' } } : {})));
+    t.after(await ticketFeature.activate(f.context)); await flush();
+    const command = f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => approve ? 'approve-exemption' : 'no-auto-close' } }); await command.send();
+    assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 0);
+    assert.equal(command.replies.at(-1).components.length, 0);
+    assert.match(command.replies.at(-1).content, /ให้ตั๋วนี้แล้ว/);
+    assert.equal(room.sent.length, enabled ? 1 : 0);
+    if (enabled) {
+      assert.equal(room.sent[0].content, message);
+      assert.deepEqual(room.sent[0].allowedMentions, { parse: [] });
+    }
+  }
+});
+
+test('a failed optional announcement keeps cancellation saved and still confirms success privately', async t => {
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  f.failSends();
+  const command = f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'no-auto-close' } }); await command.send();
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 0);
+  assert.match(command.replies.at(-1).content, /ยกเลิกปิดอัตโนมัติ/);
+  assert.equal(f.errors.some(error => error[0] === 'TICKET_CANCELLATION_NOTICE_FAILED'), true);
+  assert.equal(f.errors.some(error => error[0] === 'TICKET_INTERACTION_FAILED'), false);
+});

@@ -49,6 +49,10 @@ export const ticketFeature: FeatureModule = {
     const tickets = new Map<string, { name: string; state: TicketState; archived: boolean }>();
     const historyButton = () => new ButtonBuilder().setCustomId(`${prefix}history`).setLabel("อ่านประวัติแชท").setStyle(ButtonStyle.Secondary);
     const report = (code: string, error: unknown) => context.reportFeatureError(code, error, { recoverable: true }).catch(() => undefined);
+    const notifyCancellation = async (channel: TextChannel) => {
+      if (config.cancellationNotice.enabled) await channel.send({content:config.cancellationNotice.message,allowedMentions:{parse:[]}})
+        .catch(error => report("TICKET_CANCELLATION_NOTICE_FAILED",error));
+    };
     const track = (operation: Promise<unknown>) => {
       pending.add(operation);
       void operation.finally(() => pending.delete(operation)).catch(() => undefined);
@@ -357,8 +361,8 @@ export const ticketFeature: FeatureModule = {
             if (await canClose(interaction)) {
               const requested = current.exemption?.status === "PENDING" ? current.exemption : { requestedBy: interaction.user.id, requestedAt: Date.now() };
               await saveTicket(channel.id,channel.name,{...current,autoCloseMinutes:0,exemption:{...requested,status:"APPROVED",decidedBy:interaction.user.id,decidedAt:Date.now()}});
+              await notifyCancellation(channel);
               await interaction.editReply({content:"ยกเลิกปิดอัตโนมัติให้ตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง",components:[]});
-              await channel.send({content:"ผู้ดูแลยกเลิกการปิดอัตโนมัติให้ตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง",allowedMentions:{parse:[]}});
               return;
             }
             if (interaction.user.id !== current.ownerId) throw new Error("เฉพาะผู้เปิดตั๋วส่งคำขอยกเว้นได้");
@@ -371,7 +375,8 @@ export const ticketFeature: FeatureModule = {
             if (current.exemption?.status !== "PENDING") throw new Error("ไม่มีคำขอรออนุมัติ");
             const approved = action === "approve-exemption";
             await saveTicket(channel.id,channel.name,{...current,...(approved?{autoCloseMinutes:0}:{}),exemption:{...current.exemption,status:approved?"APPROVED":"DENIED",decidedBy:interaction.user.id,decidedAt:Date.now()}});
-            await channel.send({content:approved?"อนุมัติคำขอแล้ว ตั๋วนี้จะไม่ปิดอัตโนมัติ สามารถให้ผู้มีสิทธิ์ปิดด้วยตนเองได้":"คำขอยกเว้นถูกปฏิเสธ ตั๋วนี้ยังใช้เวลาปิดเดิม",allowedMentions:{parse:[]}});
+            if (approved) await notifyCancellation(channel);
+            else await channel.send({content:"คำขอยกเว้นถูกปฏิเสธ ตั๋วนี้ยังใช้เวลาปิดเดิม",allowedMentions:{parse:[]}});
             await interaction.editReply({content:approved?"ยกเว้นปิดอัตโนมัติให้ตั๋วนี้แล้ว":"ปฏิเสธคำขอแล้ว",components:[]});
           }
         });

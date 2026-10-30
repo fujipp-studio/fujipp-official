@@ -38,7 +38,14 @@ export function readTicketActions(value: unknown): TicketActions {
   return { ...defaultTicketActions, ...value } as TicketActions;
 }
 export const ticketActionEnabled = (actions: TicketActions, action: TicketAction, via: "COMMAND" | "BUTTON") => actions[action] === "BOTH" || actions[action] === via;
-export interface TicketBehavior { controlStyle?: "MANAGE" | "DIRECT"; actions?: Partial<TicketActions>; maxOpenPerUser: number; confirmClose: boolean; closeRoleIds: string[]; closeUserIds: string[]; }
+export interface TicketCancellationNotice { enabled: boolean; message: string; }
+export const defaultTicketCancellationNotice: TicketCancellationNotice = { enabled: true, message: "ยกเลิกการปิดอัตโนมัติของตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง" };
+export function readTicketCancellationNotice(value: unknown): TicketCancellationNotice {
+  if (value === undefined) return { ...defaultTicketCancellationNotice };
+  if (!record(value) || typeof value.enabled !== "boolean" || !text(value.message,2000,!value.enabled)) throw new Error("Invalid Ticket cancellation message");
+  return value as unknown as TicketCancellationNotice;
+}
+export interface TicketBehavior { cancellationNotice?: TicketCancellationNotice; controlStyle?: "MANAGE" | "DIRECT"; actions?: Partial<TicketActions>; maxOpenPerUser: number; confirmClose: boolean; closeRoleIds: string[]; closeUserIds: string[]; }
 export const defaultTicketBehavior: TicketBehavior = { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [], closeUserIds: [] };
 export const validTicketEmoji = (value: unknown) => typeof value === "string" && (value === "" || /^<a?:[A-Za-z0-9_]{2,32}:\d{15,30}>$/.test(value) || (/^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u.test(value) && value.length <= 32));
 export const validTicketName = (value: unknown) => text(value, 100) && !/[\p{Cc}\p{Cf}/\\]/u.test(value) && !/[{}]/.test(value.replace(/\{\{(username|user_id|topic|id)\}\}/g, ""));
@@ -60,6 +67,7 @@ export function readTicketBehavior(value: unknown): TicketBehavior {
   }
   if (value.controlStyle !== undefined && (typeof value.controlStyle !== "string" || !["MANAGE", "DIRECT"].includes(value.controlStyle))) throw new Error("Invalid Ticket control style");
   readTicketActions(value.actions);
+  readTicketCancellationNotice(value.cancellationNotice);
   return value as unknown as TicketBehavior;
 }
 
@@ -100,7 +108,7 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
     }
   }
   const behavior = readTicketBehavior(values.TICKET_BEHAVIOR);
-  return { command, categories: categories as TicketCategory[], behavior, actions: readTicketActions(behavior.actions), discordHistoryEnabled: values.TICKET_DISCORD_HISTORY_ENABLED === true };
+  return { command, categories: categories as TicketCategory[], behavior, actions: readTicketActions(behavior.actions), cancellationNotice: readTicketCancellationNotice(behavior.cancellationNotice), discordHistoryEnabled: values.TICKET_DISCORD_HISTORY_ENABLED === true };
 }
 
 export interface TicketState {
