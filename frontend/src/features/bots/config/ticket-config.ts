@@ -11,6 +11,7 @@ export interface TicketCategory {
   description: string
   emoji?: string
   channelNameTemplate?: string
+  welcome?: { title: string; description: string; imageUrl: string }
   categoryId: string
   supportRoleIds: string[]
   autoCloseMinutes: number
@@ -117,6 +118,15 @@ export function validateTicketDraft(values: Record<string, unknown>): boolean {
       )
         return false
       keys.add(String(row.key))
+      if (
+        row.welcome !== undefined &&
+        (!record(row.welcome) ||
+          !text(row.welcome.title, 256) ||
+          !text(row.welcome.description, 3500, true) ||
+          !text(row.welcome.imageUrl, 2048, true) ||
+          (row.welcome.imageUrl !== '' && !/^https:\/\/[^\s]+$/.test(String(row.welcome.imageUrl))))
+      )
+        return false
       if (row.emoji !== undefined && !validTicketEmoji(row.emoji)) return false
       if (row.channelNameTemplate !== undefined && !validTicketName(row.channelNameTemplate))
         return false

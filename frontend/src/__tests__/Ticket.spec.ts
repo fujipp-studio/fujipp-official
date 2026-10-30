@@ -38,9 +38,9 @@ describe('Ticket configuration', () => {
     expect(ticketPresentationPreview({ mode: 'EMBED' }, 'opened').components).not.toHaveProperty(
       'history_button',
     )
-    expect(ticketPresentationPreview({ mode: 'EMBED' }, 'opened', true).components).toHaveProperty(
-      'history_button',
-    )
+    expect(ticketPresentationPreview({ mode: 'EMBED' }, 'opened', true).components).toMatchObject({
+      close_button: { label: 'จัดการตั๋ว' },
+    })
   })
   it('only renders HTTPS attachment links from Discord attachment hosts', () => {
     expect(

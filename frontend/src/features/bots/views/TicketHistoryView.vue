@@ -185,8 +185,8 @@ onBeforeUnmount(() => {
     >
       {{
         text(
-          'Open tickets load live Discord messages. Closing a ticket saves its conversation here before deleting the channel. Discord attachment links may expire; files are not copied. The bot needs Message Content Intent and Read Message History.',
-          'ตั๋วที่เปิดอยู่ดึงแชทจาก Discord ตอนปิดระบบจะเก็บบทสนทนาที่นี่ก่อนลบห้อง ลิงก์ไฟล์ Discord อาจหมดอายุเพราะไม่ได้คัดลอกตัวไฟล์ บอทต้องเปิด Message Content Intent และมีสิทธิ์ Read Message History',
+          'Open tickets load live Discord messages. Closing saves the conversation before deletion. Closed archives are cleared at the start of each month (Thailand time). Discord attachment links may expire; files are not copied. The bot needs Message Content Intent and Read Message History.',
+          'ตั๋วที่เปิดอยู่ดึงแชทจาก Discord ตอนปิดระบบจะเก็บบทสนทนาก่อนลบห้อง ประวัติตั๋วที่ปิดแล้วจะล้างเมื่อขึ้นเดือนใหม่ตามเวลาไทย ลิงก์ไฟล์ Discord อาจหมดอายุเพราะไม่ได้คัดลอกตัวไฟล์ บอทต้องเปิด Message Content Intent และมีสิทธิ์ Read Message History',
         )
       }}
     </p>
