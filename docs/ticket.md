@@ -2,7 +2,7 @@
 
 `ticket@1.0.0` creates private Discord text channels from a topic dropdown.
 Settings use five categories: **Topics & forms**, **Ticket behaviour**, **History**,
-**Ticket numbers** and **Commands**.
+**Ticket numbers** and **Commands & buttons**.
 
 ## Deployment and setup
 
@@ -133,6 +133,51 @@ Participant state uses the existing private registry JSON; no additional databas
 migration is required beyond the setup migrations above. Deploy the updated
 Runner and Backend together, then let the Ticket feature register its updated
 slash command.
+
+## Optional commands and buttons
+
+In **Commands & buttons**, choose **Off**, **Commands only**, **Buttons only** or
+**Commands and buttons** separately for closing, setting a timer, timer
+exemptions, adding members and Discord history. Existing settings keep the
+management menu and both access methods. The new timer-setting action starts
+Off until enabled. Discord history also requires its existing opt-in switch.
+These access choices do not grant administrator/closing-role/user permissions.
+Off disables access to that action; it does not cancel a timer already running.
+
+Choose **Show action buttons directly** to replace **Manage ticket** with the
+enabled action buttons. To show only **Close ticket**, set Close to Buttons only
+(or both) and use Commands only/Off for the other actions. The website preview
+shows the selected layout. When every button is disabled, the welcome has no
+system controls. New layouts apply to newly opened tickets; disabled access
+methods also reject interactions from old messages and stale commands.
+A command-only close may still show confirmation if **Confirm before closing**
+is enabled. `/ticket panel` remains available to authorized panel publishers.
+
+| Action | Command when enabled |
+| --- | --- |
+| Close | `/ticket close` |
+| Set timer | `/ticket auto-close minutes:60 mode:FROM_NOW` |
+| Cancel timer / request exemption | `/ticket no-auto-close` |
+| Decide an exemption request | `/ticket approve-exemption`, `/ticket deny-exemption` |
+| Add member | `/ticket add-user member:@member` |
+| Download history | `/ticket history` |
+
+The corresponding buttons use the same permissions. **Set timer** opens a
+private form; **Add member** opens a private member picker. An ordinary opener
+still requests timer exemption, while authorized closers can cancel immediately.
+Command-only requests include the decision commands and need no management menu.
+Use the configured command name instead of `ticket` if it has been renamed.
+
+An authorized closer can schedule 1–43200 minutes for the current open ticket.
+`FROM_NOW` counts from when the timer is saved; `IDLE` waits for that many minutes
+without a new message, counting no earlier than the time the timer was saved.
+Rescheduling clears an older exemption/request and survives restarts. It changes
+neither the topic's defaults nor other tickets. The normal minute sweep performs
+archiving and deletion when due. Cancel with `/ticket no-auto-close` (if enabled)
+or the exemption button. A closing/closed ticket cannot be rescheduled.
+
+These options and per-ticket timer starts use existing JSON fields. There is no
+additional database migration; deploy the updated Backend, Runner and Frontend.
 
 ## Optional automatic deletion
 

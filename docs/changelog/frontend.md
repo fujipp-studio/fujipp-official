@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Added Ticket command/button selectors and direct Close-only layouts with matching welcome previews, while preserving grouped settings and responsive Light/Dark layouts. |
 | 2026-10-30 | Added Ticket counter/reset settings, per-topic welcome messages and monthly retention notices; load Price Reader helpers only when needed while preserving existing bundle budgets. |
 | 2026-10-30 | Grouped Ticket settings into topics/forms, behaviour, history and commands, with custom emoji/names, opening limits, closing permissions and archived-history labels. |
 | 2026-10-29 | Added Ticket settings and private conversation history, emoji-only Payment Trigger Back controls and website dropdowns while keeping configuration pages within bundle budgets. |
