@@ -10,7 +10,6 @@ import {
   variableDescriptions,
   coFeatureCatalog,
 } from '../config/feature-editor'
-import { priceReaderSampleValues, validatePriceReaderDraft } from '../config/price-reader'
 import { parseMessageSets, validateMessageSets } from '../config/message-sets'
 import { clone, invalidActionRowPath } from '../models/presentation'
 import { memberSpendingPresentationCopy } from '../config/member-spending'
@@ -276,6 +275,7 @@ export function useFeatureSettings() {
   const presentationJson = ref<Record<string, string>>({})
   const advancedSlots = ref(new Set<string>())
   const walletExpandedSlots = ref(new Set<string>())
+  const priceReaderHelpers = shallowRef<typeof import('../config/price-reader')>()
   const featureValidator = shallowRef<(draft: Record<string, EditableValue>) => boolean>()
   const featurePreview =
     shallowRef<(definition: Record<string, unknown>, slotKey: string) => Record<string, unknown>>()
@@ -522,7 +522,13 @@ export function useFeatureSettings() {
 
   function presentationSampleValues(slotKey: string): Record<string, string> {
     if (license.value?.featureCode === 'ticket')
-      return { user: '@Fujipp', user_name: 'Fujipp', category: text('Order', 'สั่งซื้อ'), channel: '#ticket-order', auto_close: text('1440 minutes after the last message', '1440 นาทีหลังไม่มีข้อความใหม่') }
+      return {
+        user: '@Fujipp',
+        user_name: 'Fujipp',
+        category: text('Order', 'สั่งซื้อ'),
+        channel: '#ticket-order',
+        auto_close: text('1440 minutes after the last message', '1440 นาทีหลังไม่มีข้อความใหม่'),
+      }
     if (isShopStatusFeature.value)
       return {
         status: slotKey === 'shop_open' ? text('Open', 'เปิดร้าน') : text('Closed', 'ปิดร้าน'),
@@ -594,11 +600,13 @@ export function useFeatureSettings() {
         : sample
     }
     if (isPriceReaderFeature.value)
-      return priceReaderSampleValues(
-        values.value,
-        license.value?.version ?? '',
-        previewBot.value?.discordGuildId,
-        slotKey === 'error' ? 'error' : 'success',
+      return (
+        priceReaderHelpers.value?.priceReaderSampleValues(
+          values.value,
+          license.value?.version ?? '',
+          previewBot.value?.discordGuildId,
+          slotKey === 'error' ? 'error' : 'success',
+        ) ?? {}
       )
     return {}
   }
@@ -827,7 +835,12 @@ export function useFeatureSettings() {
           import('../config/ticket-config'),
         ])
         featureValidator.value = validateTicketDraft
-        featurePreview.value = (definition, slotKey) => ticketPresentationPreview(definition, slotKey, values.value.TICKET_DISCORD_HISTORY_ENABLED === true)
+        featurePreview.value = (definition, slotKey) =>
+          ticketPresentationPreview(
+            definition,
+            slotKey,
+            values.value.TICKET_DISCORD_HISTORY_ENABLED === true,
+          )
       }
       if (isWalletTopupFeature.value) {
         const [preview, watermark] = await Promise.all([
@@ -850,8 +863,11 @@ export function useFeatureSettings() {
           )
       }
       if (isPriceReaderFeature.value) {
-        const { priceReaderPresentationPreview } =
-          await import('../models/price-reader-presentation-preview')
+        const [{ priceReaderPresentationPreview }, helpers] = await Promise.all([
+          import('../models/price-reader-presentation-preview'),
+          import('../config/price-reader'),
+        ])
+        priceReaderHelpers.value = helpers
         featurePreview.value = (definition, slotKey) =>
           priceReaderPresentationPreview(definition, presentationSampleValues(slotKey))
       }
@@ -947,10 +963,18 @@ export function useFeatureSettings() {
       }
       if (license.value?.featureCode === 'ticket' && !featureValidator.value?.(values.value)) {
         saveConfirmationOpen.value = false
-        throw new Error(text('Check ticket categories, Discord IDs, timers and form questions.', 'ตรวจสอบหัวข้อ Ticket, Discord ID, เวลาปิด และคำถามในแบบฟอร์ม'))
+        throw new Error(
+          text(
+            'Check ticket categories, Discord IDs, timers and form questions.',
+            'ตรวจสอบหัวข้อ Ticket, Discord ID, เวลาปิด และคำถามในแบบฟอร์ม',
+          ),
+        )
       }
       const normalValues: Record<string, FeatureConfigValue> = {}
-      if (isPriceReaderFeature.value && !validatePriceReaderDraft(values.value)) {
+      if (
+        isPriceReaderFeature.value &&
+        !priceReaderHelpers.value?.validatePriceReaderDraft(values.value)
+      ) {
         saveConfirmationOpen.value = false
         throw new Error(
           text(

@@ -87,4 +87,11 @@ class TicketConfigurationValidatorTests {
         category.put("channelNameTemplate","ticket").put("emoji","<script>");
         assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).isInstanceOf(StoreValidationException.class);
     }
+    @Test void validatesPerTopicWelcomeWithoutOverwritingTheSharedDesign() {
+        var category=(tools.jackson.databind.node.ObjectNode)mapper.readTree(CATEGORY);
+        category.set("welcome",mapper.readTree("{\"title\":\"Purchase {{id}}\",\"description\":\"Hello {{user}}\",\"imageUrl\":\"https://example.com/image.gif\"}"));
+        assertThatCode(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).doesNotThrowAnyException();
+        ((tools.jackson.databind.node.ObjectNode)category.path("welcome")).put("imageUrl","javascript:alert(1)");
+        assertThatThrownBy(()->TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES",mapper.createArrayNode().add(category)))).isInstanceOf(StoreValidationException.class);
+    }
 }

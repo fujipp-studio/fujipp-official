@@ -19,7 +19,7 @@ class RuntimeTicketServiceTests {
     private final StoreSecretCipher cipher=mock(StoreSecretCipher.class);
     private final DiscordTicketClient discord=mock(DiscordTicketClient.class);
     private final ObjectMapper json=new ObjectMapper();
-    private final RuntimeTicketService service=new RuntimeTicketService(records,jdbc,bots,cipher,discord,json);
+    private final RuntimeTicketService service=new RuntimeTicketService(records,jdbc,bots,cipher,discord,json,mock(TicketCounterService.class));
     private JsonNode state(String status) {
         return json.readTree("""
             {"ownerId":"333333333333333333","categoryKey":"order","status":"STATUS","openedAt":1790000000000,
@@ -30,7 +30,21 @@ class RuntimeTicketServiceTests {
         when(jdbc.query(anyString(),org.mockito.ArgumentMatchers.<RowMapper<RuntimeTicketService.Installation>>any(),eq(bot),eq(installation)))
             .thenReturn(List.of(new RuntimeTicketService.Installation(owner,guild)));
     }
+    @Test void participantStateRemainsOptionalAndValidatesEveryMember() {
+        assertThatCode(()->RuntimeTicketService.validateState(state("OPEN"))).doesNotThrowAnyException();
+        var valid=json.createObjectNode().setAll((tools.jackson.databind.node.ObjectNode)state("OPEN"));
+        valid.putArray("participantIds").add("444444444444444444");
+        assertThatCode(()->RuntimeTicketService.validateState(valid)).doesNotThrowAnyException();
+        for(String raw:List.of("null","{}","[123]","[\"bad-id\"]","[\"444444444444444444\",\"444444444444444444\"]")) {
+            valid.set("participantIds",json.readTree(raw));
+            assertThatThrownBy(()->RuntimeTicketService.validateState(valid)).isInstanceOf(StoreValidationException.class);
+        }
+        var excessive=valid.putArray("participantIds");
+        for(int i=0;i<26;i++) excessive.add(Long.toString(444444444444444444L+i));
+        assertThatThrownBy(()->RuntimeTicketService.validateState(valid)).isInstanceOf(StoreValidationException.class);
+    }
     @Test void refusesUnrelatedInstallationsBeforeTouchingAnyTicket() {
+        assertThatThrownBy(()->service.nextNumber(bot,installation)).isInstanceOf(StoreNotFoundException.class);
         assertThatThrownBy(()->service.list(bot,installation)).isInstanceOf(StoreNotFoundException.class);
         assertThatThrownBy(()->service.archive(bot,installation,channel,json.createArrayNode())).isInstanceOf(StoreNotFoundException.class);
         verifyNoInteractions(records,discord,cipher,bots);

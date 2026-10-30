@@ -32,6 +32,7 @@ export interface RuntimeApi {
   ticketList: RuntimeApiClient["ticketList"];
   ticketSave: RuntimeApiClient["ticketSave"];
   ticketArchive: RuntimeApiClient["ticketArchive"];
+  ticketNextNumber: RuntimeApiClient["ticketNextNumber"];
 }
 
 export class RuntimeApiClient implements RuntimeApi {
@@ -44,6 +45,9 @@ export class RuntimeApiClient implements RuntimeApi {
 
   public ticketList(botId: string, installationId: string) {
     return this.request<Awaited<ReturnType<FeatureContext['tickets']['list']>>>(`/internal/v1/runtime/bots/${encodeURIComponent(botId)}/tickets?installationId=${encodeURIComponent(installationId)}`, { method: 'GET' });
+  }
+  public ticketNextNumber(botId: string, installationId: string) {
+    return this.request<number>(`/internal/v1/runtime/bots/${encodeURIComponent(botId)}/tickets/next-number?installationId=${encodeURIComponent(installationId)}`, { method: 'POST' });
   }
   public ticketSave(botId: string, installationId: string, channelId: string, name: string, state: import('./features/ticket/config.js').TicketState) {
     return this.request<void>(`/internal/v1/runtime/bots/${encodeURIComponent(botId)}/tickets/${encodeURIComponent(channelId)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ installationId, name, state }) });

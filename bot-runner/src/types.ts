@@ -52,6 +52,7 @@ export interface FeatureContext {
   paymentVoucher?: (input: { memberDiscordId: string; giftUrl: string; paymentMessageId: string; expectedAmountSatang: number; idempotencyKey: string }) => Promise<VoucherRedemption>;
   saveRuntimeState(state: Record<string, unknown>): Promise<void>;
   tickets: {
+    nextNumber(): Promise<number>;
     list(): Promise<Array<{ channelId: string; name: string; state: import('./features/ticket/config.js').TicketState; archived: boolean }>>;
     save(channelId: string, name: string, state: import('./features/ticket/config.js').TicketState): Promise<void>;
     archive(channelId: string, messages: unknown[]): Promise<void>;

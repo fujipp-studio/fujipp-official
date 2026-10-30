@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Added Ticket counter/reset settings, per-topic welcome messages and monthly retention notices; load Price Reader helpers only when needed while preserving existing bundle budgets. |
 | 2026-10-30 | Grouped Ticket settings into topics/forms, behaviour, history and commands, with custom emoji/names, opening limits, closing permissions and archived-history labels. |
 | 2026-10-29 | Added Ticket settings and private conversation history, emoji-only Payment Trigger Back controls and website dropdowns while keeping configuration pages within bundle budgets. |
 | 2026-10-29 | Added Payment Trigger 1.1 Back buttons with movable Components V2 placement and per-button update or new-message choices, verified across Desktop/Mobile and Light/Dark themes. |

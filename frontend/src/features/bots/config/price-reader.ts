@@ -5,21 +5,7 @@ import {
   defaultItemTemplate,
 } from '@price-reader/results'
 
-export const priceReaderConfigKeys = new Set([
-  'PRICE_READER_CHANNEL_ID',
-  'PRICE_READER_ORDER_CHANNEL_ID',
-  'PRICE_READER_PRICE_MAP',
-  'PRICE_READER_NO_NITRO_MARKUP_SATANG',
-  'PRICE_READER_RESULTS_ITEM_TEMPLATE',
-  'PRICE_READER_RESULT_BLOCKS',
-  'PRICE_READER_RESULT_MODE',
-  'PRICE_READER_MATCH_TOLERANCE_SATANG',
-  'PRICE_READER_NOT_FOUND_TEXT',
-  'PRICE_READER_OCR_ERROR_TEXT',
-  'PRICE_READER_UNMATCHED_PRICE_TEXT',
-  'PRICE_READER_ERROR_ITEM_TEMPLATE',
-  'PRICE_READER_RESULTS_SEPARATOR',
-])
+export { priceReaderConfigKeys } from './price-reader-keys'
 
 export const priceReaderItemTemplate = defaultItemTemplate
 

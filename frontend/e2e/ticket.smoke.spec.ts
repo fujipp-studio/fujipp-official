@@ -9,6 +9,15 @@ for (const theme of ['LIGHT', 'DARK']) {
     if (isMobile) await page.setViewportSize({ width: 320, height: 900 })
     await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
     const { ticketLicense, config } = ticketFixture()
+    let nextNumber = 17
+    const resets: number[] = []
+    await page.route('**/ticket-counter', async (route) => {
+      if (route.request().method() === 'PUT') {
+        nextNumber = route.request().postDataJSON().nextNumber
+        resets.push(nextNumber)
+      }
+      await route.fulfill({ json: { nextNumber, exhausted: false } })
+    })
     let saved: { values: Record<string, unknown> } | undefined
     await page.route('**/api/v1/feature-licenses', (route) =>
       route.fulfill({ json: [ticketLicense] }),
@@ -43,6 +52,31 @@ for (const theme of ['LIGHT', 'DARK']) {
         .getByRole('button', { name: 'เลือกหัวข้อเพื่อเปิดตั๋ว' }),
     ).toBeVisible()
     await expect(save).toBeDisabled()
+    await form
+      .getByRole('switch', { name: 'Custom welcome for this topic', exact: true })
+      .first()
+      .click()
+    await form
+      .getByRole('textbox', { name: /^Welcome title/ })
+      .first()
+      .fill('Purchase {{id}}')
+    await form
+      .getByRole('textbox', { name: 'Welcome message', exact: true })
+      .first()
+      .fill('Hello {{user}} — tell us what you need.')
+    await form
+      .getByRole('textbox', { name: 'Welcome image URL', exact: true })
+      .first()
+      .fill('https://example.com/welcome.gif')
+    await form
+      .locator('[data-ticket-welcome]')
+      .first()
+      .screenshot({
+        path: testInfo.outputPath(`ticket-topic-welcome-${theme.toLowerCase()}.png`),
+        animations: 'disabled',
+        style:
+          '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+      })
     await form
       .getByRole('textbox', { name: 'Topic emoji', exact: true })
       .first()
@@ -99,6 +133,22 @@ for (const theme of ['LIGHT', 'DARK']) {
       style:
         '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
     })
+    await category('Ticket numbers')
+    const number = form.getByRole('spinbutton', { name: 'Next ticket number', exact: true })
+    await expect(number).toHaveValue('17')
+    await number.fill('42')
+    await form.getByRole('button', { name: 'Set next number', exact: true }).click()
+    await expect(number).toHaveValue('42')
+    await form.getByRole('button', { name: 'Reset to 00000', exact: true }).click()
+    await expect(number).toHaveValue('0')
+    expect(resets).toEqual([42, 0])
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await form.screenshot({
+      path: testInfo.outputPath(`ticket-numbers-${theme.toLowerCase()}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+    })
     await category('History')
     const discordHistory = form.getByRole('switch', { name: 'Enable Discord history', exact: true })
     await expect(discordHistory).not.toBeChecked()
@@ -127,6 +177,11 @@ for (const theme of ['LIGHT', 'DARK']) {
     expect(saved?.values.TICKET_CATEGORIES).toMatchObject([
       {
         key: 'order',
+        welcome: {
+          title: 'Purchase {{id}}',
+          description: 'Hello {{user}} — tell us what you need.',
+          imageUrl: 'https://example.com/welcome.gif',
+        },
         emoji: '<:cart:123456789012345678>',
         channelNameTemplate: 'order-{{username}}-{{id}}',
         autoCloseMinutes: 30,

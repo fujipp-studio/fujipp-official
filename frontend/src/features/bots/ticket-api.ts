@@ -70,3 +70,26 @@ export async function fetchTicketMessages(
     'Unable to load ticket messages.',
   )
 }
+
+export interface TicketCounter {
+  nextNumber: number
+  exhausted: boolean
+}
+export async function ticketCounter(
+  botId: string,
+  admin: boolean,
+  session: Session,
+  nextNumber?: number,
+  signal?: AbortSignal,
+) {
+  const url = `${backendUrl}/api/v1/${admin ? 'admin/' : ''}bots/${encodeURIComponent(botId)}/ticket-counter`
+  return readJson<TicketCounter>(
+    await apiFetch(url, {
+      method: nextNumber === undefined ? 'GET' : 'PUT',
+      headers: { ...authenticatedHeaders(session), 'Content-Type': 'application/json' },
+      ...(nextNumber === undefined ? {} : { body: JSON.stringify({ nextNumber }) }),
+      signal,
+    }),
+    'Unable to update ticket numbers.',
+  )
+}

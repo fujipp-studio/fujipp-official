@@ -14,9 +14,12 @@ class RuntimeTicketService {
     private final StoreSecretCipher cipher;
     private final DiscordTicketClient discord;
     private final ObjectMapper json;
-    RuntimeTicketService(TicketRecordRepository records, JdbcTemplate jdbc, StoreRepository bots, StoreSecretCipher cipher, DiscordTicketClient discord, ObjectMapper json) {
+    private final TicketCounterService counters;
+    RuntimeTicketService(TicketRecordRepository records, JdbcTemplate jdbc, StoreRepository bots, StoreSecretCipher cipher, DiscordTicketClient discord, ObjectMapper json,TicketCounterService counters) {
         this.records=records;this.jdbc=jdbc;this.bots=bots;this.cipher=cipher;this.discord=discord;this.json=json;
+        this.counters=counters;
     }
+    int nextNumber(UUID botId,UUID installationId) { access(botId,installationId); return counters.reserve(botId); }
     record Installation(UUID owner, String guild) {}
     record Ticket(String channelId,String name,JsonNode state,boolean archived) {}
     private Installation access(UUID botId,UUID installationId) {
@@ -70,6 +73,28 @@ class RuntimeTicketService {
     static void validateState(JsonNode state) {
         if(state==null||!state.isObject()||state.toString().length()>8192) throw new StoreValidationException("Invalid Ticket state");
         id(state.path("ownerId").asText());
+        if(state.has("participantIds")) {
+            JsonNode participants=state.path("participantIds");
+            if(!participants.isArray() || participants.size()>25) throw new StoreValidationException("Configure at most 25 Ticket participants");
+            var unique=new HashSet<String>();
+            for(JsonNode participant:participants) {
+                if(!participant.isTextual()) throw new StoreValidationException("Invalid Ticket participant ID");
+                id(participant.asText());
+                if(!unique.add(participant.asText())) throw new StoreValidationException("Duplicate Ticket participant");
+            }
+        }
+        if(state.has("ticketNumber") && (!state.path("ticketNumber").isIntegralNumber() || !state.path("ticketNumber").canConvertToInt() || state.path("ticketNumber").asInt()<0 || state.path("ticketNumber").asInt()>99999))
+            throw new StoreValidationException("Invalid Ticket number");
+        if(state.has("exemption")) {
+            JsonNode request=state.path("exemption");
+            id(request.path("requestedBy").asText());
+            if(!Set.of("PENDING","APPROVED","DENIED").contains(request.path("status").asText()) || !request.path("requestedAt").isIntegralNumber() || request.path("requestedAt").asLong()<=0)
+                throw new StoreValidationException("Invalid Ticket timer exemption request");
+            if(!request.path("status").asText().equals("PENDING")) {
+                id(request.path("decidedBy").asText());
+                if(!request.path("decidedAt").isIntegralNumber() || request.path("decidedAt").asLong()<=0) throw new StoreValidationException("Invalid Ticket timer exemption decision");
+            }
+        }
         if(!state.path("categoryKey").asText().matches("[a-z0-9_-]{1,32}")||!Set.of("OPEN","CLOSING","CLOSED").contains(state.path("status").asText())
             ||!state.path("openedAt").isIntegralNumber()||!state.path("openedAt").canConvertToLong()||state.path("openedAt").asLong()<=0
             ||!state.path("autoCloseMinutes").isIntegralNumber()||!state.path("autoCloseMinutes").canConvertToInt()||state.path("autoCloseMinutes").asInt()<0||state.path("autoCloseMinutes").asInt()>43200

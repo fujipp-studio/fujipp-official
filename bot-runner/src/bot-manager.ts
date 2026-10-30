@@ -139,6 +139,7 @@ export class BotManager {
             },
             saveRuntimeState: (state) => this.api.saveFeatureState({ botId: bot.id, installationId: feature.installationId, state }),
             tickets: {
+              nextNumber: () => this.api.ticketNextNumber(bot.id, feature.installationId),
               list: () => this.api.ticketList(bot.id, feature.installationId),
               save: (channelId, name, state) => this.api.ticketSave(bot.id, feature.installationId, channelId, name, state),
               archive: (channelId, messages) => this.api.ticketArchive(bot.id, feature.installationId, channelId, messages),

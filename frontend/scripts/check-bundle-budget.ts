@@ -48,12 +48,13 @@ const featureConfigs = [
   'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
   'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig', 'TicketConfig',
 ]
+const requiredFeatureControls: Record<string, string[]> = { TicketConfig: ['src/features/bots/components/TicketTopicWelcome.vue'] }
 const featurePreviews: Record<string, string[]> = {
   ShopStatusConfig: ['src/features/bots/config/shop-status-validation.ts'],
   TicketConfig: ['src/features/bots/models/ticket-presentation-preview.ts', 'src/features/bots/config/ticket-config.ts'],
   WalletTopupConfig: ['src/features/bots/models/wallet-presentation-preview.ts', 'src/features/bots/models/wallet-qr-watermark.ts'],
   PaymentTriggerConfig: ['src/features/bots/models/payment-trigger-presentation-preview.ts'],
-  PriceReaderConfig: ['src/features/bots/models/price-reader-presentation-preview.ts'],
+  PriceReaderConfig: ['src/features/bots/models/price-reader-presentation-preview.ts', 'src/features/bots/config/price-reader.ts'],
 }
 const profiles = [
   {name:'Initial shell', keys:[], js:180, css:50},
@@ -64,9 +65,10 @@ const profiles = [
   {name:'Feature config', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...featureConfigs.map(component => ({
     name: component,
-    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, ...(featurePreviews[component] ?? []), 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
+    keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', `src/features/bots/components/${component}.vue`, ...(featurePreviews[component] ?? []), ...(requiredFeatureControls[component] ?? []), 'src/lib/supabase.ts', ...translations('myBots','botSettings')],
     js:250, css:50,
   })),
+  {name:'Ticket numbers', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketCounterSettings.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...['WalletCommandsSettings', 'WalletMilestonesEditor'].map(component => ({
     name: `Wallet ${component}`,
     keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/WalletTopupConfig.vue', `src/features/bots/components/${component}.vue`, ...featurePreviews.WalletTopupConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50,

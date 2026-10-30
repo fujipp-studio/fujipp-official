@@ -35,6 +35,7 @@ class TicketHistoryService {
                    String editedAt, String content, List<String> blocks, List<Attachment> attachments, String replyToId) {}
     record Messages(List<Message> items, String nextBefore, boolean hasMore) {}
     private record Access(BotResponse bot, UUID owner, Set<String> installations) {}
+    void authorizeBot(String subject,UUID botId,boolean admin) { access(subject,botId,admin); }
 
     List<Ticket> list(String subject, UUID botId, boolean admin) {
         Access access = access(subject, botId, admin);

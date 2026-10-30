@@ -2,6 +2,8 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Documented Ticket participant invitations, permissions, restart persistence and deployment without an additional migration. |
+| 2026-10-30 | Documented Ticket numbering/reset, topic welcomes, private controls, timer exemptions and monthly archive retention in Thailand time. |
 | 2026-10-30 | Documented Ticket deletion, close permissions, channel naming, legacy topic import, archive limits and deployment order. |
 | 2026-10-29 | Documented the Ticket publication migration and THB 100 one-time purchase. |
 | 2026-10-29 | Documented how saving valid Ticket topic settings recovers failed activation. |

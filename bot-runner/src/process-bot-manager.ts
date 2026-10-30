@@ -37,6 +37,7 @@ const ALLOWED_RPC_METHODS = {
   ticketList: true,
   ticketSave: true,
   ticketArchive: true,
+  ticketNextNumber: true,
 } satisfies Record<keyof RuntimeApi, true>;
 
 interface WorkerState { child: ChildProcess; fingerprint: string; restartFingerprint: string; stopping: boolean; crashes: number[]; }

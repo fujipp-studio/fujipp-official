@@ -42,8 +42,8 @@ const flushRpc = async () => { for (let i = 0; i < 4; i++) await new Promise(res
 function supervisorFixture() {
   const calls: Array<{ method: string; args: unknown[] }> = [];
   const children: SupervisorTestChild[] = [];
-  const api = Object.fromEntries(['ticketList','ticketSave','ticketArchive','reportStatus'].map(method =>
-    [method, async (...args: unknown[]) => { calls.push({ method, args }); return method === 'ticketList' ? [] : undefined; }])) as unknown as RuntimeApi;
+  const api = Object.fromEntries(['ticketList','ticketSave','ticketArchive','ticketNextNumber','reportStatus'].map(method =>
+    [method, async (...args: unknown[]) => { calls.push({ method, args }); return method === 'ticketList' ? [] : method === 'ticketNextNumber' ? 0 : undefined; }])) as unknown as RuntimeApi;
   const factory = (() => { const child = new SupervisorTestChild(); children.push(child); return child; }) as unknown as typeof fork;
   const manager = new ProcessBotManager(api, {}, factory);
   const bot: RuntimeBot = { id: 'bot-a', name: 'Ticket bot', discordToken: 'token', discordApplicationId: null, discordGuildId: null, restartRevision: 0,
@@ -59,11 +59,12 @@ test('supervisor forwards all Ticket registry and archive methods for the owning
     { method: 'ticketList', args: ['bot-a','installation'] },
     { method: 'ticketSave', args: ['bot-a','installation','channel','name',{ status: 'OPEN' }] },
     { method: 'ticketArchive', args: ['bot-a','installation','channel',[]] },
+    { method: 'ticketNextNumber', args: ['bot-a','installation'] },
   ];
   for (const [index, request] of requests.entries()) child.emit('message', { type: 'rpc', requestId: index + 1, ...request });
   await flushRpc();
   assert.deepEqual(f.calls, requests);
-  assert.deepEqual(child.sent.filter(message => message.type === 'rpc-result').map(message => message.requestId), [1,2,3]);
+  assert.deepEqual(child.sent.filter(message => message.type === 'rpc-result').map(message => message.requestId), [1,2,3,4]);
 });
 
 test('Ticket RPC calls cannot cross bot scope or invoke private supervisor methods', async t => {

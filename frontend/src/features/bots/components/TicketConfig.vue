@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, useId, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Plus, Ticket, Trash2, Settings2, MessageSquareText, Terminal } from 'lucide-vue-next'
+import { Plus, Ticket, Trash2, Settings2, MessageSquareText, Terminal, Hash } from 'lucide-vue-next'
 import { AppButton, AppTextField } from '@/shared/ui'
 import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
 import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
@@ -18,6 +18,8 @@ import {
   type TicketField,
 } from '../config/ticket-config'
 
+const TicketCounterSettings = defineAsyncComponent(() => import('./TicketCounterSettings.vue'))
+const TicketTopicWelcome = defineAsyncComponent(() => import('./TicketTopicWelcome.vue'))
 const { values, text } = useFeatureEditor()
 const route = useRoute()
 const id = useId()
@@ -25,6 +27,7 @@ const activeCategory = ref('topics')
 const categories = computed(() => [
   { key: 'topics', label: text('Topics & forms', 'หัวข้อและแบบฟอร์ม'), icon: Ticket },
   { key: 'behavior', label: text('Ticket behaviour', 'พฤติกรรมตั๋ว'), icon: Settings2 },
+  { key: 'number', label: text('Ticket numbers', 'เลขตั๋ว'), icon: Hash },
   { key: 'history', label: text('History', 'ประวัติแชท'), icon: MessageSquareText },
   { key: 'command', label: text('Commands', 'คำสั่ง'), icon: Terminal },
 ])
@@ -95,6 +98,11 @@ function commit() {
 }
 function add() {
   rows.value.push(newTicketCategory(`topic_${crypto.randomUUID().slice(0, 8)}`))
+  commit()
+}
+function setWelcome(row: TicketCategory, welcome: TicketCategory['welcome']) {
+  if (welcome) row.welcome = welcome
+  else delete row.welcome
   commit()
 }
 function addField(row: TicketCategory) {
@@ -252,6 +260,11 @@ const valid = computed(() => validateTicketDraft(values.value))
                 )
               "
               @update:model-value="setRoles(row, $event)"
+            />
+            <TicketTopicWelcome
+              :model-value="row.welcome"
+              :label="row.label"
+              @update:model-value="setWelcome(row, $event)"
             />
             <div class="flex items-center justify-between gap-md">
               <span class="text-sm font-medium">{{
@@ -463,6 +476,16 @@ const valid = computed(() => validateTicketDraft(values.value))
         </div>
       </FeatureSettingsCard>
       <FeatureSettingsCard
+        v-show="activeCategory === 'number'"
+        :id="id + '-panel-number'"
+        role="tabpanel"
+        :aria-labelledby="id + '-tab-number'"
+        :title="text('Ticket numbers', 'เลขตั๋ว')"
+        :icon="Hash"
+      >
+        <TicketCounterSettings v-if="activeCategory === 'number'" />
+      </FeatureSettingsCard>
+      <FeatureSettingsCard
         v-show="activeCategory === 'history'"
         :id="id + '-panel-history'"
         role="tabpanel"
@@ -501,8 +524,8 @@ const valid = computed(() => validateTicketDraft(values.value))
         <p class="mt-sm text-sm text-text-secondary">
           {{
             text(
-              'Off by default. When enabled, the opener, support team and Discord administrators can privately download a transcript using the history button or /ticket history. The web reader remains available.',
-              'ปิดไว้เป็นค่าเริ่มต้น เมื่อเปิด ผู้เปิดตั๋ว ทีมดูแล และแอดมิน Discord สามารถดาวน์โหลดประวัติแบบส่วนตัวจากปุ่มอ่านประวัติหรือ /ticket history ได้ โดยหน้าอ่านบนเว็บยังใช้งานได้เสมอ',
+              'Discord downloads are optional in the private management menu. Closed history is removed at the start of each month in Thailand time; open tickets are preserved.',
+              'เปิดดาวน์โหลดประวัติในเมนูจัดการส่วนตัวได้ ประวัติตั๋วที่ปิดแล้วถูกล้างเมื่อขึ้นเดือนใหม่ตามเวลาไทย โดยไม่ลบตั๋วที่ยังเปิดอยู่',
             )
           }}
         </p>
@@ -531,7 +554,13 @@ const valid = computed(() => validateTicketDraft(values.value))
           {{ text('Post the dropdown panel', 'ส่งแผงเลือกหัวข้อ') }}<br />/{{
             values.TICKET_COMMAND_NAME || 'ticket'
           }}
-          close · {{ text('Close the current ticket', 'ปิดตั๋วในห้องปัจจุบัน') }}
+          close · {{ text('Close the current ticket', 'ปิดตั๋วในห้องปัจจุบัน') }}<br />/{{
+            values.TICKET_COMMAND_NAME || 'ticket'
+          }}
+          no-auto-close ·
+          {{
+            text('Request an exemption for this ticket', 'ส่งคำขอยกเว้นปิดอัตโนมัติสำหรับตั๋วนี้')
+          }}
           <template v-if="values.TICKET_DISCORD_HISTORY_ENABLED === true"
             ><br />/{{ values.TICKET_COMMAND_NAME || 'ticket' }} history ·
             {{ text('Download a private transcript', 'ดาวน์โหลดประวัติแบบส่วนตัว') }}</template
