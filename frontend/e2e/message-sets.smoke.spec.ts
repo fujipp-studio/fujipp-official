@@ -38,6 +38,10 @@ for (const theme of ['LIGHT', 'DARK']) {
     await form.getByRole('textbox', { name: /ชื่อ SET 2/ }).fill('Rules')
     await form.getByRole('combobox', { name: 'รูปแบบ SET 2', exact: true }).click()
     await page.getByRole('option', { name: 'Components V2', exact: true }).click()
+    const ping = form.getByRole('switch', { name: 'SET 2: อนุญาต Ping Role', exact: true })
+    await expect(ping).not.toBeChecked()
+    await ping.click()
+    await expect(ping).toBeChecked()
     const design = page.locator('#feature-presentations')
     await expect(design).toContainText('Rules')
     await page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true }).click()
@@ -48,9 +52,10 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect.poll(() => saved?.values.MESSAGE_SETS_COMMAND_NAME).toBe('design')
     expect(saved?.values.MESSAGE_SETS).toEqual([
       { name: 'Welcome', presentationSlot: 'set_1' },
-      { name: 'Rules', presentationSlot: 'set_2' },
+      { name: 'Rules', presentationSlot: 'set_2', allowRoleMentions: true },
     ])
     expect(saved?.presentations.set_2?.mode).toBe('COMPONENTS_V2')
+    await expect(ping).toBeChecked()
     await form.screenshot({
       path: testInfo.outputPath(`message-sets-${theme.toLowerCase()}.png`),
       animations: 'disabled',

@@ -4,9 +4,10 @@ import { Plus, Trash2 } from 'lucide-vue-next'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
+import FeatureSettingToggle from './FeatureSettingToggle.vue'
 import FeatureCommandsSettings from './FeatureCommandsSettings.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
-import { parseMessageSets, validateMessageSets } from '../config/message-sets'
+import { parseMessageSets, validateMessageSets, type MessageSet } from '../config/message-sets'
 import { clone } from '../models/presentation'
 
 const {
@@ -22,9 +23,9 @@ const {
 const container = ref<HTMLElement | null>(null)
 const sets = computed(() => parseMessageSets(String(values.value.MESSAGE_SETS ?? '[]')))
 const invalid = computed(() => !validateMessageSets(sets.value))
-function update(index: number, name: string) {
+function update(index: number, patch: Partial<MessageSet>) {
   values.value.MESSAGE_SETS = JSON.stringify(
-    sets.value.map((set, i) => (i === index ? { ...set, name } : set)),
+    sets.value.map((set, i) => (i === index ? { ...set, ...patch } : set)),
   )
 }
 async function add() {
@@ -117,7 +118,7 @@ async function remove(index: number) {
               :label="text(`SET ${index + 1} name`, `ชื่อ SET ${index + 1}`)"
               :maxlength="100"
               required
-              @update:model-value="update(index, $event)"
+              @update:model-value="update(index, { name: $event })"
             />
             <AppTextField
               variant="dropdown"
@@ -130,6 +131,21 @@ async function remove(index: number) {
               @update:model-value="setPresentationMode(set.presentationSlot, $event)"
             />
           </div>
+          <FeatureSettingToggle
+            class="mt-md"
+            :model-value="set.allowRoleMentions === true"
+            :label="text('Allow Role pings', 'อนุญาต Ping Role')"
+            :aria-label="
+              text(`SET ${index + 1}: allow Role pings`, `SET ${index + 1}: อนุญาต Ping Role`)
+            "
+            :description="
+              text(
+                'Write <@&ROLE_ID> in the message content or a Components V2 text block. The role must be mentionable, or the bot must have Mention Everyone. Embed titles and descriptions do not ping. Send a new message for a new notification.',
+                'ใส่ <@&ROLE_ID> ในเนื้อหาข้อความหรือบล็อกข้อความ Components V2 โดย Role ต้องเปิดให้แท็กได้ หรือบอทมี Mention Everyone หัวข้อและคำอธิบาย Embed จะไม่ Ping หากต้องการแจ้งเตือนใหม่ให้ส่งข้อความใหม่',
+              )
+            "
+            @update:model-value="update(index, { allowRoleMentions: $event })"
+          />
           <div class="mt-sm flex justify-end">
             <AppButton
               variant="secondary"

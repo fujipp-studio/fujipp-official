@@ -1,6 +1,7 @@
 export interface MessageSet {
   name: string
   presentationSlot: string
+  allowRoleMentions?: boolean
 }
 export const messageSetsConfigKeys = new Set(['MESSAGE_SETS_COMMAND_NAME', 'MESSAGE_SETS'])
 export function parseMessageSets(value: string): MessageSet[] {
@@ -27,6 +28,7 @@ export function validateMessageSets(sets: MessageSet[]): boolean {
         set.name.trim().length > 0 &&
         set.name.length <= 100 &&
         set.name === set.name.trim() &&
+        (set.allowRoleMentions === undefined || typeof set.allowRoleMentions === 'boolean') &&
         /^set_(?:[1-9]|1\d|20)$/.test(set.presentationSlot),
     ) &&
     new Set(sets.map((set) => set.name.toLowerCase())).size === sets.length &&

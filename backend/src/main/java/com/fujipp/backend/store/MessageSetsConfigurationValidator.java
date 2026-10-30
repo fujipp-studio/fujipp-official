@@ -21,6 +21,10 @@ final class MessageSetsConfigurationValidator {
         var names = new HashSet<String>();
         var slots = new HashSet<String>();
         for (JsonNode set : sets) {
+            JsonNode allowRoleMentions = set.get("allowRoleMentions");
+            if (allowRoleMentions != null && !allowRoleMentions.isBoolean()) {
+                throw new StoreValidationException("SET role mention settings must be booleans");
+            }
             JsonNode name = set.get("name");
             JsonNode slot = set.get("presentationSlot");
             if (!set.isObject() || name == null || !name.isTextual()

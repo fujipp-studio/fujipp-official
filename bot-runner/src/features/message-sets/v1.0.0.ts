@@ -10,10 +10,12 @@ import type {
 } from "../../types.js";
 import { replyFeatureError } from "../errors.js";
 import { PresentationValidationError, renderTemplate } from "../presentation.js";
+import { applySetRoleMentions } from "./role-mentions.js";
 
 export interface MessageSet {
   name: string;
   presentationSlot: string;
+  allowRoleMentions?: boolean;
 }
 
 export function readMessageSets(value: unknown): MessageSet[] {
@@ -26,6 +28,7 @@ export function readMessageSets(value: unknown): MessageSet[] {
     const presentationSlot =
       typeof row?.presentationSlot === "string" ? row.presentationSlot : "";
     if (
+      (row?.allowRoleMentions !== undefined && typeof row.allowRoleMentions !== "boolean") ||
       !name ||
       name.length > 100 ||
       !/^set_(?:[1-9]|1\d|20)$/.test(presentationSlot) ||
@@ -38,7 +41,7 @@ export function readMessageSets(value: unknown): MessageSet[] {
     }
     names.add(name.toLowerCase());
     slots.add(presentationSlot);
-    return { name, presentationSlot };
+    return { name, presentationSlot, ...(row.allowRoleMentions !== undefined ? { allowRoleMentions: row.allowRoleMentions } : {}) };
   });
 }
 
@@ -166,6 +169,7 @@ export const messageSetsFeature: FeatureModule = {
       }
       // Keep interaction attribution private; the SET is an ordinary bot message.
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await applySetRoleMentions(payload, interaction, set.allowRoleMentions === true);
       await channel.send(payload);
       await interaction
         .editReply({ content: "ส่ง SET แล้ว", allowedMentions: { parse: [] } })
