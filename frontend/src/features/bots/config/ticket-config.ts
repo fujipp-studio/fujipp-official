@@ -26,7 +26,31 @@ export const ticketConfigKeys = new Set([
   'TICKET_DISCORD_HISTORY_ENABLED',
   'TICKET_BEHAVIOR',
 ])
+export type TicketDelivery = 'OFF' | 'COMMAND' | 'BUTTON' | 'BOTH'
+export type TicketAction = 'close' | 'schedule' | 'autoClose' | 'addUser' | 'history'
+export type TicketActions = Record<TicketAction, TicketDelivery>
+export const defaultTicketActions: TicketActions = {
+  close: 'BOTH',
+  schedule: 'OFF',
+  autoClose: 'BOTH',
+  addUser: 'BOTH',
+  history: 'BOTH',
+}
+export function readTicketActions(value: unknown): TicketActions {
+  if (value === undefined) return { ...defaultTicketActions }
+  if (
+    !record(value) ||
+    Object.keys(value).some((key) => !Object.hasOwn(defaultTicketActions, key)) ||
+    Object.values(value).some(
+      (mode) => typeof mode !== 'string' || !['OFF', 'COMMAND', 'BUTTON', 'BOTH'].includes(mode),
+    )
+  )
+    throw new Error('Invalid Ticket action options')
+  return { ...defaultTicketActions, ...value } as TicketActions
+}
 export interface TicketBehavior {
+  controlStyle?: 'MANAGE' | 'DIRECT'
+  actions?: Partial<TicketActions>
   maxOpenPerUser: number
   confirmClose: boolean
   closeRoleIds: string[]
@@ -91,6 +115,13 @@ export function validateTicketDraft(values: Record<string, unknown>): boolean {
       )
         return false
     }
+    if (
+      behavior.controlStyle !== undefined &&
+      (typeof behavior.controlStyle !== 'string' ||
+        !['MANAGE', 'DIRECT'].includes(behavior.controlStyle))
+    )
+      return false
+    readTicketActions(behavior.actions)
     const rows: unknown = JSON.parse(String(values.TICKET_CATEGORIES ?? '[]'))
     if (!Array.isArray(rows) || !rows.length || rows.length > 25) return false
     const keys = new Set<string>()

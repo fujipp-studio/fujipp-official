@@ -133,4 +133,63 @@ describe('Ticket configuration', () => {
     for (const value of ['', '{{unknown}}', 'a\nb', '../room'])
       expect(validTicketName(value)).toBe(false)
   })
+  it('supports independent commands/buttons and previews only a Close button without changing designs', () => {
+    const behavior = {
+      ...defaultTicketBehavior,
+      controlStyle: 'DIRECT',
+      actions: {
+        close: 'BUTTON',
+        schedule: 'COMMAND',
+        autoClose: 'COMMAND',
+        addUser: 'COMMAND',
+        history: 'OFF',
+      },
+    }
+    expect(validateTicketDraft({ ...draft(), TICKET_BEHAVIOR: JSON.stringify(behavior) })).toBe(
+      true,
+    )
+    for (const mode of ['EMBED', 'COMPONENTS_V2']) {
+      const raw = {
+        mode,
+        embed: { title: 'Welcome' },
+        components_v2: { components: [{ type: 10, content: 'Welcome' }] },
+      }
+      const before = structuredClone(raw)
+      expect(
+        ticketPresentationPreview(raw, 'opened', true, JSON.stringify(behavior)).components,
+      ).toEqual({ close_button: { label: 'ปิดตั๋ว', style: 'danger' } })
+      expect(raw).toEqual(before)
+      expect(
+        ticketPresentationPreview(raw, 'opened', true, {
+          ...behavior,
+          actions: {
+            close: 'COMMAND',
+            autoClose: 'COMMAND',
+            addUser: 'COMMAND',
+            history: 'COMMAND',
+          },
+        }).components,
+      ).toEqual({})
+    }
+    for (const actions of [
+      null,
+      [],
+      { close: null },
+      { close: ['BOTH'] },
+      { close: 'UNKNOWN' },
+      { unknown: 'OFF' },
+    ])
+      expect(
+        validateTicketDraft({
+          ...draft(),
+          TICKET_BEHAVIOR: JSON.stringify({ ...behavior, actions }),
+        }),
+      ).toBe(false)
+    expect(
+      validateTicketDraft({
+        ...draft(),
+        TICKET_BEHAVIOR: JSON.stringify({ ...behavior, controlStyle: ['DIRECT'] }),
+      }),
+    ).toBe(false)
+  })
 })

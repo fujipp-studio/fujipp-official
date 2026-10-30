@@ -123,9 +123,12 @@ const genericFields = computed(
         (!isMessageSets.value || !messageSetsConfigKeys.has(field.key)) &&
         (!isShopStatus.value || !shopStatusConfigKeys.has(field.key)) &&
         (!isTicket.value ||
-          !['TICKET_COMMAND_NAME', 'TICKET_CATEGORIES', 'TICKET_DISCORD_HISTORY_ENABLED'].includes(
-            field.key,
-          )),
+          ![
+            'TICKET_COMMAND_NAME',
+            'TICKET_CATEGORIES',
+            'TICKET_DISCORD_HISTORY_ENABLED',
+            'TICKET_BEHAVIOR',
+          ].includes(field.key)),
     ) ?? [],
 )
 

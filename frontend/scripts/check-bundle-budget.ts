@@ -69,6 +69,7 @@ const profiles = [
     js:250, css:50,
   })),
   {name:'Ticket numbers', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketCounterSettings.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
+  {name:'Ticket action options', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketActionSettings.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...['WalletCommandsSettings', 'WalletMilestonesEditor'].map(component => ({
     name: `Wallet ${component}`,
     keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/WalletTopupConfig.vue', `src/features/bots/components/${component}.vue`, ...featurePreviews.WalletTopupConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50,
