@@ -25,4 +25,16 @@ class MessageSetsConfigurationValidatorTests {
         for (String name : new String[]{"", "/ec", "EC", "ec hello"})
             assertThatThrownBy(() -> MessageSetsConfigurationValidator.validate(Map.of("MESSAGE_SETS_COMMAND_NAME", mapper.valueToTree(name)))).isInstanceOf(StoreValidationException.class);
     }
+    @Test void acceptsOnlyBooleanOptionalRoleMentions() {
+        for (String flag : new String[]{"true", "false"}) {
+            assertThatCode(() -> MessageSetsConfigurationValidator.validate(Map.of("MESSAGE_SETS",
+                    mapper.readTree("[{\"name\":\"Rules\",\"presentationSlot\":\"set_1\",\"allowRoleMentions\":" + flag + "}]"))))
+                    .doesNotThrowAnyException();
+        }
+        for (String flag : new String[]{"\"true\"", "\"false\"", "1", "null", "[]"}) {
+            assertThatThrownBy(() -> MessageSetsConfigurationValidator.validate(Map.of("MESSAGE_SETS",
+                    mapper.readTree("[{\"name\":\"Rules\",\"presentationSlot\":\"set_1\",\"allowRoleMentions\":" + flag + "}]"))))
+                    .isInstanceOf(StoreValidationException.class);
+        }
+    }
 }

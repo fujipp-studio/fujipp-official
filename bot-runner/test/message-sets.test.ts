@@ -1,5 +1,5 @@
 import { assertFeatureError } from "./assert-feature-error.js";
-import { messageSetsFeatureV11 } from "../src/features/message-sets/v1.1.0.js";
+import { messageSetsFeatureV11, readMessageSets as readMessageSetsV11 } from "../src/features/message-sets/v1.1.0.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
@@ -7,6 +7,7 @@ import { MessageFlags, type Client, type Interaction } from "discord.js";
 import {
   messageSetsFeature,
   readMessageSets,
+  type MessageSet,
 } from "../src/features/message-sets/v1.0.0.js";
 import {
   BotManager,
@@ -24,7 +25,7 @@ import type { fork } from "node:child_process";
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
 const feature = (
-  sets = [{ name: "Rules", presentationSlot: "set_1" }],
+  sets: MessageSet[] = [{ name: "Rules", presentationSlot: "set_1" }],
 ): RuntimeFeature => ({
   installationId: "install",
   code: "message-sets",
@@ -158,6 +159,7 @@ function interaction(
     isAutocomplete: () => !!options.autocomplete,
     isChatInputCommand: () => !options.autocomplete,
     options: {
+      getSubcommand: () => "send",
       getFocused: () => options.set ?? "",
       getString: () => options.set ?? "Rules",
     },
@@ -560,4 +562,97 @@ test("v1.1 registers subcommands and updates only messages authored by this bot"
   }
   assert.deepEqual(gates, Array(6).fill("info/update"));
   await dispose();
+});
+
+for (const module of [messageSetsFeature, messageSetsFeatureV11]) {
+  test(`${module.version}: role pings are per SET, opt-in, and follow hot reload`, async () => {
+    const client = new FakeClient();
+    const c = context(client);
+    const roleId = "123456789012345678";
+    c.presentations.set_1 = {
+      mode: "COMPONENTS_V2",
+      components_v2: { components: [{ type: 17, components: [
+        { type: 10, content: `<@&${roleId}> <@&${roleId}> @everyone @here <@123456789012345679>` },
+      ] }] },
+    };
+    const dispose = await module.activate(c);
+    const send = async (set = "Rules") => {
+      const i = interaction({ set });
+      Object.assign(i.value.guild!, {
+        id: "guild", members: { me: {} },
+        roles: { fetch: async () => new Map([[roleId, { mentionable: true }]]) },
+      });
+      Object.assign(i.value.channel!, {
+        isDMBased: () => false, permissionsFor: () => ({ has: () => false }),
+      });
+      client.emit("interactionCreate", i.value);
+      await settle();
+      return i;
+    };
+    assert.deepEqual((await send()).sent[0]?.allowedMentions, { parse: [] });
+    const next = feature([{ name: "Rules", presentationSlot: "set_1", allowRoleMentions: true }]);
+    next.presentations = { ...c.presentations, set_2: c.presentations.set_1! };
+    (next.config.MESSAGE_SETS as MessageSet[]).push({ name: "Quiet", presentationSlot: "set_2" });
+    await dispose.update!(next);
+    assert.deepEqual((await send()).sent[0]?.allowedMentions, { parse: [], roles: [roleId] });
+    assert.deepEqual((await send("Quiet")).sent[0]?.allowedMentions, { parse: [] });
+    next.config.MESSAGE_SETS = [{ name: "Rules", presentationSlot: "set_1", allowRoleMentions: false }];
+    await dispose.update!(next);
+    assert.deepEqual((await send()).sent[0]?.allowedMentions, { parse: [] });
+    await dispose();
+  });
+
+  test(`${module.version}: role mentions respect permissions and ignore embeds`, async () => {
+    const roleId = "123456789012345678";
+    for (const scenario of [
+      { mentionable: true, permission: false, allowed: true },
+      { mentionable: false, permission: true, allowed: true },
+      { mentionable: false, permission: false, allowed: false },
+      { missing: true, allowed: false },
+      { everyone: true, allowed: false },
+      { embedOnly: true, allowed: true },
+      { tooMany: true, allowed: false },
+    ]) {
+      const client = new FakeClient();
+      const c = context(client);
+      c.config.MESSAGE_SETS = [{ name: "Rules", presentationSlot: "set_1", allowRoleMentions: true }];
+      const content = scenario.tooMany
+        ? Array.from({ length: 101 }, (_, i) => `<@&${BigInt(roleId) + BigInt(i)}>`).join(" ")
+        : `<@&${roleId}> @everyone <@123456789012345679>`;
+      c.presentations.set_1 = {
+        mode: "EMBED",
+        embed: { title: `<@&${roleId}>`, description: `<@&${roleId}>`,
+          ...(scenario.embedOnly ? {} : { content }) },
+      };
+      const dispose = await module.activate(c);
+      const i = interaction();
+      let roleFetches = 0;
+      Object.assign(i.value.guild!, {
+        id: scenario.everyone ? roleId : "guild", members: { me: {} },
+        roles: { fetch: async () => {
+          roleFetches++;
+          return new Map(scenario.missing ? [] : [[roleId, { mentionable: scenario.mentionable }]]);
+        } },
+      });
+      Object.assign(i.value.channel!, {
+        isDMBased: () => false, permissionsFor: () => ({ has: () => scenario.permission === true }),
+      });
+      client.emit("interactionCreate", i.value);
+      await settle();
+      assert.equal(i.sent.length, scenario.allowed ? 1 : 0, JSON.stringify(scenario));
+      if (scenario.allowed) assert.deepEqual(i.sent[0]?.allowedMentions, {
+        parse: [], roles: scenario.embedOnly ? [] : [roleId],
+      });
+      else assertFeatureError(i.edits[0], "Message Sets", "MESSAGE_SET_SEND_FAILED");
+      if (scenario.embedOnly || scenario.tooMany) assert.equal(roleFetches, 0);
+      await dispose();
+    }
+  });
+}
+
+test("SET role mention flags must be booleans in both runtime versions", () => {
+  for (const value of ["true", "false", 1, null, []]) {
+    for (const read of [readMessageSets, readMessageSetsV11])
+      assert.throws(() => read([{ name: "Rules", presentationSlot: "set_1", allowRoleMentions: value }]));
+  }
 });

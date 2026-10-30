@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-31 | Added optional Role pings per Message SET with saved toggles and guidance for message content, Components V2 and Discord permissions. |
 | 2026-10-30 | Added grouped Ticket command/button options and custom cancellation notices with matching button previews and responsive Light/Dark controls. |
 | 2026-10-30 | Added Ticket counter/reset settings, per-topic welcome messages and monthly retention notices; load Price Reader helpers only when needed while preserving existing bundle budgets. |
 | 2026-10-30 | Grouped Ticket settings into topics/forms, behaviour, history and commands, with custom emoji/names, opening limits, closing permissions and archived-history labels. |
