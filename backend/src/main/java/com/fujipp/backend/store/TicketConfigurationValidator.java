@@ -31,6 +31,12 @@ final class TicketConfigurationValidator {
                     || !text(row.path("label"), 100, false) || !text(row.path("description"), 100, true)
                     || !id(row.path("categoryId"))) fail("Ticket categories require a unique key, label and Discord category ID");
             JsonNode roles = row.path("supportRoleIds");
+            if(row.has("welcome")) {
+                JsonNode welcome=row.path("welcome");
+                if(!welcome.isObject() || !text(welcome.path("title"),256,false) || !text(welcome.path("description"),3500,true)
+                    || !text(welcome.path("imageUrl"),2048,true) || (!welcome.path("imageUrl").asText().isEmpty() && !welcome.path("imageUrl").asText().matches("https://[^\\s]+")))
+                    fail("Topic welcome requires a title, description and optional HTTPS image URL");
+            }
             if (row.has("emoji")) {
                 String emoji = row.path("emoji").asText();
                 if (!row.path("emoji").isTextual() || emoji.length() > 100 || (!emoji.isEmpty()

@@ -15,6 +15,8 @@ import com.fujipp.backend.auth.AdminUserController;
         TicketHistoryController.class,
         AdminTicketHistoryController.class,
         RuntimeTicketController.class,
+        TicketCounterController.class,
+        AdminTicketCounterController.class,
         FeatureLicenseController.class,
         StoreOrderController.class,
         AdminFeatureController.class,

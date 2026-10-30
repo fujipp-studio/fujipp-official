@@ -29,4 +29,8 @@ public class RuntimeTicketController {
     void archive(@PathVariable UUID botId,@PathVariable String channelId,@Valid @RequestBody Archive request) {
         tickets.archive(botId,request.installationId(),channelId,request.messages());
     }
+    @PostMapping("/next-number")
+    ResponseEntity<Integer> nextNumber(@PathVariable UUID botId,@RequestParam UUID installationId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tickets.nextNumber(botId,installationId));
+    }
 }

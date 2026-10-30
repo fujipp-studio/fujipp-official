@@ -37,6 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         TicketHistoryController.class,
         AdminTicketHistoryController.class,
         RuntimeTicketController.class,
+        TicketCounterController.class,
+        AdminTicketCounterController.class,
         StoreOrderController.class,
         FeatureLicenseController.class,
         AdminFeatureController.class,
@@ -58,6 +60,8 @@ class StoreControllerTests {
     private TicketHistoryService ticketHistoryService;
     @MockitoBean
     private RuntimeTicketService runtimeTickets;
+    @MockitoBean
+    private TicketCounterService ticketCounters;
 
     @MockitoBean
     private AdminFeatureService adminFeatureService;
@@ -98,6 +102,19 @@ class StoreControllerTests {
         mockMvc.perform(put("/internal/v1/runtime/bots/"+UUID.randomUUID()+"/tickets/111111111111111111/archive")
                 .with(jwt()).contentType("application/json").content("{}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void ticketCounterUsesAuthenticatedOwnerScopeAndValidatesResetRange() throws Exception {
+        UUID botId=UUID.randomUUID();
+        String path="/api/v1/bots/"+botId+"/ticket-counter";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        authorizeUser();
+        when(ticketCounters.read(botId)).thenReturn(new TicketCounterService.Counter(42,false));
+        mockMvc.perform(get(path).with(jwt())).andExpect(status().isOk()).andExpect(jsonPath("$.nextNumber").value(42));
+        verify(ticketHistoryService).authorizeBot(anyString(),org.mockito.ArgumentMatchers.eq(botId),org.mockito.ArgumentMatchers.eq(false));
+        mockMvc.perform(put(path).with(jwt()).contentType("application/json").content("{\"nextNumber\":100000}")).andExpect(status().isBadRequest());
+        mockMvc.perform(put(path.replace("/bots/","/admin/bots/")).with(jwt()).contentType("application/json").content("{\"nextNumber\":0}")).andExpect(status().isForbidden());
     }
 
     @Test
