@@ -538,3 +538,65 @@ test('explicit closing users can invite but stale invitations stop once closing 
   assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
   assert.equal(f.records.get(room.id)?.state.status, 'CLOSING');
 });
+
+test('authorized no-auto-close commands disable the timer immediately and survive a restart', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setInterval'], now: Date.now() });
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ openedAt: Date.now(), autoCloseMode: 'OPENED', autoCloseMinutes: 1 })));
+  const other = f.makeChannel('999999999999999998', ticketTopic(installation, state({ openedAt: Date.now(), autoCloseMode: 'OPENED', autoCloseMinutes: 1 })));
+  const dispose = await ticketFeature.activate(f.context); await flush();
+  const command = f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'no-auto-close' } }); await command.send();
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 0);
+  assert.equal(f.records.get(room.id)?.state.exemption?.status, 'APPROVED');
+  assert.equal(f.records.get(room.id)?.state.exemption?.decidedBy, administrator);
+  assert.match(command.replies.at(-1).content, /ยกเลิกปิดอัตโนมัติ/);
+  assert.equal(room.sent.some((payload: any) => payload.components), false);
+  assert.equal((f.context.config.TICKET_CATEGORIES as TicketCategory[])[0]!.autoCloseMinutes, 60);
+  await dispose();
+  t.after(await ticketFeature.activate({ ...f.context, runtimeState: f.saves.at(-1) })); await flush();
+  t.mock.timers.tick(60001); await flush();
+  assert.equal(f.records.get(room.id)?.state.status, 'OPEN');
+  assert.equal(f.records.get(other.id)?.state.status, 'CLOSED');
+  assert.deepEqual(f.deleted, [other.id]);
+});
+
+test('configured closing roles and users can cancel a pending timer directly from private controls', async t => {
+  for (const behavior of [{ closeRoleIds: [staff], closeUserIds: [] }, { closeRoleIds: [], closeUserIds: [staff] }]) {
+    const f = fixture();
+    (f.context.config as any).TICKET_BEHAVIOR = { maxOpenPerUser: 1, confirmClose: true, ...behavior };
+    const requestedAt = Date.now() - 1000;
+    const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ exemption: { requestedBy: owner, requestedAt, status: 'PENDING' } })));
+    t.after(await ticketFeature.activate(f.context)); await flush();
+    const menu = f.interaction('button', { channelId: room.id, user: { id: staff }, customId: `${prefix}manage` }); await menu.send();
+    const control = menu.replies.at(-1).components[0].toJSON().components[1];
+    assert.equal(control.disabled, false); assert.equal(control.label, 'ยกเลิกปิดอัตโนมัติ');
+    await f.interaction('button', { channelId: room.id, user: { id: staff }, customId: `${prefix}request-exemption` }).send();
+    const saved = f.records.get(room.id)!.state;
+    assert.equal(saved.autoCloseMinutes, 0);
+    assert.equal(saved.exemption?.requestedBy, owner);
+    assert.equal(saved.exemption?.requestedAt, requestedAt);
+    assert.equal(saved.exemption?.status, 'APPROVED');
+    assert.equal(saved.exemption?.decidedBy, staff);
+  }
+});
+
+test('ordinary opener still requests approval and strangers cannot cancel timers', async t => {
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('command', { channelId: room.id, user: { id: stranger }, options: { getSubcommand: () => 'no-auto-close' } }).send();
+  assert.equal(f.records.get(room.id)?.state.exemption, undefined);
+  await f.interaction('command', { channelId: room.id, options: { getSubcommand: () => 'no-auto-close' } }).send();
+  assert.equal(f.records.get(room.id)?.state.exemption?.status, 'PENDING');
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
+});
+
+test('failed direct cancellation keeps the original deadline and posts no success', async t => {
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  f.failRegistry(true);
+  await f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'no-auto-close' } }).send();
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
+  assert.equal(room.sent.length, 0);
+});
