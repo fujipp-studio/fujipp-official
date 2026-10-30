@@ -4,7 +4,7 @@ import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
 import { shopStatusConfigKeys } from '../config/shop-status'
 import { messageSetsConfigKeys } from '../config/message-sets'
-import { priceReaderConfigKeys } from '../config/price-reader'
+import { priceReaderConfigKeys } from '../config/price-reader-keys'
 import { paymentTriggerConfigKeys } from '../config/payment-trigger'
 import { channelMessageTriggerConfigKeys } from '../config/channel-message-triggers'
 import { reviewCreditConfigKeys } from '../config/review-credit'
@@ -122,7 +122,10 @@ const genericFields = computed(
         (!isPriceReader.value || !priceReaderConfigKeys.has(field.key)) &&
         (!isMessageSets.value || !messageSetsConfigKeys.has(field.key)) &&
         (!isShopStatus.value || !shopStatusConfigKeys.has(field.key)) &&
-        (!isTicket.value || !['TICKET_COMMAND_NAME', 'TICKET_CATEGORIES', 'TICKET_DISCORD_HISTORY_ENABLED'].includes(field.key)),
+        (!isTicket.value ||
+          !['TICKET_COMMAND_NAME', 'TICKET_CATEGORIES', 'TICKET_DISCORD_HISTORY_ENABLED'].includes(
+            field.key,
+          )),
     ) ?? [],
 )
 
