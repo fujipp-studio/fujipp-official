@@ -90,6 +90,7 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
 }
 
 export interface TicketState {
+  participantIds?: string[];
   ticketNumber?: number;
   exemption?: { requestedBy: string; requestedAt: number; status: "PENDING" | "APPROVED" | "DENIED"; decidedBy?: string; decidedAt?: number };
   ownerId: string;
@@ -116,6 +117,7 @@ export function readTicketTopic(installationId: string, topic: string | null): T
       || !["OPEN", "CLOSING", "CLOSED"].includes(String(state.status))
       || !Array.isArray(state.supportRoleIds) || state.supportRoleIds.length > 10
       || !state.supportRoleIds.every((id) => typeof id === "string" && idPattern.test(id))) return null;
+    if (state.participantIds !== undefined && (!Array.isArray(state.participantIds) || state.participantIds.length > 25 || !state.participantIds.every(id => typeof id === "string" && idPattern.test(id)) || new Set(state.participantIds).size !== state.participantIds.length)) return null;
     return state as unknown as TicketState;
   } catch { return null; }
 }

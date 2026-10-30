@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { ApplicationFlagsBitField, ChannelType, Collection, PermissionFlagsBits, PermissionsBitField } from "discord.js";
+import { ApplicationFlagsBitField, ChannelType, Collection, OverwriteType, PermissionFlagsBits, PermissionsBitField } from "discord.js";
 import type { FeatureContext } from "../src/types.js";
 import { ticketFeature } from "../src/features/ticket/v1.0.0.js";
 import { getFeature } from "../src/feature-registry.js";
@@ -30,12 +30,13 @@ function fixture(rows = [category()], historyEnabled = false) {
   let archiveFails = false, deleteFails = false, registryFails = false, readAllowed = true, intentEnabled = true;
   let latest = Date.now(), historyFails = false, permissionsFail = false, sendsFail = false;
   const makeChannel = (id: string, topic: string | null = null) => {
+    const invited = new Set<string>();
     const channel: any = { id, name: "ticket-order", type: ChannelType.GuildText, topic, sent: [],
-      permissionsFor: (member: any) => ({ has: () => member.id !== stranger && (member.id !== botId || readAllowed) }),
+      permissionsFor: (member: any) => ({ has: () => (member.id !== stranger || invited.has(member.id)) && (member.id !== botId || readAllowed) }),
       isSendable: () => true, isDMBased: () => false, fetch: async () => channel,
       setTopic: async (next: string | null) => { channel.topic = next; return channel; },
       delete: async () => { if (deleteFails) throw Error("Delete failure"); assert.equal(records.get(id)?.archived, true); deleted.push(id); channels.delete(id); },
-      permissionOverwrites: { edit: async (id: string, patch: unknown) => { if (permissionsFail) throw Error("Permission failure"); overwrites.push({ id, patch }); } },
+      permissionOverwrites: { edit: async (id: string, patch: any, options: unknown) => { if (permissionsFail) throw Error("Permission failure"); if (patch.ViewChannel) invited.add(id); overwrites.push({ id, patch, options }); } },
       messages: { fetch: async (options: any) => { if (historyFails) throw Error("History unavailable"); return options.limit === 1 ? new Collection([["last", { createdTimestamp: latest }]]) : new Collection(); } },
       send: async (payload: any) => { if (sendsFail) throw Error("Send failure"); channel.sent.push(payload); return { id: "message" }; },
     };
@@ -47,6 +48,7 @@ function fixture(rows = [category()], historyEnabled = false) {
   const server = { id: serverId,
     roles: { cache: new Collection([[staff,{id:staff}]]), everyone: { id: serverId }, fetch: async (id: string) => ({ id }) },
     members: { me: { id: botId }, fetchMe: async () => ({ id: botId }), fetch: async ({ user }: { user: string }) => ({
+      id: user, user: { id: user, bot: user === botId },
       permissions: new PermissionsBitField(user === administrator ? [PermissionFlagsBits.Administrator] : []), roles: { cache: new Collection(user === staff ? [[staff, {}]] : []) },
     }) },
     channels: { cache: channels,
@@ -79,16 +81,16 @@ function fixture(rows = [category()], historyEnabled = false) {
     saveRuntimeState: async (value: any) => { saves.push(value); },
     reportFeatureError: async (...args: any[]) => { errors.push(args); },
   } as unknown as FeatureContext;
-  function interaction(kind: "select" | "modal" | "button" | "command", options: any = {}) {
+  function interaction(kind: "select" | "user-select" | "modal" | "button" | "command", options: any = {}) {
     const replies: any[] = [];
     const value: any = {
       guildId: serverId, channelId: panel.id, user: { id: owner, displayName: "Alice", username: "Alice" },
-      customId: `${prefix}${kind === "select" ? "select" : kind === "modal" ? "form:order" : "close"}`,
+      customId: `${prefix}${kind === "select" ? "select" : kind === "modal" ? "form:order" : kind === "user-select" ? "add-user" : "close"}`,
       commandName: "ticket", commandId: "command", options: { getSubcommand: () => "panel" },
       values: ["order"], message: { author: { id: botId } },
       fields: { getTextInputValue: () => "VIP @everyone" },
       isChatInputCommand: () => kind === "command", isStringSelectMenu: () => kind === "select",
-      isModalSubmit: () => kind === "modal", isButton: () => kind === "button",
+      isUserSelectMenu: () => kind === "user-select", isModalSubmit: () => kind === "modal", isButton: () => kind === "button",
       reply: async (payload: any) => { value.replied = true; replies.push(payload); },
       editReply: async (payload: any) => { replies.push(payload); },
       deferReply: async () => { value.deferred = true; }, deferUpdate: async () => { value.deferred = true; },
@@ -422,4 +424,117 @@ test('a pending exemption does not postpone a fixed deadline', async t => {
   t.mock.timers.tick(60001); await flush();
   assert.equal(f.records.get(room.id)?.state.status, 'CLOSED');
   assert.deepEqual(f.deleted,[room.id]);
+});
+
+test('participant state accepts legacy tickets and rejects malformed, duplicate or excessive members', () => {
+  assert.deepEqual(readTicketTopic(installation, ticketTopic(installation, state({ participantIds: [stranger] })))?.participantIds, [stranger]);
+  for (const participantIds of [null, {}, [123], ['bad-id'], [stranger, stranger], Array(26).fill(stranger)]) {
+    assert.equal(readTicketTopic(installation, ticketTopic(installation, { ...state(), participantIds } as any)), null);
+  }
+});
+
+test('private member picker and forged selections enforce current closing permissions', async t => {
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  for (const user of [owner, stranger, administrator]) {
+    const menu = f.interaction('button', { channelId: room.id, user: { id: user }, customId: `${prefix}manage` }); await menu.send();
+    const picker = menu.replies.at(-1).components[1].toJSON().components[0];
+    assert.equal(picker.type, 5); assert.equal(picker.max_values, 1);
+    assert.equal(picker.disabled, user !== administrator);
+  }
+  for (const user of [owner, stranger]) {
+    await f.interaction('user-select', { channelId: room.id, user: { id: user }, values: [staff] }).send();
+  }
+  assert.equal(f.overwrites.length, 0);
+  assert.equal(f.records.get(room.id)?.state.participantIds, undefined);
+  // A matching custom ID on someone else's message is ignored entirely.
+  const spoof = f.interaction('user-select', { channelId: room.id, user: { id: administrator }, values: [staff], message: { author: { id: stranger } } }); await spoof.send();
+  assert.equal(spoof.replies.length, 0);
+});
+
+test('adding a member persists access across restarts without granting closing privileges', async t => {
+  const f = fixture(undefined, true);
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  const dispose = await ticketFeature.activate(f.context); await flush();
+  await f.interaction('user-select', { channelId: room.id, user: { id: administrator }, values: [stranger] }).send();
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
+  const overwrite = f.overwrites[0];
+  assert.equal(overwrite.id, stranger);
+  assert.equal(overwrite.options.type, OverwriteType.Member);
+  assert.deepEqual(overwrite.patch, { ViewChannel: true, ReadMessageHistory: true, SendMessages: true, AttachFiles: true, EmbedLinks: true, CreatePublicThreads: false, CreatePrivateThreads: false, SendMessagesInThreads: false });
+  assert.deepEqual(room.sent.at(-1).allowedMentions, { parse: [] });
+  await dispose();
+  t.after(await ticketFeature.activate({ ...f.context, runtimeState: f.saves.at(-1) })); await flush();
+  const history = f.interaction('button', { channelId: room.id, user: { id: stranger }, customId: `${prefix}history` }); await history.send();
+  assert.equal(history.replies.at(-1).files.length, 1);
+  const close = f.interaction('button', { channelId: room.id, user: { id: stranger }, customId: `${prefix}confirm-close` }); await close.send();
+  assert.equal(f.deleted.length, 0);
+  const menu = f.interaction('button', { channelId: room.id, user: { id: stranger }, customId: `${prefix}manage` }); await menu.send();
+  assert.equal(menu.replies.at(-1).components[0].toJSON().components[0].disabled, true);
+  await f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}confirm-close` }).send();
+  assert.deepEqual(f.overwrites.slice(1).map(entry => entry.id).sort(), [owner, stranger].sort());
+  assert.equal(f.overwrites.slice(1).every(entry => entry.patch.SendMessages === false && entry.patch.SendMessagesInThreads === false), true);
+  assert.deepEqual(f.deleted, [room.id]);
+});
+
+test('failed participant persistence never grants access and failed permissions roll state back for retry', async t => {
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const invite = () => f.interaction('user-select', { channelId: room.id, user: { id: administrator }, values: [stranger] }).send();
+  f.failRegistry(true); await invite();
+  assert.equal(f.overwrites.length, 0);
+  f.failRegistry(false); f.failPermissions(true); await invite();
+  assert.equal(f.records.get(room.id)?.state.participantIds, undefined);
+  f.failPermissions(false); await invite(); await invite();
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
+});
+
+test('configured closing roles can invite by slash command while bots and nonmembers are rejected', async t => {
+  const f = fixture();
+  (f.context.config as any).TICKET_BEHAVIOR = { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [staff], closeUserIds: [] };
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const command = f.commands.get('command').options.find((option: any) => option.name === 'add-user');
+  assert.equal(command.options[0].name, 'member'); assert.equal(command.options[0].required, true);
+  await f.interaction('command', { channelId: room.id, user: { id: staff }, options: { getSubcommand: () => 'add-user', getUser: () => ({ id: stranger }) } }).send();
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
+  await f.interaction('user-select', { channelId: room.id, user: { id: administrator }, values: [botId] }).send();
+  const server = await f.client.guilds.fetch();
+  const fetch = server.members.fetch;
+  server.members.fetch = async (options: any) => { if (options.user === owner) throw Error('Unknown Member'); return fetch(options); };
+  await f.interaction('user-select', { channelId: room.id, user: { id: administrator }, values: [owner] }).send();
+  assert.equal(f.overwrites.length, 1);
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
+});
+
+test('participant limit disables the picker and rejects stale selections without altering access', async t => {
+  const f = fixture();
+  const participants = Array.from({ length: 25 }, (_, index) => String(100000000000000000n + BigInt(index)));
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ participantIds: participants })));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const menu = f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}manage` }); await menu.send();
+  assert.equal(menu.replies.at(-1).components[1].toJSON().components[0].disabled, true);
+  await f.interaction('user-select', { channelId: room.id, user: { id: administrator }, values: [stranger] }).send();
+  assert.equal(f.overwrites.length, 0);
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, participants);
+});
+
+test('explicit closing users can invite but stale invitations stop once closing begins', async t => {
+  const f = fixture();
+  (f.context.config as any).TICKET_BEHAVIOR = { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [], closeUserIds: [staff] };
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state()));
+  const dispose = await ticketFeature.activate(f.context); await flush();
+  await f.interaction('user-select', { channelId: room.id, user: { id: staff }, values: [stranger] }).send();
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
+  await dispose();
+  f.records.get(room.id)!.state.status = 'CLOSING';
+  f.failArchive();
+  t.after(await ticketFeature.activate({ ...f.context, runtimeState: f.saves.at(-1) })); await flush();
+  const before = f.overwrites.length;
+  await f.interaction('user-select', { channelId: room.id, user: { id: staff }, values: [staff] }).send();
+  assert.equal(f.overwrites.length, before);
+  assert.deepEqual(f.records.get(room.id)?.state.participantIds, [stranger]);
+  assert.equal(f.records.get(room.id)?.state.status, 'CLOSING');
 });

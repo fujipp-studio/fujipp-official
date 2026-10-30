@@ -1,10 +1,10 @@
 import {
   ActionRowBuilder, ApplicationFlagsBitField, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags,
-  ModalBuilder, LabelBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
+  ModalBuilder, LabelBuilder, OverwriteType, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder,
   TextInputBuilder, TextInputStyle, escapeMarkdown,
   type Interaction, type TextChannel, type MessageCreateOptions, type GuildBasedChannel,
   type ModalSubmitInteraction, type StringSelectMenuInteraction, type ButtonInteraction,
-  type ChatInputCommandInteraction,
+  type ChatInputCommandInteraction, type UserSelectMenuInteraction,
 } from "discord.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 import { renderTemplate } from "../presentation.js";
@@ -13,7 +13,7 @@ import { ticketArchive, ticketTranscript } from "./history.js";
 import { replyFeatureError } from "../errors.js";
 import { readTicketConfig, readTicketTopic, ticketDue, ticketChannelName, type TicketCategory, type TicketState } from "./config.js";
 
-type TicketInteraction = ChatInputCommandInteraction | ModalSubmitInteraction | StringSelectMenuInteraction | ButtonInteraction;
+type TicketInteraction = ChatInputCommandInteraction | ModalSubmitInteraction | StringSelectMenuInteraction | UserSelectMenuInteraction | ButtonInteraction;
 
 export const ticketFeature: FeatureModule = {
   runtimeKey: "ticket",
@@ -79,10 +79,10 @@ export const ticketFeature: FeatureModule = {
       const application = await context.client.application!.fetch();
       if (!application.flags?.any([ApplicationFlagsBitField.Flags.GatewayMessageContent, ApplicationFlagsBitField.Flags.GatewayMessageContentLimited]))
         throw new Error("เปิด Message Content Intent ใน Discord Developer Portal ก่อน เพื่อเก็บแชทได้ครบ ระบบยังไม่ลบห้อง");
-      await channel.permissionOverwrites.edit(state.ownerId, {
+      await Promise.all([...new Set([state.ownerId, ...(state.participantIds ?? [])])].map(id => channel.permissionOverwrites.edit(id, {
         SendMessages: false, AddReactions: false, CreatePublicThreads: false,
         CreatePrivateThreads: false, SendMessagesInThreads: false,
-      });
+      }, { type: OverwriteType.Member, reason: "Ticket closing" })));
       const messages = await ticketArchive(channel, () => stopped);
       await context.tickets.archive(channel.id, messages);
       tickets.get(channel.id)!.archived = true;
@@ -96,7 +96,7 @@ export const ticketFeature: FeatureModule = {
         || config.behavior.closeRoleIds.some((id) => member.roles.cache.has(id));
     };
     const canRead = async (interaction: TicketInteraction, state: TicketState) => {
-      if (interaction.user.id === state.ownerId || await canClose(interaction)) return true;
+      if (interaction.user.id === state.ownerId || state.participantIds?.includes(interaction.user.id) || await canClose(interaction)) return true;
       const member = await (await guild()).members.fetch({ user: interaction.user.id, force: true });
       return state.supportRoleIds.some(id => member.roles.cache.has(id));
     };
@@ -113,7 +113,11 @@ export const ticketFeature: FeatureModule = {
       new ButtonBuilder().setCustomId(`${prefix}approve-exemption`).setLabel("อนุมัติยกเว้น").setStyle(ButtonStyle.Success).setDisabled(!allowed || state.status !== "OPEN"),
       new ButtonBuilder().setCustomId(`${prefix}deny-exemption`).setLabel("ปฏิเสธคำขอ").setStyle(ButtonStyle.Secondary).setDisabled(!allowed || state.status !== "OPEN"),
     );
-    await interaction.editReply({content:`จัดการตั๋ว${state.ticketNumber === undefined ? "" : ` #${String(state.ticketNumber).padStart(5,"0")}`} · ${allowed ? "คุณมีสิทธิ์ปิดตั๋ว" : "คุณไม่มีสิทธิ์ปิดตั๋ว"}${requestPending ? "\nมีคำขอยกเว้นปิดอัตโนมัติรออนุมัติ" : ""}`,components:[controls,...(requestPending?[decisions]:[])],allowedMentions:{parse:[]}});
+    const invite = new ActionRowBuilder<UserSelectMenuBuilder>().addComponents(
+      new UserSelectMenuBuilder().setCustomId(`${prefix}add-user`).setPlaceholder("เพิ่มสมาชิกเข้าร่วมตั๋ว")
+        .setMinValues(1).setMaxValues(1).setDisabled(!allowed || state.status !== "OPEN" || (state.participantIds?.length ?? 0) >= 25),
+    );
+    await interaction.editReply({content:`จัดการตั๋ว${state.ticketNumber === undefined ? "" : ` #${String(state.ticketNumber).padStart(5,"0")}`} · ${allowed ? "คุณมีสิทธิ์ปิดตั๋ว" : "คุณไม่มีสิทธิ์ปิดตั๋ว"}${requestPending ? "\nมีคำขอยกเว้นปิดอัตโนมัติรออนุมัติ" : ""}`,components:[controls,invite,...(requestPending?[decisions]:[])],allowedMentions:{parse:[]}});
     };
     const open = async (interaction: TicketInteraction, category: TicketCategory, answers: Array<{ label: string; value: string }>) => {
       const server = await guild();
@@ -196,7 +200,7 @@ export const ticketFeature: FeatureModule = {
         }
       } else {
         if (!interaction.customId.startsWith(prefix)) return;
-        if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.message.author.id !== context.client.user?.id) return;
+        if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) && interaction.message.author.id !== context.client.user?.id) return;
         if (interaction.isStringSelectMenu()) {
           if (interaction.customId !== `${prefix}select`) return;
           const category = categoryFor(interaction.values[0] ?? "");
@@ -228,7 +232,7 @@ export const ticketFeature: FeatureModule = {
           await serialize(() => open(interaction, category, answers));
           return;
         }
-        if (![`${prefix}manage`, `${prefix}request-exemption`, `${prefix}approve-exemption`, `${prefix}deny-exemption`, `${prefix}close`, `${prefix}confirm-close`, `${prefix}history`].includes(interaction.customId)) return;
+        if (![`${prefix}add-user`, `${prefix}manage`, `${prefix}request-exemption`, `${prefix}approve-exemption`, `${prefix}deny-exemption`, `${prefix}close`, `${prefix}confirm-close`, `${prefix}history`].includes(interaction.customId)) return;
       }
       const confirming = interaction.isButton() && interaction.customId === `${prefix}confirm-close`;
       if (confirming) await interaction.deferUpdate();
@@ -237,7 +241,35 @@ export const ticketFeature: FeatureModule = {
       if (!channel || channel.type !== ChannelType.GuildText) throw new Error("คำสั่งนี้ใช้ได้เฉพาะในห้อง Ticket");
       const state = tickets.get(channel.id)?.state;
       if (!state) throw new Error("ห้องนี้ไม่ใช่ตั๋วของ Feature นี้");
-      const action = interaction.isButton() ? interaction.customId.slice(prefix.length) : interaction.isChatInputCommand() ? interaction.options.getSubcommand() : "";
+      const action = (interaction.isButton() || interaction.isUserSelectMenu()) ? interaction.customId.slice(prefix.length) : interaction.isChatInputCommand() ? interaction.options.getSubcommand() : "";
+      if (action === "add-user") {
+        await serialize(async () => {
+          const current = tickets.get(channel.id)?.state;
+          if (!current || current.status !== "OPEN") throw new Error("เพิ่มสมาชิกได้เฉพาะตั๋วที่ยังเปิดอยู่");
+          if (!await canClose(interaction)) throw new Error("เฉพาะผู้มีสิทธิ์ปิดตั๋วเท่านั้นที่เพิ่มสมาชิกได้");
+          const id = interaction.isUserSelectMenu() ? interaction.values[0] : interaction.isChatInputCommand() ? interaction.options.getUser("member",true).id : undefined;
+          if (!id || !/^\d{15,30}$/.test(id)) throw new Error("กรุณาเลือกสมาชิกหนึ่งคนในเซิร์ฟเวอร์นี้");
+          const member = await (await guild()).members.fetch({ user: id, force: true });
+          if (member.user.bot) throw new Error("กรุณาเลือกสมาชิกที่ไม่ใช่บอท");
+          if (id === current.ownerId) { await interaction.editReply({ content: "สมาชิกคนนี้เป็นผู้เปิดตั๋วอยู่แล้ว", components: [] }); return; }
+          const participants = current.participantIds ?? [];
+          const alreadyAdded = participants.includes(id);
+          if (!alreadyAdded && participants.length >= 25) throw new Error("ตั๋วนี้เพิ่มผู้ร่วมได้สูงสุด 25 คน");
+          if (!alreadyAdded) await saveTicket(channel.id,channel.name,{...current,participantIds:[...participants,id]});
+          try {
+            await channel.permissionOverwrites.edit(id,{
+              ViewChannel:true,ReadMessageHistory:true,SendMessages:true,AttachFiles:true,EmbedLinks:true,
+              CreatePublicThreads:false,CreatePrivateThreads:false,SendMessagesInThreads:false,
+            },{type:OverwriteType.Member,reason:`Ticket participant added by ${interaction.user.id}`});
+          } catch(error) {
+            if (!alreadyAdded) await saveTicket(channel.id,channel.name,current).catch(e=>report("TICKET_PARTICIPANT_STATE_FAILED",e));
+            throw error;
+          }
+          await interaction.editReply({content:`เพิ่ม <@${id}> เข้าร่วมตั๋วแล้ว สามารถอ่านและคุยได้ โดยไม่เพิ่มสิทธิ์ปิดตั๋ว`,components:[],allowedMentions:{parse:[]}});
+          await channel.send({content:`เพิ่ม <@${id}> เข้าร่วมตั๋ว โดย <@${interaction.user.id}>`,allowedMentions:{parse:[]}});
+        });
+        return;
+      }
       if (action === "manage") { await showControls(interaction,state); return; }
       if (["no-auto-close","request-exemption","approve-exemption","deny-exemption"].includes(action)) {
         await serialize(async () => {
@@ -336,6 +368,7 @@ export const ticketFeature: FeatureModule = {
         .setDMPermission(false)
         .addSubcommand((sub) => sub.setName("panel").setDescription("ส่งแผงเลือกหัวข้อเปิดตั๋ว"))
         .addSubcommand((sub) => sub.setName("close").setDescription("ขอปิดตั๋วในห้องนี้"))
+        .addSubcommand((sub) => sub.setName("add-user").setDescription("เพิ่มสมาชิกเข้าร่วมตั๋วนี้").addUserOption(option => option.setName("member").setDescription("สมาชิกที่จะเพิ่มเข้าตั๋ว").setRequired(true)))
         .addSubcommand((sub) => sub.setName("no-auto-close").setDescription("ส่งคำขอยกเว้นการปิดอัตโนมัติสำหรับตั๋วนี้"));
       if (config.discordHistoryEnabled) definition.addSubcommand((sub) => sub.setName("history").setDescription("อ่านและดาวน์โหลดประวัติแชทตั๋วนี้"));
       const command = await commands.create(definition.toJSON());
@@ -363,7 +396,7 @@ export const ticketFeature: FeatureModule = {
       });
     };
     const onInteraction = (interaction: Interaction) => {
-      if (!interaction.isChatInputCommand() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit() && !interaction.isButton()) return;
+      if (!interaction.isChatInputCommand() && !interaction.isStringSelectMenu() && !interaction.isModalSubmit() && !interaction.isButton() && !interaction.isUserSelectMenu()) return;
       // Ignore unrelated interactions before handling errors or acknowledgements.
       if (interaction.isChatInputCommand() ? interaction.commandName !== config.command || interaction.commandId !== commandId : !interaction.customId.startsWith(prefix)) return;
       track(handle(interaction).catch(async (error: unknown) => {

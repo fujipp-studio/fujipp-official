@@ -73,6 +73,16 @@ class RuntimeTicketService {
     static void validateState(JsonNode state) {
         if(state==null||!state.isObject()||state.toString().length()>8192) throw new StoreValidationException("Invalid Ticket state");
         id(state.path("ownerId").asText());
+        if(state.has("participantIds")) {
+            JsonNode participants=state.path("participantIds");
+            if(!participants.isArray() || participants.size()>25) throw new StoreValidationException("Configure at most 25 Ticket participants");
+            var unique=new HashSet<String>();
+            for(JsonNode participant:participants) {
+                if(!participant.isTextual()) throw new StoreValidationException("Invalid Ticket participant ID");
+                id(participant.asText());
+                if(!unique.add(participant.asText())) throw new StoreValidationException("Duplicate Ticket participant");
+            }
+        }
         if(state.has("ticketNumber") && (!state.path("ticketNumber").isIntegralNumber() || !state.path("ticketNumber").canConvertToInt() || state.path("ticketNumber").asInt()<0 || state.path("ticketNumber").asInt()>99999))
             throw new StoreValidationException("Invalid Ticket number");
         if(state.has("exemption")) {
