@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Documented immediate per-ticket auto-close cancellation for authorized closers and the approval flow for ordinary openers. |
 | 2026-10-30 | Documented Ticket participant invitations, permissions, restart persistence and deployment without an additional migration. |
 | 2026-10-30 | Documented Ticket numbering/reset, topic welcomes, private controls, timer exemptions and monthly archive retention in Thailand time. |
 | 2026-10-30 | Documented Ticket deletion, close permissions, channel naming, legacy topic import, archive limits and deployment order. |

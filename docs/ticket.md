@@ -140,7 +140,13 @@ Existing tickets retain the timer policy and support roles captured when opened.
 
 ## Requests to keep a ticket open
 
-The opener can use `/ticket no-auto-close` or the private management menu to
+An administrator or configured closing role/user can use `/ticket no-auto-close`
+in the ticket room to disable automatic closing immediately. The private menu's
+**Cancel automatic closing** button does the same, including when a request is
+already pending. The exemption survives restarts and affects only this ticket;
+manual closing remains available to authorized closers.
+
+An ordinary opener can use the same command or the private management menu to
 request an exemption. Only one request can be pending. A request posts a notice
 in the ticket; authorized closers approve or reject in their private menu.
 Pending/rejected requests keep the original deadline. Approval sets this

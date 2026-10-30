@@ -106,7 +106,7 @@ export const ticketFeature: FeatureModule = {
     const requestPending = state.exemption?.status === "PENDING";
     const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger).setDisabled(!allowed || state.status === "CLOSED"),
-      new ButtonBuilder().setCustomId(`${prefix}request-exemption`).setLabel("ขอยกเว้นปิดอัตโนมัติ").setStyle(ButtonStyle.Secondary).setDisabled(interaction.user.id !== state.ownerId || state.status !== "OPEN" || !state.autoCloseMinutes || requestPending),
+      new ButtonBuilder().setCustomId(`${prefix}request-exemption`).setLabel(allowed ? "ยกเลิกปิดอัตโนมัติ" : "ขอยกเว้นปิดอัตโนมัติ").setStyle(ButtonStyle.Secondary).setDisabled(state.status !== "OPEN" || !state.autoCloseMinutes || (!allowed && (interaction.user.id !== state.ownerId || requestPending))),
       ...(config.discordHistoryEnabled ? [historyButton().setDisabled(!readable)] : []),
     );
     const decisions = new ActionRowBuilder<ButtonBuilder>().addComponents(
@@ -276,6 +276,13 @@ export const ticketFeature: FeatureModule = {
           const current = tickets.get(channel.id)?.state;
           if (!current || current.status !== "OPEN" || !current.autoCloseMinutes) throw new Error("ตั๋วนี้ไม่ได้ตั้งเวลาปิดอัตโนมัติ หรือกำลังปิดแล้ว");
           if (action === "no-auto-close" || action === "request-exemption") {
+            if (await canClose(interaction)) {
+              const requested = current.exemption?.status === "PENDING" ? current.exemption : { requestedBy: interaction.user.id, requestedAt: Date.now() };
+              await saveTicket(channel.id,channel.name,{...current,autoCloseMinutes:0,exemption:{...requested,status:"APPROVED",decidedBy:interaction.user.id,decidedAt:Date.now()}});
+              await interaction.editReply({content:"ยกเลิกปิดอัตโนมัติให้ตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง",components:[]});
+              await channel.send({content:"ผู้ดูแลยกเลิกการปิดอัตโนมัติให้ตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง",allowedMentions:{parse:[]}});
+              return;
+            }
             if (interaction.user.id !== current.ownerId) throw new Error("เฉพาะผู้เปิดตั๋วส่งคำขอยกเว้นได้");
             if (current.exemption?.status === "PENDING") throw new Error("มีคำขอรออนุมัติอยู่แล้ว");
             await saveTicket(channel.id,channel.name,{...current,exemption:{requestedBy:interaction.user.id,requestedAt:Date.now(),status:"PENDING"}});
@@ -369,7 +376,7 @@ export const ticketFeature: FeatureModule = {
         .addSubcommand((sub) => sub.setName("panel").setDescription("ส่งแผงเลือกหัวข้อเปิดตั๋ว"))
         .addSubcommand((sub) => sub.setName("close").setDescription("ขอปิดตั๋วในห้องนี้"))
         .addSubcommand((sub) => sub.setName("add-user").setDescription("เพิ่มสมาชิกเข้าร่วมตั๋วนี้").addUserOption(option => option.setName("member").setDescription("สมาชิกที่จะเพิ่มเข้าตั๋ว").setRequired(true)))
-        .addSubcommand((sub) => sub.setName("no-auto-close").setDescription("ส่งคำขอยกเว้นการปิดอัตโนมัติสำหรับตั๋วนี้"));
+        .addSubcommand((sub) => sub.setName("no-auto-close").setDescription("ยกเลิกปิดอัตโนมัติทันทีสำหรับผู้ดูแล หรือส่งคำขอสำหรับผู้เปิดตั๋ว"));
       if (config.discordHistoryEnabled) definition.addSubcommand((sub) => sub.setName("history").setDescription("อ่านและดาวน์โหลดประวัติแชทตั๋วนี้"));
       const command = await commands.create(definition.toJSON());
       const old = runtimeState.previousCommandId ?? runtimeState.commandId;
