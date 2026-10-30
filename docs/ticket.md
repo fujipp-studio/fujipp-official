@@ -31,6 +31,12 @@ category, up to 10 support roles, a description, optional emoji and room name.
 An emoji may be a Unicode emoji, `<:name:123456789012345678>` or animated
 `<a:name:123456789012345678>`. Custom emoji must be usable by the Discord bot.
 Post a new panel after changing dropdown labels, descriptions or emoji.
+After each topic selection, the panel refreshes back to **Choose a topic to open
+a ticket** with no selected option. This also happens after showing a form,
+even if the member cancels it, and when an opening attempt is rejected. Existing
+panels remain supported. The refresh preserves the welcome design and other
+controls, runs separately from opening, and reports edit failures without
+blocking form submission or channel creation.
 
 The default `channelNameTemplate` is `ticket-{{topic}}-{{id}}`. Supported tokens:
 
