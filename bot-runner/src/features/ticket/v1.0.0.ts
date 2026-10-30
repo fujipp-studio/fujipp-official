@@ -2,12 +2,13 @@ import {
   ActionRowBuilder, ApplicationFlagsBitField, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags,
   ModalBuilder, LabelBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder,
   TextInputBuilder, TextInputStyle, escapeMarkdown,
-  type Interaction, type TextChannel, type MessageCreateOptions,
+  type Interaction, type TextChannel, type MessageCreateOptions, type GuildBasedChannel,
   type ModalSubmitInteraction, type StringSelectMenuInteraction, type ButtonInteraction,
   type ChatInputCommandInteraction,
 } from "discord.js";
 import type { FeatureContext, FeatureModule } from "../../types.js";
 import { renderTemplate } from "../presentation.js";
+import { ticketOpeningMessages } from "./messages.js";
 import { ticketArchive, ticketTranscript } from "./history.js";
 import { replyFeatureError } from "../errors.js";
 import { readTicketConfig, readTicketTopic, ticketDue, ticketChannelName, type TicketCategory, type TicketState } from "./config.js";
@@ -29,6 +30,7 @@ export const ticketFeature: FeatureModule = {
     let runtimeState = { ...context.runtimeState };
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     let sweeping = false;
+    let ticketsLoaded = false;
     const pending = new Set<Promise<unknown>>();
     const exporting = new Set<string>();
     const tickets = new Map<string, { name: string; state: TicketState; archived: boolean }>();
@@ -43,7 +45,7 @@ export const ticketFeature: FeatureModule = {
       queue = next.then(() => undefined, () => undefined);
       return next;
     };
-    const guild = () => context.client.guilds.fetch(context.guildId!);
+    const guild = () => Promise.resolve(context.client.guilds.cache?.get(context.guildId!) ?? context.client.guilds.fetch(context.guildId!));
     const categoryFor = (key: string) => {
       const row = config.categories.find((item) => item.key === key);
       if (!row) throw new Error("หัวข้อนี้เปลี่ยนแล้ว กรุณาเลือกหัวข้อจากแผงล่าสุด");
@@ -53,8 +55,11 @@ export const ticketFeature: FeatureModule = {
       await context.tickets.save(channelId, name, state);
       tickets.set(channelId, { name, state, archived: tickets.get(channelId)?.archived ?? false });
     };
-    const syncTickets = async (channels: Awaited<ReturnType<Awaited<ReturnType<typeof guild>>["channels"]["fetch"]>>) => {
-      for (const entry of await context.tickets.list()) tickets.set(entry.channelId, entry);
+    const syncTickets = async (channels: ReadonlyMap<string, GuildBasedChannel | null>) => {
+      const entries = await context.tickets.list();
+      const retained = new Set(entries.map(entry => entry.channelId));
+      for (const [id,entry] of tickets) if (entry.state.status === "CLOSED" && !retained.has(id)) tickets.delete(id);
+      for (const entry of entries) tickets.set(entry.channelId, entry);
       // Import old topic metadata before clearing it. Ordinary topics are untouched.
       for (const channel of channels.values()) {
         if (channel?.type !== ChannelType.GuildText) continue;
@@ -63,6 +68,7 @@ export const ticketFeature: FeatureModule = {
         if (!tickets.has(channel.id)) await saveTicket(channel.id, channel.name, legacy);
         await channel.setTopic(null);
       }
+      ticketsLoaded = true;
     };
     const close = async (channel: TextChannel, state: TicketState, actor: string) => {
       state = { ...state, status: "CLOSING" };
@@ -94,35 +100,53 @@ export const ticketFeature: FeatureModule = {
       const member = await (await guild()).members.fetch({ user: interaction.user.id, force: true });
       return state.supportRoleIds.some(id => member.roles.cache.has(id));
     };
+    const showControls = async (interaction: TicketInteraction, state: TicketState) => {
+    const allowed = await canClose(interaction);
+    const readable = await canRead(interaction,state);
+    const requestPending = state.exemption?.status === "PENDING";
+    const controls = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger).setDisabled(!allowed || state.status === "CLOSED"),
+      new ButtonBuilder().setCustomId(`${prefix}request-exemption`).setLabel("ขอยกเว้นปิดอัตโนมัติ").setStyle(ButtonStyle.Secondary).setDisabled(interaction.user.id !== state.ownerId || state.status !== "OPEN" || !state.autoCloseMinutes || requestPending),
+      ...(config.discordHistoryEnabled ? [historyButton().setDisabled(!readable)] : []),
+    );
+    const decisions = new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder().setCustomId(`${prefix}approve-exemption`).setLabel("อนุมัติยกเว้น").setStyle(ButtonStyle.Success).setDisabled(!allowed || state.status !== "OPEN"),
+      new ButtonBuilder().setCustomId(`${prefix}deny-exemption`).setLabel("ปฏิเสธคำขอ").setStyle(ButtonStyle.Secondary).setDisabled(!allowed || state.status !== "OPEN"),
+    );
+    await interaction.editReply({content:`จัดการตั๋ว${state.ticketNumber === undefined ? "" : ` #${String(state.ticketNumber).padStart(5,"0")}`} · ${allowed ? "คุณมีสิทธิ์ปิดตั๋ว" : "คุณไม่มีสิทธิ์ปิดตั๋ว"}${requestPending ? "\nมีคำขอยกเว้นปิดอัตโนมัติรออนุมัติ" : ""}`,components:[controls,...(requestPending?[decisions]:[])],allowedMentions:{parse:[]}});
+    };
     const open = async (interaction: TicketInteraction, category: TicketCategory, answers: Array<{ label: string; value: string }>) => {
       const server = await guild();
-      const channels = await server.channels.fetch();
-      await syncTickets(channels);
+      const startedAt = Date.now();
+      const channels = server.channels.cache ?? await server.channels.fetch();
+      if (!ticketsLoaded) await syncTickets(channels);
       const existing = [...tickets.entries()].filter(([id, entry]) => channels.has(id) && entry.state.ownerId === interaction.user.id && entry.state.status !== "CLOSED");
       if (existing.length >= config.behavior.maxOpenPerUser) {
         await interaction.editReply({ content: `คุณเปิดตั๋วค้างได้สูงสุด ${config.behavior.maxOpenPerUser} ตั๋ว: ${existing.map(([id]) => `<#${id}>`).join(" ")}`, allowedMentions: { parse: [] } });
         return;
       }
-      const parent = channels.get(category.categoryId);
+      const parent = channels.get(category.categoryId) ?? await server.channels.fetch(category.categoryId);
       if (!parent || parent.type !== ChannelType.GuildCategory) throw new Error("ไม่พบหมวดห้อง Discord ของหัวข้อนี้ กรุณาแจ้งผู้ดูแล");
       const me = server.members.me ?? await server.members.fetchMe();
       const teamRoles = [...new Set([...category.supportRoleIds, ...config.behavior.closeRoleIds])];
       if (teamRoles.includes(server.id)) throw new Error("ทีมดูแลต้องไม่ใช้ Role @everyone");
-      for (const roleId of teamRoles) {
-        const role = await server.roles.fetch(roleId);
+      await Promise.all(teamRoles.map(async roleId => {
+        const role = server.roles.cache?.get(roleId) ?? await server.roles.fetch(roleId);
         if (!role || role.id === server.roles.everyone.id) throw new Error(`ไม่พบ Role ทีมดูแล: ${roleId}`);
-      }
+      }));
       if (!parent.permissionsFor(me).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles]))
         throw new Error("บอทต้องมี View Channel, Manage Channels และ Manage Roles ในหมวดที่เลือก");
+      const ticketNumber = await context.tickets.nextNumber();
+      const numberText = String(ticketNumber).padStart(5,"0");
       const state: TicketState = {
-        ownerId: interaction.user.id, categoryKey: category.key, openedAt: Date.now(),
+        ticketNumber, ownerId: interaction.user.id, categoryKey: category.key, openedAt: Date.now(),
         autoCloseMinutes: category.autoCloseMinutes, autoCloseMode: category.autoCloseMode,
         supportRoleIds: category.supportRoleIds, status: "OPEN",
       };
       const read = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory];
       const write = [...read, PermissionFlagsBits.SendMessages, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.EmbedLinks];
       const channel = await server.channels.create({
-        name: ticketChannelName(category.channelNameTemplate, category.key, interaction.user, Date.now().toString(36)),
+        name: ticketChannelName(category.channelNameTemplate, category.key, interaction.user, numberText),
         type: ChannelType.GuildText, parent: parent.id,
         permissionOverwrites: [
           { id: server.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -136,28 +160,22 @@ export const ticketFeature: FeatureModule = {
       try { await saveTicket(channel.id, channel.name, state); }
       catch (error) { await channel.delete("Ticket registration failed").catch(() => undefined); throw error; }
       try {
-        const payload = renderTemplate(context, "opened", {
+        const payloads = ticketOpeningMessages(context, category, {
+          id: numberText,
           user: `<@${interaction.user.id}>`, user_name: escapeMarkdown(interaction.user.displayName),
           category: escapeMarkdown(category.label), channel: `<#${channel.id}>`,
           auto_close: category.autoCloseMinutes === 0 ? "ปิดอัตโนมัติ: ไม่เปิดใช้งาน"
             : `${category.autoCloseMinutes} นาที ${category.autoCloseMode === "IDLE" ? "หลังไม่มีข้อความใหม่" : "หลังเปิดตั๋ว"}`,
-        });
-        await channel.send(withRow(payload, new ActionRowBuilder<ButtonBuilder>().addComponents(
-          ...(config.discordHistoryEnabled ? [historyButton()] : []),
-          new ButtonBuilder().setCustomId(`${prefix}close`).setLabel("ปิดตั๋ว").setStyle(ButtonStyle.Danger),
-        )));
-        for (const answer of answers) await channel.send({
-          flags: MessageFlags.IsComponentsV2,
-          components: [{ type: 17, components: [
-            { type: 10, content: `**${escapeMarkdown(answer.label)}**\n${escapeMarkdown(answer.value || "—")}` },
-          ] }], allowedMentions: { parse: [] },
-        });
-
+        }, answers, new ActionRowBuilder<ButtonBuilder>().addComponents(
+          new ButtonBuilder().setCustomId(`${prefix}manage`).setLabel("จัดการตั๋ว").setStyle(ButtonStyle.Secondary),
+        ));
+        for (const payload of payloads) await channel.send(payload);
       } catch (error) {
         await report("TICKET_WELCOME_FAILED", error);
         await interaction.editReply({ content: `สร้างตั๋วแล้ว: <#${channel.id}> แต่ส่งรายละเอียดไม่ครบ กรุณาแจ้งทีมดูแล ใช้ /${config.command} close เพื่อปิดตั๋ว`, allowedMentions: { parse: [] } });
         return;
       }
+      console.info(`Ticket opened: bot ${context.botId}, ${Date.now() - startedAt}ms`);
       await interaction.editReply({ content: `เปิดตั๋วแล้ว: <#${channel.id}>`, allowedMentions: { parse: [] } });
     };
     const handle = async (interaction: TicketInteraction) => {
@@ -210,7 +228,7 @@ export const ticketFeature: FeatureModule = {
           await serialize(() => open(interaction, category, answers));
           return;
         }
-        if (![`${prefix}close`, `${prefix}confirm-close`, `${prefix}history`].includes(interaction.customId)) return;
+        if (![`${prefix}manage`, `${prefix}request-exemption`, `${prefix}approve-exemption`, `${prefix}deny-exemption`, `${prefix}close`, `${prefix}confirm-close`, `${prefix}history`].includes(interaction.customId)) return;
       }
       const confirming = interaction.isButton() && interaction.customId === `${prefix}confirm-close`;
       if (confirming) await interaction.deferUpdate();
@@ -219,6 +237,29 @@ export const ticketFeature: FeatureModule = {
       if (!channel || channel.type !== ChannelType.GuildText) throw new Error("คำสั่งนี้ใช้ได้เฉพาะในห้อง Ticket");
       const state = tickets.get(channel.id)?.state;
       if (!state) throw new Error("ห้องนี้ไม่ใช่ตั๋วของ Feature นี้");
+      const action = interaction.isButton() ? interaction.customId.slice(prefix.length) : interaction.isChatInputCommand() ? interaction.options.getSubcommand() : "";
+      if (action === "manage") { await showControls(interaction,state); return; }
+      if (["no-auto-close","request-exemption","approve-exemption","deny-exemption"].includes(action)) {
+        await serialize(async () => {
+          const current = tickets.get(channel.id)?.state;
+          if (!current || current.status !== "OPEN" || !current.autoCloseMinutes) throw new Error("ตั๋วนี้ไม่ได้ตั้งเวลาปิดอัตโนมัติ หรือกำลังปิดแล้ว");
+          if (action === "no-auto-close" || action === "request-exemption") {
+            if (interaction.user.id !== current.ownerId) throw new Error("เฉพาะผู้เปิดตั๋วส่งคำขอยกเว้นได้");
+            if (current.exemption?.status === "PENDING") throw new Error("มีคำขอรออนุมัติอยู่แล้ว");
+            await saveTicket(channel.id,channel.name,{...current,exemption:{requestedBy:interaction.user.id,requestedAt:Date.now(),status:"PENDING"}});
+            await channel.send({content:"มีคำขอยกเว้นปิดตั๋วอัตโนมัติ ผู้ดูแลกดจัดการตั๋วเพื่ออนุมัติหรือปฏิเสธ",components:[new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${prefix}manage`).setLabel("ดูคำขอ").setStyle(ButtonStyle.Secondary))],allowedMentions:{parse:[]}});
+            await interaction.editReply({content:"ส่งคำขอแล้ว ระหว่างรออนุมัติจะยังใช้เวลาปิดเดิม",components:[]});
+          } else {
+            if (!await canClose(interaction)) throw new Error("เฉพาะผู้มีสิทธิ์ปิดตั๋วเท่านั้นที่ตัดสินคำขอได้");
+            if (current.exemption?.status !== "PENDING") throw new Error("ไม่มีคำขอรออนุมัติ");
+            const approved = action === "approve-exemption";
+            await saveTicket(channel.id,channel.name,{...current,...(approved?{autoCloseMinutes:0}:{}),exemption:{...current.exemption,status:approved?"APPROVED":"DENIED",decidedBy:interaction.user.id,decidedAt:Date.now()}});
+            await channel.send({content:approved?"อนุมัติคำขอแล้ว ตั๋วนี้จะไม่ปิดอัตโนมัติ สามารถให้ผู้มีสิทธิ์ปิดด้วยตนเองได้":"คำขอยกเว้นถูกปฏิเสธ ตั๋วนี้ยังใช้เวลาปิดเดิม",allowedMentions:{parse:[]}});
+            await interaction.editReply({content:approved?"ยกเว้นปิดอัตโนมัติให้ตั๋วนี้แล้ว":"ปฏิเสธคำขอแล้ว",components:[]});
+          }
+        });
+        return;
+      }
       const readingHistory = interaction.isChatInputCommand() ? interaction.options.getSubcommand() === "history" : interaction.isButton() && interaction.customId === `${prefix}history`;
       if (readingHistory) {
         if (!config.discordHistoryEnabled) throw new Error("ปิดการอ่านประวัติใน Discord ไว้ สามารถเปิดตัวเลือกนี้บนหน้าเว็บจัดการบอท");
@@ -237,7 +278,10 @@ export const ticketFeature: FeatureModule = {
         } finally { exporting.delete(channel.id); }
         return;
       }
-      if (!await canClose(interaction)) throw new Error("เฉพาะ Administrator หรือ Role/User ที่ได้รับสิทธิ์ปิดตั๋วบนเว็บเท่านั้น");
+      if (!await canClose(interaction)) {
+        if (interaction.isButton() && !confirming) { await showControls(interaction,state); return; }
+        throw new Error("เฉพาะ Administrator หรือ Role/User ที่ได้รับสิทธิ์ปิดตั๋วบนเว็บเท่านั้น");
+      }
       if (!confirming && config.behavior.confirmClose) {
         await interaction.editReply({ content: "ยืนยันปิดตั๋วนี้? ระบบจะเก็บประวัติบนเว็บแล้วลบห้อง Discord",
           components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${prefix}confirm-close`).setLabel("ยืนยันปิดตั๋ว").setStyle(ButtonStyle.Danger))] });
@@ -291,7 +335,8 @@ export const ticketFeature: FeatureModule = {
       const definition = new SlashCommandBuilder().setName(config.command).setDescription("ระบบ Ticket")
         .setDMPermission(false)
         .addSubcommand((sub) => sub.setName("panel").setDescription("ส่งแผงเลือกหัวข้อเปิดตั๋ว"))
-        .addSubcommand((sub) => sub.setName("close").setDescription("ขอปิดตั๋วในห้องนี้"));
+        .addSubcommand((sub) => sub.setName("close").setDescription("ขอปิดตั๋วในห้องนี้"))
+        .addSubcommand((sub) => sub.setName("no-auto-close").setDescription("ส่งคำขอยกเว้นการปิดอัตโนมัติสำหรับตั๋วนี้"));
       if (config.discordHistoryEnabled) definition.addSubcommand((sub) => sub.setName("history").setDescription("อ่านและดาวน์โหลดประวัติแชทตั๋วนี้"));
       const command = await commands.create(definition.toJSON());
       const old = runtimeState.previousCommandId ?? runtimeState.commandId;

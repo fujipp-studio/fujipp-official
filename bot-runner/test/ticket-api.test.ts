@@ -8,6 +8,7 @@ test('ticket record and archive requests carry installation scope and runner aut
   t.mock.method(globalThis, 'fetch', async (input: string | URL, options: RequestInit) => {
     const url = new URL(input);
     calls.push({ url, options });
+    if (url.pathname.endsWith('/next-number')) return new Response('42', { status: 200 });
     return options.method === 'GET' ? new Response('[]', { status: 200 }) : new Response(null, { status: 204 });
   });
   const api = new RuntimeApiClient('https://backend.test', 'private-runner-token');
@@ -20,5 +21,8 @@ test('ticket record and archive requests carry installation scope and runner aut
   assert.equal(calls[2]!.url.pathname.endsWith('/archive'), true);
   assert.deepEqual(JSON.parse(String(calls[1]!.options.body)), { installationId: 'installation', name: 'ticket', state });
   assert.deepEqual(JSON.parse(String(calls[2]!.options.body)), { installationId: 'installation', messages: [] });
+  assert.equal(await api.ticketNextNumber('bot','installation'), 42);
+  assert.equal(calls[3]!.options.method,'POST');
+  assert.equal(calls[3]!.url.searchParams.get('installationId'),'installation');
   for (const call of calls) assert.equal(new Headers(call.options.headers).get('X-Runner-Token'), 'private-runner-token');
 });

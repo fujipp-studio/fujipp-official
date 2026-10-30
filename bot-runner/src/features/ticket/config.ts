@@ -11,6 +11,7 @@ export interface TicketCategory {
   description: string;
   emoji?: string;
   channelNameTemplate?: string;
+  welcome?: { title: string; description: string; imageUrl: string };
   categoryId: string;
   supportRoleIds: string[];
   autoCloseMinutes: number;
@@ -73,6 +74,7 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
       || !Array.isArray(row.fields) || row.fields.length > 5 || (row.formEnabled && !row.fields.length))
       throw new Error("Invalid ticket category, timer, roles or form");
     keys.add(row.key);
+    if (row.welcome !== undefined && (!record(row.welcome) || !text(row.welcome.title, 256) || !text(row.welcome.description, 3500, true) || !text(row.welcome.imageUrl, 2048, true) || (row.welcome.imageUrl !== "" && !/^https:\/\/[^\s]+$/.test(row.welcome.imageUrl)))) throw new Error("Invalid topic welcome message");
     if (row.emoji !== undefined && !validTicketEmoji(row.emoji)) throw new Error("Invalid Ticket topic emoji");
     if (row.channelNameTemplate !== undefined && !validTicketName(row.channelNameTemplate)) throw new Error("Invalid Ticket channel name template");
     const fields = new Set<string>();
@@ -88,6 +90,8 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
 }
 
 export interface TicketState {
+  ticketNumber?: number;
+  exemption?: { requestedBy: string; requestedAt: number; status: "PENDING" | "APPROVED" | "DENIED"; decidedBy?: string; decidedAt?: number };
   ownerId: string;
   categoryKey: string;
   openedAt: number;

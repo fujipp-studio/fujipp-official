@@ -45,11 +45,11 @@ function fixture(rows = [category()], historyEnabled = false) {
   const panel = makeChannel("777777777777777777");
   channels.set(parentId, { id: parentId, type: ChannelType.GuildCategory, permissionsFor: () => ({ has: () => true }) });
   const server = { id: serverId,
-    roles: { everyone: { id: serverId }, fetch: async (id: string) => ({ id }) },
+    roles: { cache: new Collection([[staff,{id:staff}]]), everyone: { id: serverId }, fetch: async (id: string) => ({ id }) },
     members: { me: { id: botId }, fetchMe: async () => ({ id: botId }), fetch: async ({ user }: { user: string }) => ({
       permissions: new PermissionsBitField(user === administrator ? [PermissionFlagsBits.Administrator] : []), roles: { cache: new Collection(user === staff ? [[staff, {}]] : []) },
     }) },
-    channels: {
+    channels: { cache: channels,
       fetch: async (id?: string) => id ? channels.get(id) : channels,
       create: async (options: any) => { creations.push(options); return makeChannel(`88888888888888888${creations.length}`, options.topic); },
     },
@@ -71,6 +71,7 @@ function fixture(rows = [category()], historyEnabled = false) {
     },
     permissions: { canUse: (i: any) => i.user.id === staff },
     tickets: {
+      nextNumber: async () => records.size,
       list: async () => [...records.values()].map(entry => structuredClone(entry)),
       save: async (channelId: string, name: string, value: TicketState) => { if (registryFails) throw Error("Registry unavailable"); records.set(channelId, { channelId, name, state: structuredClone(value), archived: records.get(channelId)?.archived ?? false }); },
       archive: async (channelId: string, messages: unknown[]) => { if (archiveFails) throw Error("Archive unavailable"); records.get(channelId)!.archived = true; archives.push({ channelId, messages }); },
@@ -374,4 +375,51 @@ test('missing read permission or Message Content Intent never archives empty con
     assert.equal(f.channels.has(room.id), true);
     assert.equal(f.records.get(room.id)?.state.status, 'CLOSING');
   }
+});
+
+test('private controls disable unauthorized closing and approve exemptions only for this ticket', async t => {
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ autoCloseMinutes: 60 })));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const menu = f.interaction('button', { channelId: room.id, customId: `${prefix}manage` }); await menu.send();
+  const row = menu.replies.at(-1).components[0].toJSON().components;
+  assert.equal(row[0].disabled, true);
+  assert.equal(row[1].disabled, false);
+  const request = f.interaction('button', { channelId: room.id, customId: `${prefix}request-exemption` }); await request.send();
+  assert.equal(f.records.get(room.id)?.state.exemption?.status, 'PENDING');
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
+  await f.interaction('button', { channelId: room.id, customId: `${prefix}approve-exemption`, user: { id: stranger } }).send();
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
+  await f.interaction('button', { channelId: room.id, customId: `${prefix}approve-exemption`, user: { id: administrator } }).send();
+  assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 0);
+  assert.equal(f.records.get(room.id)?.state.exemption?.status, 'APPROVED');
+  assert.equal(ticketDue(f.records.get(room.id)!.state, Date.now(), Date.now()+999999999), false);
+  assert.equal((f.context.config.TICKET_CATEGORIES as TicketCategory[])[0]!.autoCloseMinutes, 60);
+});
+
+test('normal opens reuse loaded identity/channel/role data and format sequential ticket IDs', async t => {
+  const f = fixture([category({ formEnabled: false, fields: [] })]);
+  (f.context.config as any).TICKET_BEHAVIOR = { maxOpenPerUser: 2, confirmClose: true, closeRoleIds: [], closeUserIds: [] };
+  let lists = 0;
+  const original = f.context.tickets.list;
+  f.context.tickets.list = async () => { lists++; return original(); };
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('select').send(); await f.interaction('select').send();
+  assert.equal(lists, 1);
+  assert.equal(f.creations[0].name, 'ticket-order-00000');
+  assert.equal(f.creations[1].name, 'ticket-order-00001');
+  const payload = f.channels.get('888888888888888881').sent[0];
+  assert.equal(payload.components.at(-1).toJSON().components[0].label, 'จัดการตั๋ว');
+});
+
+test('a pending exemption does not postpone a fixed deadline', async t => {
+  t.mock.timers.enable({ apis: ['Date','setInterval'], now: Date.now() });
+  const f = fixture();
+  const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ openedAt: Date.now(), autoCloseMode: 'OPENED', autoCloseMinutes: 1 })));
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('command', { channelId: room.id, options: { getSubcommand: () => 'no-auto-close' } }).send();
+  assert.equal(f.records.get(room.id)?.state.exemption?.status, 'PENDING');
+  t.mock.timers.tick(60001); await flush();
+  assert.equal(f.records.get(room.id)?.state.status, 'CLOSED');
+  assert.deepEqual(f.deleted,[room.id]);
 });
