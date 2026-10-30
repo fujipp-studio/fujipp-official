@@ -16,6 +16,19 @@ final class TicketConfigurationValidator {
                     || !behavior.path("confirmClose").isBoolean()) fail("Ticket limit must be 1–25 with a boolean close confirmation setting");
             ids(behavior.path("closeRoleIds"), 10);
             ids(behavior.path("closeUserIds"), 25);
+            if (behavior.has("controlStyle") && (!behavior.path("controlStyle").isTextual() || !Set.of("MANAGE","DIRECT").contains(behavior.path("controlStyle").asText()))) fail("Invalid Ticket control style");
+            if (behavior.has("cancellationNotice")) {
+                JsonNode notice = behavior.path("cancellationNotice");
+                if (!notice.isObject() || !notice.path("enabled").isBoolean() || !text(notice.path("message"),2000,!notice.path("enabled").asBoolean())) fail("Ticket cancellation message requires a boolean switch and up to 2000 characters");
+            }
+            if (behavior.has("actions")) {
+                JsonNode actions = behavior.path("actions");
+                if (!actions.isObject()) fail("Ticket actions must be an object");
+                for (var property : actions.properties()) {
+                    if (!Set.of("close","schedule","autoClose","addUser","history").contains(property.getKey()) || !property.getValue().isTextual()
+                            || !Set.of("OFF","COMMAND","BUTTON","BOTH").contains(property.getValue().asText())) fail("Invalid Ticket command/button option");
+                }
+            }
         }
         JsonNode history = values.get("TICKET_DISCORD_HISTORY_ENABLED");
         if (history != null && !history.isBoolean()) fail("Ticket Discord history setting must be boolean");

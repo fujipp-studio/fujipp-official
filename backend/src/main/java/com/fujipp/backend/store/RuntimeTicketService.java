@@ -73,6 +73,8 @@ class RuntimeTicketService {
     static void validateState(JsonNode state) {
         if(state==null||!state.isObject()||state.toString().length()>8192) throw new StoreValidationException("Invalid Ticket state");
         id(state.path("ownerId").asText());
+        if(state.has("autoCloseStartAt") && (!state.path("autoCloseStartAt").isIntegralNumber() || !state.path("autoCloseStartAt").canConvertToLong()
+                || state.path("autoCloseStartAt").asLong()<=0 || state.path("autoCloseStartAt").asLong()>9007199254740991L)) throw new StoreValidationException("Invalid Ticket timer start");
         if(state.has("participantIds")) {
             JsonNode participants=state.path("participantIds");
             if(!participants.isArray() || participants.size()>25) throw new StoreValidationException("Configure at most 25 Ticket participants");

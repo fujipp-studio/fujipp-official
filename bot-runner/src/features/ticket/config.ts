@@ -27,7 +27,25 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const text = (value: unknown, max: number, empty = false): value is string =>
   typeof value === "string" && value.length <= max && (empty || !!value.trim());
 
-export interface TicketBehavior { maxOpenPerUser: number; confirmClose: boolean; closeRoleIds: string[]; closeUserIds: string[]; }
+export type TicketDelivery = "OFF" | "COMMAND" | "BUTTON" | "BOTH";
+export type TicketAction = "close" | "schedule" | "autoClose" | "addUser" | "history";
+export type TicketActions = Record<TicketAction, TicketDelivery>;
+export const defaultTicketActions: TicketActions = { close: "BOTH", schedule: "OFF", autoClose: "BOTH", addUser: "BOTH", history: "BOTH" };
+export function readTicketActions(value: unknown): TicketActions {
+  if (value === undefined) return { ...defaultTicketActions };
+  if (!record(value) || Object.keys(value).some(key => !Object.hasOwn(defaultTicketActions,key))
+    || Object.values(value).some(mode => typeof mode !== "string" || !["OFF", "COMMAND", "BUTTON", "BOTH"].includes(mode))) throw new Error("Invalid Ticket command/button options");
+  return { ...defaultTicketActions, ...value } as TicketActions;
+}
+export const ticketActionEnabled = (actions: TicketActions, action: TicketAction, via: "COMMAND" | "BUTTON") => actions[action] === "BOTH" || actions[action] === via;
+export interface TicketCancellationNotice { enabled: boolean; message: string; }
+export const defaultTicketCancellationNotice: TicketCancellationNotice = { enabled: true, message: "ยกเลิกการปิดอัตโนมัติของตั๋วนี้แล้ว ตั๋วจะเปิดไว้จนกว่าผู้มีสิทธิ์จะปิดเอง" };
+export function readTicketCancellationNotice(value: unknown): TicketCancellationNotice {
+  if (value === undefined) return { ...defaultTicketCancellationNotice };
+  if (!record(value) || typeof value.enabled !== "boolean" || !text(value.message,2000,!value.enabled)) throw new Error("Invalid Ticket cancellation message");
+  return value as unknown as TicketCancellationNotice;
+}
+export interface TicketBehavior { cancellationNotice?: TicketCancellationNotice; controlStyle?: "MANAGE" | "DIRECT"; actions?: Partial<TicketActions>; maxOpenPerUser: number; confirmClose: boolean; closeRoleIds: string[]; closeUserIds: string[]; }
 export const defaultTicketBehavior: TicketBehavior = { maxOpenPerUser: 1, confirmClose: true, closeRoleIds: [], closeUserIds: [] };
 export const validTicketEmoji = (value: unknown) => typeof value === "string" && (value === "" || /^<a?:[A-Za-z0-9_]{2,32}:\d{15,30}>$/.test(value) || (/^(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)$/u.test(value) && value.length <= 32));
 export const validTicketName = (value: unknown) => text(value, 100) && !/[\p{Cc}\p{Cf}/\\]/u.test(value) && !/[{}]/.test(value.replace(/\{\{(username|user_id|topic|id)\}\}/g, ""));
@@ -47,6 +65,9 @@ export function readTicketBehavior(value: unknown): TicketBehavior {
     if (!Array.isArray(ids) || ids.length > max || !ids.every((id) => typeof id === "string" && idPattern.test(id)) || new Set(ids).size !== ids.length)
       throw new Error("Invalid Ticket closing roles or users");
   }
+  if (value.controlStyle !== undefined && (typeof value.controlStyle !== "string" || !["MANAGE", "DIRECT"].includes(value.controlStyle))) throw new Error("Invalid Ticket control style");
+  readTicketActions(value.actions);
+  readTicketCancellationNotice(value.cancellationNotice);
   return value as unknown as TicketBehavior;
 }
 
@@ -86,10 +107,12 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
       fields.add(field.key);
     }
   }
-  return { command, categories: categories as TicketCategory[], behavior: readTicketBehavior(values.TICKET_BEHAVIOR), discordHistoryEnabled: values.TICKET_DISCORD_HISTORY_ENABLED === true };
+  const behavior = readTicketBehavior(values.TICKET_BEHAVIOR);
+  return { command, categories: categories as TicketCategory[], behavior, actions: readTicketActions(behavior.actions), cancellationNotice: readTicketCancellationNotice(behavior.cancellationNotice), discordHistoryEnabled: values.TICKET_DISCORD_HISTORY_ENABLED === true };
 }
 
 export interface TicketState {
+  autoCloseStartAt?: number;
   participantIds?: string[];
   ticketNumber?: number;
   exemption?: { requestedBy: string; requestedAt: number; status: "PENDING" | "APPROVED" | "DENIED"; decidedBy?: string; decidedAt?: number };
@@ -117,11 +140,13 @@ export function readTicketTopic(installationId: string, topic: string | null): T
       || !["OPEN", "CLOSING", "CLOSED"].includes(String(state.status))
       || !Array.isArray(state.supportRoleIds) || state.supportRoleIds.length > 10
       || !state.supportRoleIds.every((id) => typeof id === "string" && idPattern.test(id))) return null;
+    if (state.autoCloseStartAt !== undefined && (!Number.isSafeInteger(state.autoCloseStartAt) || Number(state.autoCloseStartAt) <= 0)) return null;
     if (state.participantIds !== undefined && (!Array.isArray(state.participantIds) || state.participantIds.length > 25 || !state.participantIds.every(id => typeof id === "string" && idPattern.test(id)) || new Set(state.participantIds).size !== state.participantIds.length)) return null;
     return state as unknown as TicketState;
   } catch { return null; }
 }
 export function ticketDue(state: TicketState, lastActivity: number, now: number): boolean {
+  const start = Math.max(state.openedAt, state.autoCloseStartAt ?? state.openedAt);
   return state.status === "OPEN" && state.autoCloseMinutes > 0
-    && now >= (state.autoCloseMode === "OPENED" ? state.openedAt : Math.max(state.openedAt, lastActivity)) + state.autoCloseMinutes * 60_000;
+    && now >= (state.autoCloseMode === "OPENED" ? start : Math.max(start, lastActivity)) + state.autoCloseMinutes * 60_000;
 }

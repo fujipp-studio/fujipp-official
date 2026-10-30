@@ -840,6 +840,7 @@ export function useFeatureSettings() {
             definition,
             slotKey,
             values.value.TICKET_DISCORD_HISTORY_ENABLED === true,
+            values.value.TICKET_BEHAVIOR,
           )
       }
       if (isWalletTopupFeature.value) {

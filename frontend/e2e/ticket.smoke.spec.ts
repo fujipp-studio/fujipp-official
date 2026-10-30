@@ -133,6 +133,74 @@ for (const theme of ['LIGHT', 'DARK']) {
       style:
         '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
     })
+    await category('Commands & buttons')
+    async function option(label: string, value: string) {
+      await form.getByRole('combobox', { name: label, exact: true }).click()
+      await page
+        .getByRole('listbox', { name: label, exact: true })
+        .getByRole('option', { name: value, exact: true })
+        .click()
+    }
+    await option('Ticket button layout', 'Show action buttons directly')
+    await option('Close ticket', 'Buttons only')
+    await option('Set auto-close timer', 'Commands only')
+    await option('Auto-close exemption', 'Commands only')
+    await option('Add ticket member', 'Commands only')
+    await option('Discord history access', 'Commands only')
+    if (isMobile) {
+      await page
+        .locator('#feature-presentations')
+        .getByRole('combobox', { name: 'Message', exact: true })
+        .click()
+      await page
+        .getByRole('listbox', { name: 'Message', exact: true })
+        .getByRole('option', { name: 'ข้อความต้อนรับในตั๋ว', exact: true })
+        .click()
+    } else
+      await page
+        .locator('#feature-presentations')
+        .getByRole('button', { name: /^ข้อความต้อนรับในตั๋ว/ })
+        .click()
+    await expect(page.getByRole('textbox', { name: 'TICKET_BEHAVIOR *', exact: true })).toHaveCount(
+      0,
+    )
+    await expect(
+      page.locator('#feature-presentations').getByRole('button', { name: 'ปิดตั๋ว', exact: true }),
+    ).toBeVisible()
+    await expect(
+      page
+        .locator('#feature-presentations')
+        .getByRole('button', { name: 'จัดการตั๋ว', exact: true }),
+    ).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await form.screenshot({
+      path: testInfo.outputPath(`ticket-actions-${theme.toLowerCase()}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+    })
+    await category('Notifications')
+    const announcement = form.getByRole('switch', {
+      name: 'Announce auto-close cancellation',
+      exact: true,
+    })
+    const noticeText = form.getByRole('textbox', { name: /^Cancellation message/ })
+    await expect(announcement).toBeChecked()
+    await noticeText.fill('')
+    await expect(save).toBeDisabled()
+    await announcement.click()
+    await expect(noticeText).toHaveCount(0)
+    await expect(save).toBeEnabled()
+    await announcement.click()
+    await expect(noticeText).toHaveValue('')
+    await noticeText.fill('**This ticket stays open**\nPlease wait for our team.')
+    await expect(save).toBeEnabled()
+    await form.screenshot({
+      path: testInfo.outputPath(`ticket-notification-${theme.toLowerCase()}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+    })
     await category('Ticket numbers')
     const number = form.getByRole('spinbutton', { name: 'Next ticket number', exact: true })
     await expect(number).toHaveValue('17')
@@ -149,6 +217,10 @@ for (const theme of ['LIGHT', 'DARK']) {
       style:
         '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
     })
+    await category('Commands & buttons')
+    await expect(
+      form.getByRole('combobox', { name: 'Ticket button layout', exact: true }),
+    ).toHaveText('Show action buttons directly')
     await category('History')
     const discordHistory = form.getByRole('switch', { name: 'Enable Discord history', exact: true })
     await expect(discordHistory).not.toBeChecked()
@@ -173,6 +245,18 @@ for (const theme of ['LIGHT', 'DARK']) {
       confirmClose: false,
       closeRoleIds: ['222222222222222222'],
       closeUserIds: ['333333333333333333'],
+      controlStyle: 'DIRECT',
+      cancellationNotice: {
+        enabled: true,
+        message: '**This ticket stays open**\nPlease wait for our team.',
+      },
+      actions: {
+        close: 'BUTTON',
+        schedule: 'COMMAND',
+        autoClose: 'COMMAND',
+        addUser: 'COMMAND',
+        history: 'COMMAND',
+      },
     })
     expect(saved?.values.TICKET_CATEGORIES).toMatchObject([
       {
