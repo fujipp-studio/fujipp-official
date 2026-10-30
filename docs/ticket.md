@@ -98,7 +98,7 @@ who cannot close.
 
 `confirmClose` controls the private confirmation for the close button and
 `/ticket close`. When disabled, an authorized action begins closing immediately.
-The Runner stores `CLOSING`, locks the opener's writing permissions, fetches and
+The Runner stores `CLOSING`, locks the opener's and added participants' writing permissions, fetches and
 saves the conversation, deletes the Discord channel, then records `CLOSED`.
 The bot refreshes its channel permissions and application Message Content Intent
 flags before archiving, refusing deletion if it cannot read the full content.
@@ -106,6 +106,27 @@ If archiving or deletion fails, it retains the room/closing intent for retry.
 Closing never silently substitutes a partial transcript. Snapshots are limited
 to 10,000 messages / 10 MiB; exceeding a limit keeps the room and reports the need
 for a manual export. A crash after deletion is reconciled using the saved archive.
+
+## Adding ticket participants
+
+An authorized closer can open **Manage ticket** and choose a member under
+**Add member**, or use `/ticket add-user member:<member>` in the ticket room.
+The picker is disabled for members without closing permission; every selection
+and command also checks current administrator/closing role/user permissions.
+Only existing server members can join, and bot accounts are rejected.
+
+Each open ticket can have up to 25 added participants. Members receive access
+to read existing messages, chat, attach files and embed links. Joining does not
+grant closing or exemption-decision permission. When Discord history is enabled,
+participants can export it while they retain room access and Read Message
+History. Website history remains restricted to the bot owner and website admins.
+Participant identities survive restarts, and closing locks their writing access
+before archiving. A ticket already closing cannot accept more members.
+
+Participant state uses the existing private registry JSON; no additional database
+migration is required beyond the setup migrations above. Deploy the updated
+Runner and Backend together, then let the Ticket feature register its updated
+slash command.
 
 ## Optional automatic deletion
 
