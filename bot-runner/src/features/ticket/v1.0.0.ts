@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder, ApplicationFlagsBitField, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags,
+  ActionRowBuilder, ApplicationFlagsBitField, ButtonBuilder, ButtonStyle, ChannelType, ComponentType, MessageFlags,
   ModalBuilder, LabelBuilder, OverwriteType, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder,
   TextInputBuilder, TextInputStyle, escapeMarkdown,
   type Interaction, type TextChannel, type MessageCreateOptions, type GuildBasedChannel,
@@ -54,6 +54,26 @@ export const ticketFeature: FeatureModule = {
     const saveTicket = async (channelId: string, name: string, state: TicketState) => {
       await context.tickets.save(channelId, name, state);
       tickets.set(channelId, { name, state, archived: tickets.get(channelId)?.archived ?? false });
+    };
+    const resetTopicSelect = async (interaction: StringSelectMenuInteraction) => {
+      const components = interaction.message.components.map(component => structuredClone(component.toJSON()));
+      let changed = false;
+      const reset = (value: unknown) => {
+        if (!value || typeof value !== "object") return;
+        const component = value as Record<string, unknown>;
+        if (component.type === ComponentType.StringSelect && component.custom_id === interaction.customId) {
+          // Give the refreshed menu a new identity so clients discard their selected value.
+          component.custom_id = `${prefix}select:${interaction.id}`;
+          component.placeholder = "เลือกหัวข้อเพื่อเปิดตั๋ว";
+          if (Array.isArray(component.options)) for (const option of component.options) {
+            if (option && typeof option === "object") (option as Record<string, unknown>).default = false;
+          }
+          changed = true;
+        }
+        if (Array.isArray(component.components)) component.components.forEach(reset);
+      };
+      components.forEach(reset);
+      if (changed) await interaction.message.edit({ components, allowedMentions: { parse: [] } });
     };
     const syncTickets = async (channels: ReadonlyMap<string, GuildBasedChannel | null>) => {
       const entries = await context.tickets.list();
@@ -202,21 +222,25 @@ export const ticketFeature: FeatureModule = {
         if (!interaction.customId.startsWith(prefix)) return;
         if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isUserSelectMenu()) && interaction.message.author.id !== context.client.user?.id) return;
         if (interaction.isStringSelectMenu()) {
-          if (interaction.customId !== `${prefix}select`) return;
-          const category = categoryFor(interaction.values[0] ?? "");
-          if (category.formEnabled) {
-            const modal = new ModalBuilder().setCustomId(`${prefix}form:${category.key}`).setTitle(category.formTitle);
-            for (const field of category.fields) modal.addLabelComponents(new LabelBuilder().setLabel(field.label).setTextInputComponent(
-              new TextInputBuilder().setCustomId(field.key)
-                .setStyle(field.style === "PARAGRAPH" ? TextInputStyle.Paragraph : TextInputStyle.Short)
-                .setRequired(field.required).setMaxLength(1000)
-                .setPlaceholder(field.placeholder || field.label),
-            ));
-            await interaction.showModal(modal);
-          } else {
-            await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-            await serialize(() => open(interaction, category, []));
+          if (!/^select(?::\d{15,30})?$/.test(interaction.customId.slice(prefix.length))) return;
+          let category: TicketCategory;
+          try {
+            category = categoryFor(interaction.values[0] ?? "");
+            if (category.formEnabled) {
+              const modal = new ModalBuilder().setCustomId(`${prefix}form:${category.key}`).setTitle(category.formTitle);
+              for (const field of category.fields) modal.addLabelComponents(new LabelBuilder().setLabel(field.label).setTextInputComponent(
+                new TextInputBuilder().setCustomId(field.key)
+                  .setStyle(field.style === "PARAGRAPH" ? TextInputStyle.Paragraph : TextInputStyle.Short)
+                  .setRequired(field.required).setMaxLength(1000)
+                  .setPlaceholder(field.placeholder || field.label),
+              ));
+              await interaction.showModal(modal);
+            } else await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+          } finally {
+            // Refresh separately after acknowledging: opening a modal cannot also update its message.
+            track(resetTopicSelect(interaction).catch(error => report("TICKET_PANEL_RESET_FAILED", error)));
           }
+          if (!category.formEnabled) await serialize(() => open(interaction, category, []));
           return;
         }
         if (interaction.isModalSubmit()) {

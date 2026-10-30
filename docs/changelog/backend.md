@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-30 | Reset Ticket topic dropdowns after selection, including cancelled forms and rejected opens, while preserving panel designs and allowing the same topic to be chosen again. |
 | 2026-10-30 | Let authorized Ticket closers cancel a ticket’s automatic closing immediately through the command or private controls, while ordinary openers still request approval. |
 | 2026-10-30 | Added Ticket participants through a private member picker or slash command, with persistent room access, current closer-only invitations and no automatic closing privileges. |
 | 2026-10-30 | Added sequential Ticket numbers, private permission-aware controls, per-ticket timer exemption requests and Thailand-month archive cleanup, with fewer opening API calls and grouped welcome/answer cards. |

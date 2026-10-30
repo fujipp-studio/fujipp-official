@@ -81,13 +81,15 @@ function fixture(rows = [category()], historyEnabled = false) {
     saveRuntimeState: async (value: any) => { saves.push(value); },
     reportFeatureError: async (...args: any[]) => { errors.push(args); },
   } as unknown as FeatureContext;
+  let interactionCount = 0;
   function interaction(kind: "select" | "user-select" | "modal" | "button" | "command", options: any = {}) {
     const replies: any[] = [];
     const value: any = {
+      id: String(910000000000000000n + BigInt(++interactionCount)),
       guildId: serverId, channelId: panel.id, user: { id: owner, displayName: "Alice", username: "Alice" },
       customId: `${prefix}${kind === "select" ? "select" : kind === "modal" ? "form:order" : kind === "user-select" ? "add-user" : "close"}`,
       commandName: "ticket", commandId: "command", options: { getSubcommand: () => "panel" },
-      values: ["order"], message: { author: { id: botId } },
+      values: ["order"], message: { author: { id: botId }, components: [] },
       fields: { getTextInputValue: () => "VIP @everyone" },
       isChatInputCommand: () => kind === "command", isStringSelectMenu: () => kind === "select",
       isUserSelectMenu: () => kind === "user-select", isModalSubmit: () => kind === "modal", isButton: () => kind === "button",
@@ -599,4 +601,89 @@ test('failed direct cancellation keeps the original deadline and posts no succes
   await f.interaction('command', { channelId: room.id, user: { id: administrator }, options: { getSubcommand: () => 'no-auto-close' } }).send();
   assert.equal(f.records.get(room.id)?.state.autoCloseMinutes, 60);
   assert.equal(room.sent.length, 0);
+});
+
+function topicPanelMessage(payload: any) {
+  let components = payload.components.map((component: any) => component.toJSON ? component.toJSON() : structuredClone(component));
+  const edits: any[] = [];
+  const message: any = {
+    author: { id: botId }, edits,
+    get components() { return components.map((component: any) => ({ toJSON: () => structuredClone(component) })); },
+    edit: async (update: any) => { edits.push(update); components = structuredClone(update.components); return message; },
+  };
+  return message;
+}
+
+test('topic menus reset after showing a form even if it is cancelled, and accept the same topic again', async t => {
+  const f = fixture(); t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('command', { user: { id: staff } }).send();
+  const payload = f.panel.sent[0];
+  const original = payload.components.map((component: any) => component.toJSON ? component.toJSON() : component);
+  const message = topicPanelMessage(payload);
+  const first = f.interaction('select', { message });
+  const edit = message.edit;
+  message.edit = async (update: any) => { assert.ok(first.value.modal); return edit(update); };
+  await first.send();
+  assert.equal(f.creations.length, 0);
+  assert.equal(message.edits.length, 1);
+  const updated = message.edits[0].components;
+  const menu = updated.at(-1).components[0];
+  assert.equal(menu.placeholder, 'เลือกหัวข้อเพื่อเปิดตั๋ว');
+  assert.notEqual(menu.custom_id, `${prefix}select`);
+  assert.equal(menu.options.every((option: any) => option.default === false), true);
+  assert.deepEqual(updated.slice(0, -1), original.slice(0, -1));
+  assert.deepEqual(Object.keys(message.edits[0]).sort(), ['allowedMentions', 'components']);
+  // Cancel the first form without submitting, then choose the same topic on the refreshed menu.
+  const second = f.interaction('select', { message, customId: menu.custom_id }); await second.send();
+  assert.ok(second.value.modal);
+  assert.equal(message.edits.length, 2);
+  assert.notEqual(message.edits[1].components.at(-1).components[0].custom_id, menu.custom_id);
+});
+
+test('direct topic opens reset before channel creation and also reset when the opening limit rejects a retry', async t => {
+  const f = fixture([category({ formEnabled: false, fields: [] })]);
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('command', { user: { id: staff } }).send();
+  const message = topicPanelMessage(f.panel.sent[0]);
+  const select = f.interaction('select', { message });
+  const edit = message.edit;
+  message.edit = async (update: any) => { assert.equal(select.value.deferred, true); return edit(update); };
+  await select.send();
+  assert.equal(f.creations.length, 1);
+  assert.equal(message.edits.length, 1);
+  const again = f.interaction('select', { message, customId: message.edits[0].components.at(-1).components[0].custom_id }); await again.send();
+  assert.equal(f.creations.length, 1);
+  assert.match(again.replies.at(-1).content, /สูงสุด 1/);
+  assert.equal(message.edits.length, 2);
+});
+
+test('nested panel menus preserve other controls and refresh stale topics without creating tickets', async t => {
+  const f = fixture(); t.after(await ticketFeature.activate(f.context)); await flush();
+  const unrelated = { type: 1, components: [{ type: 2, custom_id: 'another-button', label: 'Keep me', style: 2 }] };
+  const message = topicPanelMessage({ components: [{ type: 17, accent_color: 123, components: [
+    { type: 10, content: 'Welcome' }, unrelated,
+    { type: 1, components: [{ type: 3, custom_id: `${prefix}select`, placeholder: 'Old', options: [{ label: 'Deleted', value: 'deleted', default: true }] }] },
+  ] }] });
+  await f.interaction('select', { message, values: ['deleted'] }).send();
+  assert.equal(f.creations.length, 0);
+  const components = message.edits[0].components[0].components;
+  assert.deepEqual(components[0], { type: 10, content: 'Welcome' });
+  assert.deepEqual(components[1], unrelated);
+  assert.equal(components[2].components[0].options[0].default, false);
+});
+
+test('reset failures never block creating a ticket and untrusted or unrelated menus are not edited', async t => {
+  const f = fixture([category({ formEnabled: false, fields: [] })]);
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  await f.interaction('command', { user: { id: staff } }).send();
+  const message = topicPanelMessage(f.panel.sent[0]);
+  message.edit = async () => { throw Error('Message edit unavailable'); };
+  await f.interaction('select', { message }).send();
+  assert.equal(f.creations.length, 1);
+  assert.equal(f.errors.some(error => error[0] === 'TICKET_PANEL_RESET_FAILED'), true);
+  const untrusted = topicPanelMessage(f.panel.sent[0]); untrusted.author.id = stranger;
+  await f.interaction('select', { message: untrusted }).send();
+  const unrelated = topicPanelMessage(f.panel.sent[0]);
+  await f.interaction('select', { message: unrelated, customId: `${prefix}unrelated` }).send();
+  assert.equal(untrusted.edits.length, 0); assert.equal(unrelated.edits.length, 0);
 });
