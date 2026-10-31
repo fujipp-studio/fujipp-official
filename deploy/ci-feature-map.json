@@ -1,0 +1,573 @@
+{
+  "version": 1,
+  "baselineTests": {
+    "backend": [
+      "backend/src/test/java/com/fujipp/backend/BackendApplicationTests.java"
+    ],
+    "bot-runner": [
+      "bot-runner/test/feature-registry.test.ts",
+      "bot-runner/test/feature-errors.test.ts",
+      "bot-runner/test/ci-dependency-graph.test.ts"
+    ]
+  },
+  "boundaries": [
+    {
+      "path": "bot-runner/src/feature-registry.ts",
+      "reason": "Static feature/version registry; registry and feature-error tests always run for a selected Runner feature."
+    }
+  ],
+  "features": {
+    "truemoney": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/voucher/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/voucher/*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/internal/v1/vouchers/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/voucher-api.md"
+      ]
+    },
+    "wallet": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/wallet/",
+        "backend/src/main/java/com/fujipp/backend/store/WalletQrConfigurationValidator.java",
+        "bot-runner/src/features/wallet-topup/"
+      ],
+      "dependsOn": [
+        "truemoney",
+        "payment-qr"
+      ],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/wallet/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/store/WalletQrConfigurationValidatorTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/wallet-*.test.ts"
+        ]
+      },
+      "routes": [
+        "/internal/v1/wallet/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/wallet-topup.md"
+      ]
+    },
+    "payment-qr": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/topup/PromptPayQrGenerator.java",
+        "backend/src/main/java/com/fujipp/backend/topup/QrWatermark.java"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/topup/PromptPayQrGeneratorTests.java",
+          "backend/src/test/java/com/fujipp/backend/topup/QrWatermarkTests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/wallet-topup.md"
+      ]
+    },
+    "website-topup": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/topup/"
+      ],
+      "dependsOn": [
+        "payment-qr"
+      ],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/topup/*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/api/v1/wallet/topups/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md"
+      ]
+    },
+    "role-shop": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/roleshop/",
+        "backend/src/main/java/com/fujipp/backend/store/RoleShopConfigurationValidator.java",
+        "bot-runner/src/features/role-shop/"
+      ],
+      "dependsOn": [
+        "wallet"
+      ],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/roleshop/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/store/RoleShopConfigurationValidatorTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/role-shop.test.ts"
+        ]
+      },
+      "routes": [
+        "/internal/v1/role-shop/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/role-shop.md"
+      ]
+    },
+    "roblox-payout": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/robux/",
+        "bot-runner/src/features/roblox-robux-payout/"
+      ],
+      "dependsOn": [
+        "wallet"
+      ],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/roblox-client.test.ts",
+          "bot-runner/test/robux-*.test.ts"
+        ]
+      },
+      "routes": [
+        "/internal/v1/robux/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/roblox-robux-payout.md"
+      ]
+    },
+    "roblox-payout-test": {
+      "paths": [
+        "bot-runner/src/features/roblox-payout-test/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/roblox-payout-test-client.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/roblox-payout-test.md"
+      ]
+    },
+    "ticket": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/store/Ticket*",
+        "backend/src/main/java/com/fujipp/backend/store/RuntimeTicket*",
+        "backend/src/main/java/com/fujipp/backend/store/AdminTicketHistoryController.java",
+        "backend/src/main/java/com/fujipp/backend/store/DiscordTicketClient.java",
+        "bot-runner/src/features/ticket/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/store/Ticket*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/store/RuntimeTicketServiceTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/ticket*.test.ts"
+        ]
+      },
+      "routes": [
+        "/api/v1/admin/bots/{botId}/ticket-counter/**",
+        "/api/v1/admin/bots/{botId}/tickets/**",
+        "/api/v1/bots/{botId}/ticket-counter/**",
+        "/api/v1/bots/{botId}/tickets/**",
+        "/internal/v1/runtime/bots/{botId}/tickets/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/ticket.md"
+      ]
+    },
+    "member-spending": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/spending/",
+        "backend/src/main/java/com/fujipp/backend/store/MemberSpendingConfigurationValidator.java",
+        "bot-runner/src/features/member-spending/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/spending/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/store/MemberSpendingConfigurationValidatorTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/member-spending*.test.ts"
+        ]
+      },
+      "routes": [
+        "/internal/v1/member-spending/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "payment-trigger": {
+      "paths": [
+        "bot-runner/src/features/payment-trigger/"
+      ],
+      "dependsOn": [
+        "truemoney"
+      ],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/payment-trigger.test.ts",
+          "bot-runner/test/payment-voucher-api.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/payment-trigger.md"
+      ]
+    },
+    "message-sets": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/store/MessageSetsConfigurationValidator.java",
+        "bot-runner/src/features/message-sets/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/store/MessageSetsConfigurationValidatorTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/message-sets.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "shop-status": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/store/ShopStatusConfigurationValidator.java",
+        "bot-runner/src/features/shop-status/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/store/ShopStatusConfigurationValidatorTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/shop-status.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "price-reader": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/store/PriceReaderConfigurationValidator.java",
+        "bot-runner/src/features/price-reader/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/store/PriceReaderConfigurationValidatorTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/price-reader.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "channel-message-triggers": {
+      "paths": [
+        "bot-runner/src/features/channel-message-triggers/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/channel-message-triggers.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "review-credit": {
+      "paths": [
+        "bot-runner/src/features/review-credit/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/review-credit.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "bot-permissions": {
+      "paths": [
+        "bot-runner/src/features/bot-permissions/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/command-permissions.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "admin-message-tools": {
+      "paths": [
+        "bot-runner/src/features/admin-message-tools/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/feature-errors.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "bot-presence": {
+      "paths": [
+        "bot-runner/src/features/bot-presence/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/feature-errors.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "runtime-expiry-alert": {
+      "paths": [
+        "bot-runner/src/features/runtime-expiry-alert/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/feature-errors.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "voice-keeper": {
+      "paths": [
+        "bot-runner/src/features/voice-keeper/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/feature-errors.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "welcome-message": {
+      "paths": [
+        "bot-runner/src/features/welcome-message.ts"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [],
+        "bot-runner": [
+          "bot-runner/test/feature-errors.test.ts"
+        ]
+      },
+      "routes": [],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "work": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/work/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/work/**/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/work/*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/api/v1/admin/works/**",
+        "/api/v1/works/**",
+        "/api/v2/works/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md"
+      ]
+    },
+    "donation": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/donation/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/donation/**/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/donation/*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/api/v1/admin/donations/**",
+        "/api/v1/donations/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md"
+      ]
+    },
+    "profile": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/profile/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/profile/**/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/profile/*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/api/v1/auth/me/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md"
+      ]
+    },
+    "seasonal-effects": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/site/"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/site/**/*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/site/*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/api/v1/admin/site/seasonal-effects/**",
+        "/api/v1/site/seasonal-effects/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md"
+      ]
+    },
+    "platform-core": {
+      "paths": [
+        "backend/",
+        "bot-runner/"
+      ],
+      "fullSuite": true,
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/**/*Tests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/*.test.ts"
+        ]
+      },
+      "routes": [
+        "/api/**",
+        "/internal/v1/runtime/**"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/bot-runtime.md",
+        "docs/auth-api.md"
+      ]
+    }
+  }
+}
