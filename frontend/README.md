@@ -81,6 +81,11 @@ CI use the same impact information. See [frontend agent instructions](AGENTS.md)
 - Admin users and wallet history load 50 rows at a time through
   the existing scroll surface. Wallet v2 returns current balance and cursor metadata
   in one contract. Complete inventories and selectors still aggregate cursor pages.
+- Bot settings **Money** (`/my-bot/:botId/settings/money`, plus the Admin equivalent)
+  uses one Wallet per Discord customer per bot, with provider-filtered TrueMoney/SlipOK
+  history and read-only review statuses. Lists load by cursor only for the active tab;
+  stale bot/account requests are aborted. See [Wallet top-up](../docs/wallet-topup.md#bot-settings--money)
+  and the `bot-money` feature scope for its API and coverage.
 - `useFeatureSettings` handles configuration loading/saving and field conversion;
   `usePresentationEditor` handles message edits. Their typed context lives only within
   the feature editor tree. The editor CSS is nested under `.feature-settings` so it
