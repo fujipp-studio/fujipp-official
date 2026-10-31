@@ -9,6 +9,18 @@ import uuid
 from migrationlib import Database, ROOT, append_only, catalog, feature_checks, plan, transaction
 
 
+def wait_for_postgres(prefix):
+    # The official image runs a socket-only temporary server during initdb, then
+    # stops it before starting the final server. TCP readiness excludes that
+    # temporary instance; checking the socket can race with its shutdown.
+    for _ in range(120):
+        if subprocess.run([*prefix, 'pg_isready', '-h', '127.0.0.1', '-p', '5432', '-U', 'postgres', '-d', 'postgres'],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+            return
+        time.sleep(0.25)
+    raise RuntimeError('Disposable PostgreSQL did not become ready on TCP 127.0.0.1:5432')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', default='')
@@ -21,13 +33,7 @@ def main():
         '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', 'postgres:17-alpine'], text=True).strip()
     try:
         prefix = ['docker', 'exec', '-i', name]
-        for _ in range(120):
-            if subprocess.run([*prefix, 'pg_isready', '-U', 'postgres'], stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL).returncode == 0:
-                break
-            time.sleep(0.25)
-        else:
-            raise RuntimeError('Disposable PostgreSQL did not become ready')
+        wait_for_postgres(prefix)
         admin = Database(prefix, 'postgres')
         admin.command('createdb', '-U', 'postgres', '-T', 'template0', 'migration_ci_checks')
         db = Database(prefix, 'migration_ci_checks')
