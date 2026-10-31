@@ -16,12 +16,20 @@ class MigrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.files, cls.legacy = catalog()
+        cls.baseline_files = {version: cls.files[version] for version in cls.legacy}
         cls.history = [{key: item[key] for key in ('version', 'name', 'historySha256')} for item in cls.legacy.values()]
 
-    def test_current_production_history_requires_no_old_sql(self):
-        result = plan(self.files, self.legacy, self.history, {})
+    def test_legacy_history_is_adopted_without_replaying_old_sql(self):
+        result = plan(self.baseline_files, self.legacy, self.history, {})
         self.assertEqual(result['pending'], [])
         self.assertEqual(len(result['adopt']), 70)
+        self.assertEqual(result['adopt'], sorted(self.legacy))
+
+    def test_repository_migrations_after_legacy_remain_pending(self):
+        result = plan(self.files, self.legacy, self.history, {})
+        self.assertEqual(result['pending'], sorted(set(self.files) - set(self.legacy)))
+        self.assertEqual(result['adopt'], sorted(self.legacy))
+        self.assertTrue(set(result['pending']).isdisjoint(self.legacy))
 
     def test_legacy_source_or_history_drift_fails(self):
         version = min(self.files)
@@ -45,7 +53,7 @@ class MigrationTests(unittest.TestCase):
             plan(self.files, self.legacy, self.history[1:], {})
 
     def test_newer_migrations_are_pending_in_order(self):
-        files = {**self.files, '20990101000001': {'name': 'first'}, '20990101000002': {'name': 'second'}}
+        files = {**self.baseline_files, '20990101000002': {'name': 'second'}, '20990101000001': {'name': 'first'}}
         self.assertEqual(plan(files, self.legacy, self.history, {})['pending'], ['20990101000001', '20990101000002'])
         files['20260726000001'] = {'name': 'backdated'}
         with self.assertRaises(MigrationError):
