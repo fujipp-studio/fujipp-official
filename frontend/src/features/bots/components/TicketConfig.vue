@@ -20,6 +20,7 @@ import {
 
 const TicketCounterSettings = defineAsyncComponent(() => import('./TicketCounterSettings.vue'))
 const TicketTopicWelcome = defineAsyncComponent(() => import('./TicketTopicWelcome.vue'))
+const TicketOpeningMentions = defineAsyncComponent(() => import('./TicketOpeningMentions.vue'))
 const TicketActionSettings = defineAsyncComponent(() => import('./TicketActionSettings.vue'))
 const TicketCancellationNotice = defineAsyncComponent(
   () => import('./TicketCancellationNotice.vue'),
@@ -116,6 +117,10 @@ function add() {
 function setWelcome(row: TicketCategory, welcome: TicketCategory['welcome']) {
   if (welcome) row.welcome = welcome
   else delete row.welcome
+  commit()
+}
+function setOpeningMentions(row: TicketCategory, mentions: TicketCategory['openingMentions']) {
+  row.openingMentions = mentions
   commit()
 }
 function addField(row: TicketCategory) {
@@ -278,6 +283,10 @@ const valid = computed(() => validateTicketDraft(values.value))
               :model-value="row.welcome"
               :label="row.label"
               @update:model-value="setWelcome(row, $event)"
+            />
+            <TicketOpeningMentions
+              :model-value="row.openingMentions"
+              @update:model-value="setOpeningMentions(row, $event)"
             />
             <div class="flex items-center justify-between gap-md">
               <span class="text-sm font-medium">{{

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-31 | Documented Ticket opening ping recipients, access and mention permissions, failure handling and deployment order. |
 | 2026-10-30 | Documented optional Ticket controls, Close-only layouts, timer scheduling and custom cancellation announcements without an additional migration. |
 | 2026-10-30 | Documented Ticket topic dropdown resets and compatibility with existing panels. |
 | 2026-10-30 | Documented immediate per-ticket auto-close cancellation for authorized closers and the approval flow for ordinary openers. |

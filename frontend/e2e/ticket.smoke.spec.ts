@@ -52,6 +52,32 @@ for (const theme of ['LIGHT', 'DARK']) {
         .getByRole('button', { name: 'เลือกหัวข้อเพื่อเปิดตั๋ว' }),
     ).toBeVisible()
     await expect(save).toBeDisabled()
+    const pings = form.locator('[data-ticket-opening-mentions]').first()
+    await expect(
+      pings.getByRole('switch', { name: 'Ping when a ticket opens', exact: true }),
+    ).not.toBeChecked()
+    await pings.getByRole('switch', { name: 'Ping when a ticket opens', exact: true }).click()
+    await pings.getByRole('switch', { name: 'Ping the ticket opener', exact: true }).click()
+    const pingRoles = pings.getByRole('textbox', { name: 'Role IDs to ping', exact: true })
+    await pingRoles.fill('bad')
+    await expect(save).toBeDisabled()
+    await pingRoles.fill('222222222222222222, ')
+    await pingRoles.pressSequentially('333333333333333333')
+    await expect(pingRoles).toHaveValue('222222222222222222, 333333333333333333')
+    await pings
+      .getByRole('textbox', { name: 'User IDs to ping', exact: true })
+      .fill('333333333333333333')
+    await pings.getByRole('switch', { name: 'Ping when a ticket opens', exact: true }).click()
+    await expect(pingRoles).toHaveCount(0)
+    await pings.getByRole('switch', { name: 'Ping when a ticket opens', exact: true }).click()
+    await expect(pingRoles).toHaveValue('222222222222222222, 333333333333333333')
+    await expect(save).toBeEnabled()
+    await pings.screenshot({
+      path: testInfo.outputPath(`ticket-pings-${theme.toLowerCase()}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator, .app-toast { visibility: hidden !important; }',
+    })
     await form
       .getByRole('switch', { name: 'Custom welcome for this topic', exact: true })
       .first()
@@ -261,6 +287,12 @@ for (const theme of ['LIGHT', 'DARK']) {
     expect(saved?.values.TICKET_CATEGORIES).toMatchObject([
       {
         key: 'order',
+        openingMentions: {
+          enabled: true,
+          opener: true,
+          roleIds: ['222222222222222222', '333333333333333333'],
+          userIds: ['333333333333333333'],
+        },
         welcome: {
           title: 'Purchase {{id}}',
           description: 'Hello {{user}} — tell us what you need.',

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-31 | Added per-topic Ticket opening ping settings for roles, selected users and the opener, with saved switches, recipient validation and responsive Light/Dark controls. |
 | 2026-10-31 | Kept Ticket numbers and feature settings within bundle budgets by loading command suggestions only for Bot Permissions, with those dependencies still included in budget checks. |
 | 2026-10-31 | Added optional Role pings per Message SET with saved toggles and guidance for message content, Components V2 and Discord permissions. |
 | 2026-10-30 | Added grouped Ticket command/button options and custom cancellation notices with matching button previews and responsive Light/Dark controls. |

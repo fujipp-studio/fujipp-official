@@ -6,6 +6,7 @@ export interface TicketField {
   placeholder: string
 }
 export interface TicketCategory {
+  openingMentions?: TicketOpeningMentions
   key: string
   label: string
   description: string
@@ -19,6 +20,12 @@ export interface TicketCategory {
   formEnabled: boolean
   formTitle: string
   fields: TicketField[]
+}
+export interface TicketOpeningMentions {
+  enabled: boolean
+  opener: boolean
+  roleIds: string[]
+  userIds: string[]
 }
 export const ticketConfigKeys = new Set([
   'TICKET_COMMAND_NAME',
@@ -166,6 +173,28 @@ export function validateTicketDraft(values: Record<string, unknown>): boolean {
       )
         return false
       keys.add(String(row.key))
+      const mentions = row.openingMentions
+      if (mentions !== undefined) {
+        if (
+          !record(mentions) ||
+          typeof mentions.enabled !== 'boolean' ||
+          typeof mentions.opener !== 'boolean'
+        )
+          return false
+        for (const [key, max] of [
+          ['roleIds', 10],
+          ['userIds', 25],
+        ] as const) {
+          const ids = mentions[key]
+          if (
+            !Array.isArray(ids) ||
+            ids.length > max ||
+            !ids.every(id) ||
+            new Set(ids).size !== ids.length
+          )
+            return false
+        }
+      }
       if (
         row.welcome !== undefined &&
         (!record(row.welcome) ||

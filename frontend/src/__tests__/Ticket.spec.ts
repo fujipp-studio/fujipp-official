@@ -90,6 +90,39 @@ describe('Ticket configuration', () => {
     rows[0] = { ...rows[0], formEnabled: false, fields: [], autoCloseMinutes: 0 }
     expect(validateTicketDraft({ ...value, TICKET_CATEGORIES: JSON.stringify(rows) })).toBe(true)
   })
+  it('accepts optional per-topic pings and rejects malformed or duplicate recipients', () => {
+    const value = draft()
+    const rows = JSON.parse(value.TICKET_CATEGORIES)
+    const valid = {
+      enabled: true,
+      opener: true,
+      roleIds: ['222222222222222222'],
+      userIds: ['333333333333333333'],
+    }
+    for (const mentions of [valid, { ...valid, enabled: false }]) {
+      rows[0].openingMentions = mentions
+      expect(validateTicketDraft({ ...value, TICKET_CATEGORIES: JSON.stringify(rows) })).toBe(true)
+    }
+    for (const mentions of [
+      null,
+      {},
+      { ...valid, enabled: 'true' },
+      { ...valid, opener: null },
+      { ...valid, roleIds: ['bad'] },
+      { ...valid, userIds: ['333333333333333333', '333333333333333333'] },
+      {
+        ...valid,
+        roleIds: Array.from({ length: 11 }, (_, i) => String(222222222222222222n + BigInt(i))),
+      },
+      {
+        ...valid,
+        userIds: Array.from({ length: 26 }, (_, i) => String(333333333333333333n + BigInt(i))),
+      },
+    ]) {
+      rows[0].openingMentions = mentions
+      expect(validateTicketDraft({ ...value, TICKET_CATEGORIES: JSON.stringify(rows) })).toBe(false)
+    }
+  })
   it('validates limits and explicit closing permissions without changing old drafts', () => {
     expect(validateTicketDraft(draft())).toBe(true)
     expect(

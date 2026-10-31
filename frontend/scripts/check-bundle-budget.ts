@@ -48,7 +48,7 @@ const featureConfigs = [
   'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
   'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig', 'TicketConfig',
 ]
-const requiredFeatureControls: Record<string, string[]> = { TicketConfig: ['src/features/bots/components/TicketTopicWelcome.vue'] }
+const requiredFeatureControls: Record<string, string[]> = { TicketConfig: ['src/features/bots/components/TicketTopicWelcome.vue', 'src/features/bots/components/TicketOpeningMentions.vue'] }
 const featurePreviews: Record<string, string[]> = {
   BotPermissionsConfig: ['src/features/bots/config/permission-commands.ts'],
   ShopStatusConfig: ['src/features/bots/config/shop-status-validation.ts'],

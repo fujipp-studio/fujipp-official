@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-31 | Added opt-in Ticket opening pings with recipient access checks and recoverable notification failures; updated the HTTP redirect dependency to resolve its security audit failure. |
 | 2026-10-31 | Added validated, opt-in Role pings per Message SET in versions 1.0 and 1.1, with live updates and role permission checks. |
 | 2026-10-30 | Added independent Ticket command/button access, direct action buttons, per-ticket timer scheduling and optional custom cancellation announcements. |
 | 2026-10-30 | Reset Ticket topic dropdowns after selection, including cancelled forms and rejected opens, while preserving panel designs and allowing the same topic to be chosen again. |

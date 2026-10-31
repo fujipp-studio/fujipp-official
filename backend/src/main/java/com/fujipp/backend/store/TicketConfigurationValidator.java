@@ -44,6 +44,13 @@ final class TicketConfigurationValidator {
                     || !text(row.path("label"), 100, false) || !text(row.path("description"), 100, true)
                     || !id(row.path("categoryId"))) fail("Ticket categories require a unique key, label and Discord category ID");
             JsonNode roles = row.path("supportRoleIds");
+            if (row.has("openingMentions")) {
+                JsonNode mentions = row.path("openingMentions");
+                if (!mentions.isObject() || !mentions.path("enabled").isBoolean() || !mentions.path("opener").isBoolean())
+                    fail("Ticket pings require boolean enabled and opener switches");
+                ids(mentions.path("roleIds"), 10);
+                ids(mentions.path("userIds"), 25);
+            }
             if(row.has("welcome")) {
                 JsonNode welcome=row.path("welcome");
                 if(!welcome.isObject() || !text(welcome.path("title"),256,false) || !text(welcome.path("description"),3500,true)
@@ -89,8 +96,8 @@ final class TicketConfigurationValidator {
     private static boolean key(JsonNode node) { return node.isTextual() && node.asText().matches("[a-z0-9_-]{1,32}"); }
     private static void ids(JsonNode values, int max) {
         var unique = new HashSet<String>();
-        if (!values.isArray() || values.size() > max) fail("Invalid Ticket closing role/user list");
-        for (JsonNode value : values) if (!id(value) || !unique.add(value.asText())) fail("Ticket closing IDs must be valid and unique");
+        if (!values.isArray() || values.size() > max) fail("Invalid Ticket role/user list");
+        for (JsonNode value : values) if (!id(value) || !unique.add(value.asText())) fail("Ticket role/user IDs must be valid and unique");
     }
     private static boolean id(JsonNode node) { return node.isTextual() && node.asText().matches("[0-9]{15,30}"); }
     private static boolean text(JsonNode node, int max, boolean empty) {

@@ -6,6 +6,7 @@ export interface TicketField {
   placeholder: string;
 }
 export interface TicketCategory {
+  openingMentions?: TicketOpeningMentions;
   key: string;
   label: string;
   description: string;
@@ -19,6 +20,17 @@ export interface TicketCategory {
   formEnabled: boolean;
   formTitle: string;
   fields: TicketField[];
+}
+export interface TicketOpeningMentions { enabled: boolean; opener: boolean; roleIds: string[]; userIds: string[]; }
+export function readTicketOpeningMentions(value: unknown): TicketOpeningMentions {
+  if (value === undefined) return { enabled: false, opener: false, roleIds: [], userIds: [] };
+  if (!record(value) || typeof value.enabled !== "boolean" || typeof value.opener !== "boolean") throw new Error("Invalid Ticket ping settings");
+  for (const [key, max] of [["roleIds", 10], ["userIds", 25]] as const) {
+    const ids = value[key];
+    if (!Array.isArray(ids) || ids.length > max || !ids.every(id => typeof id === "string" && idPattern.test(id)) || new Set(ids).size !== ids.length)
+      throw new Error("Invalid Ticket ping recipients");
+  }
+  return value as unknown as TicketOpeningMentions;
 }
 const idPattern = /^\d{15,30}$/;
 const keyPattern = /^[a-z0-9_-]{1,32}$/;
@@ -95,6 +107,7 @@ export function readTicketConfig(values: Readonly<Record<string, unknown>>) {
       || !Array.isArray(row.fields) || row.fields.length > 5 || (row.formEnabled && !row.fields.length))
       throw new Error("Invalid ticket category, timer, roles or form");
     keys.add(row.key);
+    readTicketOpeningMentions(row.openingMentions);
     if (row.welcome !== undefined && (!record(row.welcome) || !text(row.welcome.title, 256) || !text(row.welcome.description, 3500, true) || !text(row.welcome.imageUrl, 2048, true) || (row.welcome.imageUrl !== "" && !/^https:\/\/[^\s]+$/.test(row.welcome.imageUrl)))) throw new Error("Invalid topic welcome message");
     if (row.emoji !== undefined && !validTicketEmoji(row.emoji)) throw new Error("Invalid Ticket topic emoji");
     if (row.channelNameTemplate !== undefined && !validTicketName(row.channelNameTemplate)) throw new Error("Invalid Ticket channel name template");
