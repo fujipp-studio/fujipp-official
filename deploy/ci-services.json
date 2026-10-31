@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "services": {
+    "backend": {
+      "root": "backend/",
+      "tests": "backend/src/test/"
+    },
+    "bot-runner": {
+      "root": "bot-runner/",
+      "tests": "bot-runner/test/"
+    }
+  },
+  "pairedPaths": [
+    ".github/workflows/backend-cd.yml",
+    "deploy/ci-",
+    "deploy/deploy-backend.sh",
+    "deploy/compose.production.yml",
+    "deploy/.env.example",
+    "supabase/migrations/",
+    "backend/src/main/java/com/fujipp/backend/runtime/",
+    "backend/src/main/java/com/fujipp/backend/config/",
+    "bot-runner/src/api-client.ts",
+    "bot-runner/src/types.ts",
+    "backend/src/main/java/com/fujipp/backend/roleshop/RoleShopPurchase.java",
+    "backend/src/main/java/com/fujipp/backend/spending/MemberSpendingRepository.java",
+    "backend/src/main/java/com/fujipp/backend/store/TicketRecordRepository.java"
+  ],
+  "pairedBackendSuffixes": [
+    "Controller.java",
+    "Request.java",
+    "Requests.java",
+    "Response.java",
+    "Responses.java",
+    "Status.java"
+  ],
+  "verificationPaths": [
+    "deploy/test_",
+    "deploy/test-fixtures/"
+  ],
+  "guide": "docs/backend-delivery.md"
+}

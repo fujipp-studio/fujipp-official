@@ -1,0 +1,19 @@
+# CI supplies the executable JAR from the same run that passed Maven verify.
+FROM eclipse-temurin:21-jre-alpine AS layers
+WORKDIR /extract
+COPY app.jar ./app.jar
+# Extract only; no Maven/compiler. Stable file times also preserve dependency
+# layer digests when a cold builder receives a JAR from a later build.
+RUN java -Djarmode=tools -jar app.jar extract --layers --destination output \
+    && find output -exec touch -t 198001010000.00 {} +
+
+FROM eclipse-temurin:21-jre-alpine
+WORKDIR /app
+RUN apk add --no-cache fontconfig && addgroup -S fujipp && adduser -S fujipp -G fujipp
+COPY --from=layers /extract/output/dependencies/ ./
+COPY --from=layers /extract/output/spring-boot-loader/ ./
+COPY --from=layers /extract/output/snapshot-dependencies/ ./
+COPY --from=layers /extract/output/application/ ./
+USER fujipp
+EXPOSE 8080
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

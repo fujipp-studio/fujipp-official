@@ -502,6 +502,11 @@ for `RUNNER_API_TOKEN`.
 
 ## Production deployment
 
+GitHub Actions selects Backend/Runner changes, compiles once, publishes the tested
+artifacts and performs scoped health-checked rollout/rollback. See
+[Backend and Runner delivery](backend-delivery.md) for the service map, readiness
+checks, first-rollout behavior and local rehearsals.
+
 Copy `deploy/.env.example` to `deploy/.env`, set every required value, then run:
 
 ```bash

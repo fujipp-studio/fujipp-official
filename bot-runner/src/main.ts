@@ -1,12 +1,14 @@
 import { RuntimeApiClient } from "./api-client.js";
 import { ProcessBotManager } from "./process-bot-manager.js";
 import { loadConfig } from "./config.js";
+import { clearHealth, markHealthy } from "./runtime-health.js";
 
 const config = loadConfig();
 const api = new RuntimeApiClient(config.backendUrl, config.apiToken);
 const manager = new ProcessBotManager(api);
 let stopping = false;
 let syncing = false;
+clearHealth();
 
 async function sync(): Promise<void> {
   if (stopping || syncing) return;
@@ -15,6 +17,7 @@ async function sync(): Promise<void> {
     const bootstrap = await api.bootstrap();
     if (bootstrap) await manager.reconcile(bootstrap.bots);
     else manager.retryUpdates();
+    if (!stopping) markHealthy();
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
   } finally {
@@ -25,6 +28,7 @@ async function sync(): Promise<void> {
 async function shutdown(signal: string): Promise<void> {
   if (stopping) return;
   stopping = true;
+  clearHealth();
   console.info(`Received ${signal}; stopping bots`);
   await manager.shutdown();
   process.exit(0);

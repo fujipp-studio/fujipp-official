@@ -7,6 +7,10 @@ on:
       - bot-runner/**
       - deploy/compose.production.yml
       - deploy/deploy-backend.sh
+      - deploy/ci-*
+      - deploy/test_*.py
+      - deploy/test-fixtures/**
+      - deploy/.env.example
       - .github/workflows/backend-cd.yml
   push:
     branches: [main]
@@ -15,6 +19,10 @@ on:
       - bot-runner/**
       - deploy/compose.production.yml
       - deploy/deploy-backend.sh
+      - deploy/ci-*
+      - deploy/test_*.py
+      - deploy/test-fixtures/**
+      - deploy/.env.example
       - .github/workflows/backend-cd.yml
   workflow_dispatch:
 
@@ -23,11 +31,51 @@ permissions:
 
 concurrency:
   group: backend-production-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  backend:
+  plan:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      backend: ${{ steps.plan.outputs.backend }}
+      runner: ${{ steps.plan.outputs.runner }}
+      deploy_backend: ${{ steps.plan.outputs.deploy_backend }}
+      deploy_runner: ${{ steps.plan.outputs.deploy_runner }}
+      services: ${{ steps.plan.outputs.services }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      backend_tests: ${{ steps.plan.outputs.backend_tests }}
+      runner_tests: ${{ steps.plan.outputs.runner_tests }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: plan
+        name: Select services from the last successful deployment
+        env:
+          CI_EVENT: ${{ github.event_name }}
+          CI_BASE: ${{ github.event.pull_request.base.sha }}
+          CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 deploy/ci-plan.py
+
+  delivery-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check selection, partial rollout and rollback without a VPS
+        run: python3 -m unittest discover -s deploy -p 'test_*.py' -v
+      - run: bash -n deploy/deploy-backend.sh
+
+  backend:
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -38,10 +86,28 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
-      - run: ./mvnw --batch-mode test
+      - name: Verify selected Backend features and package once
+        env:
+          BACKEND_TESTS: ${{ needs.plan.outputs.backend_tests }}
+        run: python3 ../deploy/ci-run-tests.py backend
+      - name: Stage the tested executable JAR
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.plan.outputs.deploy_backend == 'true'
+        run: |
+          mkdir -p target/ci-image
+          cp target/backend-0.0.1-SNAPSHOT.jar target/ci-image/app.jar
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.plan.outputs.deploy_backend == 'true'
+        with:
+          name: backend-compiled
+          path: backend/target/ci-image/app.jar
+          if-no-files-found: error
+          retention-days: 1
 
   bot-runner:
+    needs: plan
+    if: needs.plan.outputs.runner == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: bot-runner
@@ -55,26 +121,66 @@ jobs:
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
-      - run: npm test
+      - name: Verify selected Runner features
+        env:
+          RUNNER_TESTS: ${{ needs.plan.outputs.runner_tests }}
+        run: python3 ../deploy/ci-run-tests.py bot-runner
+      - name: Archive the tested compiled runner
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.plan.outputs.deploy_runner == 'true'
+        run: tar -czf "$RUNNER_TEMP/runner-dist.tar.gz" dist
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.plan.outputs.deploy_runner == 'true'
+        with:
+          name: bot-runner-compiled
+          path: ${{ runner.temp }}/runner-dist.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  verify:
+    if: always()
+    needs: [plan, delivery-checks, backend, bot-runner]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all selected checks to succeed
+        env:
+          PLAN: ${{ needs.plan.result }}
+          DELIVERY: ${{ needs.delivery-checks.result }}
+          BACKEND_SELECTED: ${{ needs.plan.outputs.backend }}
+          RUNNER_SELECTED: ${{ needs.plan.outputs.runner }}
+          BACKEND: ${{ needs.backend.result }}
+          RUNNER: ${{ needs.bot-runner.result }}
+        run: |
+          test "$PLAN" = success
+          test "$DELIVERY" = success
+          case "$BACKEND_SELECTED:$RUNNER_SELECTED" in true:true|true:false|false:true|false:false) ;; *) exit 1;; esac
+          if [ "$BACKEND_SELECTED" = true ]; then test "$BACKEND" = success; else test "$BACKEND" = skipped; fi
+          if [ "$RUNNER_SELECTED" = true ]; then test "$RUNNER" = success; else test "$RUNNER" = skipped; fi
 
   publish:
-    if: github.event_name != 'pull_request'
-    needs: [backend, bot-runner]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.verify.result == 'success' && needs.plan.outputs.services != 'none' }}
+    needs: [plan, verify]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
     strategy:
-      matrix:
-        include:
-          - name: backend
-            context: backend
-            image: ghcr.io/${{ github.repository_owner }}/fujipp-official-backend
-          - name: bot-runner
-            context: bot-runner
-            image: ghcr.io/${{ github.repository_owner }}/fujipp-official-bot-runner
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.context }}
+      - name: Prepare runner runtime context without compiling again
+        if: matrix.name == 'bot-runner'
+        env:
+          IMAGE_CONTEXT: ${{ matrix.context }}
+        run: |
+          cp bot-runner/package.json bot-runner/package-lock.json "$IMAGE_CONTEXT/"
+          tar --extract --gzip --no-same-owner --file "$IMAGE_CONTEXT/runner-dist.tar.gz" --directory "$IMAGE_CONTEXT"
+          rm "$IMAGE_CONTEXT/runner-dist.tar.gz"
       - uses: docker/setup-buildx-action@v4.4.1
       - uses: docker/login-action@v4.7.0
         with:
@@ -85,17 +191,20 @@ jobs:
         uses: docker/build-push-action@v7.4.0
         with:
           context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
           push: true
           tags: |
-            ${{ matrix.image }}:${{ github.sha }}
-            ${{ matrix.image }}:main
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:main
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.name }}-runtime
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}-runtime
 
   deploy:
-    if: github.event_name != 'pull_request'
-    needs: publish
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && needs.verify.result == 'success' && needs.publish.result == 'success' }}
+    needs: [plan, verify, publish]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: read
@@ -119,9 +228,12 @@ jobs:
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
         run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p '$DEPLOY_PATH'"
+          printf -v remote_command 'mkdir -p %q' "$DEPLOY_PATH/.incoming"
+          # Command arguments are explicitly escaped above for remote execution.
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command"
           scp deploy/compose.production.yml deploy/deploy-backend.sh \
-            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/.incoming/"
       - name: Authenticate VPS to GHCR
         env:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
@@ -130,11 +242,12 @@ jobs:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          printf '%s' "$GHCR_TOKEN" | ssh "$DEPLOY_USER@$DEPLOY_HOST" \
-            "install -d -m 700 '$DEPLOY_PATH/.docker' && \
-            docker --config '$DEPLOY_PATH/.docker' login ghcr.io \
-            --username '$GHCR_USER' --password-stdin"
-      - name: Deploy parallel backend
+          printf -v remote_command 'install -d -m 700 %q && docker --config %q login ghcr.io --username %q --password-stdin' \
+            "$DEPLOY_PATH/.docker" "$DEPLOY_PATH/.docker" "$GHCR_USER"
+          # Escaped command expands locally; the token remains on stdin.
+          # shellcheck disable=SC2029
+          printf '%s' "$GHCR_TOKEN" | ssh "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command"
+      - name: Deploy selected services with scoped rollback
         env:
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
@@ -143,12 +256,22 @@ jobs:
           BOT_RUNNER_IMAGE: ${{ vars.BOT_RUNNER_IMAGE }}
           BACKEND_PORT: ${{ vars.BACKEND_PORT }}
           HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
+          SERVICES: ${{ needs.plan.outputs.services }}
         run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
-            "chmod 700 '$DEPLOY_PATH/deploy-backend.sh' && \
-            '$DEPLOY_PATH/deploy-backend.sh' \
-            '$GITHUB_SHA' '$BACKEND_IMAGE' '$BOT_RUNNER_IMAGE' \
-            '$BACKEND_PORT' '$HEALTHCHECK_URL'"
+          printf -v remote_command 'bash -s -- %q %q %q %q %q %q %q' \
+            "$DEPLOY_PATH" "$GITHUB_SHA" "$BACKEND_IMAGE" "$BOT_RUNNER_IMAGE" \
+            "$BACKEND_PORT" "$HEALTHCHECK_URL" "$SERVICES"
+          # printf %q preserves argument boundaries for the remote bash script.
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command" <<'REMOTE'
+          set -euo pipefail
+          deploy_path=$1
+          shift
+          mv "$deploy_path/.incoming/compose.production.yml" "$deploy_path/compose.production.candidate.yml"
+          mv "$deploy_path/.incoming/deploy-backend.sh" "$deploy_path/deploy-backend.sh"
+          chmod 700 "$deploy_path/deploy-backend.sh"
+          exec "$deploy_path/deploy-backend.sh" "$@"
+          REMOTE
       - name: Remove temporary GHCR credentials
         if: always()
         env:
@@ -156,5 +279,7 @@ jobs:
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
         run: |
-          ssh "$DEPLOY_USER@$DEPLOY_HOST" \
-            "docker --config '$DEPLOY_PATH/.docker' logout ghcr.io || true"
+          printf -v remote_command 'docker --config %q logout ghcr.io || true' "$DEPLOY_PATH/.docker"
+          # The local configuration path was escaped with printf %q.
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command"
