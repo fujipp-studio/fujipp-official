@@ -13,4 +13,5 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder /build/dist dist
 USER node
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 CMD ["node", "dist/healthcheck.js"]
 CMD ["node", "dist/main.js"]

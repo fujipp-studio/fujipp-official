@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Added Runner readiness checks based on successful authenticated Backend synchronization so deployments can detect failed startup and roll back. |
 | 2026-10-31 | Added opt-in Ticket opening pings with recipient access checks and recoverable notification failures; updated the HTTP redirect dependency to resolve its security audit failure. |
 | 2026-10-31 | Added validated, opt-in Role pings per Message SET in versions 1.0 and 1.1, with live updates and role permission checks. |
 | 2026-10-30 | Added independent Ticket command/button access, direct action buttons, per-ticket timer scheduling and optional custom cancellation announcements. |
