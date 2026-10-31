@@ -599,6 +599,27 @@
       "guides": [
         "frontend/README.md"
       ]
+    },
+    "bot-money": {
+      "paths": [
+        "frontend/src/features/bots/money-api.ts",
+        "frontend/src/features/bots/views/BotMoneyView.vue"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/money",
+        "/admin/bots/:botId/settings/money"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "bot-money"
+      ],
+      "unit": [
+        "src/__tests__/moneyApi.spec.ts"
+      ],
+      "guides": [
+        "docs/wallet-topup.md",
+        "frontend/README.md"
+      ]
     }
   }
 }

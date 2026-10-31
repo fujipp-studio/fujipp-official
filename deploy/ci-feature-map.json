@@ -41,7 +41,11 @@
       "paths": [
         "backend/src/main/java/com/fujipp/backend/wallet/",
         "backend/src/main/java/com/fujipp/backend/store/WalletQrConfigurationValidator.java",
-        "bot-runner/src/features/wallet-topup/"
+        "bot-runner/src/features/wallet-topup/",
+        "backend/src/main/java/com/fujipp/backend/store/BotMoneyService.java",
+        "backend/src/main/java/com/fujipp/backend/store/BotMoneyController.java",
+        "backend/src/main/java/com/fujipp/backend/store/AdminBotMoneyController.java",
+        "backend/src/main/resources/sql/bot-money/"
       ],
       "dependsOn": [
         "truemoney",
@@ -51,14 +55,17 @@
       "tests": {
         "backend": [
           "backend/src/test/java/com/fujipp/backend/wallet/*Tests.java",
-          "backend/src/test/java/com/fujipp/backend/store/WalletQrConfigurationValidatorTests.java"
+          "backend/src/test/java/com/fujipp/backend/store/WalletQrConfigurationValidatorTests.java",
+          "backend/src/test/java/com/fujipp/backend/store/BotMoneyServiceTests.java"
         ],
         "bot-runner": [
           "bot-runner/test/wallet-*.test.ts"
         ]
       },
       "routes": [
-        "/internal/v1/wallet/**"
+        "/internal/v1/wallet/**",
+        "/api/v1/bots/{botId}/money/**",
+        "/api/v1/admin/bots/{botId}/money/**"
       ],
       "guides": [
         "docs/backend-delivery.md",

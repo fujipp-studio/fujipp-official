@@ -12,7 +12,7 @@ import BotSettingsShell from '../components/BotSettingsShell.vue'
 
 const route = useRoute()
 const router = useRouter()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const botId = computed(() => String(route.params.botId ?? ''))
 const adminMode = computed(() => route.path.startsWith('/admin/bots/'))
 const data = createBotSettingsData({ botId, adminMode })
@@ -28,6 +28,8 @@ const featureParentRoute = computed(
 )
 const trail = computed(() => {
   if (route.name === 'bot-settings' || route.name === 'admin-bot-settings') return []
+  if (route.name === 'bot-money' || route.name === 'admin-bot-money')
+    return [locale.value === 'th' ? 'เงิน' : 'Money']
   if (route.name === 'bot-ticket-history' || route.name === 'admin-bot-ticket-history')
     return [t('botSettings.ticketHistory')]
   if (route.name === 'bot-config-settings' || route.name === 'admin-bot-config-settings')

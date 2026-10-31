@@ -16,7 +16,7 @@ public record RedeemTrueMoneyVoucherRequest(
         @JsonProperty("gift_url")
         @NotBlank
         @Pattern(
-                regexp = "^https://gift\\.truemoney\\.com/campaign/\\?v=[A-Za-z0-9_-]+$",
+                regexp = "^https://gift\\.truemoney\\.com/campaign/?\\?v=[A-Za-z0-9_-]{1,256}$",
                 message = "gift_url must be a TrueMoney campaign URL"
         )
         String giftUrl,

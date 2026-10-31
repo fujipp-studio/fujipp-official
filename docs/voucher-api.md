@@ -68,7 +68,7 @@ Possible persisted statuses are:
 
 - `REDEEMING`: the irreversible upstream operation has started;
 - `VERIFY_FAILED`: TrueMoney rejected the voucher before redemption;
-- `REDEEM_FAILED`: the upstream operation failed;
+- `REDEEM_FAILED`: a pre-receipt upstream request failed (historical rows may lack phase information);
 - `RECONCILIATION_REQUIRED`: the response was lost or processing became stale;
 - `SUCCEEDED`: a positive THB amount and upstream reference were recorded.
 
@@ -77,3 +77,17 @@ will not blindly retry because the voucher may already have been redeemed.
 
 Raw voucher URLs are never stored. The database retains only a SHA-256 hash and
 keeps successful amounts as integer satang.
+
+
+Wallet credits must use `POST /internal/v1/wallet/topups/truemoney`. A voucher
+response of `SUCCEEDED` means the provider receipt was captured, not that a Wallet
+credit has been committed. New Wallet claims snapshot the fee and opt into
+receipt-based atomic settlement/recovery; the direct voucher API and Payment
+Trigger invoices never implicitly credit a customer Wallet.
+
+All redemption paths enforce one recipient and exact satang parsing, including
+properly grouped amounts such as `2,000.00`. The irreversible POST is sent once;
+HTTP 400, timeouts and malformed post-receipt data never cause another POST.
+Accepted but invalid receipts remain `RECONCILIATION_REQUIRED`, with bounded
+private receipt evidence when available. They require investigation, not automatic
+re-redeeming. See [Wallet top-up](wallet-topup.md#reliable-truemoney-receipts).

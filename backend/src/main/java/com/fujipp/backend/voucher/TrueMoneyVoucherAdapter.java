@@ -7,7 +7,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.util.UriComponentsBuilder;
+import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -27,6 +27,7 @@ class TrueMoneyVoucherAdapter {
     private final ObjectMapper objectMapper;
     private final String userAgent;
 
+    @Autowired
     TrueMoneyVoucherAdapter(
             ObjectMapper objectMapper,
             @Value("${app.voucher.truemoney.user-agent:fujipp-voucher/1.0}") String userAgent,
@@ -40,15 +41,25 @@ class TrueMoneyVoucherAdapter {
         this.restClient = RestClient.builder().requestFactory(requestFactory).build();
     }
 
+    TrueMoneyVoucherAdapter(ObjectMapper objectMapper, RestClient restClient) {
+        this.objectMapper = objectMapper;
+        this.restClient = restClient;
+        this.userAgent = "voucher-test";
+    }
+
     Outcome redeem(String phone, String giftUrl) {
-        return redeem(phone, giftUrl, null);
+        return redeem(phone, giftUrl, null, null);
     }
 
     Outcome redeemPayment(String phone, String giftUrl, long expectedAmountSatang) {
-        return redeem(phone, giftUrl, expectedAmountSatang);
+        return redeem(phone, giftUrl, expectedAmountSatang, null);
     }
 
-    private Outcome redeem(String phone, String giftUrl, Long expectedAmountSatang) {
+    Outcome redeemWallet(String phone, String giftUrl, VoucherFee fee) {
+        return redeem(phone, giftUrl, null, fee);
+    }
+
+    private Outcome redeem(String phone, String giftUrl, Long expectedAmountSatang, VoucherFee fee) {
         String voucherCode = voucherCode(giftUrl);
         JsonNode verification = request(
                 HttpMethod.GET,
@@ -58,63 +69,76 @@ class TrueMoneyVoucherAdapter {
         if (!"active".equals(verification.path("data").path("voucher").path("status").asString(""))) {
             throw new VoucherException("VOUCHER_INVALID", "Voucher is not active");
         }
-        if (expectedAmountSatang != null) validatePaymentVoucher(verification.path("data").path("voucher"), expectedAmountSatang);
-
-        JsonNode redeemed = redeemWithOneBadRequestRetry(voucherCode, phone);
-        JsonNode voucher = redeemed.path("data").path("voucher");
-        String amount = voucher.has("redeemed_amount_baht")
-                ? voucher.get("redeemed_amount_baht").asString("")
-                : voucher.path("amount_baht").asString("");
-        String issuer = text(redeemed.path("data").path("owner_profile").path("full_name"));
-        String reference = text(voucher.path("voucher_id"));
-        if (reference == null) {
-            reference = text(redeemed.path("data").path("my_ticket").path("update_date"));
-        }
+        JsonNode verifiedVoucher = verification.path("data").path("voucher");
+        long verifiedAmount;
         try {
-            return new Outcome(new BigDecimal(amount), issuer, reference);
-        } catch (NumberFormatException exception) {
-            throw new VoucherException("UPSTREAM_INVALID_AMOUNT", "TrueMoney returned an invalid amount");
+            validateSingleRecipient(verifiedVoucher);
+            verifiedAmount = amountSatang(verifiedVoucher.path("amount_baht"));
+            if (expectedAmountSatang != null) validatePaymentVoucher(verifiedVoucher, expectedAmountSatang);
+            if (fee != null) fee.net(verifiedAmount);
+        } catch (IllegalArgumentException error) {
+            throw new VoucherException("VOUCHER_INVALID", "ไม่สามารถตรวจสอบยอดซองได้ ยังไม่ได้รับเงินจากซอง");
+        }
+
+        String evidence = null;
+        try {
+            // A POST timeout/400 is not evidence that the irreversible operation failed.
+            // Send exactly once and preserve uncertainty instead of receiving again.
+            JsonNode redeemed = request(HttpMethod.POST, BASE_URL + "/" + voucherCode + "/redeem", Map.of("mobile", phone));
+            JsonNode voucher = redeemed.path("data").path("voucher");
+            JsonNode amount = voucher.has("redeemed_amount_baht")
+                    ? voucher.get("redeemed_amount_baht") : voucher.path("amount_baht");
+            String issuer = text(redeemed.path("data").path("owner_profile").path("full_name"));
+            String reference = text(voucher.path("voucher_id"));
+            // Retain only bounded receipt fields. Never persist a full response,
+            // gift code, owner profile, mobile number or ticket history.
+            evidence = objectMapper.writeValueAsString(Map.of("status", "SUCCESS",
+                    "amountBaht", bounded(amount.asString("").replaceAll("[^0-9.,+Ee -]", "?"), 40),
+                    "voucherId", bounded(reference == null ? "" : reference, 255)));
+            long received = amountSatang(amount);
+            if (reference == null || reference.length() > 255 || received != verifiedAmount
+                    || (text(verifiedVoucher.path("voucher_id")) != null
+                        && !reference.equals(text(verifiedVoucher.path("voucher_id"))))) {
+                throw new VoucherException("REDEMPTION_OUTCOME_UNKNOWN", "ผลรับซองไม่ตรงกับข้อมูลที่ตรวจสอบ กรุณาอย่าส่งซ้ำและติดต่อผู้ดูแล", true);
+            }
+            return new Outcome(BigDecimal.valueOf(received, 2), issuer == null ? null : bounded(issuer,255), reference, evidence);
+        } catch (VoucherException error) {
+            throw new VoucherException(error.code(), "รายการรับซองอยู่ระหว่างตรวจสอบ กรุณาอย่าส่งซ้ำและติดต่อผู้ดูแล", true, evidence);
+        } catch (RuntimeException error) {
+            throw new VoucherException("REDEMPTION_OUTCOME_UNKNOWN", "ผลรับซองยังยืนยันไม่ได้ กรุณาอย่าส่งซ้ำและติดต่อผู้ดูแล", true, evidence);
         }
     }
 
     static void validatePaymentVoucher(JsonNode voucher, long expectedAmountSatang) {
-        if (!"1".equals(voucher.path("member").asString(""))) {
-            throw new VoucherException("VOUCHER_NOT_SINGLE_RECIPIENT", "กรุณาสร้างซองอั่งเปาสำหรับผู้รับ 1 คนเท่านั้น");
-        }
+        validateSingleRecipient(voucher);
         try {
-            long amount = new BigDecimal(voucher.path("amount_baht").asString("")).movePointRight(2).longValueExact();
+            long amount = amountSatang(voucher.path("amount_baht"));
             if (amount != expectedAmountSatang) {
                 throw new VoucherException("VOUCHER_AMOUNT_MISMATCH", "ยอดซองอั่งเปาต้องตรงกับยอดรายการ โดยไม่มีค่าธรรมเนียมเพิ่มเติม");
             }
-        } catch (NumberFormatException | ArithmeticException exception) {
+        } catch (IllegalArgumentException error) {
             throw new VoucherException("VOUCHER_INVALID", "ไม่สามารถตรวจสอบยอดซองอั่งเปาได้ ยังไม่ได้รับเงินจากซอง");
         }
     }
 
-    private JsonNode redeemWithOneBadRequestRetry(String voucherCode, String phone) {
-        for (int attempt = 1; attempt <= 2; attempt++) {
-            try {
-                return request(
-                        HttpMethod.POST,
-                        BASE_URL + "/" + voucherCode + "/redeem",
-                        Map.of("mobile", phone)
-                );
-            } catch (VoucherException exception) {
-                // TrueMoney sometimes answers 400 without a conclusive redemption result.
-                // Retry exactly once: credit is still issued only after an explicit SUCCESS.
-                if (attempt == 1 && "UPSTREAM_HTTP_400".equals(exception.code())) {
-                    continue;
-                }
-                break;
-            }
+    private static void validateSingleRecipient(JsonNode voucher) {
+        if (!"1".equals(voucher.path("member").asString(""))) {
+            throw new VoucherException("VOUCHER_NOT_SINGLE_RECIPIENT", "กรุณาสร้างซองอั่งเปาสำหรับผู้รับ 1 คนเท่านั้น");
         }
+    }
 
-        // Both requests failed to provide SUCCESS. The voucher may already have been
-        // consumed, so do not keep retrying and do not credit the wallet automatically.
-        throw new VoucherException(
-                "REDEMPTION_OUTCOME_UNKNOWN",
-                "TrueMoney may have accepted this voucher, but the result could not be confirmed"
-        );
+    static long amountSatang(JsonNode value) {
+        String amount = value == null ? "" : value.asString("").strip();
+        if (amount.length() > 40 || !amount.matches("(?:[0-9]+|[1-9][0-9]{0,2}(?:,[0-9]{3})+)(?:\\.[0-9]{1,2})?")) {
+            throw new IllegalArgumentException("Unsupported TrueMoney amount format");
+        }
+        try {
+            long satang = new BigDecimal(amount.replace(",", "")).movePointRight(2).longValueExact();
+            if (satang <= 0 || satang > 9_007_199_254_740_991L) throw new IllegalArgumentException("Amount out of range");
+            return satang;
+        } catch (ArithmeticException error) {
+            throw new IllegalArgumentException("Amount out of range");
+        }
     }
 
     private JsonNode request(HttpMethod method, String url, Object body) {
@@ -136,7 +160,8 @@ class TrueMoneyVoucherAdapter {
                     }
                     throw new VoucherException("UPSTREAM_HTTP_" + status, "TrueMoney request failed");
                 }
-                byte[] content = response.getBody().readAllBytes();
+                byte[] content = response.getBody().readNBytes(65_537);
+                if (content.length > 65_536) throw new VoucherException("UPSTREAM_INVALID_RESPONSE", "TrueMoney response is too large");
                 JsonNode json = content.length == 0
                         ? objectMapper.createObjectNode()
                         : objectMapper.readTree(content);
@@ -151,12 +176,8 @@ class TrueMoneyVoucherAdapter {
     }
 
     private static String voucherCode(String giftUrl) {
-        String value = UriComponentsBuilder.fromUriString(giftUrl)
-                .build().getQueryParams().getFirst("v");
-        if (value == null || value.isBlank()) {
-            throw new VoucherException("BAD_GIFT_URL", "Voucher code is missing");
-        }
-        return value;
+        String canonical = VoucherService.canonicalGiftUrl(giftUrl);
+        return canonical.substring(canonical.indexOf("?v=") + 3);
     }
 
     private static String text(JsonNode value) {
@@ -165,6 +186,9 @@ class TrueMoneyVoucherAdapter {
                 : null;
     }
 
-    record Outcome(BigDecimal amountBaht, String issuer, String reference) {
+    private static String bounded(String value, int max) { return value.length() <= max ? value : value.substring(0,max); }
+
+    record Outcome(BigDecimal amountBaht, String issuer, String reference, String evidence) {
+        Outcome(BigDecimal amountBaht, String issuer, String reference) { this(amountBaht, issuer, reference, null); }
     }
 }

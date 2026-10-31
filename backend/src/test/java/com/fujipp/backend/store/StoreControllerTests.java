@@ -34,6 +34,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(value = {
         StoreCatalogController.class,
         BotController.class,
+        BotMoneyController.class,
+        AdminBotMoneyController.class,
         TicketHistoryController.class,
         AdminTicketHistoryController.class,
         RuntimeTicketController.class,
@@ -56,6 +58,8 @@ class StoreControllerTests {
 
     @MockitoBean
     private StoreService storeService;
+    @MockitoBean
+    private BotMoneyService money;
     @MockitoBean
     private TicketHistoryService ticketHistoryService;
     @MockitoBean
@@ -273,6 +277,32 @@ class StoreControllerTests {
 
     private void authorizeUser() {
         authorizeAs(AppRole.USER);
+    }
+
+    @Test
+    void moneyRoutesRequireLoginAndAdminRoleAndNeverCacheFinancialData() throws Exception {
+        UUID botId=UUID.randomUUID();
+        String path="/api/v1/bots/"+botId+"/money/overview";
+        mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+        authorizeUser();
+        mockMvc.perform(get(path.replace("/bots/","/admin/bots/")).with(jwt())).andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(money);
+        when(money.overview("money-user",botId,false)).thenReturn(new BotMoneyService.Overview(1,"199500","199500","0",0,"THB"));
+        mockMvc.perform(get(path).with(jwt().jwt(j->j.subject("money-user"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.balanceSatang").value("199500"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control","no-store"));
+    }
+
+    @Test
+    void moneyNotFoundAndInvalidFiltersReturnClientErrorsInsteadOfServerErrors() throws Exception {
+        authorizeUser(); UUID botId=UUID.randomUUID();
+        when(money.overview(anyString(),org.mockito.ArgumentMatchers.eq(botId),org.mockito.ArgumentMatchers.eq(false)))
+            .thenThrow(new StoreNotFoundException("Bot was not found"));
+        mockMvc.perform(get("/api/v1/bots/{id}/money/overview",botId).with(jwt())).andExpect(status().isNotFound());
+        when(money.customers(anyString(),org.mockito.ArgumentMatchers.eq(botId),org.mockito.ArgumentMatchers.eq(false),
+            org.mockito.ArgumentMatchers.isNull(),org.mockito.ArgumentMatchers.isNull(),org.mockito.ArgumentMatchers.eq(101)))
+            .thenThrow(new StoreValidationException("Limit must be 1–100"));
+        mockMvc.perform(get("/api/v1/bots/{id}/money/customers?limit=101",botId).with(jwt())).andExpect(status().isBadRequest());
     }
 
     @Test

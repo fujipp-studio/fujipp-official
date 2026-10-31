@@ -33,20 +33,25 @@ class WalletService {
 
     WalletResponses.Topup voucher(WalletRequests.VoucherTopup request) {
         WalletRepository.Settings settings=requireSettings(request.botId());
-        VoucherRedemptionResponse redeemed=vouchers.redeem(new RedeemTrueMoneyVoucherRequest(
-                request.botId(),request.memberDiscordId(),request.giftUrl(),request.idempotencyKey()));
+        VoucherRedemptionResponse redeemed=vouchers.redeemWallet(new RedeemTrueMoneyVoucherRequest(
+                request.botId(),request.memberDiscordId(),request.giftUrl(),request.idempotencyKey()),
+                new com.fujipp.backend.voucher.VoucherFee(settings.voucherFeeMode()==null?"FIXED":settings.voucherFeeMode(),
+                        "PERCENT".equals(settings.voucherFeeMode()) ? settings.voucherFeePercent()==null?0:settings.voucherFeePercent()
+                                : settings.voucherFee()==null?0:settings.voucherFee()));
         if (!"SUCCEEDED".equals(redeemed.status()) || redeemed.amountSatang()==null) {
-            throw new WalletException(redeemed.failureCode()==null?"VOUCHER_FAILED":redeemed.failureCode(),
+            throw new WalletException("RECONCILIATION_REQUIRED".equals(redeemed.status()) ? "TOPUP_REVIEW_REQUIRED"
+                    : "REDEEMING".equals(redeemed.status()) ? "TOPUP_PROCESSING"
+                    : redeemed.failureCode()==null?"VOUCHER_FAILED":redeemed.failureCode(),
                     redeemed.failureMessage()==null?"TrueMoney top-up failed":redeemed.failureMessage());
         }
-        long fee = "PERCENT".equals(settings.voucherFeeMode())
-                ? java.math.BigDecimal.valueOf(redeemed.amountSatang())
-                    .multiply(java.math.BigDecimal.valueOf(settings.voucherFeePercent()==null?0:settings.voucherFeePercent()))
-                    .divide(java.math.BigDecimal.valueOf(100),0,java.math.RoundingMode.HALF_UP).longValueExact()
-                : settings.voucherFee()==null?0:settings.voucherFee();
-        long credit=redeemed.amountSatang()-Math.min(fee,redeemed.amountSatang()-1);
-        return repository.settle(null,request.botId(),request.memberDiscordId(),credit,
-                redeemed.reference(),"wallet:"+request.idempotencyKey(),"TRUEMONEY");
+        try {
+            return repository.settleVoucher(redeemed.id(), request.botId(), request.memberDiscordId());
+        } catch (org.springframework.dao.DataAccessException error) {
+            boolean legacy = String.valueOf(error.getMostSpecificCause().getMessage()).contains("LEGACY_REDEMPTION_REVIEW_REQUIRED");
+            throw new WalletException(legacy ? "TOPUP_REVIEW_REQUIRED" : "TOPUP_PROCESSING",
+                    legacy ? "รายการจากระบบเดิม ต้องตรวจสอบประวัติปรับยอดโดยแอดมินก่อน กรุณาอย่าส่งซ้ำ"
+                            : "รับซองแล้ว กำลังเพิ่มยอดจากหลักฐานเดิม กรุณาตรวจสอบยอดภายหลังและอย่าส่งซ้ำ");
+        }
     }
 
     WalletResponses.PromptPaySession createPromptPay(WalletRequests.CreatePromptPay request) {

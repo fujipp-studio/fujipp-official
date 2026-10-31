@@ -19,6 +19,7 @@ export default defineConfig({
     'role-shop.smoke.spec.ts',
     'ticket.smoke.spec.ts',
     'ticket-history.smoke.spec.ts',
+    'bot-money.smoke.spec.ts',
     'roblox-payout.smoke.spec.ts',
     'channel-message-triggers.smoke.spec.ts',
     'payment-trigger.smoke.spec.ts',
