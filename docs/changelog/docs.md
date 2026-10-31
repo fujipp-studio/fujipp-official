@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Documented Discord CI summary setup, accurate deployment status reporting, message recovery and the default-branch trust boundary. |
 | 2026-11-01 | Documented why Database CI waits for TCP readiness after the PostgreSQL image finishes its socket-only bootstrap. |
 | 2026-11-01 | Documented VPS Database feature ownership, CI/CD, legacy migration adoption, private release backups and corrective recovery without automatic data restoration. |
 | 2026-11-01 | Documented Backend/Runner feature ownership, test selection, runtime image caching, readiness and partial deployment recovery. |

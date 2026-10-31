@@ -1,0 +1,101 @@
+name: Discord CI Summary
+
+on:
+  workflow_run:
+    workflows: [Frontend CI/CD, Backend CI/CD, Database CI/CD, Security]
+    types: [in_progress, completed]
+  pull_request:
+    paths:
+      - .github/workflows/discord-ci.yml
+      - .github/scripts/discord_ci.py
+      - .github/scripts/test_discord_ci.py
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/discord-ci.yml
+      - .github/scripts/discord_ci.py
+      - .github/scripts/test_discord_ci.py
+  workflow_dispatch:
+    inputs:
+      source_run_id:
+        description: GitHub Actions run ID to summarize (run on the default branch)
+        type: string
+        required: true
+      recover_message_id:
+        description: Existing Discord card message ID for recovery; normally leave empty
+        type: string
+        default: ''
+      allow_new_message:
+        description: Recreate only after confirming that the old card does not exist
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test aggregation, message updates and uncertain-send recovery without Discord
+        run: python3 -m unittest discover -s .github/scripts -p 'test_discord_ci.py' -v
+
+  resolve:
+    if: >-
+      github.event_name == 'workflow_run' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      key: ${{ steps.source.outputs.key }}
+      source: ${{ steps.source.outputs.source }}
+    steps:
+      - name: Check out trusted default-branch notifier code
+        uses: actions/checkout@v6
+        with:
+          # For workflow_run, github.sha is the trusted default-branch commit.
+          # Manual notification jobs are restricted to the default branch above.
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - id: source
+        name: Resolve source identity without webhook credentials
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: python3 .github/scripts/discord_ci.py resolve
+
+  notify:
+    needs: resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: discord-card-${{ needs.resolve.outputs.key }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+      statuses: write
+    steps:
+      - name: Check out trusted default-branch notifier code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+      - name: Create or update the revision card
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISCORD_CI_WEBHOOK: ${{ secrets.DISCORD_CI_WEBHOOK }}
+          SOURCE_RUN_ID: ${{ needs.resolve.outputs.source }}
+          RECOVER_MESSAGE_ID: ${{ inputs.recover_message_id }}
+          ALLOW_NEW_MESSAGE: ${{ inputs.allow_new_message && 'true' || 'false' }}
+        run: python3 .github/scripts/discord_ci.py notify
