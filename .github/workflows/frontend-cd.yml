@@ -13,6 +13,11 @@ on:
       - bot-runner/src/features/price-reader/**
       - .github/workflows/frontend-cd.yml
   workflow_dispatch:
+    inputs:
+      force_full_upload:
+        description: Reupload all build files to repair out-of-band hosting changes
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +52,7 @@ jobs:
           CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bun scripts/ci-affected.ts plan
+      - run: bun scripts/ci-affected.ts check-map
       - run: bun run lint
       - name: Ensure lint produced no uncommitted fixes
         run: git diff --exit-code
@@ -55,8 +61,13 @@ jobs:
       - run: bun run check:tokens
 
   smoke:
+    name: smoke (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     defaults:
       run:
         working-directory: frontend
@@ -94,7 +105,7 @@ jobs:
       - name: Install browser for isolated UI smoke tests
         timeout-minutes: 10
         run: bunx --no-install playwright install --with-deps chromium
-      - run: bun scripts/ci-affected.ts smoke
+      - run: bun scripts/ci-affected.ts smoke --shard=${{ matrix.shard }}/4
 
   build:
     runs-on: ubuntu-latest
@@ -155,11 +166,19 @@ jobs:
     environment:
       name: frontend-production
       url: ${{ vars.FRONTEND_URL }}
+    env:
+      FRONTEND_FTP_HOST: ${{ vars.FRONTEND_FTP_HOST }}
+      FRONTEND_FTP_PORT: ${{ vars.FRONTEND_FTP_PORT }}
+      FRONTEND_FTP_PATH: ${{ vars.FRONTEND_FTP_PATH }}
+      FRONTEND_DEPLOY_FORCE_FULL: ${{ inputs.force_full_upload && 'true' || 'false' }}
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: 1.3.14
       - uses: actions/download-artifact@v5
         with:
           name: frontend-production
@@ -167,12 +186,11 @@ jobs:
       - name: Install FTPS client
         run: sudo apt-get update && sudo apt-get install --yes lftp
         working-directory: .
-      - name: Deploy dist over explicit FTPS
+      - name: Rehearse FTPS commands locally
+        run: python3 scripts/verify-ftps-commands.py
+      - name: Configure FTPS credentials
         env:
-          FRONTEND_FTP_HOST: ${{ vars.FRONTEND_FTP_HOST }}
-          FRONTEND_FTP_PORT: ${{ vars.FRONTEND_FTP_PORT }}
           FRONTEND_FTP_USER: ${{ vars.FRONTEND_FTP_USER }}
-          FRONTEND_FTP_PATH: ${{ vars.FRONTEND_FTP_PATH }}
           FRONTEND_FTP_PASSWORD: ${{ secrets.FRONTEND_FTP_PASSWORD }}
         run: |
           : "${FRONTEND_FTP_HOST:?Missing FRONTEND_FTP_HOST}"
@@ -190,26 +208,10 @@ jobs:
             "$FRONTEND_FTP_HOST" "$FRONTEND_FTP_USER" "$FRONTEND_FTP_PASSWORD" \
             >"$HOME/.netrc"
 
-          lftp -p "$FRONTEND_FTP_PORT" "$FRONTEND_FTP_HOST" <<LFTP
-          set cmd:fail-exit yes
-          set net:max-retries 2
-          set net:timeout 20
-          set ftp:ssl-force true
-          set ftp:ssl-protect-data true
-          set ssl:verify-certificate yes
-          cd "$FRONTEND_FTP_PATH"
-          # Keep the currently referenced hashed assets available while the new
-          # release uploads. Publishing index.html last prevents it from
-          # pointing browsers at an entry module that does not exist yet.
-          mirror --reverse --verbose --parallel=4 --exclude-glob index.html dist/ .
-          put dist/index.html -o .index.html.next
-          mv .index.html.next index.html
-          bye
-          LFTP
-      - name: Remove temporary FTP credentials
-        if: always()
-        run: rm -f "$HOME/.netrc"
-        working-directory: .
+      - name: Plan changed files against the deployed release
+        run: bun scripts/deploy-ftps.ts prepare
+      - name: Upload changed files and publish HTML last
+        run: bun scripts/deploy-ftps.ts upload
       - name: Verify production website
         env:
           FRONTEND_URL: ${{ vars.FRONTEND_URL }}
@@ -217,12 +219,14 @@ jobs:
           response=$(mktemp)
           headers=$(mktemp)
           entry=$(mktemp)
-          trap 'rm -f "$response" "$headers" "$entry"' EXIT
+          preview=$(mktemp)
+          trap 'rm -f "$response" "$headers" "$entry" "$preview"' EXIT
 
           curl --fail --location --retry 3 --retry-delay 5 \
             --max-time 20 --header 'Cache-Control: no-cache' \
             --output "$response" "${FRONTEND_URL%/}/?deploy=$GITHUB_SHA"
           grep -q '<div id="app"></div>' "$response"
+          cmp frontend/dist/index.html "$response"
 
           entry_path=$(sed -n 's/.*<script[^>]*src="\([^"]*\.js\)".*/\1/p' "$response" | head -n 1)
           case "$entry_path" in
@@ -239,4 +243,27 @@ jobs:
             echo "Production JavaScript entry returned HTML" >&2
             exit 1
           fi
+          cmp "frontend/dist${entry_path}" "$entry"
+
+          curl --fail --location --retry 3 --retry-delay 5 \
+            --max-time 20 --header 'Cache-Control: no-cache' --user-agent Discordbot \
+            --output "$preview" "${FRONTEND_URL%/}/?deploy=$GITHUB_SHA"
+          cmp frontend/dist/discord-preview.html "$preview"
+          touch frontend/node_modules/.cache/ftps-deploy/verified
+        working-directory: .
+      - name: Clean expired owned files and commit verified release state
+        run: bun scripts/deploy-ftps.ts finalize
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-deployment-state-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            frontend/node_modules/.cache/ftps-deploy/plan.json
+            frontend/node_modules/.cache/ftps-deploy/pending.json
+            frontend/node_modules/.cache/ftps-deploy/committed.json
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Remove temporary FTP credentials
+        if: always()
+        run: rm -f "$HOME/.netrc"
         working-directory: .

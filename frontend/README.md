@@ -50,6 +50,11 @@ from the owning feature; there is no all-features Backend barrel.
 
 ## Adding or changing a feature
 
+Read [the feature map](ci/feature-map.json) and
+[CI/deploy guidance](scripts/ci-affected.README.md) first. Keep source ownership,
+routes, dependency relationships and test coverage current in the map so AI and
+CI use the same impact information. See [frontend agent instructions](AGENTS.md).
+
 - Keep endpoint paths, DTOs and domain behavior with their feature. Use the shared
   transport for headers, response handling and bounded requests. Do not call an API
   directly from a presentational component.

@@ -8,7 +8,10 @@
     "cypress.config.*",
     "playwright.config.*",
     "playwright.*.config.ts",
-    "eslint.config.*"
+    "eslint.config.*",
+    "scripts/ci-affected.ts",
+    "scripts/feature-map.ts",
+    "scripts/deploy-ftps.ts"
   ],
   "compilerOptions": {
     "paths": { "@/*": ["./src/*"] },

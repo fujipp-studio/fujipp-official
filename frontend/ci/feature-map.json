@@ -1,0 +1,604 @@
+{
+  "version": 1,
+  "boundaries": [
+    {
+      "path": "frontend/src/router/index.ts",
+      "reason": "Lazy route registry; each routed feature has its own coverage."
+    },
+    {
+      "path": "frontend/src/features/bots/components/FeatureConfigFields.vue",
+      "reason": "Selects feature-specific config components and keys by featureCode."
+    },
+    {
+      "path": "frontend/src/features/bots/composables/useFeatureSettings.ts",
+      "reason": "Dispatches feature-specific configuration parsing and validation; selected feature smoke tests exercise this controller."
+    }
+  ],
+  "features": {
+    "home": {
+      "paths": [
+        "frontend/src/features/home/"
+      ],
+      "routes": [
+        "/"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "frontend",
+        "desktop-scroll",
+        "admin-tools"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "about": {
+      "paths": [
+        "frontend/src/features/about/"
+      ],
+      "routes": [
+        "/about"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "frontend",
+        "admin-tools"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "privacy": {
+      "paths": [
+        "frontend/src/features/privacy/"
+      ],
+      "routes": [
+        "/privacy"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "privacy",
+        "frontend"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "account": {
+      "paths": [
+        "frontend/src/features/account/"
+      ],
+      "routes": [
+        "/account"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "account-topup",
+        "frontend",
+        "admin-tools"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "topup": {
+      "paths": [
+        "frontend/src/features/topup/"
+      ],
+      "routes": [
+        "/add-credit",
+        "/components/topup"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "account-topup",
+        "frontend"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "work": {
+      "paths": [
+        "frontend/src/features/work/"
+      ],
+      "routes": [
+        "/work",
+        "/work/add",
+        "/work/:id/edit",
+        "/work/:slug"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "frontend",
+        "admin-tools"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "admin": {
+      "paths": [
+        "frontend/src/features/admin/"
+      ],
+      "routes": [
+        "/admin/**"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "frontend",
+        "admin-tools"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "store": {
+      "paths": [
+        "frontend/src/features/store/"
+      ],
+      "routes": [
+        "/store/**"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "frontend",
+        "account-topup"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "donation": {
+      "paths": [
+        "frontend/src/features/donation/"
+      ],
+      "routes": [
+        "/support"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "frontend"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "auth": {
+      "paths": [
+        "frontend/src/features/auth/"
+      ],
+      "routes": [
+        "/auth/callback"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "*"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "links": {
+      "paths": [
+        "frontend/src/features/links/"
+      ],
+      "routes": [
+        "/links"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "*"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "terms": {
+      "paths": [
+        "frontend/src/features/terms/"
+      ],
+      "routes": [
+        "/terms"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "*"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "seasonal-effects": {
+      "paths": [
+        "frontend/src/features/seasonal-effects/"
+      ],
+      "routes": [
+        "*"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "seasonal-effects",
+        "frontend"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "bots-core": {
+      "paths": [
+        "frontend/src/features/bots/"
+      ],
+      "routes": [
+        "/my-bot/**"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "*"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "wallet-topup": {
+      "paths": [
+        "frontend/src/features/bots/components/WalletTopupConfig.vue",
+        "frontend/src/features/bots/components/WalletQrWatermarkSettings.vue",
+        "frontend/src/features/bots/components/WalletCommandsSettings.vue",
+        "frontend/src/features/bots/components/WalletMilestonesEditor.vue",
+        "frontend/src/features/bots/config/wallet-topup.ts",
+        "frontend/src/features/bots/models/wallet-presentation-preview.ts",
+        "frontend/src/features/bots/models/wallet-qr-logo.ts",
+        "frontend/src/features/bots/models/wallet-qr-watermark.ts",
+        "frontend/src/__tests__/fixtures/walletTopup.ts",
+        "frontend/src/__tests__/walletPresentationPreview.spec.ts",
+        "frontend/src/__tests__/walletQrWatermark.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "wallet-topup",
+        "wallet-qr",
+        "wallet-watermark"
+      ],
+      "unit": [
+        "src/__tests__/walletPresentationPreview.spec.ts",
+        "src/__tests__/walletQrWatermark.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/wallet-topup.md",
+        "docs/voucher-api.md"
+      ]
+    },
+    "role-shop": {
+      "paths": [
+        "frontend/src/features/bots/components/RoleShopConfig.vue",
+        "frontend/src/features/bots/models/role-shop.ts",
+        "frontend/src/__tests__/roleShop.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [
+        "wallet-topup"
+      ],
+      "smoke": [
+        "role-shop"
+      ],
+      "unit": [
+        "src/__tests__/roleShop.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/role-shop.md"
+      ]
+    },
+    "roblox-payout": {
+      "paths": [
+        "frontend/src/features/bots/components/RobloxPayoutConfig.vue",
+        "frontend/src/features/bots/components/RobloxGroupEditor.vue",
+        "frontend/src/features/bots/components/RobuxPackagesEditor.vue",
+        "frontend/src/features/bots/components/RobuxPanelsEditor.vue",
+        "frontend/src/features/bots/config/roblox-payout.ts",
+        "frontend/src/__tests__/fixtures/robloxPayout.ts",
+        "frontend/src/__tests__/RobloxPayoutEditors.spec.ts",
+        "frontend/src/__tests__/RobuxPanelsEditor.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [
+        "wallet-topup"
+      ],
+      "smoke": [
+        "roblox-payout"
+      ],
+      "unit": [
+        "src/__tests__/RobloxPayoutEditors.spec.ts",
+        "src/__tests__/RobuxPanelsEditor.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/roblox-robux-payout.md"
+      ]
+    },
+    "ticket": {
+      "paths": [
+        "frontend/src/features/bots/components/Ticket*",
+        "frontend/src/features/bots/config/ticket-config.ts",
+        "frontend/src/features/bots/models/ticket-presentation-preview.ts",
+        "frontend/src/__tests__/fixtures/ticket.ts",
+        "frontend/src/__tests__/Ticket.spec.ts",
+        "frontend/src/features/bots/views/TicketHistoryView.vue",
+        "frontend/src/features/bots/ticket-api.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId",
+        "/my-bot/:botId/settings/tickets"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "ticket",
+        "ticket-history"
+      ],
+      "unit": [
+        "src/__tests__/Ticket.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/ticket.md"
+      ]
+    },
+    "message-sets": {
+      "paths": [
+        "frontend/src/features/bots/components/MessageSetsConfig.vue",
+        "frontend/src/features/bots/config/message-sets.ts",
+        "frontend/src/__tests__/fixtures/messageSets.ts",
+        "frontend/src/__tests__/MessageSets.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "message-sets"
+      ],
+      "unit": [
+        "src/__tests__/MessageSets.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "shop-status": {
+      "paths": [
+        "frontend/src/features/bots/components/ShopStatusConfig.vue",
+        "frontend/src/features/bots/config/shop-status.ts",
+        "frontend/src/features/bots/config/shop-status-validation.ts",
+        "frontend/src/__tests__/fixtures/shopStatus.ts",
+        "frontend/src/__tests__/ShopStatus.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "shop-status"
+      ],
+      "unit": [
+        "src/__tests__/ShopStatus.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "payment-trigger": {
+      "paths": [
+        "frontend/src/features/bots/components/PaymentTriggerConfig.vue",
+        "frontend/src/features/bots/components/PaymentBackButtonAppearance.vue",
+        "frontend/src/features/bots/components/PaymentResponseModeField.vue",
+        "frontend/src/features/bots/config/payment-trigger.ts",
+        "frontend/src/features/bots/models/payment-trigger-presentation-preview.ts",
+        "frontend/src/__tests__/fixtures/paymentTrigger.ts",
+        "frontend/src/__tests__/PaymentTriggerButtons.spec.ts",
+        "frontend/src/__tests__/paymentTriggerPreview.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "payment-trigger"
+      ],
+      "unit": [
+        "src/__tests__/PaymentTriggerButtons.spec.ts",
+        "src/__tests__/paymentTriggerPreview.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/payment-trigger.md"
+      ]
+    },
+    "channel-message-triggers": {
+      "paths": [
+        "frontend/src/features/bots/components/ChannelMessageTriggersConfig.vue",
+        "frontend/src/features/bots/components/MessageTriggerRulesEditor.vue",
+        "frontend/src/features/bots/config/channel-message-triggers.ts",
+        "frontend/src/__tests__/fixtures/channelMessageTriggers.ts",
+        "frontend/src/__tests__/MessageTriggerRulesEditor.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "channel-message-triggers"
+      ],
+      "unit": [
+        "src/__tests__/MessageTriggerRulesEditor.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "price-reader": {
+      "paths": [
+        "frontend/src/features/bots/components/PriceReader*",
+        "frontend/src/features/bots/components/PriceMapEditor.vue",
+        "frontend/src/features/bots/config/price-reader.ts",
+        "frontend/src/features/bots/config/price-reader-keys.ts",
+        "frontend/src/features/bots/models/price-reader-ocr.ts",
+        "frontend/src/features/bots/models/price-reader-presentation-preview.ts",
+        "frontend/src/__tests__/fixtures/priceReader.ts",
+        "frontend/src/__tests__/PriceReader.spec.ts",
+        "frontend/src/__tests__/PriceReaderOcr.spec.ts",
+        "bot-runner/src/features/price-reader/"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "price-reader",
+        "price-reader-customization"
+      ],
+      "unit": [
+        "src/__tests__/PriceReader.spec.ts",
+        "src/__tests__/PriceReaderOcr.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "member-spending": {
+      "paths": [
+        "frontend/src/features/bots/components/MemberSpendingConfig.vue",
+        "frontend/src/features/bots/config/member-spending.ts",
+        "frontend/src/__tests__/fixtures/memberSpending.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "member-spending"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "bot-presence": {
+      "paths": [
+        "frontend/src/features/bots/components/BotPresenceConfig.vue",
+        "frontend/src/features/bots/config/bot-presence.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "bot-presence"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "bot-permissions": {
+      "paths": [
+        "frontend/src/features/bots/components/BotPermissionsConfig.vue",
+        "frontend/src/features/bots/components/CommandPermissionsEditor.vue",
+        "frontend/src/features/bots/components/PermissionCommandPicker.vue",
+        "frontend/src/features/bots/config/bot-permissions.ts",
+        "frontend/src/features/bots/config/permission-commands.ts",
+        "frontend/src/__tests__/CommandPermissionsEditor.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "bot-permissions"
+      ],
+      "unit": [
+        "src/__tests__/CommandPermissionsEditor.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "review-credit": {
+      "paths": [
+        "frontend/src/features/bots/components/ReviewCreditConfig.vue",
+        "frontend/src/features/bots/components/ReviewCreditListEditor.vue",
+        "frontend/src/features/bots/config/review-credit.ts",
+        "frontend/src/__tests__/fixtures/reviewCredit.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "review-credit"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "voice-keeper": {
+      "paths": [
+        "frontend/src/features/bots/components/VoiceKeeperConfig.vue",
+        "frontend/src/features/bots/config/voice-keeper.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "voice-keeper"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    },
+    "runtime-expiry-alert": {
+      "paths": [
+        "frontend/src/features/bots/components/RuntimeExpiryAlertConfig.vue",
+        "frontend/src/features/bots/config/runtime-expiry-alert.ts",
+        "frontend/src/__tests__/fixtures/runtimeExpiryAlert.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages/:licenseId"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "runtime-expiry-alert"
+      ],
+      "unit": [],
+      "guides": [
+        "frontend/README.md"
+      ]
+    }
+  }
+}
