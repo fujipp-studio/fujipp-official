@@ -47,6 +47,7 @@ jobs:
           CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
           CI_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: bun scripts/ci-affected.ts plan
+      - run: bun scripts/ci-affected.ts check-map
       - run: bun run lint
       - name: Ensure lint produced no uncommitted fixes
         run: git diff --exit-code
@@ -55,8 +56,13 @@ jobs:
       - run: bun run check:tokens
 
   smoke:
+    name: smoke (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     defaults:
       run:
         working-directory: frontend
@@ -94,7 +100,7 @@ jobs:
       - name: Install browser for isolated UI smoke tests
         timeout-minutes: 10
         run: bunx --no-install playwright install --with-deps chromium
-      - run: bun scripts/ci-affected.ts smoke
+      - run: bun scripts/ci-affected.ts smoke --shard=${{ matrix.shard }}/4
 
   build:
     runs-on: ubuntu-latest

@@ -1,28 +1,12 @@
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { join, relative, resolve, dirname } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import ts from 'typescript'
 import { parse } from 'vue/compiler-sfc'
-import { fileURLToPath } from 'node:url'
+import { loadFeatureMap, ownerOf, root } from './feature-map'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const frontend = join(root, 'frontend')
 const planFile = join(frontend, 'node_modules/.cache/ci-affected.json')
-const featureOf = (file: string) => /^frontend\/src\/features\/([^/]+)\//.exec(file)?.[1]
-const smokeByFeature: Record<string, string[]> = {
-  home: ['frontend', 'desktop-scroll', 'admin-tools'],
-  about: ['frontend', 'admin-tools'],
-  privacy: ['privacy', 'frontend'],
-  account: ['account-topup', 'frontend', 'admin-tools'],
-  topup: ['account-topup', 'frontend'],
-  work: ['frontend', 'admin-tools'],
-  admin: ['frontend', 'admin-tools'],
-  store: ['frontend', 'account-topup'],
-  donation: ['frontend'],
-  services: ['frontend'],
-  auth: ['*'],
-  bots: ['*'],
-}
 
 export interface Plan {
   full: boolean
@@ -30,6 +14,8 @@ export interface Plan {
   changed: string[]
   features: string[]
   smoke: string[]
+  unit: string[]
+  boundaries: string[]
 }
 
 function walk(directory: string): string[] {
@@ -50,8 +36,8 @@ export function readScripts(filename: string, text: string): string {
 // scripts are parsed separately so template text cannot obscure their imports.
 function consumers(): Map<string, Set<string>> {
   const graph = new Map<string, Set<string>>()
-  for (const file of walk(join(frontend, 'src'))) {
-    if (!/\.(ts|vue|js)$/.test(file) || file.includes('/__tests__/')) continue
+  for (const file of [...walk(join(frontend, 'src')), ...walk(join(frontend, 'e2e')), ...walk(join(root, 'bot-runner/src/features/price-reader'))]) {
+    if (!/\.(ts|vue|js)$/.test(file)) continue
     const text = readFileSync(join(root, file), 'utf8')
     const scripts = readScripts(file, text)
     for (const entry of ts.preProcessFile(scripts, true, true).importedFiles) {
@@ -77,18 +63,25 @@ function readdirSafe(path: string): boolean {
 }
 
 export function select(changed: string[], forceFull = false): Plan {
-  const full = (reason: string): Plan => ({ full: true, reason, changed, features: [], smoke: ['*'] })
+  const map = loadFeatureMap()
+  const full = (reason: string): Plan => ({ full: true, reason, changed, features: [], smoke: ['*'], unit: [], boundaries: [] })
   if (forceFull || !changed.length) return full('Manual run or no reliable comparison')
   // Deleted/renamed files can lose their incoming edges in the current tree.
   if (changed.some(file => !existsSync(join(root, file)))) return full('Deleted or renamed file')
   const features = new Set<string>()
   const smoke = new Set<string>()
-  const source = changed.filter(file => featureOf(file))
+  const unit = new Set<string>()
+  const boundaries = new Set<string>()
+  const source: string[] = []
   for (const file of changed) {
-    const feature = featureOf(file)
+    if (/^frontend\/src\/__tests__\/[^/]+\.spec\.ts$/.test(file)) {
+      unit.add(relative(frontend, join(root, file)))
+      continue
+    }
+    const feature = ownerOf(file, map)
     if (feature) {
-      if (!smokeByFeature[feature]) return full('Unmapped feature')
       features.add(feature)
+      source.push(file)
     } else if (/^frontend\/e2e\/[^/]+\.smoke\.spec\.ts$/.test(file)) {
       smoke.add(file.split('/').at(-1)!)
     } else {
@@ -101,31 +94,50 @@ export function select(changed: string[], forceFull = false): Plan {
     for (const consumer of graph.get(file) ?? []) {
       // The route registry imports all pages but does not make them dependencies
       // of each other. Changes to the registry itself still trigger full tests.
-      if (consumer === 'frontend/src/router/index.ts') continue
-      const feature = featureOf(consumer)
-      if (!feature || !smokeByFeature[feature]) return full('Feature is consumed by shared application code')
+      if (map.boundaries.some(boundary => boundary.path === consumer)) {
+        boundaries.add(consumer)
+        continue
+      }
+      if (consumer.endsWith('.smoke.spec.ts')) {
+        smoke.add(consumer.split('/').at(-1)!)
+        continue
+      }
+      if (consumer.endsWith('.spec.ts')) {
+        unit.add(relative(frontend, join(root, consumer)))
+        continue
+      }
+      const feature = ownerOf(consumer, map)
+      if (!feature) return full(`Feature is consumed by shared application code: ${consumer}`)
       features.add(feature)
       affected.add(consumer)
     }
   }
   for (const feature of features) {
-    for (const name of smokeByFeature[feature]!) {
+    for (const [name, scope] of Object.entries(map.features)) {
+      if (scope.dependsOn.includes(feature)) features.add(name)
+    }
+    for (const path of map.features[feature]!.unit) unit.add(path)
+    for (const name of map.features[feature]!.smoke) {
       if (name === '*') return full(`Broad or shared feature: ${feature}`)
       smoke.add(`${name}.smoke.spec.ts`)
     }
   }
-  return { full: false, reason: 'Feature changes and reverse import dependencies', changed, features: [...features].sort(), smoke: [...smoke].sort() }
+  return { full: false, reason: 'Feature map, declared dependents and reverse imports', changed, features: [...features].sort(), smoke: [...smoke].sort(), unit: [...unit].sort(), boundaries: [...boundaries].sort() }
 }
 
 function run(args: string[]) {
   const result = spawnSync('bun', args, { cwd: frontend, stdio: 'inherit' })
   if (result.error) throw result.error
   process.exitCode = result.status ?? 1
+  return process.exitCode === 0
 }
 
 if (import.meta.main) {
   const command = process.argv[2]
-  if (command === 'plan') {
+  if (command === 'check-map') {
+    const map = loadFeatureMap()
+    console.log(`Validated ${Object.keys(map.features).length} feature scopes and ${map.boundaries.length} integration boundaries`)
+  } else if (command === 'plan') {
     let plan: Plan
     const base = process.env.CI_BASE ?? ''
     const head = process.env.CI_HEAD ?? 'HEAD'
@@ -139,16 +151,20 @@ if (import.meta.main) {
     mkdirSync(dirname(planFile), { recursive: true })
     writeFileSync(planFile, JSON.stringify(plan, null, 2))
     console.log(JSON.stringify(plan, null, 2))
-    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Affected frontend tests\n\n${plan.reason}\n\nFeatures: ${plan.features.join(', ') || 'all'}\n\nSmoke: ${plan.smoke.join(', ')}\n`)
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### Affected frontend tests\n\n${plan.reason}\n\nFeatures: ${plan.features.join(', ') || 'all'}\n\nSmoke: ${plan.smoke.join(', ')}\n\nUnit: ${plan.unit.join(', ') || 'related / full suite'}\n\nIntegration boundaries: ${plan.boundaries.join(', ') || 'none'}\n`)
   } else {
     const plan = JSON.parse(readFileSync(planFile, 'utf8')) as Plan
     if (command === 'unit') {
-      const source = plan.changed.filter(file => featureOf(file)).map(file => relative(frontend, join(root, file)))
+      const source = plan.changed.filter(file => /\.(ts|js|vue)$/.test(file) && !file.endsWith('.spec.ts')).map(file => relative(frontend, join(root, file)))
       if (plan.full) run(['run', 'test:unit', '--run'])
-      else if (source.length) run(['x', '--no-install', 'vitest', 'related', '--run', '--passWithNoTests', ...source])
-      else console.log('Only smoke specs changed; no unit tests affected.')
+      else {
+        const passed = !plan.unit.length || run(['run', 'test:unit', '--run', ...plan.unit])
+        if (passed && source.length) run(['x', '--no-install', 'vitest', 'related', '--run', '--passWithNoTests', ...source])
+        else if (!plan.unit.length) console.log('Only smoke specs changed; no unit tests affected.')
+      }
     } else if (command === 'smoke') {
-      run(['run', 'test:smoke', ...(plan.full ? [] : plan.smoke)])
+      if (!plan.full && !plan.smoke.length) console.log('Only unit tests changed; no smoke tests affected.')
+      else run(['run', 'test:smoke', ...(plan.full ? [] : plan.smoke), ...process.argv.slice(3)])
     } else throw new Error(`Unknown CI command: ${command}`)
   }
 }

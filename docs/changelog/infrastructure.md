@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-10-31 | Added shared feature-based test selection and four smoke-test shards while preserving full checks for shared and unclassified changes. |
 | 2026-10-28 | Scoped the secret-scan exception to one synthetic Discord ID in the Payment Trigger API fixture while retaining detection for other IDs and files. |
 | 2026-10-27 | Included fontconfig and a bundled Thai font so Backend QR text watermarks render in the production container. |
 | 2026-10-21 | Added a private resource-limited VPS PostgreSQL stack, scheduled backups, snapshot verification and isolated Backend migration rehearsals. |
