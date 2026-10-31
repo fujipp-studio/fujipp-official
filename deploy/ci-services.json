@@ -16,7 +16,6 @@
     "deploy/deploy-backend.sh",
     "deploy/compose.production.yml",
     "deploy/.env.example",
-    "supabase/migrations/",
     "backend/src/main/java/com/fujipp/backend/runtime/",
     "backend/src/main/java/com/fujipp/backend/config/",
     "bot-runner/src/api-client.ts",
@@ -34,6 +33,9 @@
     "Status.java"
   ],
   "verificationPaths": [
+    "supabase/migrations/",
+    "deploy/postgres/",
+    ".github/workflows/database-cd.yml",
     "deploy/test_",
     "deploy/test-fixtures/"
   ],

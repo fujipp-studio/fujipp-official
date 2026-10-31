@@ -3,6 +3,10 @@
 `frontend-cd.yml` runs Quality, Build and Smoke concurrently. The `verify` job
 remains the required aggregate check. Deploy waits for it and downloads the
 production build artifact instead of installing packages and building again.
+On main, Deploy also waits for the shared
+[VPS Database gate](../../docs/database-delivery.md), so pending schema changes
+are checked and applied before FTPS publication. The database workflow uses the
+existing `production` environment; FTP credentials remain scoped separately.
 Production build variables are read from `frontend-production`; PR builds use
 `frontend-ci` (no production environment access). Existing environment protection
 rules apply to the build as well as the deploy job.

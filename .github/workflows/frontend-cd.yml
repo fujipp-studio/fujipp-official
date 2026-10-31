@@ -159,9 +159,17 @@ jobs:
           BUILD: ${{ needs.build.result }}
         run: test "$QUALITY" = success && test "$SMOKE" = success && test "$BUILD" = success
 
+  database:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: verify
+    uses: ./.github/workflows/database-cd.yml
+    with:
+      apply: true
+    secrets: inherit
+
   deploy:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [verify, build]
+    needs: [verify, build, database]
     runs-on: ubuntu-latest
     environment:
       name: frontend-production

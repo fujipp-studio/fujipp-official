@@ -32,11 +32,18 @@ class SelectionTests(unittest.TestCase):
                      'backend/src/main/java/com/fujipp/backend/wallet/WalletResponses.java',
                      'backend/src/main/java/com/fujipp/backend/runtime/RuntimeRepository.java',
                      'deploy/compose.production.yml', 'deploy/deploy-backend.sh',
-                     '.github/workflows/backend-cd.yml', 'supabase/migrations/example.sql']:
+                     '.github/workflows/backend-cd.yml']:
             with self.subTest(path=path):
                 result = plan.selection([path])
                 self.assertTrue(result['backend'] and result['runner'])
                 self.assertEqual(result['services'], 'both')
+
+    def test_database_only_validates_compatibility_without_publishing_app_images(self):
+        result = plan.selection(['supabase/migrations/20990101000001_example.sql'])
+        self.assertTrue(result['backend'] and result['runner'])
+        self.assertFalse(result['deploy_backend'] or result['deploy_runner'])
+        self.assertEqual(result['services'], 'none')
+        self.assertEqual(result['matrix']['include'], [])
 
     def test_tests_validate_without_publishing(self):
         for path, key in [('backend/src/test/java/ExampleTests.java', 'backend'),
@@ -80,14 +87,14 @@ class SelectionTests(unittest.TestCase):
         workflow = (plan.ROOT / '.github/workflows/backend-cd.yml').read_text()
         block = workflow.split('name: Require all selected checks to succeed', 1)[1].split('\n  publish:', 1)[0]
         script = textwrap.dedent(block.split('        run: |\n', 1)[1])
-        env = {**os.environ, 'PLAN': 'success', 'DELIVERY': 'success',
+        env = {**os.environ, 'PLAN': 'success', 'DELIVERY': 'success', 'DATABASE': 'success',
                'BACKEND_SELECTED': 'false', 'RUNNER_SELECTED': 'true',
                'BACKEND': 'skipped', 'RUNNER': 'success'}
         def status(overrides):
             return subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', script], env={**env, **overrides}).returncode
         self.assertEqual(status({}), 0)
         self.assertEqual(status({'RUNNER_SELECTED': 'false', 'RUNNER': 'skipped'}), 0)
-        for overrides in [{'PLAN': 'failure'}, {'DELIVERY': 'failure'},
+        for overrides in [{'PLAN': 'failure'}, {'DELIVERY': 'failure'}, {'DATABASE': 'failure'},
                           {'RUNNER': 'failure'}, {'BACKEND': 'success'},
                           {'RUNNER_SELECTED': ''}, {'BACKEND_SELECTED': 'true'}]:
             with self.subTest(overrides=overrides):

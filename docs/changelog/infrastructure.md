@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Gated Backend and Frontend releases on verified VPS migrations while avoiding application image publishing and container restarts for database-only changes. |
 | 2026-11-01 | Added dependency-aware Backend/Runner feature checks, reusable runtime image layers and service-scoped deployments with preserved peer images and tested rollback. |
 | 2026-10-31 | Added shared feature-based test selection, four smoke-test shards and content-hash FTPS deployment with verified release state, interrupted-upload recovery and delayed owned-file cleanup. |
 | 2026-10-28 | Scoped the secret-scan exception to one synthetic Discord ID in the Payment Trigger API fixture while retaining detection for other IDs and files. |

@@ -5,6 +5,9 @@ on:
     paths:
       - backend/**
       - bot-runner/**
+      - supabase/migrations/**
+      - deploy/postgres/**
+      - .github/workflows/database-cd.yml
       - deploy/compose.production.yml
       - deploy/deploy-backend.sh
       - deploy/ci-*
@@ -17,6 +20,9 @@ on:
     paths:
       - backend/**
       - bot-runner/**
+      - supabase/migrations/**
+      - deploy/postgres/**
+      - .github/workflows/database-cd.yml
       - deploy/compose.production.yml
       - deploy/deploy-backend.sh
       - deploy/ci-*
@@ -136,15 +142,29 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  database:
+    needs: [plan, delivery-checks, backend, bot-runner]
+    if: >-
+      !cancelled() && needs.plan.result == 'success' && needs.delivery-checks.result == 'success' &&
+      ((needs.plan.outputs.backend == 'true' && needs.backend.result == 'success') ||
+       (needs.plan.outputs.backend == 'false' && needs.backend.result == 'skipped')) &&
+      ((needs.plan.outputs.runner == 'true' && needs.bot-runner.result == 'success') ||
+       (needs.plan.outputs.runner == 'false' && needs.bot-runner.result == 'skipped'))
+    uses: ./.github/workflows/database-cd.yml
+    with:
+      apply: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    secrets: inherit
+
   verify:
     if: always()
-    needs: [plan, delivery-checks, backend, bot-runner]
+    needs: [plan, delivery-checks, backend, bot-runner, database]
     runs-on: ubuntu-latest
     steps:
       - name: Require all selected checks to succeed
         env:
           PLAN: ${{ needs.plan.result }}
           DELIVERY: ${{ needs.delivery-checks.result }}
+          DATABASE: ${{ needs.database.result }}
           BACKEND_SELECTED: ${{ needs.plan.outputs.backend }}
           RUNNER_SELECTED: ${{ needs.plan.outputs.runner }}
           BACKEND: ${{ needs.backend.result }}
@@ -152,6 +172,7 @@ jobs:
         run: |
           test "$PLAN" = success
           test "$DELIVERY" = success
+          test "$DATABASE" = success
           case "$BACKEND_SELECTED:$RUNNER_SELECTED" in true:true|true:false|false:true|false:false) ;; *) exit 1;; esac
           if [ "$BACKEND_SELECTED" = true ]; then test "$BACKEND" = success; else test "$BACKEND" = skipped; fi
           if [ "$RUNNER_SELECTED" = true ]; then test "$RUNNER" = success; else test "$RUNNER" = skipped; fi

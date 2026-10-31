@@ -16,9 +16,12 @@ its ownership and coverage when adding or moving code.
 - Runner feature changes select Runner; backend implementation changes select
   Backend. Unknown files inside either service select that service conservatively.
 - API controllers, request/response/status classes, Runtime/bootstrap/configuration,
-  Runner API/types, migrations and delivery infrastructure select both services.
+  Runner API/types and delivery infrastructure select both services.
   This is deliberately broader than just DTO syntax; semantic contract changes
   outside these boundaries must update the map or include the affected service.
+- Migration-only changes validate both application services for compatibility and
+  run the Database gate, without publishing images or restarting application
+  containers. Changed application sources still select their own image releases.
 - Test-only changes validate the affected service without publishing or deploying.
   Delivery test changes validate both. Markdown outside runtime source and unrelated
   frontend/docs changes do not deploy application services.
@@ -28,6 +31,10 @@ its ownership and coverage when adding or moving code.
 - `verify` requires the plan, deployment rehearsals and every selected service check
   to succeed. Only deliberately unselected jobs may be skipped. The publish matrix
   contains only release services, so tests/docs-only runs do not create empty images.
+- Database validation also gates `verify`. On main, the reusable Database workflow
+  backs up/rehearses/applies pending VPS migrations after selected code checks and
+  before image publishing. Database failures block the release. See
+  [Database delivery](database-delivery.md) for history adoption and recovery.
 
 Keep the `verify` aggregate check required in branch protection. The workflow also
 enforces this gate before publishing/deploying regardless of branch protection.
@@ -130,7 +137,8 @@ should use this workflow for releases: out-of-band manual image rollbacks are no
 represented in GitHub deployment history. A manual full run reconciles both
 services. Runtime environment/secret changes also need a deliberate full rollout,
 because they are not stored in the Git diff. Do not prune rollback images during
-deployment. Database migration/rollback remains a separate process.
+deployment. Committed database changes are not reversed by an application rollback;
+use the Database delivery procedure for corrective migrations and recovery.
 
 ## Runner readiness
 

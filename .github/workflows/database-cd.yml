@@ -1,0 +1,94 @@
+name: Database CI/CD
+
+on:
+  workflow_call:
+    inputs:
+      apply:
+        type: boolean
+        default: false
+    secrets:
+      DEPLOY_SSH_KEY:
+        required: false
+      DEPLOY_KNOWN_HOSTS:
+        required: false
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: Apply pending migrations to the active VPS database after checks
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check immutable migrations, selection and bundle boundaries
+        run: python3 -m unittest discover -s deploy/postgres -p 'test_*.py' -v
+      - name: Rehearse migrations and failure recovery on isolated PostgreSQL 17
+        env:
+          CI_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python3 deploy/postgres/ci.py --base "$CI_BASE"
+
+  deploy:
+    needs: checks
+    if: inputs.apply && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v6
+      - name: Package reviewed migrations without credentials or backups
+        run: |
+          python3 deploy/postgres/bundle.py --commit "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/database.tgz" >"$RUNNER_TEMP/database.sha256"
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_SSH_KEY" >"$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+      - name: Back up, rehearse and apply only pending migrations
+        env:
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DATABASE_DEPLOY_PATH: ${{ vars.DATABASE_DEPLOY_PATH || '/opt/fujipp/apps/fujipp-postgres' }}
+        run: |
+          stage="$DATABASE_DEPLOY_PATH/.ci-releases/$GITHUB_SHA/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          printf -v remote_command 'install -d -m 700 %q' "$stage/source"
+          # The remote path is escaped with printf %q.
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command"
+          scp "$RUNNER_TEMP/database.tgz" "$DEPLOY_USER@$DEPLOY_HOST:$stage/database.tgz"
+          read -r bundle_hash <"$RUNNER_TEMP/database.sha256"
+          [[ $bundle_hash =~ ^[0-9a-f]{64}$ ]]
+          printf -v remote_command 'bash -s -- %q %q %q %q' \
+            "$stage" "$GITHUB_SHA" "$bundle_hash" "$DATABASE_DEPLOY_PATH"
+          # Arguments are locally escaped; the script below has a quoted delimiter.
+          # shellcheck disable=SC2029
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "$remote_command" <<'REMOTE'
+          set -euo pipefail
+          stage=$1
+          commit=$2
+          bundle_hash=$3
+          database_dir=$4
+          cd "$stage"
+          printf '%s  database.tgz\n' "$bundle_hash" | sha256sum --check --status
+          tar --extract --gzip --no-same-owner --file database.tgz --directory source
+          exec python3 source/deploy/postgres/delivery.py --apply --commit "$commit" --database-dir "$database_dir"
+          REMOTE
+      - name: Record database gate completion
+        run: printf '### VPS Database\n\nReviewed migration checks and deployment gate passed for %s.\n' "$GITHUB_SHA" >>"$GITHUB_STEP_SUMMARY"
+      - name: Remove temporary SSH key
+        if: always()
+        run: rm -f "$HOME/.ssh/id_ed25519"
