@@ -1,5 +1,12 @@
 # VPS PostgreSQL
 
+Production application data is already on VPS PostgreSQL; Supabase Auth remains
+the identity issuer. The infrastructure installation/cutover notes below are
+historical setup procedures. Routine schema delivery now follows
+[Database CI/CD](../../docs/database-delivery.md), with ownership and checks in
+[`feature-map.json`](feature-map.json). Do not rerun cutover/bootstrap SQL as part
+of normal application releases.
+
 This stack prepares a standalone PostgreSQL 17 database for an application
 migration. It does not change the Backend DB URL, move production data, or replace
 Supabase Auth. Run it separately from the application Compose project so an

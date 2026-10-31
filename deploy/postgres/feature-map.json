@@ -1,0 +1,217 @@
+{
+  "version": 1,
+  "baselineChecks": [
+    "deploy/postgres/checks/baseline.sql",
+    "deploy/postgres/checks/identity.sql",
+    "deploy/postgres/checks/wallet.sql"
+  ],
+  "features": {
+    "identity": {
+      "migrations": [
+        "*profiles.sql",
+        "*user_accounts.sql",
+        "*security_audit_log.sql"
+      ],
+      "objects": [
+        "auth.users",
+        "public.profiles",
+        "private.user_accounts"
+      ],
+      "dependsOn": [],
+      "checks": [
+        "deploy/postgres/checks/identity.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md"
+      ]
+    },
+    "wallet": {
+      "migrations": [
+        "*wallet*.sql",
+        "*billing*.sql",
+        "*voucher*.sql"
+      ],
+      "objects": [
+        "billing.wallets",
+        "billing.wallet_entries",
+        "private.member_wallets",
+        "private.member_wallet_entries",
+        "private.truemoney_voucher_redemptions"
+      ],
+      "dependsOn": [
+        "identity"
+      ],
+      "checks": [
+        "deploy/postgres/checks/wallet.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/wallet-topup.md"
+      ]
+    },
+    "role-shop": {
+      "migrations": [
+        "*role_shop.sql"
+      ],
+      "objects": [
+        "private.role_shop_purchases"
+      ],
+      "dependsOn": [
+        "wallet"
+      ],
+      "checks": [
+        "deploy/postgres/checks/role-shop.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/role-shop.md"
+      ]
+    },
+    "roblox-payout": {
+      "migrations": [
+        "*roblox*.sql",
+        "*robux*.sql"
+      ],
+      "objects": [
+        "private.robux_payout_jobs"
+      ],
+      "dependsOn": [
+        "wallet"
+      ],
+      "checks": [
+        "deploy/postgres/checks/roblox-payout.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/roblox-robux-payout.md"
+      ]
+    },
+    "payment-trigger": {
+      "migrations": [
+        "*payment_trigger*.sql"
+      ],
+      "objects": [
+        "private.truemoney_voucher_redemptions"
+      ],
+      "dependsOn": [
+        "wallet"
+      ],
+      "checks": [
+        "deploy/postgres/checks/payment-trigger.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/payment-trigger.md"
+      ]
+    },
+    "ticket": {
+      "migrations": [
+        "*ticket*.sql"
+      ],
+      "objects": [
+        "private.ticket_channels",
+        "private.ticket_counters"
+      ],
+      "dependsOn": [],
+      "checks": [
+        "deploy/postgres/checks/ticket.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/ticket.md"
+      ]
+    },
+    "member-spending": {
+      "migrations": [
+        "*member_spending*.sql"
+      ],
+      "objects": [
+        "private.member_spending",
+        "private.member_spending_monthly",
+        "private.member_spending_operations"
+      ],
+      "dependsOn": [],
+      "checks": [
+        "deploy/postgres/checks/member-spending.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/bot-runtime.md"
+      ]
+    },
+    "portfolio": {
+      "migrations": [
+        "*portfolio.sql",
+        "*project_categories.sql"
+      ],
+      "objects": [
+        "portfolio.projects"
+      ],
+      "dependsOn": [
+        "identity"
+      ],
+      "checks": [
+        "deploy/postgres/checks/portfolio.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/work-api.md"
+      ]
+    },
+    "catalog-runtime": {
+      "migrations": [
+        "*feature*.sql",
+        "*runtime*.sql",
+        "*bot_transfer.sql",
+        "*bot_names.sql",
+        "*shop_status*.sql",
+        "*message_sets*.sql",
+        "*price_reader*.sql"
+      ],
+      "objects": [
+        "shop.feature_products",
+        "shop.feature_versions",
+        "bots.bot_instances"
+      ],
+      "dependsOn": [],
+      "checks": [
+        "deploy/postgres/checks/catalog-runtime.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md"
+      ]
+    },
+    "donation": {
+      "migrations": [
+        "*donation*.sql"
+      ],
+      "objects": [
+        "support.donations"
+      ],
+      "dependsOn": [
+        "wallet"
+      ],
+      "checks": [
+        "deploy/postgres/checks/donation.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md"
+      ]
+    },
+    "site": {
+      "migrations": [
+        "*website_effect_settings.sql"
+      ],
+      "objects": [
+        "private.website_effect_settings"
+      ],
+      "dependsOn": [],
+      "checks": [
+        "deploy/postgres/checks/site.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md"
+      ]
+    }
+  }
+}
