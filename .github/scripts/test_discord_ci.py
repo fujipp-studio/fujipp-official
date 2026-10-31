@@ -40,6 +40,10 @@ def snapshot(*runs, jobs=None):
             'jobs': jobs or {str(anchor['id']): [job()]}}
 
 
+def field_value(payload, name):
+    return next(field['value'] for field in payload['embeds'][0]['fields'] if field['name'] == name)
+
+
 class FakeGitHub:
     repository = REPO
 
@@ -163,53 +167,77 @@ class SummaryTests(unittest.TestCase):
             with self.subTest(item=item), self.assertRaises(NotifyError): card_key(item, REPO)
 
     def test_render_distinguishes_deployment_checks_missing_and_cancellation(self):
-        for state, conclusion, expected in [('completed', 'cancelled', 'ยกเลิก'), ('in_progress', None, 'กำลังรัน'),
-                                             ('completed', 'skipped', 'ข้าม')]:
+        for state, conclusion, expected in [('completed', 'cancelled', 'Cancelled'), ('in_progress', None, 'In progress'),
+                                             ('completed', 'skipped', 'Skipped')]:
             result = render(snapshot(run(status=state, conclusion=conclusion)))
-            self.assertIn(expected, result['embeds'][0]['fields'][0]['value'])
+            self.assertIn(expected, field_value(result, 'Frontend'))
         result = render(snapshot(run(event='pull_request'), jobs={'10': [job(conclusion='skipped')]}))
-        self.assertIn('ไม่ได้ Deploy', result['embeds'][0]['fields'][0]['value'])
-        self.assertIn('ยังไม่พบ run', result['embeds'][0]['fields'][1]['value'])
+        self.assertIn('deployment skipped', field_value(result, 'Frontend'))
+        self.assertIn('No run observed', field_value(result, 'Backend / Runner'))
         result = render(snapshot(run()))
-        self.assertIn('Deploy สำเร็จ', result['embeds'][0]['fields'][0]['value'])
-        self.assertIn('3m 37s', result['embeds'][0]['fields'][0]['value'])
+        self.assertIn('Deployment succeeded', field_value(result, 'Frontend'))
+        self.assertIn('3m 37s', field_value(result, 'Frontend'))
 
     def test_failure_lists_stage_links_without_claiming_rollback_success(self):
         failed = job(conclusion='failure')
         failed['steps'] = [{'name': 'Deploy selected services', 'conclusion': 'failure'}]
         result = render(snapshot(run(conclusion='failure'), jobs={'10': [failed]}))
-        self.assertIn('ล้มเหลว', result['embeds'][0]['title'])
+        self.assertEqual(field_value(result, 'Status'), 'FAILED')
         output = json.dumps(result, ensure_ascii=False)
         self.assertIn('Deploy selected services', output)
-        self.assertIn('ยังไม่ยืนยันผล rollback', output)
-        self.assertNotIn('กลับรุ่นเดิมแล้ว', output)
+        self.assertIn('Rollback outcome not verified', output)
+        self.assertNotIn('Rollback succeeded', output)
 
     def test_pr_job_names_cannot_claim_a_production_deployment(self):
         source = run(event='pull_request')
         result = render(snapshot(source, jobs={'10': [job('deploy'), job('database / deploy')]}))
         output = json.dumps(result, ensure_ascii=False)
-        self.assertNotIn('Deploy สำเร็จ', output)
-        self.assertNotIn('ขั้น Database สำเร็จ', output)
-        self.assertIn('ไม่ได้ Deploy production', output)
+        self.assertNotIn('Deployment succeeded', output)
+        self.assertNotIn('Verification passed', field_value(result, 'Database'))
+        self.assertIn('Production deployment skipped', output)
 
     def test_database_reusable_jobs_are_aggregated_once(self):
         backend = run(path='.github/workflows/backend-cd.yml', id=11)
         result = render(snapshot(run(), backend, jobs={'10': [job()], '11': [job('database / checks'), job('database / deploy')]}))
         database = [field for field in result['embeds'][0]['fields'] if field['name'] == 'Database']
         self.assertEqual(len(database), 1)
-        self.assertIn('ขั้น Database สำเร็จ', database[0]['value'])
-        self.assertNotIn('ไม่มี migration', json.dumps(result, ensure_ascii=False))
+        self.assertIn('Verification passed', database[0]['value'])
+        self.assertNotIn('No pending migrations', json.dumps(result, ensure_ascii=False))
 
     def test_security_failure_does_not_suggest_a_deployment_rollback(self):
         source = run(path='.github/workflows/security.yml', conclusion='failure')
         result = render(snapshot(source, jobs={'10': [job('CodeQL', conclusion='failure')]}))
-        self.assertNotIn('การกู้คืน', [field['name'] for field in result['embeds'][0]['fields']])
+        self.assertNotIn('Recovery', [field['name'] for field in result['embeds'][0]['fields']])
 
     def test_standalone_database_check_only_does_not_claim_apply(self):
         source = run(path='.github/workflows/database-cd.yml', event='workflow_dispatch')
         result = render(snapshot(source, jobs={'10': [job('checks'), job('deploy', conclusion='skipped')]}))
         database = next(field for field in result['embeds'][0]['fields'] if field['name'] == 'Database')
-        self.assertIn('ไม่ได้ Deploy', database['value'])
+        self.assertIn('Deployment skipped', database['value'])
+
+    def test_report_uses_english_labels_standard_metadata_and_one_status_icon(self):
+        result = render(snapshot(run()))
+        embed = result['embeds'][0]
+        self.assertEqual(embed['title'], '✅ FUJIPP STUDIO • CI/CD REPORT')
+        self.assertEqual([field['name'] for field in embed['fields'][:4]], ['Status', 'Branch', 'Commit', 'Triggered by'])
+        self.assertEqual(field_value(result, 'Status'), 'SUCCEEDED')
+        self.assertEqual(field_value(result, 'Branch'), 'main')
+        self.assertEqual(field_value(result, 'Triggered by'), 'fixture')
+        self.assertIn('View Workflow', field_value(result, 'Links'))
+        output = json.dumps(result, ensure_ascii=False)
+        self.assertFalse(any('\u0e00' <= char <= '\u0e7f' for char in output))
+        self.assertEqual(sum(output.count(icon) for icon in ['✅', '❌', '⏳', '⏹️', '❔']), 1)
+
+    def test_existing_card_with_legacy_marker_is_upgraded_without_another_post(self):
+        github, transport = FakeGitHub(), FakeDiscordTransport()
+        discord = Discord(HOOK, transport)
+        current = snapshot()
+        synchronize(github, discord, current, NOTIFIER)
+        transport.messages[MESSAGE]['embeds'][0]['footer']['text'] = 'FUJIPP CI • ' + current['key']
+        self.assertEqual(synchronize(github, discord, current, NOTIFIER), 'updated')
+        self.assertEqual(transport.count('POST'), 1)
+        self.assertEqual(transport.count('PATCH'), 1)
+        self.assertTrue(transport.messages[MESSAGE]['embeds'][0]['footer']['text'].startswith('FUJIPP STUDIO • Ref '))
 
     def test_preview_cli_runs_without_tokens_or_network(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -6,6 +6,15 @@ Runner, Database and Security. Database checks/deployment inside reusable workfl
 calls are summarized in one Database field. Smoke shards and CodeQL jobs remain
 details linked from the card rather than individual channel messages.
 
+Reports use English system labels and a consistent `FUJIPP STUDIO • CI/CD REPORT`
+heading, with one status icon and a status color. Status, Branch, Commit and
+Triggered by appear before the workflow results. States use `IN PROGRESS`,
+`SUCCEEDED`, `FAILED`, `CANCELLED`, `SKIPPED` or `UNCONFIRMED`. Workflow rows
+distinguish `Checks passed`, `Deployment succeeded` and `Deployment skipped`.
+Failure details and recovery guidance appear only when relevant, followed by
+Workflow/Commit/Pull Request links. Source commit titles and step names retain
+their original wording; the notifier does not translate GitHub metadata.
+
 ## Setup
 
 - Keep the native Discord webhook URL in repository Actions secret
@@ -39,10 +48,12 @@ reconciles all current workflow results. An in-progress notification is not
 cancelled halfway through sending.
 
 Only workflows returned by GitHub are summarized. A missing run is explicitly
-labelled **ยังไม่พบ run**; it is not counted as a successful/skipped workflow.
+labelled **No run observed for this revision**; it is not counted as a
+successful/skipped workflow.
 GitHub can register runs at slightly different times, so a later start/completion
 event updates that field. The green heading describes the observed workflows,
 not a guarantee that every possible workflow ran or that production remains up.
+The report description explicitly limits the result to observed workflows.
 
 The card distinguishes running, failed, cancelled, skipped, checks-only and
 deployment outcomes. Production deployment labels require a successful deploy
@@ -57,6 +68,9 @@ that the database was already current. Exact operational details remain in Actio
 Messages use `FUJIPP CI` as the sender name, contain no role/everyone mentions,
 and update silently. A notification failure does not prevent or roll back the
 independent application/database release workflows.
+Existing cards with the original full-hash footer remain editable and receive
+the new format on their next update. The footer shows a shorter audit reference;
+the full revision key and durable message pointer stay unchanged.
 
 ## Message pointer and uncertain sends
 
