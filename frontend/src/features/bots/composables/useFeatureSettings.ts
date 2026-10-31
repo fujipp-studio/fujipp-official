@@ -15,12 +15,7 @@ import { clone, invalidActionRowPath } from '../models/presentation'
 import { memberSpendingPresentationCopy } from '../config/member-spending'
 import { walletPresentationCopy } from '../config/wallet-topup'
 import { parseReviewList, reviewCreditListKeys } from '../config/review-credit'
-import {
-  hasPermissionCommandSuggestions,
-  needsCommandConfiguration,
-  permissionCommands,
-  type PermissionCommandFeature,
-} from '../config/permission-commands'
+import type { PermissionCommandFeature } from '../config/permission-commands'
 import { usePresentationEditor } from './usePresentationEditor'
 import { useBotSettingsData } from '../composables/useBotSettingsData'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
@@ -889,6 +884,8 @@ export function useFeatureSettings() {
       configuration.value = config
       hydrate(config)
       if (license.value?.featureCode === 'bot-permissions') {
+        const { hasPermissionCommandSuggestions, needsCommandConfiguration, permissionCommands } =
+          await import('../config/permission-commands')
         const installed = allLicenses.filter(
           (item) =>
             hasPermissionCommandSuggestions(item) &&

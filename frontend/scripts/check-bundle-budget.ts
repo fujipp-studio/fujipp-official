@@ -50,6 +50,7 @@ const featureConfigs = [
 ]
 const requiredFeatureControls: Record<string, string[]> = { TicketConfig: ['src/features/bots/components/TicketTopicWelcome.vue'] }
 const featurePreviews: Record<string, string[]> = {
+  BotPermissionsConfig: ['src/features/bots/config/permission-commands.ts'],
   ShopStatusConfig: ['src/features/bots/config/shop-status-validation.ts'],
   TicketConfig: ['src/features/bots/models/ticket-presentation-preview.ts', 'src/features/bots/config/ticket-config.ts'],
   WalletTopupConfig: ['src/features/bots/models/wallet-presentation-preview.ts', 'src/features/bots/models/wallet-qr-watermark.ts'],
