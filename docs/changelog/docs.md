@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-10-31 | Documented shared AI/CI feature ownership, routes, dependencies and affected-test selection. |
+| 2026-10-31 | Documented shared AI/CI feature ownership, affected-test selection and incremental FTPS release verification, recovery and cleanup. |
 | 2026-10-31 | Documented Ticket opening ping recipients, access and mention permissions, failure handling and deployment order. |
 | 2026-10-30 | Documented optional Ticket controls, Close-only layouts, timer scheduling and custom cancellation announcements without an additional migration. |
 | 2026-10-30 | Documented Ticket topic dropdown resets and compatibility with existing panels. |

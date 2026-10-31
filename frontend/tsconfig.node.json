@@ -10,7 +10,8 @@
     "playwright.*.config.ts",
     "eslint.config.*",
     "scripts/ci-affected.ts",
-    "scripts/feature-map.ts"
+    "scripts/feature-map.ts",
+    "scripts/deploy-ftps.ts"
   ],
   "compilerOptions": {
     "paths": { "@/*": ["./src/*"] },
