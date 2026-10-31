@@ -9,6 +9,8 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from types import SimpleNamespace
 import unittest
 import uuid
@@ -16,8 +18,46 @@ import uuid
 from migrationlib import Database, MigrationError, plan, transaction
 from bundle import build
 from delivery import execute
+from ci import wait_for_postgres
 
 CONTAINER = sys.argv.pop(1) if len(sys.argv) > 1 else ''
+
+
+class ReadinessTests(unittest.TestCase):
+    def test_socket_only_bootstrap_must_not_release_the_ci_readiness_gate(self):
+        name = 'fujipp-db-ci-startup-' + uuid.uuid4().hex[:12]
+        # Generate the fixture inside the disposable container so host file-share
+        # permissions cannot affect the entrypoint's non-root initialization.
+        hold = ("printf '%s\\n' 'touch /tmp/fujipp-initializing' "
+                "'while [ ! -f /tmp/fujipp-continue ]; do sleep 0.1; done' "
+                ">/docker-entrypoint-initdb.d/99-hold.sh; exec /usr/local/bin/docker-entrypoint.sh postgres")
+        subprocess.run(['docker', 'run', '-d', '--name', name, '--network', 'none', '--memory', '1g',
+            '--tmpfs', '/var/lib/postgresql/data:rw,size=1073741824',
+            '-e', 'POSTGRES_HOST_AUTH_METHOD=trust', 'postgres:17-alpine', 'sh', '-c', hold],
+            check=True, stdout=subprocess.DEVNULL)
+        prefix = ['docker', 'exec', '-i', name]
+        try:
+            deadline = time.monotonic() + 30
+            while subprocess.run([*prefix, 'test', '-f', '/tmp/fujipp-initializing'],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode:
+                if time.monotonic() > deadline:
+                    self.fail('Temporary bootstrap server did not start')
+                time.sleep(0.1)
+            # This was the original false-positive readiness signal.
+            self.assertEqual(subprocess.run([*prefix, 'pg_isready', '-U', 'postgres'],
+                                            stdout=subprocess.DEVNULL).returncode, 0)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                ready = executor.submit(wait_for_postgres, prefix)
+                try:
+                    with self.assertRaises(TimeoutError):
+                        ready.result(timeout=0.5)
+                finally:
+                    subprocess.run([*prefix, 'touch', '/tmp/fujipp-continue'], check=True)
+                    ready.result(timeout=30)
+            # The final instance must support the next real CI operation.
+            Database(prefix, 'postgres').command('createdb', '-U', 'postgres', 'readiness_probe')
+        finally:
+            subprocess.run(['docker', 'rm', '-f', name], check=True, stdout=subprocess.DEVNULL)
 
 
 class IntegrationTests(unittest.TestCase):

@@ -22,6 +22,8 @@ dependencies, checks and feature guides before editing a database feature.
    applies incoming migrations and runs the selected checks. New migrations must
    supply their own Backend grants. Provisioning checks insert only synthetic
    data inside a transaction that rolls back. No production credentials are used.
+   Readiness probes use TCP inside the isolated container, so the official image's
+   socket-only bootstrap server cannot release the gate before initialization ends.
 4. After selected application checks pass, Backend calls the reusable
    `.github/workflows/database-cd.yml` before its aggregate `verify` gate and
    image publishing/deployment. Frontend calls the same workflow after its checks
