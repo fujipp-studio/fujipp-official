@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Consolidated CI/CD notifications into one Discord card per revision with durable message updates, failure links and recovery that avoids uncertain duplicate sends. |
 | 2026-11-01 | Waited for the final PostgreSQL instance in Database CI, preventing bootstrap readiness races from blocking otherwise successful application releases. |
 | 2026-11-01 | Gated Backend and Frontend releases on verified VPS migrations while avoiding application image publishing and container restarts for database-only changes. |
 | 2026-11-01 | Added dependency-aware Backend/Runner feature checks, reusable runtime image layers and service-scoped deployments with preserved peer images and tested rollback. |
