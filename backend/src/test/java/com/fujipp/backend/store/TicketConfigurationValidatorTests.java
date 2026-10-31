@@ -63,6 +63,31 @@ class TicketConfigurationValidatorTests {
             assertThatThrownBy(() -> TicketConfigurationValidator.validate(Map.of(
                 "TICKET_COMMAND_NAME", mapper.valueToTree(name)))).isInstanceOf(StoreValidationException.class);
     }
+    @Test void validatesOptionalPerTopicPingSwitchesAndRecipients() {
+        var category = (tools.jackson.databind.node.ObjectNode) mapper.readTree(CATEGORY);
+        var rows = mapper.createArrayNode().add(category);
+        for (String raw : java.util.List.of(
+                "{\"enabled\":true,\"opener\":true,\"roleIds\":[\"222222222222222222\"],\"userIds\":[\"333333333333333333\"]}",
+                "{\"enabled\":false,\"opener\":false,\"roleIds\":[],\"userIds\":[]}")) {
+            category.set("openingMentions", mapper.readTree(raw));
+            assertThatCode(() -> TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES", rows))).doesNotThrowAnyException();
+        }
+        for (String raw : java.util.List.of("null", "{}", "{\"enabled\":\"true\",\"opener\":true,\"roleIds\":[],\"userIds\":[]}",
+                "{\"enabled\":true,\"opener\":null,\"roleIds\":[],\"userIds\":[]}",
+                "{\"enabled\":false,\"opener\":true,\"roleIds\":[\"bad\"],\"userIds\":[]}",
+                "{\"enabled\":true,\"opener\":true,\"roleIds\":[],\"userIds\":[\"333333333333333333\",\"333333333333333333\"]}")) {
+            category.set("openingMentions", mapper.readTree(raw));
+            assertThatThrownBy(() -> TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES", rows))).isInstanceOf(StoreValidationException.class);
+        }
+        for (String key : java.util.List.of("roleIds", "userIds")) {
+            var mentions = mapper.createObjectNode().put("enabled", true).put("opener", false);
+            mentions.set("roleIds", mapper.createArrayNode()); mentions.set("userIds", mapper.createArrayNode());
+            var ids = mapper.createArrayNode();
+            for (int i = 0; i < (key.equals("roleIds") ? 11 : 26); i++) ids.add(Long.toString(222222222222222222L + i));
+            mentions.set(key, ids); category.set("openingMentions", mentions);
+            assertThatThrownBy(() -> TicketConfigurationValidator.validate(Map.of("TICKET_CATEGORIES", rows))).isInstanceOf(StoreValidationException.class);
+        }
+    }
     @Test void discordHistoryIsAnExplicitBooleanOption() {
         for (boolean enabled : new boolean[]{true, false})
             assertThatCode(() -> TicketConfigurationValidator.validate(Map.of("TICKET_DISCORD_HISTORY_ENABLED", mapper.valueToTree(enabled)))).doesNotThrowAnyException();

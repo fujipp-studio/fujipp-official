@@ -53,7 +53,7 @@ function fixture(rows = [category()], historyEnabled = false) {
     }) },
     channels: { cache: channels,
       fetch: async (id?: string) => id ? channels.get(id) : channels,
-      create: async (options: any) => { creations.push(options); return makeChannel(`88888888888888888${creations.length}`, options.topic); },
+      create: async (options: any) => { creations.push(options); return Object.assign(makeChannel(`88888888888888888${creations.length}`, options.topic), { guild: server }); },
     },
   };
   client.guilds = { fetch: async () => server };
@@ -178,6 +178,29 @@ test("topics without forms open directly and concurrent clicks share one ticket"
   await Promise.all([a.send(), b.send()]);
   assert.equal(f.creations.length, 1);
   assert.match(b.replies.at(-1).content, /สูงสุด 1/);
+});
+
+test("opening pings follow welcome messages once and do not ping mentions supplied by the form", async (t) => {
+  const f = fixture([category({ openingMentions: { enabled: true, opener: true, roleIds: [staff], userIds: [owner] } })]);
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const modal = f.interaction("modal"); await modal.send();
+  const room = f.channels.get("888888888888888881");
+  assert.deepEqual(room.sent[0].allowedMentions, { parse: [] });
+  assert.deepEqual(room.sent.at(-1).allowedMentions, { parse: [], roles: [staff], users: [owner], repliedUser: false });
+  assert.equal(room.sent.at(-1).content, `<@&${staff}> <@${owner}>`);
+  await f.interaction("modal").send();
+  assert.equal(room.sent.filter((payload: any) => payload.allowedMentions.roles).length, 1);
+});
+
+test("a ping failure keeps the opened ticket and welcome and reports the notification problem", async (t) => {
+  const f = fixture([category({ openingMentions: { enabled: true, opener: true, roleIds: [serverId], userIds: [] } })]);
+  t.after(await ticketFeature.activate(f.context)); await flush();
+  const modal = f.interaction("modal"); await modal.send();
+  assert.equal(f.records.size, 1);
+  assert.equal(f.deleted.length, 0);
+  assert.equal(f.channels.get("888888888888888881").sent.length, 1);
+  assert.equal(f.errors[0][0], "TICKET_PING_FAILED");
+  assert.match(modal.replies.at(-1).content, /แต่ส่ง Ping ไม่สำเร็จ/);
 });
 
 test("empty required answers and stale topics never create channels", async (t) => {

@@ -9,6 +9,7 @@ import {
 import type { FeatureContext, FeatureModule } from "../../types.js";
 import { renderTemplate } from "../presentation.js";
 import { ticketOpeningMessages } from "./messages.js";
+import { sendTicketOpeningMentions } from "./mentions.js";
 import { ticketArchive, ticketTranscript } from "./history.js";
 import { replyFeatureError } from "../errors.js";
 import { readTicketConfig, readTicketTopic, ticketDue, ticketChannelName, ticketActionEnabled, type TicketAction, type TicketCategory, type TicketState } from "./config.js";
@@ -215,7 +216,10 @@ export const ticketFeature: FeatureModule = {
         return;
       }
       console.info(`Ticket opened: bot ${context.botId}, ${Date.now() - startedAt}ms`);
-      await interaction.editReply({ content: `เปิดตั๋วแล้ว: <#${channel.id}>`, allowedMentions: { parse: [] } });
+      let pingFailed = false;
+      try { await sendTicketOpeningMentions(channel, category, interaction.user.id); }
+      catch (error) { pingFailed = true; await report("TICKET_PING_FAILED", error); }
+      await interaction.editReply({ content: `เปิดตั๋วแล้ว: <#${channel.id}>${pingFailed ? " แต่ส่ง Ping ไม่สำเร็จ กรุณาให้ผู้ดูแลตรวจผู้รับและสิทธิ์การแท็ก" : ""}`, allowedMentions: { parse: [] } });
     };
     const handle = async (interaction: TicketInteraction) => {
       if (interaction.guildId !== context.guildId || stopped) return;

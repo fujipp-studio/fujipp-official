@@ -51,6 +51,24 @@ Names are normalized, spaces become hyphens, unsafe separators/control character
 are removed and the final name is limited to 100 characters. Names apply to newly
 opened tickets. New rooms have no system metadata in their channel topic.
 
+## Opening pings
+
+Each topic has an optional **Ping when a ticket opens** switch, off by default.
+Choose **Ping the ticket opener**, up to 10 Role IDs and up to 25 User IDs.
+After the welcome and form answers, the Runner sends one separate mention message
+in the new ticket. This works with both Embed and Components V2 welcome designs.
+The opener is deduplicated if also listed as a recipient. Form answers, welcome
+text, private replies and subsequent ticket actions do not enable extra mentions.
+
+Recipients must already have View Channel through the topic's support roles,
+closing permissions or Administrator. Pings never grant channel access. A role
+must be mentionable or the bot must have Mention Everyone in the ticket; the
+everyone role is rejected. All recipients are checked before sending. If a ping
+fails, the ticket and its welcome remain available, the opener sees a warning,
+and the Runner reports `TICKET_PING_FAILED`. Changes apply to newly opened tickets.
+Settings are stored in the existing per-topic `openingMentions` JSON object;
+deploy Backend and Runner support before using the updated settings page.
+
 ## Ticket numbering
 
 Under **Ticket numbers**, set the next integer (0–99999) or reset to `00000`.
