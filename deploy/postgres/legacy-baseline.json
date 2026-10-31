@@ -1,0 +1,498 @@
+{
+  "version": 1,
+  "sourceRevision": "16a54e9ec12d7cc8abc0daf69ccce09110f5a81f",
+  "observedAt": "2026-11-01",
+  "description": "Read-only VPS history snapshot. These versions may be adopted as metadata only, never replayed in production.",
+  "migrations": [
+    {
+      "version": "20260727000001",
+      "name": "create_profiles",
+      "historySha256": "bd86c2191bf985780515deb432cfc14be41c6c42e6962bc443709e699802242d",
+      "sha256": "f1ab894803b736d7c60fd90a8a9599683d3c961a2d888fa06e0fbe63eaeef9ae",
+      "path": "supabase/migrations/20260727000001_create_profiles.sql"
+    },
+    {
+      "version": "20260727000002",
+      "name": "create_portfolio",
+      "historySha256": "4be4f9ea8182e86e3070969c33b439998723c1a924c17dcd5737277130feda41",
+      "sha256": "ccc4df34ec3c1d2e22f7e17ebf6efea7064f0de4b23d3059b89ed6f84d606305",
+      "path": "supabase/migrations/20260727000002_create_portfolio.sql"
+    },
+    {
+      "version": "20260727000003",
+      "name": "create_billing_wallet",
+      "historySha256": "8e025443001f7de76e8f26db209a415afa1a219a5c28b69d8004f09e80a64b25",
+      "sha256": "ed8823cd68603543d684884e34a424ef828a4425c4afd85df29d4a8a56f3f61c",
+      "path": "supabase/migrations/20260727000003_create_billing_wallet.sql"
+    },
+    {
+      "version": "20260727000004",
+      "name": "create_user_accounts",
+      "historySha256": "9be6b8af8d4006c84db28495bba33bb25d88d61cb4558807d3fe1c89c7fc5ac3",
+      "sha256": "629be67166b731aa29a42ff58f0f9f73f3dab080d61c30b6baf74835111eb146",
+      "path": "supabase/migrations/20260727000004_create_user_accounts.sql"
+    },
+    {
+      "version": "20260729000001",
+      "name": "create_security_audit_log",
+      "historySha256": "0c4de82315fdc603bedd00d863b1b8459b22ea23ffbb97b14cac0b9b2604fbe9",
+      "sha256": "b6f96987c252969a3e5f5f608d2d81e2debb4292a25e9fbb532f2daeb2ae05c5",
+      "path": "supabase/migrations/20260729000001_create_security_audit_log.sql"
+    },
+    {
+      "version": "20260801000001",
+      "name": "create_bot_feature_store",
+      "historySha256": "2e4dd5674af9fffc7c6521b2f872a519211416bbf3e11d32c43fad7f72a44158",
+      "sha256": "2b5f9ed9a04d9e7d3de3eed2bbd0766bf5f9bbc2c2e051e44ef79e3d69c7061c",
+      "path": "supabase/migrations/20260801000001_create_bot_feature_store.sql"
+    },
+    {
+      "version": "20260801000002",
+      "name": "add_runtime_features",
+      "historySha256": "56d31564c08bd43e6d25f0d05fbae412bad1bfeea33af5cd283cd3b9cda2b9ea",
+      "sha256": "fb28839bd5d9685abfbaf97f6138c03ec048710b4df3376075758439cc571210",
+      "path": "supabase/migrations/20260801000002_add_runtime_features.sql"
+    },
+    {
+      "version": "20260801000003",
+      "name": "create_truemoney_voucher_service",
+      "historySha256": "e175f2dfb8b1f940482a9598aa87a467d2e89435fcffec688d50ae2318f8ab4b",
+      "sha256": "5a02747297d0063ff5730dd5d900d7ff56970dacd87cc3438595e49bd258ebdc",
+      "path": "supabase/migrations/20260801000003_create_truemoney_voucher_service.sql"
+    },
+    {
+      "version": "20260801000004",
+      "name": "create_wallet_topup_feature",
+      "historySha256": "af43897410e9fe226a8f5fdb4bf5c9196cde5374fdf317f7bf9a6f4bb51ba192",
+      "sha256": "f8943019ce91df936ae3fb6a27f4c011cca137941e401e2f41b61c08fcaf1837",
+      "path": "supabase/migrations/20260801000004_create_wallet_topup_feature.sql"
+    },
+    {
+      "version": "20260801000005",
+      "name": "create_roblox_robux_payout_feature",
+      "historySha256": "b5ec5e643bc32e0994882594ee3719f72aa78b1489e8916be0bd976695268775",
+      "sha256": "3f6c9f416fd3091f418f7e82624c1c0216a9467172c1b2c60c40c1d63d94534d",
+      "path": "supabase/migrations/20260801000005_create_roblox_robux_payout_feature.sql"
+    },
+    {
+      "version": "20260801000006",
+      "name": "create_price_reader_feature",
+      "historySha256": "4c0cfc5b16842de304d7e9335e870547f40b989748a846c5bebce0c6fec49ab6",
+      "sha256": "48582540c9fb96ec4866bed4c5ee1d8036f7c6b644a8b63dd513d0cda8170728",
+      "path": "supabase/migrations/20260801000006_create_price_reader_feature.sql"
+    },
+    {
+      "version": "20260805000001",
+      "name": "add_bot_runtime_controls",
+      "historySha256": "1e62f842fc61b69903ff12c65d23b3cb31f2b1747cf22b0caaeff1f84759e2b6",
+      "sha256": "11645a1099b7da04fe16d0cf349b20b0b7fe9552f97516c326662b7d90854ddb",
+      "path": "supabase/migrations/20260805000001_add_bot_runtime_controls.sql"
+    },
+    {
+      "version": "20260806000001",
+      "name": "create_runtime_slots",
+      "historySha256": "a8da54ca246192fcb8e53adbaa7baddbc9a5d2e6687c47c09184fa6d3fc37b84",
+      "sha256": "9d34723e395186424e4edbc9d12e57ebdb4a848df4975027bfbda79b487afd5c",
+      "path": "supabase/migrations/20260806000001_create_runtime_slots.sql"
+    },
+    {
+      "version": "20260808000001",
+      "name": "add_admin_bot_transfer",
+      "historySha256": "4c3c40a64cb3102d84d5a4ed583467d88ed96dd0e20bb17e72217a2a4d389494",
+      "sha256": "c88af7715e898572e66780faa65f92d81ed16d314bf45e992f39e9ee44b18775",
+      "path": "supabase/migrations/20260808000001_add_admin_bot_transfer.sql"
+    },
+    {
+      "version": "20260808000002",
+      "name": "simplify_robux_packages",
+      "historySha256": "bdadb259e62d648708e5deaa850033b5f5c207a2954c906903ff6e1ab5170170",
+      "sha256": "4a37649fc3c64238e2c1480cebc2ebb723863b558a3f6b859a1d4129a512b66d",
+      "path": "supabase/migrations/20260808000002_simplify_robux_packages.sql"
+    },
+    {
+      "version": "20260809000001",
+      "name": "create_admin_message_tools_feature",
+      "historySha256": "d420f344b6b6b09e14531bc21d44019afc7956afd1f26896041112826e38988a",
+      "sha256": "6eef31841d2f0d789340e9f824fab720bf97f60ec87f2cd8143d16cd9df84bd8",
+      "path": "supabase/migrations/20260809000001_create_admin_message_tools_feature.sql"
+    },
+    {
+      "version": "20260809000002",
+      "name": "create_runtime_expiry_alert_feature",
+      "historySha256": "f5bc6e755f43d21e54ebe65e57535b55bdf85a499be0b22d9200d2247d2055bd",
+      "sha256": "be2da19f8556920b1783290ace7cf18fff6474800eff57fd5ed1b91463a4b647",
+      "path": "supabase/migrations/20260809000002_create_runtime_expiry_alert_feature.sql"
+    },
+    {
+      "version": "20260809000003",
+      "name": "create_member_spending_feature",
+      "historySha256": "940b35e7645c449fb0b45dd300bf1691e83c21cffffe564bfc116d9a70ef33a3",
+      "sha256": "505809192c19e85b9977f2da4c03eec4723c3468a7649690ea34693119c0b518",
+      "path": "supabase/migrations/20260809000003_create_member_spending_feature.sql"
+    },
+    {
+      "version": "20260809000004",
+      "name": "add_co_feature_components",
+      "historySha256": "0f1fde2598c07e9aec1021ea856f4f0c903b37f979111e73256b73e24af91438",
+      "sha256": "f8f719d7d81b63231384a83dd783cbb72b3c5b16afdef822a4daa02b88885b10",
+      "path": "supabase/migrations/20260809000004_add_co_feature_components.sql"
+    },
+    {
+      "version": "20260809000005",
+      "name": "install_core_features_for_all_bots",
+      "historySha256": "d7bbcec36f3333e4cbc655e30793bd7465d0fb434c0e7f1d7c0065130436243f",
+      "sha256": "caaa1df3d23af1bb13cb0ed5c14c59d64de929778141452da50cc903ecdb6e43",
+      "path": "supabase/migrations/20260809000005_install_core_features_for_all_bots.sql"
+    },
+    {
+      "version": "20260809000006",
+      "name": "improve_feature_settings",
+      "historySha256": "1e48a8fe6cfe3f47f006541df735ce1e821593261020e7daeb15f58d210da935",
+      "sha256": "8eb36eea50c98a32e655bd449e929fef2f4296d5f65d26eac667ede824ce558a",
+      "path": "supabase/migrations/20260809000006_improve_feature_settings.sql"
+    },
+    {
+      "version": "20260809000007",
+      "name": "create_bot_permissions_core_feature",
+      "historySha256": "07f3804128609898bd0dd3561cede6b733e6e97bc5ef54952b71ac43c895f991",
+      "sha256": "1577da9ef0244ee6cee12634f3b8209e3842e7f7a56d808d2506b911d42cbac4",
+      "path": "supabase/migrations/20260809000007_create_bot_permissions_core_feature.sql"
+    },
+    {
+      "version": "20260810000001",
+      "name": "harden_feature_tables",
+      "historySha256": "b14a48f8f5b08f975a099e57172dea1010708871b5ea78914da99a3eb0004407",
+      "sha256": "8fe37c63f4832da2d9e47f4724f421937d2d4371a12d2361f9859bb2f33d770f",
+      "path": "supabase/migrations/20260810000001_harden_feature_tables.sql"
+    },
+    {
+      "version": "20260812000001",
+      "name": "create_price_reader_v2",
+      "historySha256": "0c81f243ef5b23d64ea163883f3990d398c835edf5467c2d287127de4f3910aa",
+      "sha256": "430fa73a39c1408ebc5af8ceff2060fa9ba185c62b5244a9217fbcbc7a588bda",
+      "path": "supabase/migrations/20260812000001_create_price_reader_v2.sql"
+    },
+    {
+      "version": "20260812000002",
+      "name": "add_license_upgrades_and_portable_bot_ownership",
+      "historySha256": "c2f758772d3cf6f74f6bb79b920e83f1ac1a7262d0d047286f227ed4a3f57a7f",
+      "sha256": "4b6c31985a411b5a297c8cd0a58533fa5208c5509f399915ce7f982fcd223229",
+      "path": "supabase/migrations/20260812000002_add_license_upgrades_and_portable_bot_ownership.sql"
+    },
+    {
+      "version": "20260813000001",
+      "name": "create_wallet_topup_v2",
+      "historySha256": "f82e4777060468f45b9e8e1567fcef305d594cdce800c3777d389ecf30515b6d",
+      "sha256": "31f2ad5323d27c902ced57e78d92c563e4a64d98ed874937304ecffc4b63a2eb",
+      "path": "supabase/migrations/20260813000001_create_wallet_topup_v2.sql"
+    },
+    {
+      "version": "20260815000001",
+      "name": "create_roblox_robux_payout_v2",
+      "historySha256": "069cb26833e558d3237e51b9cbff207c8a592fc0f201e8647a1e7f6250329241",
+      "sha256": "9dc8ad7395a7576b9fcec3e8cff4258d85682831cccbe6c0083930277fd7abe4",
+      "path": "supabase/migrations/20260815000001_create_roblox_robux_payout_v2.sql"
+    },
+    {
+      "version": "20260822000001",
+      "name": "optimize_backend_queries",
+      "historySha256": "ec134bd39db640a08dc63017abf5c31b1477e589aa9005c07a5bc24431069da4",
+      "sha256": "4cb9563d166376b5e7268812f37650da26ff285510ff9d79653d94fd2c7bbd70",
+      "path": "supabase/migrations/20260822000001_optimize_backend_queries.sql"
+    },
+    {
+      "version": "20260827000001",
+      "name": "fix_complete_bot_ownership_transfer",
+      "historySha256": "451152d50adaac31d9729a1563a8c919b1ca404ff8c0716a9b78e6ef6f985f2a",
+      "sha256": "2dc4c201391b16f5424b7d3da3db5078b699d9c169d19c2b1ebefb4544259a7b",
+      "path": "supabase/migrations/20260827000001_fix_complete_bot_ownership_transfer.sql"
+    },
+    {
+      "version": "20260827000002",
+      "name": "add_runtime_renewal_price_override",
+      "historySha256": "b192b69e5d097a6fe1ba24f42df1bf0a76ee23050cf322b569e3b29fa582ced0",
+      "sha256": "d9ebb9893f601c605a6e5d7afe94ebe324fd3fe632bbc8c1ec486b325ffa7a36",
+      "path": "supabase/migrations/20260827000002_add_runtime_renewal_price_override.sql"
+    },
+    {
+      "version": "20260828000001",
+      "name": "split_shared_feature_licenses_on_bot_transfer",
+      "historySha256": "e11c572220af041803504d7dc524850b1a55b13649ca0a28b4a1132fc99e3a88",
+      "sha256": "5b7d909dcecda728877eeb2fa505e491c5a954a0a8521aabe0f8353a41ff22cb",
+      "path": "supabase/migrations/20260828000001_split_shared_feature_licenses_on_bot_transfer.sql"
+    },
+    {
+      "version": "20260828000002",
+      "name": "transfer_purchased_license_as_grant",
+      "historySha256": "68ed41c8aa958265fa4cde77d20ee69f01a76fe02dd641c57471d05bfbbfd764",
+      "sha256": "72328734ed82fff76e6760a5872e4ef485dba9c130ee32be4fc7698effbdcd24",
+      "path": "supabase/migrations/20260828000002_transfer_purchased_license_as_grant.sql"
+    },
+    {
+      "version": "20260828000003",
+      "name": "qualify_bot_transfer_constraints",
+      "historySha256": "e3ff9d673a95de5ef1f9176cb9e559fdc5714758f42403c37f185e38bfd5b00b",
+      "sha256": "7d3afe7b100d73ef5cffce5483019888ab883128fae9c3339f8a57f23c4f1dba",
+      "path": "supabase/migrations/20260828000003_qualify_bot_transfer_constraints.sql"
+    },
+    {
+      "version": "20260829000001",
+      "name": "create_roblox_robux_payout_v2_0_1",
+      "historySha256": "5f0945f304408f2316a7d5f8a5f346d8da3ef003e16e2587d50ed1c308d0126a",
+      "sha256": "607378441309ad6c856f7fd079848d25cdf5b47da9861d3ace1e855227fae754",
+      "path": "supabase/migrations/20260829000001_create_roblox_robux_payout_v2_0_1.sql"
+    },
+    {
+      "version": "20260903000001",
+      "name": "create_donation_system",
+      "historySha256": "2ea21cf7137b9a299bc6d8efafd68560de1eaf9ad68a25d91c0a23a297dfcf5f",
+      "sha256": "3c1579ff0dd4a29bfe4eb9728538780924cdfd345a4b9750c5cb22b14ab9c94c",
+      "path": "supabase/migrations/20260903000001_create_donation_system.sql"
+    },
+    {
+      "version": "20260906000001",
+      "name": "create_robux_payout_and_wallet_topup_v2_1",
+      "historySha256": "e6da4cae7ae1482f05e8ebb9a49be1ec5f94952e3484fd6a2765fd1bf4f8b12e",
+      "sha256": "bd44d659b5c53db3e8babbc93ccbbb2f33033cbd7019df8598b95db370c736cc",
+      "path": "supabase/migrations/20260906000001_create_robux_payout_and_wallet_topup_v2_1.sql"
+    },
+    {
+      "version": "20260906000002",
+      "name": "create_review_credit_v1_1",
+      "historySha256": "a27721cd8cd84b0cc705f5ac82afec9f721c18bf04a778583c05ae50d5f10d4b",
+      "sha256": "a2b1d5295c810d276908a055a00bcaee7c0773be6595ac20ac6a965699e3108b",
+      "path": "supabase/migrations/20260906000002_create_review_credit_v1_1.sql"
+    },
+    {
+      "version": "20260908000001",
+      "name": "create_roblox_robux_payout_v2_2",
+      "historySha256": "ad46180d1f2828567e2c9875d03e963a065102910fddbbcbd434f10265e90451",
+      "sha256": "b3e0340942af1a7a62927e5a4c2656a6d7997e6a2c97408976b5861fdeecee42",
+      "path": "supabase/migrations/20260908000001_create_roblox_robux_payout_v2_2.sql"
+    },
+    {
+      "version": "20260908000002",
+      "name": "allow_reusing_decommissioned_bot_names",
+      "historySha256": "a27361df87d3d20ceadff17cb2faea3d735ff5616ea3593f5fcf97bff92ffaaa",
+      "sha256": "68092d65fd0bc44cad8539b3642d9d3542099a7ab7bae392ee18a861230fc63d",
+      "path": "supabase/migrations/20260908000002_allow_reusing_decommissioned_bot_names.sql"
+    },
+    {
+      "version": "20260908000003",
+      "name": "add_manual_robux_receipts",
+      "historySha256": "ec5a78b7d2d9203c5bd0f046bdb498b6f8bed2b7faf7722f83694a9ae129d87d",
+      "sha256": "677dafe4985c132e14ca9ed7f7ab43b04f3daeff4117f316302f9eb15d3ea51c",
+      "path": "supabase/migrations/20260908000003_add_manual_robux_receipts.sql"
+    },
+    {
+      "version": "20260909000001",
+      "name": "add_manual_robux_receipt_presentation",
+      "historySha256": "7088bec00f3cb644cec11e26c252517b22c2daf03f15630187790e667ca21874",
+      "sha256": "4f42302063f9f879afb55b4e40faf343201367d77a026a4cb697548782b6fb89",
+      "path": "supabase/migrations/20260909000001_add_manual_robux_receipt_presentation.sql"
+    },
+    {
+      "version": "20260909000002",
+      "name": "use_components_for_manual_robux_receipts",
+      "historySha256": "e6c913c61b1f8bc1fc0304e12fc5091618c74b0d6b9744512d472b9b7cb3561e",
+      "sha256": "a06d1fa17c7f4fed8848d3b2ba56bb6938a0fd14aa5cc9e9055f22058bf1496a",
+      "path": "supabase/migrations/20260909000002_use_components_for_manual_robux_receipts.sql"
+    },
+    {
+      "version": "20260912000001",
+      "name": "create_channel_message_triggers_feature",
+      "historySha256": "dc74a9967b45b941754f2fb2383f08687b82188db7db61f0a9fda006a9c6b309",
+      "sha256": "e3099f0c79b65ee60087437421049c72b1e7e1fb4c48fa0a42b18dfbee2e9757",
+      "path": "supabase/migrations/20260912000001_create_channel_message_triggers_feature.sql"
+    },
+    {
+      "version": "20260913000001",
+      "name": "create_payment_trigger_feature",
+      "historySha256": "8ee1fdb9c8388d1ef9cf0a8cc8cd222565ed4cb27b3b5a5b912254f0a525a050",
+      "sha256": "e2e4f0489fd671d0c7e14e7d40a2d5d98bef02f7f09d2139ab21fcdf4ad706b4",
+      "path": "supabase/migrations/20260913000001_create_payment_trigger_feature.sql"
+    },
+    {
+      "version": "20260920000001",
+      "name": "add_capstone_and_integrated_project_categories",
+      "historySha256": "2c5f652c0c144f61fd6e3c6d0478c0d4a7f692e237530021d569c5a783f262d0",
+      "sha256": "9bcb85941daf58d36de710436a8694340b6a4bdf2f786c95d2cdfd8fbbe4d1d7",
+      "path": "supabase/migrations/20260920000001_add_capstone_and_integrated_project_categories.sql"
+    },
+    {
+      "version": "20260923000001",
+      "name": "create_roblox_robux_payout_v3",
+      "historySha256": "085ab780c60b03234171217e2cdd647e586c6ead9b27892adb8c3e0dcbdd90cc",
+      "sha256": "035fda495961e23e38f9c8eb1f7d7fbd729f16dc7e4177d4cd895f12b42c1f8b",
+      "path": "supabase/migrations/20260923000001_create_roblox_robux_payout_v3.sql"
+    },
+    {
+      "version": "20260923000002",
+      "name": "add_independent_robux_panel_presentations",
+      "historySha256": "b709710dac744bc0a8589d109e41cfeb4f5b5b8a04fa57f2a34e1f5392b8fba0",
+      "sha256": "a47e0a08c9def701fd41c3badb8e87ab8aa540f4216447994428ff780e69382c",
+      "path": "supabase/migrations/20260923000002_add_independent_robux_panel_presentations.sql"
+    },
+    {
+      "version": "20260926000001",
+      "name": "add_robux_panel_modes",
+      "historySha256": "4c6ecd26ad891edf42439eb5beb9dae6bedd1009fbf01ed77b65159f22f3610e",
+      "sha256": "df26a87e674b712e392cd3764e2def249fd41bad032e87d501b1567836c0eb9d",
+      "path": "supabase/migrations/20260926000001_add_robux_panel_modes.sql"
+    },
+    {
+      "version": "20260930000001",
+      "name": "create_roblox_payout_test_feature",
+      "historySha256": "dac61844de351f55c5cc35dc44d7753ae04d116cdd7032fcfbca584580b898f4",
+      "sha256": "375a2e289de52323ce369b7cdeef10655eddfc077ba02e569ac5b9eaf12718f4",
+      "path": "supabase/migrations/20260930000001_create_roblox_payout_test_feature.sql"
+    },
+    {
+      "version": "20260930000002",
+      "name": "repair_roblox_payout_test_catalog",
+      "historySha256": "7bbf295ed2e6f44729cea8d39e362d50292758f6defd43c4b8b59f7993bd3606",
+      "sha256": "4971b1541cca88a2cf0a7e1ab6c49dfac6022ebc9165d65fad1d984759359a64",
+      "path": "supabase/migrations/20260930000002_repair_roblox_payout_test_catalog.sql"
+    },
+    {
+      "version": "20260930000003",
+      "name": "backfill_granted_feature_config_sets",
+      "historySha256": "6bdd578d266bfbef167e8b32290b27890f4a44f4c772c71fa1a8cddd751f8f64",
+      "sha256": "be3fec42e6b6e03b719e6239339f4e41d03956d9b5e08723c2b755232fbc8965",
+      "path": "supabase/migrations/20260930000003_backfill_granted_feature_config_sets.sql"
+    },
+    {
+      "version": "20261007000001",
+      "name": "create_message_sets_feature",
+      "historySha256": "d60a4d572815e95d6cf5656fd91e568804161371201fa7325eda6509b9831c90",
+      "sha256": "b24677a822d2dd555fe55711d914c591118c227dd2e025efecfea4e0228b5356",
+      "path": "supabase/migrations/20261007000001_create_message_sets_feature.sql"
+    },
+    {
+      "version": "20261011000001",
+      "name": "customize_price_reader",
+      "historySha256": "3251a7e6443654302edd0377aa1273921575b03fbb6f00ef3703f9f8e719240c",
+      "sha256": "88ef7460deb2dd99edf01469d15bfdb3e262881fa4cb3df936f7956c9a6d9e47",
+      "path": "supabase/migrations/20261011000001_customize_price_reader.sql"
+    },
+    {
+      "version": "20261020000001",
+      "name": "create_shop_status_feature",
+      "historySha256": "c1d4c7b3cc35db6aa95a7e7538cc446b4cdcc160a3bb52e2bc7d7ab14e74b3e1",
+      "sha256": "14d1f2cf0227eeb5aef921164c7f8965bd95083534c0520f7f814a6c41f204d1",
+      "path": "supabase/migrations/20261020000001_create_shop_status_feature.sql"
+    },
+    {
+      "version": "20261020000002",
+      "name": "add_shop_status_delivery_modes",
+      "historySha256": "f63d8226275bbb6a876814d6f8a0851c67faa1c7a7de388d2b0d9404ce4c44eb",
+      "sha256": "3439cdaa5e94f7c3fea5f590ba13386ac841846130d955c00390a666d12e7f79",
+      "path": "supabase/migrations/20261020000002_add_shop_status_delivery_modes.sql"
+    },
+    {
+      "version": "20261021000001",
+      "name": "add_shop_status_channel_names",
+      "historySha256": "a8ecbd59bc6b0729f415c2d803e7656285e82e2b4f92576fe44cf0e96b6f2db1",
+      "sha256": "29b6881b45f5fab0258941295112df8ff299b5ed4ff021018d3294aeb130ffbd",
+      "path": "supabase/migrations/20261021000001_add_shop_status_channel_names.sql"
+    },
+    {
+      "version": "20261021000002",
+      "name": "add_shop_status_mentions",
+      "historySha256": "e1fddc2416f834552b8d1584ef99988bf9131b6d2cc50344a5d61b4e51660676",
+      "sha256": "24ae280446b41a0b8b4018cba419774fd1970d09c2a3d4e5a87a23a471076d21",
+      "path": "supabase/migrations/20261021000002_add_shop_status_mentions.sql"
+    },
+    {
+      "version": "20261021000003",
+      "name": "add_shop_status_role_mentions",
+      "historySha256": "98d18ac47cbb7312056ead77420c84b133e8802d4bc5cb523862415449757b42",
+      "sha256": "7e4df4614d24d1ad466b39036c0f0e3e040f8a18475b6022205b9fabd2cb747b",
+      "path": "supabase/migrations/20261021000003_add_shop_status_role_mentions.sql"
+    },
+    {
+      "version": "20261022000001",
+      "name": "message_sets_v1_1",
+      "historySha256": "28c72a62399eda0860f8b5cc389281d7539ca01f5abd432b86c4001f0abba9e4",
+      "sha256": "e87316f2e21a65616d42fad330da51dd1bb5cc6f1d0f97771ef2c71eb320c9ab",
+      "path": "supabase/migrations/20261022000001_message_sets_v1_1.sql"
+    },
+    {
+      "version": "20261023000001",
+      "name": "create_website_effect_settings",
+      "historySha256": "35e98af059e1adaddeb275cc81e8beb03ab4bdc0f977cc8ab7708ff5942139f1",
+      "sha256": "0017244ee2bb800ee5b49302ae54c57f02fb2a4659aab8eedf79053650cea526",
+      "path": "supabase/migrations/20261023000001_create_website_effect_settings.sql"
+    },
+    {
+      "version": "20261026000001",
+      "name": "member_spending_monthly",
+      "historySha256": "9a52a13157cd39a0fffe5c435ac3be11093ec97ef871babad9e1f7bac3a9e0a7",
+      "sha256": "2c92b7f01a9f1413d3d695fdafbe5cee3dad8db27bc013c512d46903af9fa415",
+      "path": "supabase/migrations/20261026000001_member_spending_monthly.sql"
+    },
+    {
+      "version": "20261026000002",
+      "name": "member_spending_monthly_options",
+      "historySha256": "b2ef5fed608b1ed084235a0e225f44b47543c7282f7b3c3cfca997d79e55a902",
+      "sha256": "51f7f4ac5fb1ece1ae5464d984aef856039d1ba7955963f3d0f515fd42f60d4a",
+      "path": "supabase/migrations/20261026000002_member_spending_monthly_options.sql"
+    },
+    {
+      "version": "20261027000001",
+      "name": "create_role_shop",
+      "historySha256": "92719ce5a5199f984c1a918081303a4f01cd260332212b0500ecd554f785b77d",
+      "sha256": "e4da717d30991c3fbad7b6e7384b12c39f9ff22961301dcb9632be69c5640e05",
+      "path": "supabase/migrations/20261027000001_create_role_shop.sql"
+    },
+    {
+      "version": "20261027000002",
+      "name": "wallet_qr_watermark",
+      "historySha256": "4bc8e95f7cc6a44b3d377f463358767fd82878e94131ae891a16a7b5b97774c6",
+      "sha256": "ad62994147475a76303634433734a59a80a9e1a9eaacc58676f4590f92962a39",
+      "path": "supabase/migrations/20261027000002_wallet_qr_watermark.sql"
+    },
+    {
+      "version": "20261028000001",
+      "name": "payment_trigger_vouchers",
+      "historySha256": "c7da0943fc0e70a4479f9fd8ac3b42c1e1ad33b9e8eb20e7418e3c7a19f76c4f",
+      "sha256": "07e6c58becfc28455cdec3fd7b955b5667f5be5feb33d6095681101177522144",
+      "path": "supabase/migrations/20261028000001_payment_trigger_vouchers.sql"
+    },
+    {
+      "version": "20261029000001",
+      "name": "payment_trigger_v1_1",
+      "historySha256": "7cabeb818ac10814216e0e2cdb069d63814b9eb56c402173dbdb652852167aa7",
+      "sha256": "730bb5bf2be5c573e65ffbb5375a51f53e7acd948d5b5ef2be2a80b92f646c80",
+      "path": "supabase/migrations/20261029000001_payment_trigger_v1_1.sql"
+    },
+    {
+      "version": "20261029000002",
+      "name": "create_ticket_feature",
+      "historySha256": "bd02bb46de9d3c24dc49a6ee6f1b71f67ddf9fc83a3ffd1715010d62aaaa6f62",
+      "sha256": "5ecf7acd650f7da8c2117e6a4d5eb67eb9ef5894ff0f02adb9fadf03c00e35b3",
+      "path": "supabase/migrations/20261029000002_create_ticket_feature.sql"
+    },
+    {
+      "version": "20261029000003",
+      "name": "publish_ticket_one_time_offer",
+      "historySha256": "7e6cabd90e76162f524d6b5dd2d372bd97adbd2512272a6308ee43aceb228265",
+      "sha256": "afb058a9cf4c4e2cb43dc2e3de7193d3c0467f9e67bb0013060c0ebaa04809f9",
+      "path": "supabase/migrations/20261029000003_publish_ticket_one_time_offer.sql"
+    },
+    {
+      "version": "20261029000004",
+      "name": "ticket_controls_and_archives",
+      "historySha256": "fd436734ac3bad6278fe782336a4acea038965fe8fbd7e99a58d9d7be98ebf43",
+      "sha256": "095b47ed43cfb8b5a4874851370e38c61e45a5d50ee749adcb89df1aaeef5448",
+      "path": "supabase/migrations/20261029000004_ticket_controls_and_archives.sql"
+    },
+    {
+      "version": "20261030000001",
+      "name": "ticket_numbers_and_retention",
+      "historySha256": "992338958c3d998919b1d81f57e6ba19c853bb5d2af721b25c1f9b0e54c78c52",
+      "sha256": "2e5c70d29da0f38d84a3756bf28261ad1e64bfb15b367a0f4e633574829922ed",
+      "path": "supabase/migrations/20261030000001_ticket_numbers_and_retention.sql"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Added transactional VPS migration delivery with immutable history checksums, feature checks, backup/restore rehearsal and metadata-only adoption of existing migrations. |
 | 2026-10-30 | Installed atomic per-bot Ticket counters, a closed-archive retention index and restricted cleanup permissions on VPS PostgreSQL. |
 | 2026-10-30 | Installed private durable Ticket identities, conversation archives and behaviour configuration on VPS PostgreSQL with restricted Backend access and recorded migration history. |
 | 2026-10-29 | Installed the Ticket catalog and publication migrations on VPS PostgreSQL; verified the public store API offers Ticket at THB 100 as a one-time purchase for one bot installation. |

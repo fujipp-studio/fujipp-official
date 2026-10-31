@@ -11,3 +11,11 @@ Backend/Runner feature, read its source paths, routes, tests, dependencies and g
 from that map. Update ownership and coverage with new or moved files/features.
 Keep shared API/bootstrap contract boundaries current;
 contract changes must validate and release both services together.
+
+For Database work, also read `deploy/postgres/feature-map.json` and
+`docs/database-delivery.md`. Production application data is on VPS PostgreSQL;
+`supabase/migrations/` is the versioned SQL source, not a deployment target.
+Keep migration files append-only and update feature ownership/checks with schema
+changes. All pending migrations run in version order; feature selection only
+scopes contract checks and must never skip pending SQL. Never replay history or
+restore a backup automatically to recover a failed application deployment.
