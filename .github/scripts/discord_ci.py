@@ -211,30 +211,33 @@ def elapsed(run, jobs):
         if run.get('status') != 'completed':
             return ''
         seconds = max(0, int((end - start).total_seconds()))
-        return f' • {seconds // 60}m {seconds % 60:02d}s'
+        return f' · {seconds // 60}m {seconds % 60:02d}s'
     except (KeyError, ValueError, TypeError):
         return ''
 
 
 def display_result(run, jobs, database=False):
     state = result_state(run)
-    icons = {'running': '⏳', 'failure': '❌', 'success': '✅', 'cancelled': '⏹️', 'skipped': '➖', 'unknown': '❔'}
     if state != 'success':
-        label = {'running': 'กำลังรัน / รออนุมัติ', 'failure': 'ล้มเหลว', 'cancelled': 'ยกเลิก',
-                 'skipped': 'ข้าม', 'unknown': 'ไม่ทราบผล'}[state]
+        label = {'running': 'In progress', 'failure': 'Failed', 'cancelled': 'Cancelled',
+                 'skipped': 'Skipped', 'unknown': 'Outcome unconfirmed'}[state]
     else:
         deploys = [job for job in jobs if job['name'] == 'deploy']
         if workflow_path(run) == '.github/workflows/security.yml':
-            label = 'ตรวจผ่าน'
+            label = 'Checks passed'
         elif run['event'] == 'pull_request' or run.get('head_branch') != 'main':
-            label = 'ตรวจผ่าน • ไม่ได้ Deploy production'
+            label = 'Checks passed · Production deployment skipped'
         elif any(job.get('conclusion') == 'success' for job in deploys):
-            label = 'ขั้น Database สำเร็จ' if database else 'Deploy สำเร็จ'
+            label = 'Verification passed' if database else 'Deployment succeeded'
         elif any(job.get('conclusion') == 'skipped' for job in deploys) or run['event'] == 'pull_request':
-            label = 'ตรวจผ่าน • ไม่ได้ Deploy'
+            label = 'Checks passed · Deployment skipped'
         else:
-            label = 'Workflow ผ่าน • ยังยืนยัน Deploy ไม่ได้'
-    return icons[state] + ' ' + label + elapsed(run, jobs)
+            label = 'Checks passed · Deployment unconfirmed'
+    return label + elapsed(run, jobs)
+
+
+def card_marker(key):
+    return 'FUJIPP STUDIO • Ref ' + key[:24]
 
 
 def render(snapshot):
@@ -242,31 +245,36 @@ def render(snapshot):
     runs, job_map = snapshot['runs'], snapshot['jobs']
     states = [result_state(run) for run in runs.values()]
     if 'failure' in states or any(job.get('conclusion') in BAD for jobs in job_map.values() for job in jobs):
-        title, color = '❌ CI/CD มีขั้นตอนล้มเหลว', 0xED4245
+        status, icon, color = 'FAILED', '❌', 0xED4245
     elif 'running' in states:
-        title, color = '⏳ CI/CD กำลังทำงาน', 0xFEE75C
+        status, icon, color = 'IN PROGRESS', '⏳', 0xFEE75C
     elif 'unknown' in states:
-        title, color = '❔ CI/CD ยังยืนยันผลไม่ได้', 0xFEE75C
+        status, icon, color = 'UNCONFIRMED', '❔', 0xFEE75C
     elif states and all(state == 'success' for state in states):
-        title, color = '✅ Workflow ที่พบเสร็จสมบูรณ์', 0x57F287
+        status, icon, color = 'SUCCEEDED', '✅', 0x57F287
     else:
-        title, color = '⏹️ CI/CD จบโดยมีรายการข้ามหรือยกเลิก', 0x95A5A6
+        status = 'CANCELLED' if 'cancelled' in states else 'SKIPPED'
+        icon, color = '⏹️', 0x95A5A6
     pr = next((pr for run in runs.values() for pr in run.get('pull_requests', []) if isinstance(pr.get('number'), int)), None)
     commit_url = f"https://github.com/{repository}/commit/{anchor['head_sha']}"
-    description = f"**{text(repository)}** • {text(anchor.get('head_branch'))} • [{anchor['head_sha'][:7]}]({commit_url})"
-    if pr:
-        description += f" • [PR #{pr['number']}](https://github.com/{repository}/pull/{pr['number']})"
-    description += '\n' + text(anchor.get('display_title') or anchor.get('head_commit', {}).get('message', '').split('\n')[0], 200)
+    description = f"**{text(repository)}**\n"
+    description += text(anchor.get('display_title') or (anchor.get('head_commit') or {}).get('message', '').split('\n')[0], 200)
+    description += '\n\nObserved workflow results for this revision.'
     actor = anchor.get('triggering_actor') or anchor.get('actor') or {}
-    description += '\nผู้ดำเนินการ: ' + text(actor.get('login', 'unknown'), 50)
-    fields, failures, database_jobs = [], [], []
+    fields = [
+        {'name': 'Status', 'value': status, 'inline': True},
+        {'name': 'Branch', 'value': text(anchor.get('head_branch') or 'Unknown', 80), 'inline': True},
+        {'name': 'Commit', 'value': f"[{anchor['head_sha'][:7]}]({commit_url})", 'inline': True},
+        {'name': 'Triggered by', 'value': text(actor.get('login', 'Unknown'), 50), 'inline': False},
+    ]
+    failures, database_jobs = [], []
     deployment_failed = False
     for path, label in WORKFLOWS.items():
         if label == 'Database':
             continue
         run = runs.get(path)
         if not run:
-            fields.append({'name': label, 'value': '➖ ยังไม่พบ run สำหรับ revision นี้', 'inline': False})
+            fields.append({'name': label, 'value': 'No run observed for this revision', 'inline': False})
             continue
         jobs = job_map.get(str(run['id']), [])
         fields.append({'name': label, 'value': '[' + display_result(run, jobs) + '](' + run_url(repository, run) + ')', 'inline': False})
@@ -296,25 +304,28 @@ def render(snapshot):
                     and job.get('conclusion') == 'success' and run['event'] in {'push', 'workflow_dispatch'}
                     and run.get('head_branch') == 'main']
         checked = [job for _, job in database_jobs if job.get('conclusion') == 'success']
-        if failed: value = '❌ ขั้น Database ล้มเหลว'
-        elif active: value = '⏳ กำลังตรวจ / รอ Deploy Database'
-        elif deployed: value = '✅ ขั้น Database สำเร็จ'
-        elif checked: value = '✅ ตรวจผ่าน • ไม่ได้ Deploy'
-        else: value = '➖ ข้ามหรือยกเลิก'
+        if failed: value = 'Verification failed'
+        elif active: value = 'Verification in progress'
+        elif deployed: value = 'Verification passed'
+        elif checked: value = 'Checks passed · Deployment skipped'
+        elif any(job.get('conclusion') == 'cancelled' for _, job in database_jobs): value = 'Cancelled'
+        else: value = 'Skipped'
         source = (deployed[0][0] if deployed else database_jobs[0][0])
         value = '[' + value + '](' + run_url(repository, source) + ')'
     else:
-        value = '➖ ยังไม่มีผล Database สำหรับ revision นี้'
-    fields.insert(2, {'name': 'Database', 'value': value, 'inline': False})
+        value = 'No verification result observed'
+    fields.insert(6, {'name': 'Database', 'value': value, 'inline': False})
     if failures:
-        fields.append({'name': 'จุดที่ต้องตรวจ', 'value': '\n'.join(dict.fromkeys(failures))[:1000], 'inline': False})
+        fields.append({'name': 'Failure details', 'value': '\n'.join(dict.fromkeys(failures))[:1000], 'inline': False})
     if deployment_failed:
-        fields.append({'name': 'การกู้คืน', 'value': 'ยังไม่ยืนยันผล rollback จากข้อมูลนี้ — เปิดขั้นตอนที่ล้มเหลวเพื่อตรวจรายละเอียด', 'inline': False})
-    fields.append({'name': 'รายละเอียด', 'value': '[ดู workflow ต้นทาง](' + run_url(repository, anchor)
-                   + ') • [ดู commit](' + commit_url + ')', 'inline': False})
+        fields.append({'name': 'Recovery', 'value': 'Rollback outcome not verified. Review the failed deployment in Actions.', 'inline': False})
+    links = '[View Workflow](' + run_url(repository, anchor) + ') · [View Commit](' + commit_url + ')'
+    if pr:
+        links += f" · [View Pull Request](https://github.com/{repository}/pull/{pr['number']})"
+    fields.append({'name': 'Links', 'value': links, 'inline': False})
     return {'content': '', 'allowed_mentions': {'parse': []}, 'embeds': [{
-        'title': title, 'description': description, 'color': color,
-        'fields': fields, 'footer': {'text': 'FUJIPP CI • ' + snapshot['key']},
+        'title': icon + ' FUJIPP STUDIO • CI/CD REPORT', 'description': description, 'color': color,
+        'fields': fields, 'footer': {'text': card_marker(snapshot['key'])},
     }]}
 
 
@@ -340,7 +351,8 @@ class Discord:
         if not SNOWFLAKE.fullmatch(str(message_id)):
             raise NotifyError('Invalid Discord message ID')
         data = self.request('GET', '/messages/' + str(message_id))
-        if str(data.get('webhook_id')) != self.id or not any(embed.get('footer', {}).get('text') == 'FUJIPP CI • ' + key for embed in data.get('embeds', [])):
+        markers = {card_marker(key), 'FUJIPP CI • ' + key}
+        if str(data.get('webhook_id')) != self.id or not any(embed.get('footer', {}).get('text') in markers for embed in data.get('embeds', [])):
             raise NotifyError('Message is not owned by this webhook/revision; refusing to edit')
         return data
 
