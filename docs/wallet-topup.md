@@ -180,3 +180,82 @@ history. The scratch database was removed. The backup, schema and atomic apply
 wrapper remain in
 `/opt/fujipp/apps/fujipp-postgres/migrations/wallet-qr-watermark-20261027/`.
 Application rollout follows the repository owner's PR and main-branch deployment.
+
+
+## Reliable TrueMoney receipts
+
+New Wallet claims accept only one-recipient gifts. The Backend verifies the gross
+amount and that it exceeds the configured fee before sending one redemption POST.
+It accepts exact decimal THB and correctly grouped thousands, converts to integer
+satang, and rejects unsupported precision, zero, negative and overflowing values.
+Both supported campaign URL spellings share a canonical voucher claim; gift codes
+remain case-sensitive. Raw gift URLs are not stored.
+
+The recipient and fixed/percentage fee are captured with the claim. A verified
+provider success is persisted independently of Wallet settlement. Settlement locks
+that receipt, computes the net from its immutable fee snapshot, and commits the
+Wallet balance, append-only ledger entry and receipt link in one transaction.
+The stable credit key uses the redemption UUID, so a new Discord interaction or
+later fee configuration change cannot create another credit. Fees equal to or
+greater than the gift are rejected before receiving, rather than silently capped.
+
+The Backend recovery worker polls every 10 seconds for v2 verified receipts still
+uncredited after 15 seconds (first poll 30 seconds after startup). It only settles
+stored receipts; it never calls TrueMoney. Multiple Backend instances are safe
+because the database serializes receipt settlement. This is eventual recovery,
+not a promised completion deadline during a database outage.
+
+A lost POST response, malformed accepted receipt, mismatched amount/reference or
+stale in-flight claim requires investigation. The customer sees `TOPUP_REVIEW_REQUIRED`
+or `TOPUP_PROCESSING` and is told not to pay again. A bounded private
+`provider_evidence` object retains only provider success, a sanitized amount lexeme
+and voucher reference when available. It contains no full response, gift URL,
+recipient phone or owner profile. Unconfirmed receipts never auto-credit.
+
+Historical rows have no `wallet_flow_version`; the migration never opts them in
+or credits them. Replaying an already credited legacy receipt can read its ledger
+result, but an uncredited historical receipt requires manual review, including
+checking Admin adjustments. In particular, do not replay or credit an incident
+already compensated through `/wallet-admin`. Corrections use new compensating
+ledger entries; existing financial entries cannot be updated or deleted.
+
+The runner returns the customer receipt immediately after the financial commit.
+Discord role/ranking changes and Admin notification run afterward. Notifications
+are best effort, and a repeated ledger result does not send another Admin notice.
+The Wallet ledger and website are the authoritative financial history.
+
+## Bot settings → Money
+
+Owners of bots with Wallet-related installations can open **Money** in Bot
+settings. The Admin settings route provides the same view behind an Admin role
+check. Every query checks the authenticated account and scopes data by bot ID;
+Discord IDs shared by multiple bots still have separate balances. Historical
+records remain readable through the route even after a feature expires.
+
+Each customer has one per-bot Wallet shared by TrueMoney and SlipOK. The page shows
+customer balances, lifetime credited top-ups per provider, and provider-filtered
+history with gross amount, fee, net credit, reference and status. Missing legacy
+amounts/fees are shown as unknown, never fabricated as zero. The review tab includes
+only new-system unresolved receipts and pending credits; historical attempts are
+labelled separately to avoid accidental repayment after an Admin correction.
+These are read-only views, not a manual recovery/credit control.
+
+Routes (all authenticated, `Cache-Control: no-store`):
+
+- `GET /api/v1/bots/{botId}/money/overview`
+- `GET /api/v1/bots/{botId}/money/customers`
+- `GET /api/v1/bots/{botId}/money/topups`
+- Admin equivalents under `/api/v1/admin/bots/{botId}/money/…`
+
+Lists use cursor pagination (25 default, 100 maximum), optional exact `member`
+Discord ID, and top-ups additionally support `provider=TRUEMONEY|SLIPOK` and
+`review=true`. Cursors are bound to owner, bot and filters, and every SQL query
+still independently applies the bot predicate. Satang values in this read API are
+strings to preserve precision for large aggregates in browsers. Only the active
+tab fetches rows; changing bot/account aborts and clears prior requests. The page
+does not wait for Discord member lookups. Refresh reloads its financial snapshot.
+
+Validation uses mocked TrueMoney HTTP responses, authorization tests, real
+PostgreSQL replay/concurrency/rollback/provider-filter fixtures, and browser
+coverage on Desktop/Mobile in Light/Dark. No validation redeems real gifts or
+modifies production Wallets.

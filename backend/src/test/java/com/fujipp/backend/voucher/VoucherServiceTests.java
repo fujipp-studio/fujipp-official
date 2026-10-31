@@ -47,11 +47,11 @@ class VoucherServiceTests {
     }
 
     @Test
-    void recordsZeroAmountAsAFailure() {
+    void requiresReviewWhenProviderAcceptedButAmountIsInvalid() {
         RedeemTrueMoneyVoucherRequest request = request();
         UUID redemptionId = UUID.randomUUID();
         VoucherRepository.RedemptionRow failed = row(
-                redemptionId, request, VoucherStatus.REDEEM_FAILED, null, "fingerprint"
+                redemptionId, request, VoucherStatus.RECONCILIATION_REQUIRED, null, "fingerprint"
         );
         when(repository.findRecipientPhone(request.botId())).thenReturn(Optional.of("0812345678"));
         when(repository.claim(any(), anyString(), anyString(), anyString()))
@@ -61,14 +61,14 @@ class VoucherServiceTests {
         );
         when(repository.fail(
                 redemptionId,
-                VoucherStatus.REDEEM_FAILED,
+                VoucherStatus.RECONCILIATION_REQUIRED,
                 "UPSTREAM_INVALID_AMOUNT",
                 "TrueMoney returned a non-positive amount"
         )).thenReturn(failed);
 
         VoucherRedemptionResponse response = service.redeem(request);
 
-        assertThat(response.status()).isEqualTo("REDEEM_FAILED");
+        assertThat(response.status()).isEqualTo("RECONCILIATION_REQUIRED");
         assertThat(response.amountSatang()).isNull();
     }
 
@@ -123,6 +123,29 @@ class VoucherServiceTests {
         );
     }
 
+    @Test
+    void canonicalAliasWithNewInteractionAndChangedFeeReturnsTheOriginalReceipt() {
+        var request=request();
+        UUID id=UUID.randomUUID();
+        var fee=new VoucherFee("FIXED",500);
+        when(repository.findRecipientPhone(request.botId())).thenReturn(Optional.of("0812345678"));
+        when(repository.claimWallet(any(),anyString(),anyString(),anyString(),any())).thenReturn(Optional.of(id));
+        when(adapter.redeemWallet("0812345678",request.giftUrl(),fee))
+                .thenReturn(new TrueMoneyVoucherAdapter.Outcome(new BigDecimal("2000"),"Sender","stable-ref"));
+        when(repository.succeed(id,200000,"Sender","stable-ref"))
+                .thenReturn(row(id,request,VoucherStatus.SUCCEEDED,200000L,"unused"));
+        service.redeemWallet(request,fee);
+        var fingerprint=org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(repository).claimWallet(any(),anyString(),anyString(),fingerprint.capture(),any());
+        when(repository.findByVoucherHash(anyString())).thenReturn(Optional.of(row(id,request,VoucherStatus.SUCCEEDED,200000L,fingerprint.getValue())));
+        var replay=new RedeemTrueMoneyVoucherRequest(request.botId(),request.memberDiscordId(),
+                request.giftUrl().replace("/campaign/?","/campaign?"),"discord:new-interaction");
+        assertThat(service.redeemWallet(replay,new VoucherFee("PERCENT",50)).id()).isEqualTo(id);
+        verify(adapter).redeemWallet("0812345678",request.giftUrl(),fee);
+        org.mockito.Mockito.verifyNoMoreInteractions(adapter);
+        verify(repository,org.mockito.Mockito.times(1)).claimWallet(any(),anyString(),anyString(),anyString(),any());
+    }
+
     private static RedeemTrueMoneyVoucherRequest request() {
         return new RedeemTrueMoneyVoucherRequest(
                 UUID.randomUUID(),
@@ -150,8 +173,8 @@ class VoucherServiceTests {
                 "THB",
                 "Voucher Owner",
                 status == VoucherStatus.SUCCEEDED ? "reference-1" : null,
-                status == VoucherStatus.REDEEM_FAILED ? "UPSTREAM_INVALID_AMOUNT" : null,
-                status == VoucherStatus.REDEEM_FAILED ? "Invalid amount" : null,
+                status == VoucherStatus.RECONCILIATION_REQUIRED ? "UPSTREAM_INVALID_AMOUNT" : null,
+                status == VoucherStatus.RECONCILIATION_REQUIRED ? "Invalid amount" : null,
                 now.minusSeconds(1),
                 status == VoucherStatus.REDEEMING ? null : now,
                 now.minusSeconds(1)

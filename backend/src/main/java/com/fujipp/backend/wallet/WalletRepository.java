@@ -96,6 +96,30 @@ class WalletRepository {
         return new WalletResponses.Topup(credit.id(),amount,credit.balance(),"THB",method,credit.created(),OffsetDateTime.now());
     }
 
+    WalletResponses.Topup settleVoucher(UUID redemptionId, UUID botId, String memberId) {
+        return jdbc.queryForObject("SELECT * FROM private.settle_truemoney_wallet(?,?,?)",
+                (rs,n) -> new WalletResponses.Topup(rs.getObject("entry_id",UUID.class),rs.getLong("credited_satang"),
+                        rs.getLong("balance_satang"),"THB","TRUEMONEY",rs.getBoolean("created"),
+                        rs.getObject("completed_at",OffsetDateTime.class)), redemptionId,botId,memberId);
+    }
+
+    List<VerifiedReceipt> pendingVoucherCredits() {
+        jdbc.update("""
+                UPDATE private.truemoney_voucher_redemptions
+                SET status='RECONCILIATION_REQUIRED',failure_code='STALE_REDEEMING',
+                    failure_message='Receipt outcome requires investigation; do not redeem again',completed_at=now()
+                WHERE wallet_flow_version=2 AND status='REDEEMING' AND processing_started_at<now()-interval '2 minutes'
+                """);
+        return jdbc.query("""
+                SELECT id,bot_id,member_discord_id FROM private.truemoney_voucher_redemptions
+                WHERE wallet_flow_version=2 AND status='SUCCEEDED' AND wallet_ledger_id IS NULL
+                  AND completed_at < now()-interval '15 seconds'
+                ORDER BY completed_at LIMIT 20
+                """, (rs,n) -> new VerifiedReceipt(rs.getObject(1,UUID.class),rs.getObject(2,UUID.class),rs.getString(3)));
+    }
+
+    record VerifiedReceipt(UUID id, UUID botId, String memberId) {}
+
     @Transactional
     WalletResponses.Adjustment adjust(WalletRequests.Adjustment request) {
         Adjustment result = jdbc.queryForObject(

@@ -12,6 +12,8 @@ import com.fujipp.backend.auth.AdminUserController;
 @RestControllerAdvice(assignableTypes = {
         StoreCatalogController.class,
         BotController.class,
+        BotMoneyController.class,
+        AdminBotMoneyController.class,
         TicketHistoryController.class,
         AdminTicketHistoryController.class,
         RuntimeTicketController.class,

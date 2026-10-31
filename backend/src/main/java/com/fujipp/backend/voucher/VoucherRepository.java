@@ -76,6 +76,17 @@ class VoucherRepository {
         );
     }
 
+    Optional<UUID> claimWallet(RedeemTrueMoneyVoucherRequest request, String phone, String hash,
+                               String fingerprint, VoucherFee fee) {
+        return jdbcTemplate.query("""
+                INSERT INTO private.truemoney_voucher_redemptions
+                  (bot_id,member_discord_id,recipient_phone,voucher_hash,request_fingerprint,idempotency_key,
+                   wallet_flow_version,wallet_fee_mode,wallet_fee_value)
+                VALUES (?,?,?,?,?,?,2,?,?) ON CONFLICT DO NOTHING RETURNING id
+                """, rs -> rs.next() ? Optional.of(rs.getObject(1, UUID.class)) : Optional.empty(),
+                request.botId(), request.memberDiscordId(), phone, hash, fingerprint, request.idempotencyKey(), fee.mode(), fee.value());
+    }
+
     Optional<String> findPaymentRecipientPhone(UUID botId) {
         return jdbcTemplate.query("""
                 SELECT COALESCE(value.value, definition.default_value) #>> '{}'
@@ -118,6 +129,10 @@ class VoucherRepository {
     }
 
     RedemptionRow succeed(UUID id, long amountSatang, String issuer, String reference) {
+        return succeed(id,amountSatang,issuer,reference,null);
+    }
+
+    RedemptionRow succeed(UUID id, long amountSatang, String issuer, String reference, String evidence) {
         return update(
                 """
                 UPDATE private.truemoney_voucher_redemptions
@@ -125,26 +140,32 @@ class VoucherRepository {
                        amount_satang = ?,
                        issuer = ?,
                        upstream_reference = ?,
+                       provider_evidence = ?::jsonb,
                        completed_at = now()
                  WHERE id = ? AND status = 'REDEEMING'
                 RETURNING *
                 """,
-                amountSatang, issuer, reference, id
+                amountSatang, issuer, reference, evidence, id
         );
     }
 
     RedemptionRow fail(UUID id, VoucherStatus status, String code, String message) {
+        return fail(id,status,code,message,null);
+    }
+
+    RedemptionRow fail(UUID id, VoucherStatus status, String code, String message, String evidence) {
         return update(
                 """
                 UPDATE private.truemoney_voucher_redemptions
                    SET status = ?::private.voucher_redemption_status,
                        failure_code = ?,
                        failure_message = ?,
+                       provider_evidence = ?::jsonb,
                        completed_at = now()
                  WHERE id = ? AND status = 'REDEEMING'
                 RETURNING *
                 """,
-                status.name(), code, message, id
+                status.name(), code, message, evidence, id
         );
     }
 

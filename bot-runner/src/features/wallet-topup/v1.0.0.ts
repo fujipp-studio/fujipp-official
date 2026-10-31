@@ -113,14 +113,19 @@ async function handle(context: FeatureContext, panelCommand: string, pending: Ma
     if (interaction.customId === "wallet:voucher") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const result=await context.wallet.voucher({memberDiscordId:interaction.user.id,giftUrl:interaction.fields.getTextInputValue("gift_url").trim(),idempotencyKey:`discord:${interaction.id}`});
-      const roleRemoved=await finalizeSuccessfulTopupRoles(
-        ()=>grantPermanentTopupRole(context,interaction.guild,interaction.user.id),
-        ()=>requestTopSpenderSync(context,interaction.guild).then(()=>undefined).catch(console.error),
-        ()=>removeTemporarySlipRole(context,interaction.guild,interaction.user.id),
-      );
-      if(roleRemoved&&pending.delete(interaction.user.id))await savePending(context,pending);
-      await notify(context, successVars(interaction.user.id,result,"ระบบ","เติมเงินสำเร็จ","-")).catch(console.error);
-      return interaction.editReply(render(context,"succeeded",successVars(interaction.user.id,result),false));
+      // The receipt is returned as soon as the authoritative ledger is committed.
+      // Discord role/ranking work must not delay a successful financial response.
+      const reply=await interaction.editReply(render(context,"succeeded",successVars(interaction.user.id,result),false));
+      void (async()=>{
+        const roleRemoved=await finalizeSuccessfulTopupRoles(
+          ()=>grantPermanentTopupRole(context,interaction.guild,interaction.user.id),
+          ()=>requestTopSpenderSync(context,interaction.guild).then(()=>undefined).catch(console.error),
+          ()=>removeTemporarySlipRole(context,interaction.guild,interaction.user.id),
+        );
+        if(roleRemoved&&pending.delete(interaction.user.id))await savePending(context,pending);
+        if(result.created)await notify(context,successVars(interaction.user.id,result,"ระบบ","เติมเงินสำเร็จ","-"));
+      })().catch((error)=>context.reportFeatureError("TOPUP_POST_CREDIT_FAILED",error).catch(()=>undefined));
+      return reply;
     }
     if (interaction.customId === "wallet:promptpay") {
       const amount=parseAmount(interaction.fields.getTextInputValue("amount"));
@@ -412,7 +417,11 @@ function requestTopSpenderSync(context:FeatureContext,_guild:Message["guild"]|Ch
 async function syncTopSpenderRoles(context:FeatureContext,guild:Message["guild"]|ChatInputCommandInteraction["guild"],reconcileAllRankingHolders=false,provided?:Awaited<ReturnType<FeatureContext["wallet"]["leaderboard"]>>){if(!guild)return{updated:0,errors:[] as string[]};const policy=topSpenderRolePolicy(stringConfig(context.config.SLIP_SUBMITTER_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP1_ROLE_ID,""),stringConfig(context.config.TOP_SPENDER_TOP10_ROLE_ID,""),parseMilestones(context.config.TOP_SPENDER_MILESTONE_ROLES));const {top1,top10,milestones,managed}=policy;if(!managed.length)return{updated:0,errors:[] as string[]};const board=provided??await context.wallet.leaderboard(50);const desiredByMember=new Map<string,Set<string>>();for(const [index,entry] of board.entries.entries()){const desired=new Set<string>();if(index===0&&top1)desired.add(top1);if(index<10&&top10)desired.add(top10);for(const m of milestones)if(entry.totalTopupSatang>=m.thresholdSatang)desired.add(m.roleId);desiredByMember.set(entry.memberDiscordId,desired);}const rankingRoles=[...new Set([top1,top10].filter(Boolean))];const memberIds=new Set(desiredByMember.keys());let members;if(reconcileAllRankingHolders&&rankingRoles.length){members=await guild.members.fetch();for(const member of members.values())if(rankingRoles.some((id)=>member.roles.cache.has(id)))memberIds.add(member.id);}let updated=0;const errors:string[]=[];for(const memberId of memberIds){const desired=desiredByMember.get(memberId)??new Set<string>();const member=members?.get(memberId)??await guild.members.fetch(memberId).catch(()=>null);if(!member)continue;const managedForMember=desiredByMember.has(memberId)?managed:rankingRoles;const add=[...desired].filter((id)=>!member.roles.cache.has(id));const remove=managedForMember.filter((id)=>member.roles.cache.has(id)&&!desired.has(id));try{if(add.length)await member.roles.add(add,"Wallet top spender sync");if(remove.length)await member.roles.remove(remove,"Wallet top spender sync");if(add.length||remove.length)updated++;}catch(error){errors.push(`<@${memberId}>: ${error instanceof Error?error.message:"role update failed"}`);}}return{updated,errors};}
 function parseMilestones(value:unknown){if(!Array.isArray(value))return[];return value.flatMap((item)=>{if(!isRecord(item))return[];const threshold=Number(item.thresholdBaht??item.threshold),roleId=String(item.roleId??"");return Number.isFinite(threshold)&&threshold>0&&/^\d{15,30}$/.test(roleId)?[{thresholdSatang:Math.round(threshold*100),roleId}]:[];});}
 const WALLET_ERRORS:Record<string,string>={
-  VOUCHER_ALREADY_USED:"ซอง TrueMoney นี้ถูกใช้หรือกำลังถูกประมวลผลแล้ว กรุณาสร้างซองใหม่",
+  VOUCHER_ALREADY_USED:"ซอง TrueMoney นี้ถูกใช้หรือกำลังประมวลผล กรุณาตรวจสอบยอด Wallet และติดต่อผู้ดูแลก่อนชำระซ้ำ",
+  VOUCHER_NOT_SINGLE_RECIPIENT:"รับเฉพาะซอง TrueMoney สำหรับผู้รับ 1 คนเท่านั้น ยังไม่ได้รับเงินจากซอง",
+  VOUCHER_FEE_EXCEEDS_AMOUNT:"ยอดซองต้องมากกว่าค่าธรรมเนียม ยังไม่ได้รับเงินจากซอง",
+  TOPUP_REVIEW_REQUIRED:"ผลรับซองอยู่ระหว่างตรวจสอบ กรุณาอย่าส่งซ้ำและติดต่อผู้ดูแลร้าน",
+  TOPUP_PROCESSING:"รายการกำลังดำเนินการ กรุณาตรวจสอบยอด Wallet ภายหลังและอย่าส่งซ้ำ",
   REDEMPTION_OUTCOME_UNKNOWN:"TrueMoney อาจรับซองแล้ว แต่ระบบยืนยันผลไม่ได้ กรุณาอย่าส่งซ้ำและติดต่อผู้ดูแลร้านเพื่อตรวจสอบยอด",
   SLIPOK_1005:"รองรับเฉพาะรูปสลิป JPG, JPEG และ PNG",
   SLIPOK_1006:"ไฟล์รูปภาพไม่ถูกต้อง กรุณาส่งรูปสลิปใหม่",
