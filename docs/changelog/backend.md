@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Added administrator-bound impersonation capabilities with live account checks, target-only permissions, revocation and mandatory audit records before user operations. |
 | 2026-11-01 | Made TrueMoney Wallet receipts recoverable without re-redeeming, enforced single-recipient preflight and exact amounts, and added owner-scoped Money APIs with faster customer receipts. |
 | 2026-11-01 | Added Runner readiness checks based on successful authenticated Backend synchronization so deployments can detect failed startup and roll back. |
 | 2026-10-31 | Added opt-in Ticket opening pings with recipient access checks and recoverable notification failures; updated the HTTP redirect dependency to resolve its security audit failure. |

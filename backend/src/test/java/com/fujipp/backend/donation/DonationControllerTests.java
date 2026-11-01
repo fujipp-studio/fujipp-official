@@ -32,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class DonationControllerTests {
 
     @MockitoBean
+    private com.fujipp.backend.auth.ImpersonationService impersonationService;
+
+    @MockitoBean
     private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
     @Autowired MockMvc mockMvc;
     @MockitoBean DonationService service;

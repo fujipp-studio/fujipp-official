@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -30,17 +32,20 @@ public class AccountAccessFilter extends OncePerRequestFilter {
     private final SecurityAuditService securityAuditService;
     private final ObjectMapper objectMapper;
     private final AuthIdentityProjection identityProjection;
+    private final ImpersonationService impersonation;
 
     public AccountAccessFilter(
             CurrentUserService currentUserService,
             SecurityAuditService securityAuditService,
             ObjectMapper objectMapper,
-            AuthIdentityProjection identityProjection
+            AuthIdentityProjection identityProjection,
+            ImpersonationService impersonation
     ) {
         this.currentUserService = currentUserService;
         this.securityAuditService = securityAuditService;
         this.objectMapper = objectMapper;
         this.identityProjection = identityProjection;
+        this.impersonation = impersonation;
     }
 
     @Override
@@ -61,18 +66,48 @@ public class AccountAccessFilter extends OncePerRequestFilter {
             identityProjection.ensureIdentity(jwtAuthentication.getToken());
             CurrentUserRepository.AccountProfile account =
                     currentUserService.getActiveAccount(jwtAuthentication.getToken().getSubject());
-            var authorities = new ArrayList<>(jwtAuthentication.getAuthorities());
+            Jwt effective = jwtAuthentication.getToken();
+            String capability = request.getHeader(ImpersonationService.HEADER);
+            boolean stopping = ImpersonationService.PATH.equals(request.getRequestURI())
+                    && "DELETE".equals(request.getMethod());
+            boolean acting = capability != null && !stopping;
+            UUID operationId = UUID.randomUUID();
+            if (acting) {
+                // Starting while already impersonating must never regain admin privileges.
+                effective = impersonation.resolve(effective, capability);
+                account = currentUserService.getActiveAccount(effective.getSubject());
+                securityAuditService.recordRequired(SecurityEventType.IMPERSONATION_REQUEST,
+                        AuditOutcome.SUCCESS, UUID.fromString(jwtAuthentication.getToken().getSubject()),
+                        account.id(), request.getRemoteAddr(), request.getHeader("User-Agent"),
+                        Map.of("method", request.getMethod(), "path", request.getRequestURI(), "phase", "AUTHORIZED", "operationId", operationId.toString()));
+                response.setHeader("Cache-Control", "no-store");
+            }
+            var authorities = acting
+                    ? new ArrayList<GrantedAuthority>()
+                    : new ArrayList<>(jwtAuthentication.getAuthorities());
             authorities.add(new SimpleGrantedAuthority("ROLE_" + account.role().name()));
-
             JwtAuthenticationToken authorizedAuthentication = new JwtAuthenticationToken(
-                    jwtAuthentication.getToken(),
-                    authorities,
-                    jwtAuthentication.getName()
-            );
+                    effective, authorities, effective.getSubject());
             authorizedAuthentication.setDetails(jwtAuthentication.getDetails());
             SecurityContextHolder.getContext().setAuthentication(authorizedAuthentication);
+            boolean completed = false;
+            try {
+                filterChain.doFilter(request, response);
+                completed = true;
+            } finally {
+                if (acting) {
+                    securityAuditService.record(SecurityEventType.IMPERSONATION_RESULT,
+                            completed && response.getStatus() < 400 ? AuditOutcome.SUCCESS : AuditOutcome.FAILURE,
+                            UUID.fromString(jwtAuthentication.getToken().getSubject()), account.id(),
+                            request.getRemoteAddr(), request.getHeader("User-Agent"),
+                            Map.of("method", request.getMethod(), "path", request.getRequestURI(),
+                                    "operationId", operationId.toString(), "status", completed ? response.getStatus() : 500));
+                }
+            }
+        } catch (ImpersonationService.EndedException exception) {
+            writeProblem(response, HttpStatus.FORBIDDEN, "Impersonation ended",
+                    "Return to your administrator account and start a new session", null);
 
-            filterChain.doFilter(request, response);
         } catch (AccountNotActiveException exception) {
             recordDeniedAccess(
                     request,
@@ -150,6 +185,7 @@ public class AccountAccessFilter extends OncePerRequestFilter {
         SecurityContextHolder.clearContext();
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
         problem.setTitle(title);
+        if ("Impersonation ended".equals(title)) problem.setProperty("reason", "IMPERSONATION_ENDED");
         if (accountStatus != null) {
             problem.setProperty("accountStatus", accountStatus);
         }

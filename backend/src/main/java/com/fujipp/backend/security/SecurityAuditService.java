@@ -35,27 +35,7 @@ public class SecurityAuditService {
             Map<String, ?> details
     ) {
         try {
-            jdbcTemplate.update(
-                    """
-                    INSERT INTO private.security_audit_log (
-                        event_type,
-                        outcome,
-                        actor_user_id,
-                        subject_user_id,
-                        ip_address,
-                        user_agent,
-                        details
-                    )
-                    VALUES (?, ?, ?, ?, CAST(? AS inet), ?, CAST(? AS jsonb))
-                    """,
-                    eventType.name(),
-                    outcome.name(),
-                    actorUserId,
-                    subjectUserId,
-                    normalizeIp(ipAddress),
-                    truncate(userAgent),
-                    objectMapper.writeValueAsString(details == null ? Map.of() : details)
-            );
+            recordRequired(eventType, outcome, actorUserId, subjectUserId, ipAddress, userAgent, details);
         } catch (DataAccessException | JacksonException exception) {
             log.warn(
                     "Unable to persist security audit event type={} outcome={}",
@@ -64,6 +44,34 @@ public class SecurityAuditService {
                     exception
             );
         }
+    }
+
+    /** Fail closed for privileged operations that require a durable audit trail. */
+    public void recordRequired(
+            SecurityEventType eventType, AuditOutcome outcome, UUID actorUserId,
+            UUID subjectUserId, String ipAddress, String userAgent, Map<String, ?> details
+    ) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO private.security_audit_log (
+                    event_type,
+                    outcome,
+                    actor_user_id,
+                    subject_user_id,
+                    ip_address,
+                    user_agent,
+                    details
+                )
+                VALUES (?, ?, ?, ?, CAST(? AS inet), ?, CAST(? AS jsonb))
+                """,
+                eventType.name(),
+                outcome.name(),
+                actorUserId,
+                subjectUserId,
+                normalizeIp(ipAddress),
+                truncate(userAgent),
+                objectMapper.writeValueAsString(details == null ? Map.of() : details)
+        );
     }
 
     private String normalizeIp(String ipAddress) {

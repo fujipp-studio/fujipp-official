@@ -14,6 +14,9 @@ import { useWorkPreload } from './features/work/composables/useWorkPreload'
 import { useAuthStore, useThemeStore } from './stores'
 import { useAdminToolsVisibility } from './features/admin/composables/useAdminToolsVisibility'
 
+const ImpersonationBanner = defineAsyncComponent(
+  () => import('./features/auth/ImpersonationBanner.vue'),
+)
 const AdminTools = defineAsyncComponent(
   () => import('./features/admin/components/AdminTools.vue'),
 )
@@ -28,7 +31,7 @@ useDesktopSmoothScroll()
 useWorkPreload()
 const auth = useAuthStore()
 const queryClient = useQueryClient()
-watch(() => auth.session?.user?.id, () => clearAccountQueries(queryClient), { flush: 'sync' })
+watch(() => `${auth.session?.user?.id}:${auth.impersonation?.token ?? ''}`, () => clearAccountQueries(queryClient), { flush: 'sync' })
 const theme = useThemeStore()
 const { currentUser, initialized, isAuthenticated } = storeToRefs(auth)
 const { isDarkTheme } = storeToRefs(theme)
@@ -97,9 +100,10 @@ watch(
 </script>
 
 <template>
-  <AppNavbar v-if="!route.meta.hideGlobalNavbar" :active-item="activeNavigationItem" />
+  <ImpersonationBanner v-if="auth.impersonation" />
+  <AppNavbar :style="auth.impersonation ? { position: 'relative' } : undefined" v-if="!route.meta.hideGlobalNavbar" :active-item="activeNavigationItem" />
   <AppScrollRail />
-  <RouterView />
+  <RouterView :key="`${currentUser?.id ?? 'guest'}:${auth.impersonation?.token ?? ''}`" />
   <SeasonalEffects v-if="!route.meta.hideGlobalNavbar && seasonalEffectsEnabled" />
   <AdminTools v-if="currentUser?.role === 'ADMIN' && adminToolsVisible && !route.meta.hideGlobalNavbar" />
 </template>

@@ -4,6 +4,7 @@ export default defineConfig({
   testMatch: [
     'seasonal-effects.smoke.spec.ts',
     'admin-tools.smoke.spec.ts',
+    'impersonation.smoke.spec.ts',
     'frontend.smoke.spec.ts',
     'privacy.smoke.spec.ts',
     'desktop-scroll.smoke.spec.ts',

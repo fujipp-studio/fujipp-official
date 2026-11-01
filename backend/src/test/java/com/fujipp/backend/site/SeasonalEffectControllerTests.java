@@ -31,6 +31,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({SecurityConfig.class, ApiExceptionHandler.class})
 class SeasonalEffectControllerTests {
     @Autowired MockMvc mvc;
+    @MockitoBean
+    private com.fujipp.backend.auth.ImpersonationService impersonationService;
+
     @MockitoBean SeasonalEffectRepository repository;
     @MockitoBean CurrentUserService currentUserService;
     @MockitoBean com.fujipp.backend.auth.AuthIdentityProjection identityProjection;

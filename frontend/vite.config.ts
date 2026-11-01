@@ -7,12 +7,13 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import tailwindcss from '@tailwindcss/vite'
 
-const developmentTools = process.env.VUE_DEVTOOLS === 'true'
-  ? (vueDevTools() as Plugin[]).map((plugin) => ({
-      ...plugin,
-      apply: 'serve' as const,
-    }))
-  : []
+const developmentTools =
+  process.env.VUE_DEVTOOLS === 'true'
+    ? (vueDevTools() as Plugin[]).map((plugin) => ({
+        ...plugin,
+        apply: 'serve' as const,
+      }))
+    : []
 
 function sitePreviewMetadata(): Plugin {
   let siteOrigin = 'https://fujipp.com'
@@ -103,6 +104,20 @@ export default defineConfig({
   },
   build: {
     manifest: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          // These libraries are already required by the app shell. Compress them
+          // together so additional session logic stays within every route budget.
+          groups: [
+            {
+              name: 'vue-framework',
+              test: /node_modules[\\/](?:@vue[\\/]|@intlify[\\/]|vue[\\/]|vue-router[\\/]|vue-i18n[\\/]|pinia[\\/])/,
+            },
+          ],
+        },
+      },
+    },
   },
   server: {
     fs: {

@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useCursorCollection } from '@/shared/api/useCursorCollection'
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { Users, RefreshCw, Search, WalletCards, Settings, Blocks, Trash2 } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
@@ -30,7 +31,9 @@ import {
 } from '@/features/admin/api/users'
 import { fetchAdminFeatures, type AdminFeature } from '@/features/admin/api/features'
 import { AdminLayout, AdminPageHeader, AdminPanel, AdminStatusBadge } from '../components'
+const router = useRouter()
 const auth = useAuthStore()
+const impersonateTarget = ref<AdminUserSummary | null>(null)
 const { session } = storeToRefs(auth)
 const catalog = ref<AdminFeature[]>([]),
   loading = ref(false),
@@ -38,7 +41,7 @@ const catalog = ref<AdminFeature[]>([]),
   error = ref(''),
   query = ref(''),
   toast = ref('')
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const sections = computed(() => [{ id: 'admin-users-list', label: t('admin.sections.list') }])
 const selected = ref<AdminUserSummary | null>(null),
   mode = ref<'account' | 'wallet' | 'features' | 'history' | null>(null),
@@ -82,6 +85,18 @@ const account = ref({
   }),
   wallet = ref({ direction: 'CREDIT', entryType: 'ADJUSTMENT', amount: '', description: '' }),
   grant = ref({ featureId: '', limit: '1', expiresAt: '' })
+async function impersonate() {
+  const target = impersonateTarget.value
+  if (!target?.userId || saving.value) return
+  saving.value = true
+  error.value = ''
+  try {
+    await auth.beginImpersonation(target.userId)
+    await router.replace({ name: 'my-bot', query: locale.value === 'th' ? { locale: 'th' } : {} })
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : t('admin.page.loadError')
+  } finally { saving.value = false }
+}
 async function load() {
   if (!session.value) return
   loading.value = true
@@ -353,6 +368,12 @@ onMounted(load)
                   <td>
                     <div class="flex justify-end gap-xs">
                       <button
+                        v-if="x.userId && x.role !== 'ADMIN' && x.status === 'ACTIVE' && x.userId !== auth.currentUser?.id"
+                        class="rounded-md px-sm py-xs text-xs text-text-secondary hover:bg-bg-surface-hover focus-visible:outline"
+                        :disabled="saving"
+                        @click="impersonateTarget = x"
+                      >{{ t('admin.impersonation.start') }}</button>
+                      <button
                         class="rounded-md p-xs text-text-secondary hover:bg-bg-surface-hover"
                         :aria-label="t('admin.page.accountSettings')"
                         @click="openAccount(x)"
@@ -385,6 +406,19 @@ onMounted(load)
         ></AdminPanel>
       </section>
       <AppSectionIndicator :sections="sections" :aria-label="t('admin.sections.navigation')" />
+      <AppModal
+        :open="impersonateTarget !== null"
+        :disabled="saving"
+        :title="t('admin.impersonation.start')"
+        @close="!saving && (impersonateTarget = null)"
+      >
+        <p class="text-sm text-text-secondary">{{ t('admin.impersonation.confirm', { name: impersonateTarget?.displayName || impersonateTarget?.email || impersonateTarget?.userId }) }}</p>
+        <p v-if="error" role="alert" class="mt-sm text-sm">{{ error }}</p>
+        <template #footer>
+          <AppButton variant="secondary" :disabled="saving" @click="impersonateTarget = null">{{ t('common.closeDialog') }}</AppButton>
+          <AppButton :loading="saving" :disabled="saving" @click="impersonate">{{ t('admin.impersonation.start') }}</AppButton>
+        </template>
+      </AppModal>
       <AppModal
         :open="mode === 'account'"
         :title="t('admin.page.accountSettings')"

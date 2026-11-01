@@ -81,6 +81,9 @@ CI use the same impact information. See [frontend agent instructions](AGENTS.md)
 - Admin users and wallet history load 50 rows at a time through
   the existing scroll surface. Wallet v2 returns current balance and cursor metadata
   in one contract. Complete inventories and selectors still aggregate cursor pages.
+- Session bootstrap stays in the shared auth store; impersonation controls load
+  on demand. Backend API transport installs the impersonation boundary
+  only when this mode is opened, while tracking pending requests from initial load.
 - Bot settings **Money** (`/my-bot/:botId/settings/money`, plus the Admin equivalent)
   uses one Wallet per Discord customer per bot, with provider-filtered TrueMoney/SlipOK
   history and read-only review statuses. Lists load by cursor only for the active tab;
@@ -90,6 +93,10 @@ CI use the same impact information. See [frontend agent instructions](AGENTS.md)
   `usePresentationEditor` handles message edits. Their typed context lives only within
   the feature editor tree. The editor CSS is nested under `.feature-settings` so it
   applies to extracted children without leaking to other pages.
+- Admin Users can start a 15-minute impersonation session for an active non-admin
+  account. The global banner returns to the administrator; a full reload also
+  returns to the real account. Identity switches abort pending API reads/writes,
+  clear account caches, and remount routed views. See [Authentication API](../docs/auth-api.md#administrator-impersonation).
 - Admin pages are children of the persistent Admin layout. Add a lazy child route
   with `adminSection` metadata instead of another manual component switch.
 - Add UI copy to matching EN/TH namespaces and register new route namespaces in
@@ -151,6 +158,12 @@ Light/Dark and capture screenshots. Automated smoke assertions do not measure
 pixel-level visual parity, contrast, or screen-reader usability.
 
 ## Production and performance
+
+Vue, Vue Router, Pinia and Vue I18n already belong to the initial shell. Production
+builds group them into one framework chunk to improve compression and keep the
+existing per-route budgets as session features grow. The auth dialog and impersonation
+modules remain asynchronous; the bundle guard still counts the full session SDK
+for authenticated routes.
 
 The normal `bun run build` uses `index.html`; it does not include the fixture entry
 or fixture middleware. Keep SPA history fallback enabled (`public/.htaccess`).

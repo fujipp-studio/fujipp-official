@@ -3,12 +3,20 @@ import { defineStore } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'
 
 import { fetchCurrentUser, type CurrentUser } from '@/features/auth/api'
+import { bindSessionContext, impersonationContext } from '@/features/auth/impersonation'
+import type { ImpersonationController } from '@/features/auth/impersonation-controller'
 
 type OAuthProvider = 'google' | 'discord' | 'github'
 
 async function loadSupabaseClient() {
   const { getSupabaseClient } = await import('../lib/supabase')
   return getSupabaseClient()
+}
+
+interface AuthActionResult {
+  success: boolean
+  requiresEmailConfirmation?: boolean
+  message?: string
 }
 
 function getAuthCallbackUrl(): string {
@@ -23,14 +31,31 @@ function getAuthCallbackUrl(): string {
   return callback.toString()
 }
 
-interface AuthActionResult {
-  success: boolean
-  requiresEmailConfirmation?: boolean
-  message?: string
-}
-
 export const useAuthStore = defineStore('auth', () => {
-  const session = ref<Session | null>(null)
+  const actorSession = ref<Session | null>(null)
+  const impersonation = computed(() => impersonationContext.value)
+  const session = computed({
+    get: () => {
+      const source = actorSession.value
+      const acting = impersonation.value
+      if (!source) return null
+      if (!acting) return bindSessionContext({ ...source })
+      return bindSessionContext({
+        ...source,
+        user: {
+          ...source.user,
+          id: acting.user.id,
+          email: acting.user.email ?? undefined,
+          user_metadata: {},
+        },
+      })
+    },
+    set: (value: Session | null) => {
+      actorSession.value = value
+    },
+  })
+  let impersonationController: ImpersonationController | undefined
+  let identityVersion = 0
   const currentUser = ref<CurrentUser | null>(null)
   const initialized = ref(false)
   const loading = ref(false)
@@ -42,6 +67,8 @@ export const useAuthStore = defineStore('auth', () => {
   onScopeDispose(() => {
     disposed = true
     unsubscribe?.()
+    impersonationController?.dispose()
+    impersonationContext.value = null
   })
 
   async function authClient() {
@@ -50,14 +77,15 @@ export const useAuthStore = defineStore('auth', () => {
       listenerRegistered = true
       const { data } = supabase.auth.onAuthStateChange(
         (_event: AuthChangeEvent, nextSession: Session | null) => {
-          session.value = nextSession
+          if (actorSession.value?.user.id !== nextSession?.user.id) resetImpersonation()
+          actorSession.value = nextSession
           if (!nextSession) {
             currentUser.value = null
             userRequest = undefined
             return
           }
           void loadCurrentUser(nextSession).catch((cause) => {
-            if (session.value?.access_token === nextSession.access_token)
+            if (actorSession.value?.access_token === nextSession.access_token)
               error.value = getErrorMessage(cause)
           })
         },
@@ -68,7 +96,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
   let initializationPromise: Promise<void> | null = null
 
-  const isAuthenticated = computed(() => session.value !== null)
+  const isAuthenticated = computed(() => actorSession.value !== null)
 
   function initialize() {
     if (initialized.value) return
@@ -89,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
       const { data, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) throw sessionError
 
-      session.value = data.session
+      actorSession.value = data.session
       if (data.session) await loadCurrentUser(data.session)
     } catch (cause) {
       error.value = getErrorMessage(cause)
@@ -113,7 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
       if (signInError) throw signInError
       if (!data.session) throw new Error('No session was returned.')
 
-      session.value = data.session
+      actorSession.value = data.session
       await loadCurrentUser(data.session)
       return { success: true }
     })
@@ -144,7 +172,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
       }
 
-      session.value = data.session
+      actorSession.value = data.session
       await loadCurrentUser(data.session)
       return { success: true }
     })
@@ -175,16 +203,18 @@ export const useAuthStore = defineStore('auth', () => {
 
       initialized.value = false
       await initialize()
-      return { success: session.value !== null }
+      return { success: actorSession.value !== null }
     })
   }
 
   async function signOut(): Promise<AuthActionResult> {
     return runAuthAction(async () => {
+      if (impersonation.value) await endImpersonation()
       const supabase = await authClient()
       const { error: signOutError } = await supabase.auth.signOut()
       if (signOutError) throw signOutError
-      session.value = null
+      resetImpersonation()
+      actorSession.value = null
       currentUser.value = null
       return { success: true }
     })
@@ -192,6 +222,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function updatePassword(password: string): Promise<AuthActionResult> {
     return runAuthAction(async () => {
+      if (impersonation.value)
+        throw new Error('Return to your administrator account to change authentication settings.')
       const supabase = await authClient()
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) throw updateError
@@ -201,7 +233,9 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function requestPasswordReset(): Promise<AuthActionResult> {
     return runAuthAction(async () => {
-      const email = session.value?.user.email
+      if (impersonation.value)
+        throw new Error('Return to your administrator account to change authentication settings.')
+      const email = actorSession.value?.user.email
       if (!email) throw new Error('No email is associated with this account.')
       const redirectTo = `${window.location.origin}/auth/callback?recovery=1`
       const supabase = await authClient()
@@ -214,17 +248,56 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function loadCurrentUser(activeSession: Session): Promise<void> {
-    const token = activeSession.access_token
+    const token = `${activeSession.access_token}:${identityVersion}`
+    const version = identityVersion
     if (userRequest?.token === token) return userRequest.promise
     const request = fetchCurrentUser(activeSession)
       .then((user) => {
-        if (!disposed && session.value?.access_token === token) currentUser.value = user
+        if (
+          !disposed &&
+          actorSession.value?.access_token === activeSession.access_token &&
+          version === identityVersion
+        )
+          currentUser.value = user
       })
       .finally(() => {
         if (userRequest?.promise === request) userRequest = undefined
       })
     userRequest = { token, promise: request }
     return request
+  }
+
+  function invalidateIdentity() {
+    identityVersion++
+    userRequest = undefined
+  }
+
+  function resetImpersonation() {
+    invalidateIdentity()
+    impersonationController?.reset()
+    impersonationContext.value = null
+  }
+
+  async function beginImpersonation(userId: string): Promise<void> {
+    if (!impersonationController) {
+      const { createImpersonationController } =
+        await import('@/features/auth/impersonation-controller')
+      if (disposed) return
+      impersonationController ??= createImpersonationController({
+        actor: actorSession,
+        user: currentUser,
+        error,
+        version: () => identityVersion,
+        invalidate: invalidateIdentity,
+        disposed: () => disposed,
+        reload: reloadCurrentUser,
+      })
+    }
+    await impersonationController.begin(userId)
+  }
+
+  async function endImpersonation(expired = false): Promise<void> {
+    await impersonationController?.end(expired)
   }
 
   async function runAuthAction(action: () => Promise<AuthActionResult>): Promise<AuthActionResult> {
@@ -246,13 +319,16 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function reloadCurrentUser() {
-    if (session.value) {
-      await loadCurrentUser(session.value)
+    if (actorSession.value) {
+      await loadCurrentUser(actorSession.value)
     }
   }
 
   return {
     session,
+    impersonation,
+    beginImpersonation,
+    endImpersonation,
     currentUser,
     initialized,
     loading,

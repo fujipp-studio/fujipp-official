@@ -33,6 +33,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TopupControllerTests {
 
     @MockitoBean
+    private com.fujipp.backend.auth.ImpersonationService impersonationService;
+
+    @MockitoBean
     private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
     @Autowired MockMvc mockMvc;
     @MockitoBean TopupService service;

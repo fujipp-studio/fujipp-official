@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Added administrator impersonation with a selected-user confirmation, persistent return controls, 15-minute expiry and Thai/English responsive layouts while preserving route bundle budgets. |
 | 2026-11-01 | Added Bot settings Money with isolated customer Wallet balances, provider-filtered top-up history and review states, using cursor pagination and responsive Light/Dark layouts. |
 | 2026-10-31 | Added per-topic Ticket opening ping settings for roles, selected users and the opener, with saved switches, recipient validation and responsive Light/Dark controls. |
 | 2026-10-31 | Kept Ticket numbers and feature settings within bundle budgets by loading command suggestions only for Bot Permissions, with those dependencies still included in budget checks. |
