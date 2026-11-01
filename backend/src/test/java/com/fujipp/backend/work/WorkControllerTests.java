@@ -23,6 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class WorkControllerTests {
 
     @MockitoBean
+    private com.fujipp.backend.auth.ImpersonationService impersonationService;
+
+    @MockitoBean
     private com.fujipp.backend.auth.AuthIdentityProjection identityProjection;
 
     @Autowired

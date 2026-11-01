@@ -575,6 +575,29 @@
         "docs/bot-runtime.md",
         "docs/auth-api.md"
       ]
+    },
+    "impersonation": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/auth/ImpersonationController.java",
+        "backend/src/main/java/com/fujipp/backend/auth/ImpersonationService.java",
+        "backend/src/test/java/com/fujipp/backend/auth/ImpersonationControllerTests.java",
+        "backend/src/test/java/com/fujipp/backend/auth/ImpersonationServiceTests.java"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": false,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/auth/Impersonation*Tests.java"
+        ],
+        "bot-runner": []
+      },
+      "routes": [
+        "/api/v1/admin/impersonations"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/auth-api.md"
+      ]
     }
   }
 }

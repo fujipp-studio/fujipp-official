@@ -280,7 +280,8 @@ onMounted(async () => {
               <p>{{ t('account.securityDescription') }}</p>
             </header>
 
-            <form class="account-form" @submit.prevent="changePassword">
+            <p v-if="auth.impersonation" class="text-sm text-text-secondary">{{ t('admin.impersonation.securityDisabled') }}</p>
+            <form v-else class="account-form" @submit.prevent="changePassword">
               <AppTextField
                 v-model="newPassword"
                 variant="secret"

@@ -146,6 +146,73 @@ After a successful session is available, the frontend calls
 must sign in again. A `403` means the session is valid but the application
 account cannot access the system.
 
+## Administrator impersonation
+
+An active `ADMIN` can open **Admin → Users → Act as user**, review the selected
+account and confirm. The frontend opens My Bot using the target's identity and
+permissions. A persistent banner names the target, shows the expiry time, and
+provides **Return to admin**. All active non-admin roles may be selected; self and
+other administrator accounts are rejected by the Backend.
+
+```http
+POST /api/v1/admin/impersonations
+Authorization: Bearer <administrator-supabase-access-token>
+Content-Type: application/json
+
+{"userId":"<target-user-uuid>"}
+```
+
+The response is `200` with `{token, expiresAt, user}` and `Cache-Control: no-store`.
+`user` uses the current-user contract above. The cryptographically random token is
+an opaque capability, not a Supabase login/session or a target access token.
+Subsequent authenticated Backend requests carry both the administrator bearer
+credential and `X-Impersonation-Token: <token>`. The Backend rechecks both accounts
+and the administrator's database role on every request, then uses only the target
+subject, email and current database role. Administrator roles/scopes/metadata are
+removed. The real administrator identity is projected before this substitution;
+synthetic target tokens never enter the identity projection. Existing ownership
+checks and rate limits apply to the target, including writes. An invalid or expired
+capability returns `403` with `reason: IMPERSONATION_ENDED`; requests never fall
+back to administrator privileges or retry a write under another identity.
+
+```http
+DELETE /api/v1/admin/impersonations
+Authorization: Bearer <administrator-supabase-access-token>
+X-Impersonation-Token: <token>
+```
+
+Stopping is idempotent and returns `204`. This exact DELETE route validates the
+real administrator so it remains usable while acting as a user. All other routes,
+including admin endpoints and nested impersonation attempts, use the effective
+target permissions. Starting a new session replaces that administrator's previous
+capability; another administrator cannot use it, and an old tab cannot revoke its
+replacement.
+
+Sessions expire after 15 minutes. The current deployment has one Backend process;
+capabilities are stored only as hashes in its bounded in-memory registry. A Backend
+restart invalidates them. This implementation must move to a shared session store
+before scaling Backend replicas. The frontend keeps its capability in memory only:
+full-page reload returns to the real administrator, while the abandoned capability
+expires on the server. SPA navigation and Supabase token refresh preserve the
+active mode. Entry/exit abort pending requests, reject stale session snapshots,
+clear account query caches and remount routed views so private data cannot cross
+identities. Password changes and password-reset emails are unavailable in this
+mode because Supabase still authenticates the administrator.
+
+`IMPERSONATION_STARTED`, `IMPERSONATION_STOPPED`, `IMPERSONATION_REQUEST` and
+`IMPERSONATION_RESULT` events record the real actor and target in the existing
+append-only security audit log. Each request must persist an authorization event
+before reaching a controller; audit failure blocks the operation. A separate result
+event records the HTTP status where available; request/result pairs share an
+`operationId` in their details. The request log includes method and
+path, never request bodies, query strings, passwords or capabilities. Started events
+include the expiry time; expiration/restart requires no background cleanup job.
+
+Coverage lives in `ImpersonationServiceTests`, `ImpersonationControllerTests`,
+`frontend/src/__tests__/Impersonation.spec.ts` and
+`frontend/e2e/impersonation.smoke.spec.ts`. Shared authentication changes retain full
+Backend/Runner compatibility checks and full frontend coverage via the CI maps.
+
 ## Configuration
 
 Local Backend configuration points to:
@@ -185,7 +252,9 @@ Trusted Backend operations append security events to
 
 - `ACCOUNT_ACCESS_DENIED`;
 - `RATE_LIMIT_EXCEEDED`;
-- `USERNAME_SET`.
+- `USERNAME_SET`;
+- `IMPERSONATION_STARTED`, `IMPERSONATION_STOPPED`, `IMPERSONATION_REQUEST`,
+  `IMPERSONATION_RESULT`.
 
 The table is append-only and unavailable to `anon` and `authenticated` database
 roles. Audit records must never contain passwords, access tokens, refresh

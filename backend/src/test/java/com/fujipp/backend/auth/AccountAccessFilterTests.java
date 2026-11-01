@@ -26,7 +26,7 @@ class AccountAccessFilterTests {
     private final SecurityAuditService securityAuditService = mock(SecurityAuditService.class);
     private final AuthIdentityProjection identityProjection = mock(AuthIdentityProjection.class);
     private final AccountAccessFilter filter =
-            new AccountAccessFilter(currentUserService, securityAuditService, new ObjectMapper(), identityProjection);
+            new AccountAccessFilter(currentUserService, securityAuditService, new ObjectMapper(), identityProjection, mock(ImpersonationService.class));
 
     @AfterEach
     void clearSecurityContext() {

@@ -130,10 +130,13 @@
       "routes": [
         "/admin/**"
       ],
-      "dependsOn": [],
+      "dependsOn": [
+        "auth"
+      ],
       "smoke": [
         "frontend",
-        "admin-tools"
+        "admin-tools",
+        "impersonation"
       ],
       "unit": [],
       "guides": [
@@ -175,18 +178,30 @@
     },
     "auth": {
       "paths": [
-        "frontend/src/features/auth/"
+        "frontend/src/features/auth/",
+        "frontend/src/stores/auth.ts",
+        "frontend/src/__tests__/Impersonation.spec.ts",
+        "frontend/e2e/impersonation.smoke.spec.ts"
       ],
       "routes": [
-        "/auth/callback"
+        "/auth/callback",
+        "/admin/users"
       ],
       "dependsOn": [],
       "smoke": [
         "*"
       ],
-      "unit": [],
+      "unit": [
+        "src/__tests__/Impersonation.spec.ts",
+        "src/__tests__/AuthSession.spec.ts",
+        "src/__tests__/AuthStore.spec.ts",
+        "src/__tests__/RouterAuthorization.spec.ts",
+        "src/__tests__/AppAuthDialog.spec.ts",
+        "src/__tests__/AuthCallbackView.spec.ts"
+      ],
       "guides": [
-        "frontend/README.md"
+        "frontend/README.md",
+        "docs/auth-api.md"
       ]
     },
     "links": {

@@ -1,4 +1,13 @@
 export default {
+  impersonation: {
+    securityDisabled: 'Return to your administrator account to change authentication settings.',
+    start: 'Act as user',
+    confirm: 'Act as {name} for up to 15 minutes? Actions use this user’s permissions and are recorded in the audit log.',
+    active: 'Acting as {name}',
+    expires: 'Ends at {time} · Actions are recorded',
+    stop: 'Return to admin',
+    error: 'Unable to return to your administrator account. Please try again.',
+  },
   seasonal: {
     title: 'Seasonal effects',
     description: 'Add a little atmosphere while keeping your website’s colors and layout.',

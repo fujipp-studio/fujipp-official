@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-01 | Documented administrator impersonation APIs, audit behavior, session lifetime, single-instance operation and shared AI/CI ownership and coverage. |
 | 2026-11-01 | Documented reliable TrueMoney receipt handling, legacy Admin-compensation safeguards and per-bot Money routes, pagination and financial validation. |
 | 2026-11-01 | Documented the formal English Discord report layout, deployment wording and existing-card format upgrades. |
 | 2026-11-01 | Documented Discord CI summary setup, accurate deployment status reporting, message recovery and the default-branch trust boundary. |

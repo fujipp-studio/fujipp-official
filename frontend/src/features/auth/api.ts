@@ -1,6 +1,6 @@
 import { apiFetch } from '@/shared/api/http'
 import type { Session } from '@supabase/supabase-js'
-import { backendUrl, readJson } from '@/shared/api/http'
+import { authenticatedHeaders, backendUrl, readJson } from '@/shared/api/http'
 
 export interface CurrentUser {
   id: string
@@ -19,10 +19,7 @@ export interface CurrentUser {
 
 export async function fetchCurrentUser(session: Session): Promise<CurrentUser> {
   const response = await apiFetch(`${backendUrl}/api/v1/auth/me`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-    },
+    headers: authenticatedHeaders(session),
   })
 
   const user = await readJson<CurrentUser>(response, 'Unable to load your account.')
