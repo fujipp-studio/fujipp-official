@@ -4,6 +4,7 @@ import type { RuntimeApi } from "./api-client.js";
 import { getFeature } from "./feature-registry.js";
 import { createCommandPermissionGate } from "./command-permissions.js";
 import { createLivePresentations } from "./live-presentations.js";
+import { featureDiagnostic } from "./feature-diagnostics.js";
 import type { FeatureDisposer, FeatureModule, RuntimeBot } from "./types.js";
 
 type ClientFactory = (options: ConstructorParameters<typeof Client>[0]) => Client;
@@ -132,9 +133,10 @@ export class BotManager {
             permissions,
             paymentVoucher: (input) => this.api.paymentVoucher(bot.id, input),
             reportFeatureError: async (errorCode, error, options) => {
+              const diagnostic = featureDiagnostic(error, errorCode);
               await this.api.reportStatus({
                 botId: bot.id, installationId: feature.installationId, status: options?.recoverable ? "ACTIVE" : "ERROR",
-                errorCode, errorMessage: errorMessage(error),
+                errorCode, errorMessage: diagnostic.message, errorCategory: diagnostic.category,
               }).catch(() => undefined);
             },
             saveRuntimeState: (state) => this.api.saveFeatureState({ botId: bot.id, installationId: feature.installationId, state }),
@@ -176,6 +178,7 @@ export class BotManager {
           await this.api.reportStatus({
             botId: bot.id, installationId: feature.installationId, status: "ERROR",
             errorCode: "FEATURE_ACTIVATION_FAILED", errorMessage: errorMessage(error),
+            errorCategory: featureDiagnostic(error).category,
           }).catch(() => undefined);
         }
       }
@@ -266,5 +269,5 @@ export function makeFingerprint(bot: RuntimeBot): string {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message.slice(0, 2000) : "Unknown runtime error";
+  return featureDiagnostic(error).message;
 }

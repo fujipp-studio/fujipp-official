@@ -292,6 +292,8 @@ public class StoreService {
         StoreRepository.LicenseContext license = ownedLicense(licenseId, userId);
         ensureLicenseActive(license);
         validateConfigurationSize(request);
+        if (!request.values().isEmpty() || !request.secrets().isEmpty())
+            FeatureConfigurationChecks.validate(repository.findConfiguration(license), request.values(), request.secrets());
 
         if (request.values().keySet().stream().anyMatch(key -> key.startsWith("SHOP_"))) {
             Map<String, JsonNode> shopValues = new LinkedHashMap<>();
@@ -381,14 +383,8 @@ public class StoreService {
                 || !request.secrets().isEmpty()
                 || !request.presentations().isEmpty()) {
             repository.bumpConfigRevision(license.configSetId());
-            if (request.values().containsKey("TICKET_CATEGORIES")) {
-                repository.retryTicketActivation(licenseId);
-            }
-            if (request.secrets().containsKey("GEMINI_API_KEY")
-                    || request.values().containsKey("PRICE_READER_GEMINI_MODEL")
-                    || request.values().containsKey("PRICE_READER_CHANNEL_ID")
-                    || request.values().containsKey("PRICE_READER_ORDER_CHANNEL_ID")) {
-                repository.retryPriceReaderActivation(licenseId);
+            if (!request.values().isEmpty() || !request.secrets().isEmpty()) {
+                repository.retryFailedActivation(licenseId);
             }
             runtime.invalidateBootstrap();
         }

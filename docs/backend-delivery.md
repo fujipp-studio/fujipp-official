@@ -176,3 +176,7 @@ Runner heartbeat tests use temporary files and
 no Discord connection. Runtime images should additionally be built from the
 verified JAR/dist and rehearsed locally before release. Measure CI and deployment
 durations in Actions after rollout; local timings do not include GHCR or VPS latency.
+
+Feature health adds optional Runner error categories and a bounded startup recovery
+worker. Release Backend and Runner together after the ordered database gate; see
+[Feature health](feature-health.md) for routes, eligibility and integration tests.

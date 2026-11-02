@@ -76,6 +76,7 @@ export class RuntimeApiClient implements RuntimeApi {
     errorMessage?: string;
     discordUsername?: string;
     discordAvatarUrl?: string;
+    errorCategory?: import('./feature-diagnostics.js').FeatureErrorCategory;
   }): Promise<void> {
     await this.request<void>("/internal/v1/runtime/status", {
       method: "POST",

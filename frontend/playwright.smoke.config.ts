@@ -6,6 +6,7 @@ export default defineConfig({
     'admin-tools.smoke.spec.ts',
     'impersonation.smoke.spec.ts',
     'frontend.smoke.spec.ts',
+    'feature-health.smoke.spec.ts',
     'privacy.smoke.spec.ts',
     'desktop-scroll.smoke.spec.ts',
     'member-spending.smoke.spec.ts',

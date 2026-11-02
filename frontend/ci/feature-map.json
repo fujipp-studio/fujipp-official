@@ -645,6 +645,28 @@
         "docs/wallet-topup.md",
         "frontend/README.md"
       ]
+    },
+    "feature-health": {
+      "paths": [
+        "frontend/src/features/bots/feature-health/",
+        "frontend/src/__tests__/FeatureHealth.spec.ts",
+        "frontend/e2e/feature-health.smoke.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages",
+        "/admin/bots/:botId/settings/packages"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "feature-health"
+      ],
+      "unit": [
+        "src/__tests__/FeatureHealth.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/feature-health.md"
+      ]
     }
   }
 }

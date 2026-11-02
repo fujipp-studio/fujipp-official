@@ -65,6 +65,7 @@ const profiles = [
   {name:'Home', keys:['src/features/home/views/HomeView.vue', ...translations('home')], js:150, css:50},
   {name:'Work', keys:['src/features/work/views/WorkListView.vue', ...translations()], js:160, css:50},
   {name:'My Bot', keys:['src/features/bots/views/MyBotsView.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:230, css:50},
+  {name:'Feature health', keys:['src/features/bots/views/BotSettingsFlowView.vue', 'src/features/bots/views/BotSettingsView.vue', 'src/features/bots/feature-health/FeatureHealthPanel.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Ticket history', keys:['src/features/bots/views/BotSettingsFlowView.vue', 'src/features/bots/views/TicketHistoryView.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Feature config', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...featureConfigs.map(component => ({

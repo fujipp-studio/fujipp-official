@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useBotSettingsData } from '../composables/useBotSettingsData'
 import { Ticket, Wallet } from 'lucide-vue-next'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useQueryClient } from '@tanstack/vue-query'
 import { accountKeys, invalidateBotAccount } from '../queries'
@@ -22,6 +22,9 @@ import { useAuthStore } from '../../../stores'
 
 type SettingsView = 'main' | 'bot-config' | 'runtime' | 'packages'
 type FeatureRemovalTarget = { license: FeatureLicense; installationId: string }
+const FeatureHealthPanel = defineAsyncComponent(
+  () => import('../feature-health/FeatureHealthPanel.vue'),
+)
 
 const coreFeatureCodes = new Set(['bot-permissions', 'bot-presence', 'runtime-expiry-alert'])
 
@@ -75,7 +78,9 @@ const runtimeAlertLicense = computed(() =>
 const packageLicenses = computed(() => assignedLicenses.value)
 
 function installationStatus(license: FeatureLicense) {
-  return license.installations.find((installation) => installation.botId === botId.value)?.status ?? '—'
+  return (
+    license.installations.find((installation) => installation.botId === botId.value)?.status ?? '—'
+  )
 }
 
 function showToast(message: string, variant: 'info' | 'success' | 'error' = 'info') {
@@ -117,7 +122,8 @@ async function saveBot() {
     if (form.value.token.trim() && !adminMode.value) {
       await updateBotDiscordToken(bot.value.id, form.value.token.trim(), activeSession)
     }
-    if (!adminMode.value) await queryClient.cancelQueries({ queryKey: accountKeys.bots(activeSession) })
+    if (!adminMode.value)
+      await queryClient.cancelQueries({ queryKey: accountKeys.bots(activeSession) })
     data.setBot(updated, activeSession.user.id)
     form.value.token = ''
     showToast(t('botSettings.botSettingsSavedRestartTheBotTo'), 'success')
@@ -541,11 +547,14 @@ onMounted(async () => {
 
       <section v-else class="items-card">
         <h2 class="text-2xl font-bold">{{ t('botSettings.packageSettings') }}</h2>
+        <FeatureHealthPanel :bot-id="botId" :admin="adminMode" @configure="openFeature" />
         <div v-if="packageLicenses.length" class="item-list">
           <article v-for="license in packageLicenses" :key="license.id" class="setting-item">
             <div>
               <h3 class="font-bold">{{ license.featureName }}</h3>
-              <p class="text-sm text-text-muted">v{{ license.version }} · {{ installationStatus(license) }}</p>
+              <p class="text-sm text-text-muted">
+                v{{ license.version }} · {{ installationStatus(license) }}
+              </p>
             </div>
             <div class="setting-item-actions">
               <AppButton

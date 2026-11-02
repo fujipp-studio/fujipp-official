@@ -196,3 +196,7 @@ Production hosting should serve hashed `/assets/*` with
 `Cache-Control: public, max-age=31536000, immutable`, `index.html` with
 `Cache-Control: no-cache`, and enable Brotli/gzip. These headers belong to the web
 server/CDN; the current deployment uploads static files over FTPS.
+
+Feature health is available in bot Packages settings for owners and admins, with
+diagnostics, configuration links and validated startup retry. See
+[Feature health](../docs/feature-health.md) for recovery limits and coverage.

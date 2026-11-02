@@ -242,9 +242,23 @@ public class RuntimeRepository {
                        last_error_message = ?
                  WHERE id = ? AND bot_id = ? AND removed_at IS NULL
                 """,
-                request.status(), request.errorCode(), request.errorMessage(),
+                request.status(), request.errorCode(), com.fujipp.backend.store.FeatureFailurePolicy.safeMessage(request.errorMessage()),
                 request.installationId(), request.botId()
         );
+        String category = com.fujipp.backend.store.FeatureFailurePolicy.category(request.errorCategory(), request.errorCode(), request.errorMessage());
+        jdbcTemplate.update("""
+                UPDATE private.bot_feature_installations i
+                   SET last_error_category=?,
+                       last_error_at=CASE WHEN ?::text IS NOT NULL THEN now() ELSE last_error_at END,
+                       recovery_attempts=CASE WHEN ?='ACTIVE' AND ?::text IS NULL THEN 0 ELSE recovery_attempts END,
+                       next_retry_at=CASE WHEN ?='ERROR' AND ?='TRANSIENT' AND ?='FEATURE_ACTIVATION_FAILED'
+                           AND p.code IN ('price-reader','bot-presence','review-credit','voice-keeper') AND recovery_attempts<3
+                         THEN now()+make_interval(secs=>CASE recovery_attempts WHEN 0 THEN 30 WHEN 1 THEN 120 ELSE 300 END)
+                         ELSE NULL END
+                  FROM shop.feature_products p
+                 WHERE i.feature_product_id=p.id AND i.id=? AND i.bot_id=? AND i.removed_at IS NULL
+                """, category, request.errorCode(), request.status(), request.errorCode(), request.status(), category,
+                request.errorCode(), request.installationId(), request.botId());
     }
 
     private JsonNode parseJson(String value) {

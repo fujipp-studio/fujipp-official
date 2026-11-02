@@ -48,6 +48,8 @@ vi.mock('@/features/admin/api/bots', async (importOriginal) => {
   }
 })
 
+vi.mock('@/features/bots/feature-health/api', () => ({ fetchFeatureHealth: vi.fn<typeof import('@/features/bots/feature-health/api').fetchFeatureHealth>().mockResolvedValue([]), retryFeature: vi.fn<typeof import('@/features/bots/feature-health/api').retryFeature>() }))
+
 const runtimeAlertLicense: FeatureLicense = {
   ...license,
   id: 'runtime-alert-license',

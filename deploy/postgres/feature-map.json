@@ -232,6 +232,25 @@
         "docs/database-delivery.md",
         "docs/price-reader.md"
       ]
+    },
+    "feature-health": {
+      "migrations": [
+        "*feature_error_recovery.sql"
+      ],
+      "objects": [
+        "private.bot_feature_installations",
+        "shop.feature_config_definitions"
+      ],
+      "dependsOn": [
+        "catalog-runtime"
+      ],
+      "checks": [
+        "deploy/postgres/checks/feature-health.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/feature-health.md"
+      ]
     }
   }
 }

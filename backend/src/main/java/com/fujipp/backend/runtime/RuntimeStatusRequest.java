@@ -13,8 +13,13 @@ public record RuntimeStatusRequest(
         @Size(max = 80) String errorCode,
         @Size(max = 2000) String errorMessage,
         @Size(max = 100) String discordUsername,
-        @Size(max = 2048) String discordAvatarUrl
+        @Size(max = 2048) String discordAvatarUrl,
+        @jakarta.validation.constraints.Pattern(regexp = "CONFIGURATION|PERMISSION|TRANSIENT|INTERNAL") String errorCategory
 ) {
+    public RuntimeStatusRequest(UUID botId, UUID installationId, String status, String errorCode, String errorMessage,
+            String discordUsername, String discordAvatarUrl) {
+        this(botId, installationId, status, errorCode, errorMessage, discordUsername, discordAvatarUrl, null);
+    }
     public RuntimeStatusRequest(
             UUID botId,
             UUID installationId,

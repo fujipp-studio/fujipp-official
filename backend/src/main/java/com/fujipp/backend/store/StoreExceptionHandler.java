@@ -10,6 +10,8 @@ import com.fujipp.backend.runtime.AdminRuntimeController;
 import com.fujipp.backend.auth.AdminUserController;
 
 @RestControllerAdvice(assignableTypes = {
+        FeatureHealthController.class,
+        AdminFeatureHealthController.class,
         StoreCatalogController.class,
         BotController.class,
         BotMoneyController.class,
