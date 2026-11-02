@@ -8,6 +8,10 @@ final class PriceReaderConfigurationValidator {
     private PriceReaderConfigurationValidator() {}
 
     static void validate(Map<String, JsonNode> values) {
+        JsonNode pricingMode = values.get("PRICE_READER_PRICING_MODE");
+        if (pricingMode != null && (!pricingMode.isTextual() || !(pricingMode.asText().equals("STANDARD") || pricingMode.asText().equals("NITRO"))))
+            throw new StoreValidationException("Price Reader pricing mode must be STANDARD or NITRO");
+        validateRules(values.get("PRICE_READER_PRICE_RULES"));
         JsonNode model = values.get("PRICE_READER_GEMINI_MODEL");
         if (model != null && (!model.isTextual() || !model.asText().matches(PriceReaderGeminiClient.MODEL_PATTERN))) {
             throw new StoreValidationException("Invalid Gemini model name");
@@ -54,4 +58,19 @@ final class PriceReaderConfigurationValidator {
             throw new StoreValidationException("Enable at least one result block; combined text must be at most 4000 characters");
         }
     }
+    private static void validateRules(JsonNode rules) {
+        if (rules==null) return;
+        if (!rules.isArray() || rules.size()>400) throw new StoreValidationException("Price Reader supports at most 400 price rules");
+        var keys=new HashSet<String>();
+        for (JsonNode rule:rules) {
+            String kind=rule.path("itemType").asText(""), tier=rule.path("pricingMode").asText("");
+            JsonNode discord=rule.path("discordPriceSatang"), shop=rule.path("shopPriceSatang");
+            if (!rule.isObject() || !(kind.equals("SINGLE") || kind.equals("BUNDLE")) || !(tier.equals("STANDARD") || tier.equals("NITRO"))
+                    || !discord.isIntegralNumber() || !discord.canConvertToLong() || discord.asLong()<1 || discord.asLong()>100_000_000
+                    || !shop.isIntegralNumber() || !shop.canConvertToLong() || shop.asLong()<0 || shop.asLong()>100_000_000
+                    || !keys.add(kind+"/"+tier+"/"+discord.asLong()))
+                throw new StoreValidationException("Each price rule needs a type, mode and valid satang amounts; duplicate prices within the same type and mode are not allowed");
+        }
+    }
+
 }

@@ -3,9 +3,10 @@ import { createPriceReaderFeature } from "./v1.0.0.js";
 import { readGeminiImage, GeminiReadError } from "./gemini-client.js";
 import { defaultGeminiModel, geminiErrorMessages, geminiKeyPattern, geminiModelPattern } from "./gemini-contract.js";
 import { readGeminiResult, imageError } from "./results.js";
+import { readClassifiedGeminiResult } from "./classified-pricing.js";
 
-export const priceReaderFeatureV3 = createPriceReaderFeature({
-  version: "3.0.0",
+export function createGeminiPriceReaderFeature(version: string, classified = false) { return createPriceReaderFeature({
+  version,
   createReader(context) {
     const key = context.secrets.GEMINI_API_KEY?.trim() ?? "";
     const model = String(context.config.PRICE_READER_GEMINI_MODEL ?? defaultGeminiModel);
@@ -22,8 +23,8 @@ export const priceReaderFeatureV3 = createPriceReaderFeature({
           const image = await sharp(raw, { limitInputPixels: 40_000_000, animated: false })
             .rotate().resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
             .flatten({ background: "#ffffff" }).jpeg({ quality: 90 }).toBuffer();
-          const result = await readGeminiImage(key, model, image, "image/jpeg", controller.signal);
-          return readGeminiResult(result, context.config);
+          const result = await readGeminiImage(key, model, image, "image/jpeg", controller.signal, classified);
+          return classified ? readClassifiedGeminiResult(result, context.config) : readGeminiResult(result, context.config);
         } catch (error) {
           if (controller.signal.aborted) return imageError(context.config, "ocr_error");
           const code = error instanceof GeminiReadError ? error.code : "GEMINI_IMAGE_INVALID";
@@ -34,4 +35,6 @@ export const priceReaderFeatureV3 = createPriceReaderFeature({
       },
     };
   },
-});
+}); }
+
+export const priceReaderFeatureV3 = createGeminiPriceReaderFeature("3.0.0");

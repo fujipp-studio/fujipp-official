@@ -488,7 +488,8 @@
         "bot-runner/src/features/price-reader/",
         "frontend/src/features/bots/price-reader-api.ts",
         "frontend/src/features/bots/composables/usePriceReaderGeminiTest.ts",
-        "frontend/e2e/price-reader-gemini.smoke.spec.ts"
+        "frontend/e2e/price-reader-gemini.smoke.spec.ts",
+        "frontend/e2e/price-reader-pricing.smoke.spec.ts"
       ],
       "routes": [
         "/my-bot/:botId/settings/packages/:licenseId",
@@ -498,7 +499,8 @@
       "smoke": [
         "price-reader",
         "price-reader-customization",
-        "price-reader-gemini"
+        "price-reader-gemini",
+        "price-reader-pricing"
       ],
       "unit": [
         "src/__tests__/PriceReader.spec.ts",

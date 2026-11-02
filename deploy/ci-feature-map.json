@@ -313,8 +313,7 @@
           "backend/src/test/java/com/fujipp/backend/store/PriceReader*Tests.java"
         ],
         "bot-runner": [
-          "bot-runner/test/price-reader.test.ts",
-          "bot-runner/test/price-reader-gemini.test.ts"
+          "bot-runner/test/price-reader*.test.ts"
         ]
       },
       "routes": [

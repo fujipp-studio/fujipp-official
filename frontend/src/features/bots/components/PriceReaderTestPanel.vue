@@ -10,10 +10,16 @@ import { useFeatureEditor } from '../composables/featureEditorContext'
 import { priceReaderRuntimeConfig, priceReaderSampleValues } from '../config/price-reader'
 import { recognizePriceReaderImage } from '../models/price-reader-ocr'
 import { buildResultValues, readImageResult, readGeminiResult } from '@price-reader/results'
+import { readClassifiedGeminiResult } from '@price-reader/classified-pricing'
 import { usePriceReaderGeminiTest } from '../composables/usePriceReaderGeminiTest'
 
 const { text, values, license, previewBot, secrets } = useFeatureEditor()
-const gemini = computed(() => license.value?.version === '3.0.0')
+const gemini = computed(() => license.value?.version.startsWith('3.'))
+const classified = computed(() => license.value?.version === '3.1.0')
+const readResult = (data: unknown) =>
+  classified.value
+    ? readClassifiedGeminiResult(data, config.value)
+    : readGeminiResult(data, config.value)
 const testGemini = usePriceReaderGeminiTest()
 const file = ref<File | null>(null)
 const rawText = ref<string | null>(null)
@@ -33,7 +39,7 @@ const result = computed(() =>
   rawText.value === null
     ? null
     : gemini.value
-      ? readGeminiResult(JSON.parse(rawText.value), config.value)
+      ? readResult(JSON.parse(rawText.value))
       : readImageResult(rawText.value, config.value, license.value?.version ?? '2.0.0'),
 )
 const samples = computed(() =>
@@ -81,7 +87,7 @@ async function testImage() {
     if (gemini.value) {
       const result = await testGemini(signal, file.value)
       if (!signal.aborted && result) {
-        readGeminiResult(result, config.value)
+        readResult(result)
         rawText.value = JSON.stringify(result, null, 2)
       }
     } else {
@@ -178,6 +184,12 @@ async function testImage() {
         class="my-md grid gap-md tablet:grid-cols-3 text-sm"
         data-price-test-match
       >
+        <div v-if="classified">
+          <dt class="text-text-muted">
+            {{ text('Product type / pricing mode', 'ประเภทสินค้า / โหมดราคา') }}
+          </dt>
+          <dd>{{ result.item_type }} · {{ result.pricing_mode }}</dd>
+        </div>
         <div>
           <dt class="text-text-muted">{{ text('Detected price', 'ราคาที่อ่านได้') }}</dt>
           <dd>{{ result.discord_price }} {{ text('THB', 'บาท') }}</dd>

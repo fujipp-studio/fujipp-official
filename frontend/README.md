@@ -108,6 +108,11 @@ CI use the same impact information. See [frontend agent instructions](AGENTS.md)
   the default and use `tablet`, `desktop`, `wide`. Preserve keyboard focus and
   reduced-motion support. Run `check:tokens` to catch nonexistent Semantic references.
 
+Price Reader 3.1.0 adds separate single-item/bundle tables for standard and Nitro
+prices, with an owner-selected mode and Gemini classification. Pricing, AI tests
+and result design load their controls on demand and each has a complete bundle
+budget profile. See [Price Reader](../docs/price-reader.md).
+
 ## Verification
 
 ```sh

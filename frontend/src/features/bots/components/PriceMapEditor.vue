@@ -10,7 +10,7 @@ interface PriceRow {
   shopPrice: string
   source: Record<string, unknown>
 }
-const props = defineProps<{ modelValue: string }>()
+const props = defineProps<{ modelValue: string; minimumDiscordPrice?: number }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const { locale, t } = useI18n()
 const text = (english: string, thai: string) => (locale.value === 'th' ? thai : english)
@@ -55,10 +55,12 @@ watch(
 function error(row: PriceRow, key: 'discordPrice' | 'shopPrice') {
   const value = row[key]
   if (!value.trim() || !Number.isFinite(Number(value))) return text('Enter a price.', 'กรอกราคา')
-  if (Number(value) < (key === 'discordPrice' ? 1 : 0))
+  if (Number(value) < (key === 'discordPrice' ? (props.minimumDiscordPrice ?? 1) : 0))
     return text(
-      key === 'discordPrice' ? 'Minimum 1 THB.' : 'Minimum 0 THB.',
-      key === 'discordPrice' ? 'ราคาต้องไม่น้อยกว่า 1 บาท' : 'ราคาต้องไม่น้อยกว่า 0 บาท',
+      key === 'discordPrice' ? `Minimum ${props.minimumDiscordPrice ?? 1} THB.` : 'Minimum 0 THB.',
+      key === 'discordPrice'
+        ? `ราคาต้องไม่น้อยกว่า ${props.minimumDiscordPrice ?? 1} บาท`
+        : 'ราคาต้องไม่น้อยกว่า 0 บาท',
     )
   return ''
 }
@@ -159,7 +161,7 @@ async function removeRow(index: number) {
             :model-value="row.discordPrice"
             :label="text('Discord price (THB)', 'ราคา Discord (บาท)')"
             input-type="number"
-            :min="1"
+            :min="minimumDiscordPrice ?? 1"
             step="any"
             placeholder="250"
             required

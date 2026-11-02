@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Documented Price Reader 3.1.0 pricing modes, category tables, uncertain image handling and the draft publication and upgrade workflow. |
 | 2026-11-02 | Clarified Gemini auth-key support and the corrective migration and release required by existing Price Reader deployments. |
 | 2026-11-02 | Documented Gemini Price Reader setup, version upgrades, quota behaviour, customer-key handling and coordinated release requirements. |
 | 2026-11-01 | Documented administrator impersonation APIs, audit behavior, session lifetime, single-instance operation and shared AI/CI ownership and coverage. |

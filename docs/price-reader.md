@@ -99,3 +99,45 @@ See [image input](https://ai.google.dev/gemini-api/docs/image-understanding),
 [structured output](https://ai.google.dev/gemini-api/docs/structured-output),
 [pricing](https://ai.google.dev/gemini-api/docs/pricing), and
 [project rate limits](https://ai.google.dev/gemini-api/docs/rate-limits).
+
+## Version 3.1.0: Nitro modes and product types
+
+The owner selects **Without Nitro** (`STANDARD`) or **With Nitro** (`NITRO`) in
+**Pricing → Shop pricing mode**. Gemini reads the current standard price and the
+explicit Nitro price independently, in the same API request as classification.
+The selected mode determines both the Discord amount used for lookup and the
+shop-price table. A missing Nitro price never falls back to standard or original
+prices; a missing standard price never falls back to Nitro.
+
+There are four independently editable tables: single/standard, bundle/standard,
+single/Nitro and bundle/Nitro. Rows use `itemType`, `pricingMode`,
+`discordPriceSatang` and `shopPriceSatang`. Equal Discord prices may have different
+shop prices in different categories. Duplicate amounts inside one category are
+rejected; satang must be whole numbers. Up to 400 rows are supported in total.
+The existing tolerance applies only inside the selected category. An absent
+category never borrows another category's price.
+
+Gemini must identify one purchasable listing. A labelled bundle or several
+included components under one purchase price is `BUNDLE`, even though it contains
+multiple products. A clearly individual item is `SINGLE`. Insufficient evidence
+is `UNKNOWN` and receives an explanation instead of a quote. Multiple independent
+listings or conflicting prices remain ambiguous. Neither type nor membership is
+inferred from a price or a product name alone.
+
+The old `PRICE_READER_PRICE_MAP` remains preserved during upgrade. New category
+tables start empty because old rows do not identify a type or membership mode.
+Select the intended category and use **Import old prices into this table** for
+an empty category, then review its prices before saving. Import never overwrites
+a non-empty table or populates another category automatically.
+
+Results expose `item_type`, `item_type_key`, `pricing_mode`, `pricing_mode_key`,
+`standard_price` and `nitro_price`, plus the existing `discord_price` (selected
+mode) and `shop_price`. The new default template names the product type and mode;
+upgraded custom templates and message designs are preserved. Browser rehearsal
+and Discord share classification validation and category matching.
+
+Apply `20261102000003_price_reader_pricing_modes.sql` after all earlier pending
+migrations, release Backend and Runner together, then Frontend, and publish the
+new draft **3.1.0** version. The preview API selects its schema from the licensed
+configuration definitions; clients cannot opt a 3.0 license into the new contract.
+Versions 1.0, 2.0 and 3.0 retain their original price-selection behaviour.

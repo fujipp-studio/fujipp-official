@@ -4,6 +4,7 @@ import {
   imageError,
   defaultItemTemplate,
 } from '@price-reader/results'
+import { validPriceRules, readClassifiedGeminiResult } from '@price-reader/classified-pricing'
 import { geminiModelPattern } from '@price-reader/gemini-contract'
 
 export { priceReaderConfigKeys } from './price-reader-keys'
@@ -37,7 +38,11 @@ export function priceReaderPricePairs(value: unknown) {
 /** Convert editable form values without changing the draft. */
 export function priceReaderRuntimeConfig(values: Record<string, unknown>): Record<string, unknown> {
   const config = { ...values }
-  for (const key of ['PRICE_READER_PRICE_MAP', 'PRICE_READER_RESULT_BLOCKS']) {
+  for (const key of [
+    'PRICE_READER_PRICE_MAP',
+    'PRICE_READER_RESULT_BLOCKS',
+    'PRICE_READER_PRICE_RULES',
+  ]) {
     if (typeof config[key] === 'string') {
       try {
         config[key] = JSON.parse(config[key])
@@ -61,6 +66,10 @@ export function validatePriceReaderDraft(values: Record<string, unknown>): boole
     !geminiModelPattern.test(String(values.PRICE_READER_GEMINI_MODEL))
   )
     return false
+  if (values.PRICE_READER_PRICING_MODE !== undefined) {
+    if (!['STANDARD', 'NITRO'].includes(String(values.PRICE_READER_PRICING_MODE))) return false
+    if (!validPriceRules(priceReaderRuntimeConfig(values).PRICE_READER_PRICE_RULES)) return false
+  }
   const mode = values.PRICE_READER_RESULT_MODE
   if (mode !== undefined && mode !== 'TEMPLATE' && mode !== 'BLOCKS') return false
   const tolerance = values.PRICE_READER_MATCH_TOLERANCE_SATANG
@@ -134,6 +143,35 @@ export function priceReaderSampleValues(
   scenario: 'success' | 'mixed' | 'error' | 'ocr_error' | 'unmatched' = 'success',
 ): Record<string, string> {
   const config = priceReaderRuntimeConfig(values)
+  if (version === '3.1.0') {
+    const rules = validPriceRules(config.PRICE_READER_PRICE_RULES)
+      ? config.PRICE_READER_PRICE_RULES
+      : []
+    const selected = rules
+      .filter((row) => row.pricingMode === config.PRICE_READER_PRICING_MODE)
+      .slice(0, 2)
+    const samples = selected.length ? selected : [{ itemType: 'SINGLE', discordPriceSatang: 25000 }]
+    const results =
+      scenario === 'error' || scenario === 'ocr_error'
+        ? [imageError(config, scenario === 'error' ? 'not_found' : 'ocr_error')]
+        : samples.map((row) =>
+            readClassifiedGeminiResult(
+              {
+                itemName: 'Discord Shop',
+                currency: 'THB',
+                itemType: row.itemType,
+                standardPriceSatang: scenario === 'unmatched' ? 99999900 : row.discordPriceSatang,
+                nitroPriceSatang: scenario === 'unmatched' ? 99999900 : row.discordPriceSatang,
+                originalPriceSatang: null,
+                discountPercent: null,
+                ambiguous: false,
+              },
+              config,
+            ),
+          )
+    if (scenario === 'mixed') results.push(imageError(config, 'not_found'))
+    return buildResultValues(results, config, version, guildId)
+  }
   const pairs = priceReaderPricePairs(config.PRICE_READER_PRICE_MAP)
   const prices = pairs.length ? pairs.slice(0, 2).map((pair) => pair.discord) : [25000, 29500]
   const results =

@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Added Price Reader 3.1.0 with independent Nitro and standard price extraction, single-item and bundle classification, and category-specific shop matching without price substitution. |
 | 2026-11-02 | Accepted dotted Gemini auth keys in Price Reader requests, encrypted configuration saves and Runner reads while preserving legacy key support. |
 | 2026-11-02 | Added Gemini-powered Price Reader 3.0.0 with customer-owned API keys, deterministic shop price matching, safe quota handling and authenticated dashboard tests while preserving OCR versions. |
 | 2026-11-01 | Added administrator-bound impersonation capabilities with live account checks, target-only permissions, revocation and mandatory audit records before user operations. |

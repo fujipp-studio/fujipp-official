@@ -976,8 +976,8 @@ export function useFeatureSettings() {
         saveConfirmationOpen.value = false
         throw new Error(
           text(
-            'Check Price Reader text, price tolerance (0–5000 satang) and result blocks. Enable at least one block with text; combined text must be at most 4000 characters.',
-            'ตรวจสอบข้อความและความคลาดเคลื่อนราคา (0–5000 สตางค์) เปิดอย่างน้อยหนึ่งบล็อกที่มีข้อความ โดยข้อความรวมไม่เกิน 4000 ตัวอักษร',
+            'Check Price Reader text, price tolerance (0–5000 satang), result blocks and pricing tables. Prices must be unique within each product type and Nitro mode.',
+            'ตรวจสอบข้อความ ความคลาดเคลื่อนราคา (0–5000 สตางค์) บล็อกผลลัพธ์ และตารางราคารับกด ห้ามราคา Discord ซ้ำภายในประเภทสินค้าและโหมด Nitro เดียวกัน',
           ),
         )
       }

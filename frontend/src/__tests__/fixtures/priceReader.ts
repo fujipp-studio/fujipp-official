@@ -14,7 +14,7 @@ export function priceReaderFixture(version = '2.0.0') {
   const config: FeatureConfiguration = {
     ...structuredClone(configuration),
     fields: [
-      ...(version === '3.0.0'
+      ...(version.startsWith('3.')
         ? [
             {
               key: 'GEMINI_API_KEY',
@@ -32,6 +32,49 @@ export function priceReaderFixture(version = '2.0.0') {
               value: 'gemini-3.5-flash-lite',
               required: true,
               validation: { pattern: '^gemini-[a-z0-9][a-z0-9._-]{0,99}$' },
+            },
+          ]
+        : []),
+      ...(version === '3.1.0'
+        ? [
+            {
+              key: 'PRICE_READER_PRICING_MODE',
+              type: 'ENUM',
+              value: 'STANDARD',
+              required: true,
+              validation: { enum: ['STANDARD', 'NITRO'] },
+            },
+            {
+              key: 'PRICE_READER_PRICE_RULES',
+              type: 'JSON',
+              value: [
+                {
+                  itemType: 'SINGLE',
+                  pricingMode: 'STANDARD',
+                  discordPriceSatang: 25000,
+                  shopPriceSatang: 5500,
+                },
+                {
+                  itemType: 'BUNDLE',
+                  pricingMode: 'STANDARD',
+                  discordPriceSatang: 25000,
+                  shopPriceSatang: 8000,
+                },
+                {
+                  itemType: 'SINGLE',
+                  pricingMode: 'NITRO',
+                  discordPriceSatang: 20900,
+                  shopPriceSatang: 4500,
+                },
+                {
+                  itemType: 'BUNDLE',
+                  pricingMode: 'NITRO',
+                  discordPriceSatang: 20900,
+                  shopPriceSatang: 7000,
+                },
+              ],
+              required: true,
+              validation: { type: 'array', maxItems: 400 },
             },
           ]
         : []),

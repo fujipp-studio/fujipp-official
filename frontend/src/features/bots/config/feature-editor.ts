@@ -367,13 +367,13 @@ export const priceReaderPresentationCopy: Record<
   processing: {
     label: ['Reading images', 'กำลังอ่านรูป'],
     description: [
-      'Shown while OCR is processing uploaded images.',
-      'แสดงระหว่างระบบ OCR กำลังอ่านรูปที่ส่งมา',
+      'Shown while the reader is processing uploaded images.',
+      'แสดงระหว่างระบบกำลังอ่านรูปที่ส่งมา',
     ],
   },
   result: {
     label: ['Price reading result', 'ผลการอ่านราคา'],
-    description: ['Result returned after OCR completes.', 'ผลลัพธ์ที่ส่งหลังจาก OCR อ่านราคาเสร็จ'],
+    description: ['Result returned after image reading completes.', 'ผลลัพธ์ที่ส่งหลังจากอ่านราคาเสร็จ'],
   },
 }
 
