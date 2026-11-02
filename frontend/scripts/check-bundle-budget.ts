@@ -48,7 +48,10 @@ const featureConfigs = [
   'ChannelMessageTriggersConfig', 'PaymentTriggerConfig', 'MessageSetsConfig', 'ShopStatusConfig', 'PriceReaderConfig',
   'VoiceKeeperConfig', 'WalletTopupConfig', 'RoleShopConfig', 'RobloxPayoutConfig', 'RuntimeExpiryAlertConfig', 'TicketConfig',
 ]
-const requiredFeatureControls: Record<string, string[]> = { TicketConfig: ['src/features/bots/components/TicketTopicWelcome.vue', 'src/features/bots/components/TicketOpeningMentions.vue'] }
+const requiredFeatureControls: Record<string, string[]> = {
+  TicketConfig: ['src/features/bots/components/TicketTopicWelcome.vue', 'src/features/bots/components/TicketOpeningMentions.vue'],
+  PriceReaderConfig: ['src/features/bots/components/PriceReaderChannelSettings.vue'],
+}
 const featurePreviews: Record<string, string[]> = {
   BotPermissionsConfig: ['src/features/bots/config/permission-commands.ts'],
   ShopStatusConfig: ['src/features/bots/config/shop-status-validation.ts'],
@@ -72,6 +75,7 @@ const profiles = [
   ...['PriceReaderGeminiSettings', 'PriceReaderTestPanel'].map(component => ({name:`Price Reader ${component}`, keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', `src/features/bots/components/${component}.vue`, ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50})),
   {name:'Price Reader result design', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderPreview.vue', 'src/features/bots/components/PriceReaderResultEditor.vue', 'src/features/bots/components/PriceReaderTemplateField.vue', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Price Reader pricing', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderPricingSettings.vue', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
+  {name:'Price Reader status messages', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderStatusSettings.vue', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Ticket numbers', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketCounterSettings.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Ticket action options', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketActionSettings.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Ticket notifications', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketCancellationNotice.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
@@ -92,6 +96,8 @@ for (const profile of profiles) {
     totals[file.endsWith('.js') ? 'js' : 'css'] += sizes.get(file)!
   }
   console.log(`${profile.name}: JS ${(totals.js/1024).toFixed(1)}/${profile.js} KiB gzip; CSS ${(totals.css/1024).toFixed(1)}/${profile.css} KiB gzip`)
+  if (totals.js > profile.js*1024) console.error(`${profile.name}: JavaScript exceeds its budget by ${totals.js-profile.js*1024} bytes (${totals.js}/${profile.js*1024}).`)
+  if (totals.css > profile.css*1024) console.error(`${profile.name}: CSS exceeds its budget by ${totals.css-profile.css*1024} bytes (${totals.css}/${profile.css*1024}).`)
   failed ||= totals.js > profile.js*1024 || totals.css > profile.css*1024
 }
 const authDialog = manifest['src/shared/ui/dialogs/AppAuthDialog.vue']
