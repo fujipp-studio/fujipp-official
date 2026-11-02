@@ -1,4 +1,5 @@
 import { extractPrices, extractStandardPrices, lookupPriceEntry, readPriceMap } from "./price-extractor.js";
+import { parseGeminiPrice } from "./gemini-contract.js";
 
 export type PriceReaderConfig = Record<string, unknown>;
 export type ImageResult = Record<string, string> & { status: "success" | "error" };
@@ -48,6 +49,17 @@ export function imageError(config: PriceReaderConfig, kind: "not_found" | "ocr_e
 /** Browser rehearsal and Discord use the same price selection, matching and text rendering. */
 export function readImageResult(ocrText: string, config: PriceReaderConfig, version: string): ImageResult {
   const prices = version.startsWith("1.") ? extractPrices(ocrText) : extractStandardPrices(ocrText);
+  return priceResult(prices, config);
+}
+
+export function readGeminiResult(value: unknown, config: PriceReaderConfig): ImageResult {
+  const data = parseGeminiPrice(value);
+  if (data.ambiguous || data.currency !== "THB") return imageError(config, "not_found");
+  return priceResult({ currentPriceSatang: data.standardPriceSatang, originalPriceSatang: data.originalPriceSatang,
+    nitroPriceSatang: data.nitroPriceSatang, discountPercent: data.discountPercent, itemName: data.itemName }, config);
+}
+
+function priceResult(prices: { currentPriceSatang: number | null; originalPriceSatang: number | null; nitroPriceSatang: number | null; discountPercent: number | null; itemName: string | null }, config: PriceReaderConfig): ImageResult {
   if (!prices.currentPriceSatang) return imageError(config, "not_found");
   const entry = lookupPriceEntry(prices.currentPriceSatang, readPriceMap(config.PRICE_READER_PRICE_MAP), matchTolerance(config));
   const vars: ImageResult = {

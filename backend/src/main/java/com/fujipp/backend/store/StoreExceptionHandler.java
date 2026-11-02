@@ -20,6 +20,7 @@ import com.fujipp.backend.auth.AdminUserController;
         TicketCounterController.class,
         AdminTicketCounterController.class,
         FeatureLicenseController.class,
+        PriceReaderTestController.class,
         StoreOrderController.class,
         AdminFeatureController.class,
         AdminBotController.class,

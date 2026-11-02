@@ -1,4 +1,6 @@
 export const priceReaderConfigKeys = new Set([
+  'GEMINI_API_KEY',
+  'PRICE_READER_GEMINI_MODEL',
   'PRICE_READER_CHANNEL_ID',
   'PRICE_READER_ORDER_CHANNEL_ID',
   'PRICE_READER_PRICE_MAP',

@@ -43,6 +43,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         AdminTicketCounterController.class,
         StoreOrderController.class,
         FeatureLicenseController.class,
+        PriceReaderTestController.class,
         AdminFeatureController.class,
         AdminBotController.class,
         AdminUserController.class
@@ -61,6 +62,8 @@ class StoreControllerTests {
 
     @MockitoBean
     private StoreService storeService;
+    @MockitoBean
+    private PriceReaderTestService priceReaderTests;
     @MockitoBean
     private BotMoneyService money;
     @MockitoBean
@@ -280,6 +283,23 @@ class StoreControllerTests {
 
     private void authorizeUser() {
         authorizeAs(AppRole.USER);
+    }
+
+    @Test
+    void geminiTestRequiresLoginAndAdminRouteEnforcesRole() throws Exception {
+        UUID licenseId=UUID.randomUUID(), botId=UUID.randomUUID();
+        String ownerPath="/api/v1/feature-licenses/"+licenseId+"/price-reader/test";
+        String adminPath="/api/v1/admin/bots/"+botId+"/licenses/"+licenseId+"/price-reader/test";
+        String body="{\"model\":\"gemini-3.5-flash-lite\"}";
+        mockMvc.perform(post(ownerPath).contentType("application/json").content(body)).andExpect(status().isUnauthorized());
+        authorizeUser();
+        mockMvc.perform(post(adminPath).with(jwt()).contentType("application/json").content(body)).andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(priceReaderTests);
+        when(priceReaderTests.test(org.mockito.ArgumentMatchers.eq("gemini-user"),org.mockito.ArgumentMatchers.eq(licenseId),org.mockito.ArgumentMatchers.any()))
+            .thenReturn(new PriceReaderGeminiClient.Result(true,null,null));
+        mockMvc.perform(post(ownerPath).with(jwt().jwt(j->j.subject("gemini-user"))).contentType("application/json").content(body))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.connected").value(true));
+        verify(priceReaderTests).test(org.mockito.ArgumentMatchers.eq("gemini-user"),org.mockito.ArgumentMatchers.eq(licenseId),org.mockito.ArgumentMatchers.any());
     }
 
     @Test

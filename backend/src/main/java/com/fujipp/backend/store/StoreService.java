@@ -350,6 +350,11 @@ public class StoreService {
             String secretValue = "ROBLOX_CREDENTIALS".equals(entry.getKey())
                     ? mergeRobloxCredentials(license, definition.id(), entry.getValue())
                     : entry.getValue();
+            if ("GEMINI_API_KEY".equals(entry.getKey())) {
+                if (secretValue == null || !secretValue.trim().matches(PriceReaderGeminiClient.KEY_PATTERN))
+                    throw new StoreValidationException("Invalid Gemini API key format");
+                secretValue = secretValue.trim();
+            }
             repository.upsertSecret(
                     license,
                     definition.id(),

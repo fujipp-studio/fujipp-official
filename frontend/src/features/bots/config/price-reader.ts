@@ -4,6 +4,7 @@ import {
   imageError,
   defaultItemTemplate,
 } from '@price-reader/results'
+import { geminiModelPattern } from '@price-reader/gemini-contract'
 
 export { priceReaderConfigKeys } from './price-reader-keys'
 
@@ -55,6 +56,11 @@ export function priceReaderRuntimeConfig(values: Record<string, unknown>): Recor
 }
 
 export function validatePriceReaderDraft(values: Record<string, unknown>): boolean {
+  if (
+    values.PRICE_READER_GEMINI_MODEL !== undefined &&
+    !geminiModelPattern.test(String(values.PRICE_READER_GEMINI_MODEL))
+  )
+    return false
   const mode = values.PRICE_READER_RESULT_MODE
   if (mode !== undefined && mode !== 'TEMPLATE' && mode !== 'BLOCKS') return false
   const tolerance = values.PRICE_READER_MATCH_TOLERANCE_SATANG

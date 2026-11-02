@@ -303,23 +303,28 @@
     },
     "price-reader": {
       "paths": [
-        "backend/src/main/java/com/fujipp/backend/store/PriceReaderConfigurationValidator.java",
+        "backend/src/main/java/com/fujipp/backend/store/PriceReader*",
         "bot-runner/src/features/price-reader/"
       ],
       "dependsOn": [],
       "backendAffectsRunner": true,
       "tests": {
         "backend": [
-          "backend/src/test/java/com/fujipp/backend/store/PriceReaderConfigurationValidatorTests.java"
+          "backend/src/test/java/com/fujipp/backend/store/PriceReader*Tests.java"
         ],
         "bot-runner": [
-          "bot-runner/test/price-reader.test.ts"
+          "bot-runner/test/price-reader.test.ts",
+          "bot-runner/test/price-reader-gemini.test.ts"
         ]
       },
-      "routes": [],
+      "routes": [
+        "/api/v1/feature-licenses/{licenseId}/price-reader/test",
+        "/api/v1/admin/bots/{botId}/licenses/{licenseId}/price-reader/test"
+      ],
       "guides": [
         "docs/backend-delivery.md",
-        "docs/bot-runtime.md"
+        "docs/bot-runtime.md",
+        "docs/price-reader.md"
       ]
     },
     "channel-message-triggers": {

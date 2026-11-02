@@ -1,0 +1,95 @@
+# Price Reader
+
+Price Reader watches image attachments in the configured Discord channel and
+matches the detected Discord price against the shop owner's price table. Versions
+1.0.0 and 2.0.0 continue using Tesseract OCR. Version 3.0.0 uses the owner's Google
+Gemini API key. No automatic upgrade or fallback changes the selected reader.
+
+## Gemini setup
+
+1. Deploy migration `20261102000001_price_reader_gemini.sql`, then the Backend and
+   Runner together, then Frontend. The new version starts **DRAFT**. Publish 3.0.0
+   through Admin Packages only after the matching services are deployed.
+2. Upgrade the Price Reader license using the existing package upgrade flow.
+   Matching configuration keys and message designs carry over. Upgrading from
+   1.0.0 changes price selection to the standard price, as in 2.0.0.
+3. Create a key in [Google AI Studio](https://aistudio.google.com/apikey). In
+   **Gemini AI**, enter `GEMINI_API_KEY` and the image-capable model name in
+   `PRICE_READER_GEMINI_MODEL`. The default is `gemini-3.5-flash-lite`; availability,
+   free eligibility and limits depend on the customer's project and Google.
+4. **Test connection** sends a small synthetic text extraction using the current
+   draft key/model. A blank key uses the encrypted saved key. Testing consumes
+   customer quota and does not save configuration. It verifies generation and
+   structured output; use the image test to verify actual screenshot reading.
+5. **Test** accepts PNG, JPEG or WebP up to 10 MiB and sends the selected image to
+   Gemini through the Backend. Price matching and presentation previews use the
+   same result functions as the Runner. Save all after reviewing the result.
+6. Send a screenshot in the configured reader channel to check the Discord flow.
+   Enable Message Content Intent and give the bot View Channel, Send Messages,
+   Read Message History and Embed Links as appropriate.
+
+Keys use the existing encrypted feature-secret storage and are not returned to
+browsers. They never belong in ordinary config values, URLs, logs, VITE variables
+or persistent browser storage. The Runner calls only Google's fixed HTTPS API
+endpoint with the key in `x-goog-api-key`; owners configure a model, not an API URL.
+Customer keys may use Free or Paid tiers; the application never changes Google
+billing or switches to a different key/model automatically.
+
+## Reading and failure behaviour
+
+Gemini returns a constrained JSON object containing the visible item name,
+currency, standard/current purchase price, crossed-out original price, Nitro
+price, discount and ambiguity flag. Prices are integer satang and validated before
+matching. Only an explicit THB price with an unambiguous standard purchase amount
+is eligible. Missing standard prices never fall back to Nitro or original prices.
+No exchange rate, inferred price or AI-generated shop selling price is used.
+The ordinary tolerance, price table, result blocks, templates, Embed and Components
+V2 settings still determine the shop response. AI output can be incorrect even
+when valid JSON; evaluate representative screenshots before publishing the version.
+
+The Runner preserves image colour and layout, strips metadata by re-encoding,
+limits decoded images to 40 million pixels, and resizes to at most 2048 by 2048
+before sending JPEG to Gemini. The browser rehearsal sends the original image,
+so extraction can differ. Discord attachment downloads are restricted to approved
+Discord CDN URLs, with download timeout and 10 MiB size limit.
+
+Processing is serial per installation, with at most 20 queued/in-flight messages.
+Requests time out and are not automatically retried. A 429 pauses further Gemini
+calls in that installation using bounded Retry-After (default 60 seconds). Queued
+images during the pause receive a quota explanation. Limits are per Google
+project, so other bots or applications sharing that project also consume quota.
+Key/permission, unavailable model, quota, network/service and invalid response
+failures have safe messages. Recoverable API failures keep the feature ACTIVE;
+shutdown cancels the active Gemini request and discards pending reads.
+Mentions from Gemini-generated item names do not notify Discord members.
+
+## Dashboard API
+
+Authenticated owner: `POST /api/v1/feature-licenses/{licenseId}/price-reader/test`.
+Admin: `POST /api/v1/admin/bots/{botId}/licenses/{licenseId}/price-reader/test`.
+Admin requests also require that the license is installed on that bot.
+Both require an active, unexpired Gemini-capable license. The existing API write
+rate limiter applies. Requests contain `model`, optional draft `apiKey`, and optional
+`imageBase64` plus `mimeType`. Neither test route persists settings. Provider results
+are `{ connected, errorCode, result }`; connection probes omit extraction results.
+Authorization/validation failures use the normal ProblemDetail response.
+
+The preview gateway and Runner use the same JSON schema; their contracts are
+validated together. No internal runtime/bootstrap DTO change is needed: model
+config and encrypted feature secrets already use the shared bootstrap contract.
+Publish Backend and Runner together so the dashboard test and installed version
+are available together.
+
+## Google service conditions
+
+The UI discloses that images leave the application and that Free Tier content may
+be used to improve Google's products. Use product screenshots without personal,
+confidential or sensitive information. Before offering this integration, check
+[Gemini terms](https://ai.google.dev/gemini-api/terms), including the restrictions
+on API clients directed towards or likely accessed by under-18s and regional
+availability. A customer's API key does not waive these restrictions.
+
+See [image input](https://ai.google.dev/gemini-api/docs/image-understanding),
+[structured output](https://ai.google.dev/gemini-api/docs/structured-output),
+[pricing](https://ai.google.dev/gemini-api/docs/pricing), and
+[project rate limits](https://ai.google.dev/gemini-api/docs/rate-limits).

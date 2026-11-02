@@ -485,22 +485,28 @@
         "frontend/src/__tests__/fixtures/priceReader.ts",
         "frontend/src/__tests__/PriceReader.spec.ts",
         "frontend/src/__tests__/PriceReaderOcr.spec.ts",
-        "bot-runner/src/features/price-reader/"
+        "bot-runner/src/features/price-reader/",
+        "frontend/src/features/bots/price-reader-api.ts",
+        "frontend/src/features/bots/composables/usePriceReaderGeminiTest.ts",
+        "frontend/e2e/price-reader-gemini.smoke.spec.ts"
       ],
       "routes": [
-        "/my-bot/:botId/settings/packages/:licenseId"
+        "/my-bot/:botId/settings/packages/:licenseId",
+        "/admin/bots/:botId/settings/packages/:licenseId"
       ],
       "dependsOn": [],
       "smoke": [
         "price-reader",
-        "price-reader-customization"
+        "price-reader-customization",
+        "price-reader-gemini"
       ],
       "unit": [
         "src/__tests__/PriceReader.spec.ts",
         "src/__tests__/PriceReaderOcr.spec.ts"
       ],
       "guides": [
-        "frontend/README.md"
+        "frontend/README.md",
+        "docs/price-reader.md"
       ]
     },
     "member-spending": {
