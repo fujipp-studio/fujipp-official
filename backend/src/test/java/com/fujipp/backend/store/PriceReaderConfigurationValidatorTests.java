@@ -9,6 +9,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PriceReaderConfigurationValidatorTests {
     private final ObjectMapper mapper = new ObjectMapper();
 
+    @Test void validatesGeminiModelNamesWithoutAcceptingEndpointsOrPaths() {
+        assertThatCode(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_GEMINI_MODEL",mapper.valueToTree("gemini-3.5-flash-lite")))).doesNotThrowAnyException();
+        for(String model:new String[]{"", "https://example.com", "../gemini", "gemini-model?key=secret", "gemini-model/other"})
+            assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_GEMINI_MODEL",mapper.valueToTree(model)))).isInstanceOf(StoreValidationException.class);
+    }
+
     @Test void acceptsLegacyDraftsExactMatchesAndEmptyBlockLists() {
         assertThatCode(() -> PriceReaderConfigurationValidator.validate(Map.of())).doesNotThrowAnyException();
         assertThatCode(() -> PriceReaderConfigurationValidator.validate(Map.of(

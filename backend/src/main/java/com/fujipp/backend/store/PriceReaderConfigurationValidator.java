@@ -8,6 +8,10 @@ final class PriceReaderConfigurationValidator {
     private PriceReaderConfigurationValidator() {}
 
     static void validate(Map<String, JsonNode> values) {
+        JsonNode model = values.get("PRICE_READER_GEMINI_MODEL");
+        if (model != null && (!model.isTextual() || !model.asText().matches(PriceReaderGeminiClient.MODEL_PATTERN))) {
+            throw new StoreValidationException("Invalid Gemini model name");
+        }
         JsonNode mode = values.get("PRICE_READER_RESULT_MODE");
         if (mode != null && (!mode.isTextual() || !(mode.asText().equals("TEMPLATE") || mode.asText().equals("BLOCKS")))) {
             throw new StoreValidationException("Price Reader result mode must be TEMPLATE or BLOCKS");

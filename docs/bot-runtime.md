@@ -443,6 +443,12 @@ Deploy the migration, Backend, Frontend, and Runner together. The migration
 creates a draft product/version; publish the version and activate the product
 through the existing admin tools before offering or installing the feature.
 
+## Price Reader
+
+Price Reader 3.0.0 reads screenshots with a customer-owned Gemini API key. Earlier
+versions keep OCR. See [Price Reader](price-reader.md) for setup, dashboard testing,
+quota handling and deployment.
+
 ## Local build
 
 ```bash

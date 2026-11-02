@@ -212,6 +212,26 @@
       "guides": [
         "docs/database-delivery.md"
       ]
+    },
+    "price-reader": {
+      "migrations": [
+        "*price_reader*.sql"
+      ],
+      "objects": [
+        "shop.feature_versions",
+        "shop.feature_config_definitions",
+        "shop.feature_presentation_slots"
+      ],
+      "dependsOn": [
+        "catalog-runtime"
+      ],
+      "checks": [
+        "deploy/postgres/checks/price-reader.sql"
+      ],
+      "guides": [
+        "docs/database-delivery.md",
+        "docs/price-reader.md"
+      ]
     }
   }
 }

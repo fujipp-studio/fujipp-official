@@ -9,9 +9,12 @@ import PriceReaderPreview from './PriceReaderPreview.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 import { priceReaderRuntimeConfig, priceReaderSampleValues } from '../config/price-reader'
 import { recognizePriceReaderImage } from '../models/price-reader-ocr'
-import { buildResultValues, readImageResult } from '@price-reader/results'
+import { buildResultValues, readImageResult, readGeminiResult } from '@price-reader/results'
+import { usePriceReaderGeminiTest } from '../composables/usePriceReaderGeminiTest'
 
-const { text, values, license, previewBot } = useFeatureEditor()
+const { text, values, license, previewBot, secrets } = useFeatureEditor()
+const gemini = computed(() => license.value?.version === '3.0.0')
+const testGemini = usePriceReaderGeminiTest()
 const file = ref<File | null>(null)
 const rawText = ref<string | null>(null)
 const busy = ref(false)
@@ -29,7 +32,9 @@ const config = computed(() => priceReaderRuntimeConfig(values.value))
 const result = computed(() =>
   rawText.value === null
     ? null
-    : readImageResult(rawText.value, config.value, license.value?.version ?? '2.0.0'),
+    : gemini.value
+      ? readGeminiResult(JSON.parse(rawText.value), config.value)
+      : readImageResult(rawText.value, config.value, license.value?.version ?? '2.0.0'),
 )
 const samples = computed(() =>
   result.value
@@ -50,11 +55,19 @@ let controller: AbortController | undefined
 function cancel() {
   controller?.abort()
 }
-watch(file, () => {
-  cancel()
-  rawText.value = null
-  error.value = ''
-})
+watch(
+  [
+    file,
+    () => license.value?.id,
+    () => values.value.PRICE_READER_GEMINI_MODEL,
+    () => secrets.value.GEMINI_API_KEY,
+  ],
+  () => {
+    cancel()
+    rawText.value = null
+    error.value = ''
+  },
+)
 onBeforeUnmount(cancel)
 async function testImage() {
   if (!file.value || busy.value) return
@@ -65,15 +78,27 @@ async function testImage() {
   progress.value = 0
   rawText.value = null
   try {
-    rawText.value = await recognizePriceReaderImage(file.value, signal, (value) => {
-      progress.value = value
-    })
+    if (gemini.value) {
+      const result = await testGemini(signal, file.value)
+      if (!signal.aborted && result) {
+        readGeminiResult(result, config.value)
+        rawText.value = JSON.stringify(result, null, 2)
+      }
+    } else {
+      const result = await recognizePriceReaderImage(file.value, signal, (value) => {
+        progress.value = value
+      })
+      if (!signal.aborted) rawText.value = result
+    }
   } catch (cause) {
     if (!signal.aborted)
-      error.value = text(
-        'Unable to read this image. Choose a PNG, JPEG or WebP up to 10 MB and check your connection, then try again.',
-        'อ่านรูปไม่สำเร็จ เลือก PNG, JPEG หรือ WebP ไม่เกิน 10 MB ตรวจสอบการเชื่อมต่อ แล้วลองอีกครั้ง',
-      )
+      error.value =
+        gemini.value && cause instanceof Error
+          ? cause.message
+          : text(
+              'Unable to read this image. Choose a PNG, JPEG or WebP up to 10 MB and check your connection, then try again.',
+              'อ่านรูปไม่สำเร็จ เลือก PNG, JPEG หรือ WebP ไม่เกิน 10 MB ตรวจสอบการเชื่อมต่อ แล้วลองอีกครั้ง',
+            )
     if (cause instanceof Error && cause.name === 'AbortError') return
   } finally {
     busy.value = false
@@ -127,10 +152,15 @@ async function testImage() {
         <p v-if="error" role="alert" class="text-sm text-error-text">{{ error }}</p>
         <p class="text-xs text-text-muted">
           {{
-            text(
-              'Images stay in this browser. The first run downloads OCR language files. Image preprocessing differs from the bot, so OCR results may differ; price matching and message rules are shared.',
-              'รูปประมวลผลในเบราว์เซอร์ ครั้งแรกจะดาวน์โหลดไฟล์ภาษา OCR การเตรียมรูปต่างจากบอทจึงอาจอ่านได้ต่างกัน แต่ใช้กฎจับคู่ราคาและสร้างข้อความชุดเดียวกัน',
-            )
+            gemini
+              ? text(
+                  'This image is sent to Google Gemini using your draft or saved key and consumes your project quota. Nothing is posted to Discord. The bot may resize images before reading.',
+                  'รูปทดสอบจะถูกส่งไป Google Gemini ด้วย key ที่กรอกหรือบันทึกไว้ และใช้โควตาโปรเจกต์ของคุณ โดยไม่ส่งเข้า Discord บอทอาจปรับขนาดรูปก่อนอ่าน',
+                )
+              : text(
+                  'Images stay in this browser. The first run downloads OCR language files. Image preprocessing differs from the bot, so OCR results may differ; price matching and message rules are shared.',
+                  'รูปประมวลผลในเบราว์เซอร์ ครั้งแรกจะดาวน์โหลดไฟล์ภาษา OCR การเตรียมรูปต่างจากบอทจึงอาจอ่านได้ต่างกัน แต่ใช้กฎจับคู่ราคาและสร้างข้อความชุดเดียวกัน',
+                )
           }}
         </p>
       </div>

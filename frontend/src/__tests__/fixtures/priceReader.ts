@@ -14,6 +14,27 @@ export function priceReaderFixture(version = '2.0.0') {
   const config: FeatureConfiguration = {
     ...structuredClone(configuration),
     fields: [
+      ...(version === '3.0.0'
+        ? [
+            {
+              key: 'GEMINI_API_KEY',
+              type: 'SECRET',
+              secret: true,
+              value: null,
+              defaultValue: null,
+              required: true,
+              configured: true,
+              validation: { minLength: 20, maxLength: 512 },
+            },
+            {
+              key: 'PRICE_READER_GEMINI_MODEL',
+              type: 'TEXT',
+              value: 'gemini-3.5-flash-lite',
+              required: true,
+              validation: { pattern: '^gemini-[a-z0-9][a-z0-9._-]{0,99}$' },
+            },
+          ]
+        : []),
       {
         key: 'PRICE_READER_CHANNEL_ID',
         type: 'CHANNEL_ID',

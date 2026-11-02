@@ -8,6 +8,7 @@ import FeatureConfigField from './FeatureConfigField.vue'
 import PriceReaderResultEditor from './PriceReaderResultEditor.vue'
 import PriceReaderTemplateField from './PriceReaderTemplateField.vue'
 import PriceReaderPreview from './PriceReaderPreview.vue'
+import PriceReaderGeminiSettings from './PriceReaderGeminiSettings.vue'
 import { priceReaderSampleValues, priceReaderPricePairs } from '../config/price-reader'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
@@ -26,6 +27,12 @@ const field = (key: string) => configuration.value?.fields.find((item) => item.k
 const value = (key: string) => String(values.value[key] ?? '')
 const categories = computed(() =>
   [
+    {
+      key: 'gemini',
+      label: 'Gemini AI',
+      icon: FlaskConical,
+      show: license.value?.version === '3.0.0',
+    },
     {
       key: 'channels',
       label: text('Discord channels', 'ช่อง Discord'),
@@ -152,6 +159,7 @@ const statusFields = computed(() =>
             </p>
           </details>
         </FeatureSettingsCard>
+        <PriceReaderGeminiSettings v-else-if="category.key === 'gemini'" />
         <div v-else-if="category.key === 'prices'" class="space-y-lg">
           <FeatureSettingsCard
             v-if="field('PRICE_READER_PRICE_MAP')"
@@ -292,7 +300,7 @@ const statusFields = computed(() =>
               </dt>
               <dd class="mt-xs font-medium">
                 {{
-                  license?.version.startsWith('2.')
+                  !license?.version.startsWith('1.')
                     ? text('Standard Discord price', 'ราคาปกติของ Discord')
                     : text('Detected Discord price', 'ราคา Discord ที่อ่านได้จากรูป')
                 }}

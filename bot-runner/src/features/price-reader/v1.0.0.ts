@@ -10,7 +10,10 @@ import type { FeatureContext, FeatureModule } from "../../types.js";
 import { downloadImage, preprocessImage } from "./image-processor.js";
 import { buildResultValues, imageError, readImageResult, type ImageResult } from "./results.js";
 
-interface PriceReaderVersionOptions { version: string }
+interface PriceReaderVersionOptions {
+  version: string;
+  createReader?: (context: FeatureContext) => { read(raw: Buffer): Promise<ImageResult>; stop(): void };
+}
 
 // ── Tesseract lazy singleton ────────────────────────────────────────────────
 
@@ -54,6 +57,8 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
       optionalSnowflake(context.config.PRICE_READER_ORDER_CHANNEL_ID, "PRICE_READER_ORDER_CHANNEL_ID");
       let queue = Promise.resolve();
       let stopped = false;
+      let pending = 0;
+      const reader = options.createReader?.(context);
 
       const enqueue = (message: Message) => {
         if (stopped) return;
@@ -63,13 +68,18 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
           (a) => a.contentType?.startsWith("image/"),
         );
         if (images.length === 0) return;
+        if (reader && pending >= 20) {
+          void message.reply({ content: "คิวอ่านรูปเต็ม กรุณาลองภายหลัง", allowedMentions: { parse: [] } }).catch(() => undefined);
+          return;
+        }
 
+        pending++;
         queue = queue
-          .then(() => processImages(context, message, images, options.version))
+          .then(() => stopped ? undefined : processImages(context, message, images, options.version, reader))
           .catch(async (error) => {
             logError(context, "image processing")(error);
             await message.reply(featureErrorPayload("price-reader", error)).catch(() => undefined);
-          });
+          }).finally(() => { pending--; });
       };
 
       context.client.on("messageCreate", enqueue);
@@ -79,8 +89,9 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
       return async () => {
         stopped = true;
         context.client.off("messageCreate", enqueue);
+        reader?.stop();
         await queue;
-        await terminateWorker();
+        if (!reader) await terminateWorker();
       };
     },
   };
@@ -97,9 +108,10 @@ async function processImages(
   message: Message,
   attachments: import("discord.js").Attachment[],
   version: string,
+  reader?: { read(raw: Buffer): Promise<ImageResult> },
 ): Promise<void> {
   const processing = await message.reply(
-    render(context, "processing", { image_count: String(attachments.length) }),
+    { ...render(context, "processing", { image_count: String(attachments.length) }), ...(reader ? { allowedMentions: { parse: [] } } : {}) },
   );
 
   const perImageResults: ImageResult[] = [];
@@ -107,6 +119,10 @@ async function processImages(
   for (const attachment of attachments) {
     try {
       const raw = await downloadImage(attachment.url);
+      if (reader) {
+        perImageResults.push(await reader.read(raw));
+        continue;
+      }
       const processed = await preprocessImage(raw);
       const worker = await getWorker();
       const { data } = await worker.recognize(processed);
@@ -118,6 +134,7 @@ async function processImages(
   }
 
   const payload = priceReaderResultPayload(context, perImageResults, version);
+  if (reader) payload.allowedMentions = { parse: [] };
   if (perImageResults.every(result => result.status === "error") && processing.flags.has(MessageFlags.IsComponentsV2) && !payload.flags) {
     await message.reply(payload);
     await processing.delete().catch(() => undefined);

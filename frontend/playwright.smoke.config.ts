@@ -26,6 +26,7 @@ export default defineConfig({
     'payment-trigger.smoke.spec.ts',
     'price-reader.smoke.spec.ts',
     'price-reader-customization.smoke.spec.ts',
+    'price-reader-gemini.smoke.spec.ts',
     'message-sets.smoke.spec.ts',
     'shop-status.smoke.spec.ts',
     'discord-markdown.smoke.spec.ts',

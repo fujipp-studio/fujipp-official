@@ -219,6 +219,20 @@ export const priceReaderConfigCopy: Record<
   string,
   { label: [string, string]; description: [string, string] }
 > = {
+  GEMINI_API_KEY: {
+    label: ['Gemini API key', 'Gemini API key'],
+    description: [
+      'Your Google AI Studio API key. Stored encrypted.',
+      'API key จาก Google AI Studio ของคุณ ระบบจัดเก็บแบบเข้ารหัส',
+    ],
+  },
+  PRICE_READER_GEMINI_MODEL: {
+    label: ['Gemini model', 'โมเดล Gemini'],
+    description: [
+      'Use an image-capable model with structured output. Check availability and quota in Google AI Studio.',
+      'ใช้โมเดลที่รองรับรูปภาพและ Structured output ตรวจสอบโมเดลและโควตาใน Google AI Studio',
+    ],
+  },
   PRICE_READER_CHANNEL_ID: {
     label: ['Reader channel', 'ช่องอ่านราคา'],
     description: [
