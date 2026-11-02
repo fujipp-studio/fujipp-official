@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Documented Price Reader activation recovery after configuration saves and its runtime status transitions. |
 | 2026-11-02 | Documented deferred Price Reader settings and production-like configuration checks for frontend bundle budgets. |
 | 2026-11-02 | Documented Price Reader 3.1.0 single and dual pricing modes, category tables, missing-price handling and the draft publication and upgrade workflow. |
 | 2026-11-02 | Clarified Gemini auth-key support and the corrective migration and release required by existing Price Reader deployments. |

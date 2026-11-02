@@ -384,6 +384,12 @@ public class StoreService {
             if (request.values().containsKey("TICKET_CATEGORIES")) {
                 repository.retryTicketActivation(licenseId);
             }
+            if (request.secrets().containsKey("GEMINI_API_KEY")
+                    || request.values().containsKey("PRICE_READER_GEMINI_MODEL")
+                    || request.values().containsKey("PRICE_READER_CHANNEL_ID")
+                    || request.values().containsKey("PRICE_READER_ORDER_CHANNEL_ID")) {
+                repository.retryPriceReaderActivation(licenseId);
+            }
             runtime.invalidateBootstrap();
         }
         StoreRepository.LicenseContext refreshed = ownedLicense(licenseId, userId);

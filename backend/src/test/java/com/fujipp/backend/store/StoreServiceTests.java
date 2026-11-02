@@ -247,6 +247,85 @@ class StoreServiceTests {
                 .isInstanceOf(StoreValidationException.class).hasMessageContaining("0–5000");
         verify(repository, never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
         verify(repository, never()).bumpConfigRevision(org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).retryPriceReaderActivation(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void correctedGeminiKeyRetriesActivationAfterSavingBeforeRefreshingRuntime() {
+        UUID owner = UUID.randomUUID(), licenseId = UUID.randomUUID(), definitionId = UUID.randomUUID();
+        authorize(owner);
+        var license = new StoreRepository.LicenseContext(licenseId, UUID.randomUUID(), UUID.randomUUID(),
+                "ACTIVE", null, UUID.randomUUID(), 7, null);
+        when(repository.findLicense(licenseId, owner)).thenReturn(Optional.of(license));
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+                new StoreRepository.ConfigDefinition(definitionId, "GEMINI_API_KEY", "SECRET", true)));
+        var encrypted = new StoreRepository.EncryptedSecret(new byte[]{1}, new byte[]{2}, "v1", new byte[]{3});
+        when(secretCipher.encrypt("AQ.synthetic-customer.gemini-key")).thenReturn(encrypted);
+
+        service.updateConfiguration(owner.toString(), licenseId, new UpdateFeatureConfigurationRequest(
+                Map.of(), Map.of("GEMINI_API_KEY", "AQ.synthetic-customer.gemini-key"), Map.of()));
+
+        var writes = inOrder(repository, runtime);
+        writes.verify(repository).upsertSecret(license, definitionId, encrypted);
+        writes.verify(repository).bumpConfigRevision(license.configSetId());
+        writes.verify(repository).retryPriceReaderActivation(licenseId);
+        writes.verify(runtime).invalidateBootstrap();
+    }
+
+    @Test
+    void correctedReaderModelRetriesActivationForTheSavedLicense() {
+        UUID owner = UUID.randomUUID(), licenseId = UUID.randomUUID(), definitionId = UUID.randomUUID();
+        authorize(owner);
+        var license = new StoreRepository.LicenseContext(licenseId, UUID.randomUUID(), UUID.randomUUID(),
+                "ACTIVE", null, UUID.randomUUID(), 7, null);
+        when(repository.findLicense(licenseId, owner)).thenReturn(Optional.of(license));
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+                new StoreRepository.ConfigDefinition(definitionId, "PRICE_READER_GEMINI_MODEL", "TEXT", false)));
+        var model = new ObjectMapper().valueToTree("gemini-3.5-flash-lite");
+
+        service.updateConfiguration(owner.toString(), licenseId, new UpdateFeatureConfigurationRequest(
+                Map.of("PRICE_READER_GEMINI_MODEL", model), Map.of(), Map.of()));
+
+        var writes = inOrder(repository, runtime);
+        writes.verify(repository).upsertConfigValue(license, definitionId, model);
+        writes.verify(repository).bumpConfigRevision(license.configSetId());
+        writes.verify(repository).retryPriceReaderActivation(licenseId);
+        writes.verify(runtime).invalidateBootstrap();
+    }
+
+    @Test
+    void invalidGeminiKeyNeverRetriesActivationOrWritesSecrets() {
+        UUID owner = UUID.randomUUID(), licenseId = UUID.randomUUID(), definitionId = UUID.randomUUID();
+        authorize(owner);
+        var license = new StoreRepository.LicenseContext(licenseId, UUID.randomUUID(), UUID.randomUUID(),
+                "ACTIVE", null, UUID.randomUUID(), 7, null);
+        when(repository.findLicense(licenseId, owner)).thenReturn(Optional.of(license));
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+                new StoreRepository.ConfigDefinition(definitionId, "GEMINI_API_KEY", "SECRET", true)));
+
+        assertThatThrownBy(() -> service.updateConfiguration(owner.toString(), licenseId,
+                new UpdateFeatureConfigurationRequest(Map.of(), Map.of("GEMINI_API_KEY", "invalid key"), Map.of())))
+                .isInstanceOf(StoreValidationException.class);
+        verify(repository, never()).upsertSecret(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).retryPriceReaderActivation(org.mockito.ArgumentMatchers.any());
+        verify(runtime, never()).invalidateBootstrap();
+    }
+
+    @Test
+    void presentationOnlySaveDoesNotRetryPriceReaderActivation() {
+        UUID owner = UUID.randomUUID(), licenseId = UUID.randomUUID(), slotId = UUID.randomUUID();
+        authorize(owner);
+        var license = new StoreRepository.LicenseContext(licenseId, UUID.randomUUID(), UUID.randomUUID(),
+                "ACTIVE", null, UUID.randomUUID(), 7, null);
+        when(repository.findLicense(licenseId, owner)).thenReturn(Optional.of(license));
+        when(repository.findPresentationSlots(license.versionId())).thenReturn(Map.of("result", slotId));
+
+        service.updateConfiguration(owner.toString(), licenseId, new UpdateFeatureConfigurationRequest(
+                Map.of(), Map.of(), Map.of("result", new ObjectMapper().readTree("{\"mode\":\"EMBED\",\"description\":\"Result\"}"))));
+
+        verify(repository).bumpConfigRevision(license.configSetId());
+        verify(repository, never()).retryPriceReaderActivation(org.mockito.ArgumentMatchers.any());
+        verify(runtime).invalidateBootstrap();
     }
 
     @Test

@@ -1164,6 +1164,19 @@ public class StoreRepository {
         );
     }
 
+    public void retryPriceReaderActivation(UUID licenseId) {
+        jdbcTemplate.update("""
+                UPDATE private.bot_feature_installations AS installation
+                   SET status = 'INSTALLING', last_error_code = NULL, last_error_message = NULL
+                  FROM shop.feature_products AS product
+                 WHERE installation.license_id = ?
+                   AND installation.feature_product_id = product.id AND product.code = 'price-reader'
+                   AND installation.status = 'ERROR'
+                   AND installation.last_error_code = 'FEATURE_ACTIVATION_FAILED'
+                   AND installation.removed_at IS NULL
+                """, licenseId);
+    }
+
     private FeatureRow mapFeatureRow(ResultSet resultSet, int rowNumber) throws SQLException {
         UUID offerId = resultSet.getObject("offer_id", UUID.class);
         FeatureSummaryResponse.OfferResponse offer = offerId == null ? null
