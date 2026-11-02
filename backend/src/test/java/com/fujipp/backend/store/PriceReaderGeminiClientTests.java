@@ -16,7 +16,7 @@ class PriceReaderGeminiClientTests {
     private final RestClient.Builder builder=RestClient.builder();
     private final MockRestServiceServer server=MockRestServiceServer.bindTo(builder).build();
     private final PriceReaderGeminiClient client=new PriceReaderGeminiClient(json,builder.build());
-    private static final String KEY="synthetic-gemini-key-for-tests";
+    private static final String KEY="AQ.synthetic-gemini.key-for-tests";
     private static final String VALUE="""
         {"itemName":"Test item","currency":"THB","standardPriceSatang":25000,"originalPriceSatang":null,
          "nitroPriceSatang":20900,"discountPercent":null,"ambiguous":false}
@@ -62,4 +62,17 @@ class PriceReaderGeminiClientTests {
         assertThat(client.test(KEY,PriceReaderGeminiClient.DEFAULT_MODEL,null,null).errorCode()).isEqualTo("GEMINI_INVALID_RESPONSE");
         server.verify();
     }
+    @Test void classifiedRehearsalRequiresItemTypeAndUsesBundleAwarePrompt() {
+        String classified=VALUE.strip().replace("\"ambiguous\":false}","\"ambiguous\":false,\"itemType\":\"BUNDLE\"}");
+        server.expect(anything()).andExpect(jsonPath("$.generationConfig.responseJsonSchema.properties.itemType.enum[1]").value("BUNDLE"))
+            .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("Bundle components are one listing")))
+            .andRespond(withSuccess(response(classified),MediaType.APPLICATION_JSON));
+        var result=client.test(KEY,PriceReaderGeminiClient.DEFAULT_MODEL,"dGVzdA==","image/png",true);
+        assertThat(result.connected()).isTrue();
+        assertThat(result.result().path("itemType").asText()).isEqualTo("BUNDLE");
+        assertThat(PriceReaderGeminiClient.validResult(json.readTree(VALUE),true)).isFalse();
+        assertThat(PriceReaderGeminiClient.validResult(json.readTree(classified),false)).isFalse();
+        server.verify();
+    }
+
 }

@@ -5,22 +5,36 @@ import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
 import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import FeatureConfigField from './FeatureConfigField.vue'
-import PriceReaderResultEditor from './PriceReaderResultEditor.vue'
-import PriceReaderTemplateField from './PriceReaderTemplateField.vue'
-import PriceReaderPreview from './PriceReaderPreview.vue'
-import PriceReaderGeminiSettings from './PriceReaderGeminiSettings.vue'
 import { priceReaderSampleValues, priceReaderPricePairs } from '../config/price-reader'
+import { classifiedResultVariables } from '@price-reader/classified-pricing'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const { text, values, configuration, license, previewBot } = useFeatureEditor()
+const PriceReaderResultEditor = defineAsyncComponent(() => import('./PriceReaderResultEditor.vue'))
+const PriceReaderTemplateField = defineAsyncComponent(
+  () => import('./PriceReaderTemplateField.vue'),
+)
+const PriceReaderPreview = defineAsyncComponent(() => import('./PriceReaderPreview.vue'))
+const PriceReaderGeminiSettings = defineAsyncComponent(
+  () => import('./PriceReaderGeminiSettings.vue'),
+)
 const PriceReaderTestPanel = defineAsyncComponent(() => import('./PriceReaderTestPanel.vue'))
+const PriceReaderPricingSettings = defineAsyncComponent(
+  () => import('./PriceReaderPricingSettings.vue'),
+)
 const PriceMapEditor = defineAsyncComponent(() => import('./PriceMapEditor.vue'))
 const id = useId()
 const activeCategory = ref('channels')
+const resultsOpened = ref(false)
+const statesOpened = ref(false)
+const geminiOpened = ref(false)
 const testOpened = ref(false)
 const pricesOpened = ref(false)
 watch(activeCategory, (key) => {
   if (key === 'test') testOpened.value = true
+  if (key === 'gemini') geminiOpened.value = true
+  if (key === 'results') resultsOpened.value = true
+  if (key === 'states') statesOpened.value = true
   if (key === 'prices') pricesOpened.value = true
 })
 const field = (key: string) => configuration.value?.fields.find((item) => item.key === key)
@@ -31,7 +45,7 @@ const categories = computed(() =>
       key: 'gemini',
       label: 'Gemini AI',
       icon: FlaskConical,
-      show: license.value?.version === '3.0.0',
+      show: license.value?.version.startsWith('3.'),
     },
     {
       key: 'channels',
@@ -70,7 +84,12 @@ watch(
   },
   { immediate: true },
 )
-const pairs = computed(() => priceReaderPricePairs(values.value.PRICE_READER_PRICE_MAP))
+const classified = computed(() => Boolean(field('PRICE_READER_PRICING_MODE')))
+const pairs = computed(() =>
+  priceReaderPricePairs(
+    classified.value ? values.value.PRICE_READER_PRICE_RULES : values.value.PRICE_READER_PRICE_MAP,
+  ),
+)
 const resultPreview = computed(() =>
   priceReaderSampleValues(
     values.value,
@@ -159,10 +178,11 @@ const statusFields = computed(() =>
             </p>
           </details>
         </FeatureSettingsCard>
-        <PriceReaderGeminiSettings v-else-if="category.key === 'gemini'" />
+        <PriceReaderGeminiSettings v-else-if="category.key === 'gemini' && geminiOpened" />
         <div v-else-if="category.key === 'prices'" class="space-y-lg">
+          <PriceReaderPricingSettings v-if="classified && pricesOpened" />
           <FeatureSettingsCard
-            v-if="field('PRICE_READER_PRICE_MAP')"
+            v-if="!classified && field('PRICE_READER_PRICE_MAP')"
             :icon="Table2"
             :title="text('Shop prices', 'จับคู่ราคาขายของร้าน')"
             :description="
@@ -219,7 +239,7 @@ const statusFields = computed(() =>
           </FeatureSettingsCard>
         </div>
         <FeatureSettingsCard
-          v-else-if="category.key === 'results'"
+          v-else-if="category.key === 'results' && resultsOpened"
           :icon="TextCursorInput"
           :title="text('Text for each image', 'ข้อความผลลัพธ์ต่อรูป')"
           :description="
@@ -236,6 +256,7 @@ const statusFields = computed(() =>
               field('PRICE_READER_RESULT_MODE') ? value('PRICE_READER_RESULT_MODE') : undefined
             "
             :with-markup="Boolean(license?.version.startsWith('1.'))"
+            :extra-variables="classified ? classifiedResultVariables : []"
             :can-use-blocks="Boolean(field('PRICE_READER_RESULT_BLOCKS'))"
             @update:model-value="values.PRICE_READER_RESULT_BLOCKS = $event"
             @update:template="values.PRICE_READER_RESULTS_ITEM_TEMPLATE = $event"
@@ -255,7 +276,7 @@ const statusFields = computed(() =>
           </div>
         </FeatureSettingsCard>
         <FeatureSettingsCard
-          v-else-if="category.key === 'states'"
+          v-else-if="category.key === 'states' && statesOpened"
           :icon="MessageSquare"
           :title="text('Status messages', 'ข้อความแต่ละสถานะ')"
           :description="
@@ -300,9 +321,18 @@ const statusFields = computed(() =>
               </dt>
               <dd class="mt-xs font-medium">
                 {{
-                  !license?.version.startsWith('1.')
-                    ? text('Standard Discord price', 'ราคาปกติของ Discord')
-                    : text('Detected Discord price', 'ราคา Discord ที่อ่านได้จากรูป')
+                  classified
+                    ? value('PRICE_READER_PRICING_MODE') === 'BOTH'
+                      ? text(
+                          'Standard and Nitro Discord prices',
+                          'ราคาปกติและราคา Nitro ของ Discord',
+                        )
+                      : value('PRICE_READER_PRICING_MODE') === 'NITRO'
+                        ? text('Nitro Discord price', 'ราคา Nitro ของ Discord')
+                        : text('Standard Discord price', 'ราคาปกติของ Discord')
+                    : !license?.version.startsWith('1.')
+                      ? text('Standard Discord price', 'ราคาปกติของ Discord')
+                      : text('Detected Discord price', 'ราคา Discord ที่อ่านได้จากรูป')
                 }}
               </dd>
             </div>

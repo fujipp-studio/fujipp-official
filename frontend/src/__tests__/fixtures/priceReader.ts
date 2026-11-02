@@ -14,7 +14,7 @@ export function priceReaderFixture(version = '2.0.0') {
   const config: FeatureConfiguration = {
     ...structuredClone(configuration),
     fields: [
-      ...(version === '3.0.0'
+      ...(version.startsWith('3.')
         ? [
             {
               key: 'GEMINI_API_KEY',
@@ -24,7 +24,7 @@ export function priceReaderFixture(version = '2.0.0') {
               defaultValue: null,
               required: true,
               configured: true,
-              validation: { minLength: 20, maxLength: 512 },
+              validation: { minLength: 20, maxLength: 512, pattern: '^[A-Za-z0-9_.\\-]+$' },
             },
             {
               key: 'PRICE_READER_GEMINI_MODEL',
@@ -32,6 +32,49 @@ export function priceReaderFixture(version = '2.0.0') {
               value: 'gemini-3.5-flash-lite',
               required: true,
               validation: { pattern: '^gemini-[a-z0-9][a-z0-9._-]{0,99}$' },
+            },
+          ]
+        : []),
+      ...(version === '3.1.0'
+        ? [
+            {
+              key: 'PRICE_READER_PRICING_MODE',
+              type: 'ENUM',
+              value: 'STANDARD',
+              required: true,
+              validation: { enum: ['STANDARD', 'NITRO', 'BOTH'] },
+            },
+            {
+              key: 'PRICE_READER_PRICE_RULES',
+              type: 'JSON',
+              value: [
+                {
+                  itemType: 'SINGLE',
+                  pricingMode: 'STANDARD',
+                  discordPriceSatang: 25000,
+                  shopPriceSatang: 5500,
+                },
+                {
+                  itemType: 'BUNDLE',
+                  pricingMode: 'STANDARD',
+                  discordPriceSatang: 25000,
+                  shopPriceSatang: 8000,
+                },
+                {
+                  itemType: 'SINGLE',
+                  pricingMode: 'NITRO',
+                  discordPriceSatang: 20900,
+                  shopPriceSatang: 4500,
+                },
+                {
+                  itemType: 'BUNDLE',
+                  pricingMode: 'NITRO',
+                  discordPriceSatang: 20900,
+                  shopPriceSatang: 7000,
+                },
+              ],
+              required: true,
+              validation: { type: 'array', maxItems: 400 },
             },
           ]
         : []),
@@ -172,6 +215,18 @@ export function priceReaderFixture(version = '2.0.0') {
           'item_name',
           'order_url',
           'results_text',
+          ...(version === '3.1.0'
+            ? [
+                'item_type',
+                'pricing_mode',
+                'standard_price',
+                'nitro_price',
+                'standard_shop_price',
+                'nitro_shop_price',
+                'standard_shop_price_text',
+                'nitro_shop_price_text',
+              ]
+            : []),
           ...(legacy ? ['no_nitro_markup'] : []),
         ],
         defaultDefinition: {

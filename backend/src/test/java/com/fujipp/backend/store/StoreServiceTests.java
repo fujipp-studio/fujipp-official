@@ -55,6 +55,24 @@ class StoreServiceTests {
     }
 
     @Test
+    void geminiAuthAndLegacyKeysAreEncryptedWithoutWritingPlaintextConfig() {
+        UUID owner=UUID.randomUUID(), licenseId=UUID.randomUUID(), definitionId=UUID.randomUUID();
+        authorize(owner);
+        var license=new StoreRepository.LicenseContext(licenseId,UUID.randomUUID(),UUID.randomUUID(),"ACTIVE",null,UUID.randomUUID(),0,null);
+        when(repository.findLicense(licenseId,owner)).thenReturn(Optional.of(license));
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+            new StoreRepository.ConfigDefinition(definitionId,"GEMINI_API_KEY","SECRET",true)));
+        for(String key:new String[]{"AQ.synthetic-customer.gemini-key","AIza-synthetic-legacy-google-key"}) {
+            var encrypted=new StoreRepository.EncryptedSecret(new byte[]{1},new byte[]{2},"v1",new byte[]{3});
+            when(secretCipher.encrypt(key)).thenReturn(encrypted);
+            service.updateConfiguration(owner.toString(),licenseId,new UpdateFeatureConfigurationRequest(Map.of(),Map.of("GEMINI_API_KEY",key),Map.of()));
+            verify(secretCipher).encrypt(key);
+            verify(repository).upsertSecret(license,definitionId,encrypted);
+        }
+        verify(repository,never()).upsertConfigValue(org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any(),org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void checkoutDebitsWalletAndIssuesLicensesOnce() {
         UUID userId = UUID.randomUUID();
         UUID offerId = UUID.randomUUID();

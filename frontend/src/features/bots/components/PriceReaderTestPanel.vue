@@ -10,10 +10,16 @@ import { useFeatureEditor } from '../composables/featureEditorContext'
 import { priceReaderRuntimeConfig, priceReaderSampleValues } from '../config/price-reader'
 import { recognizePriceReaderImage } from '../models/price-reader-ocr'
 import { buildResultValues, readImageResult, readGeminiResult } from '@price-reader/results'
+import { readClassifiedGeminiResult } from '@price-reader/classified-pricing'
 import { usePriceReaderGeminiTest } from '../composables/usePriceReaderGeminiTest'
 
 const { text, values, license, previewBot, secrets } = useFeatureEditor()
-const gemini = computed(() => license.value?.version === '3.0.0')
+const gemini = computed(() => license.value?.version.startsWith('3.'))
+const classified = computed(() => license.value?.version === '3.1.0')
+const readResult = (data: unknown) =>
+  classified.value
+    ? readClassifiedGeminiResult(data, config.value)
+    : readGeminiResult(data, config.value)
 const testGemini = usePriceReaderGeminiTest()
 const file = ref<File | null>(null)
 const rawText = ref<string | null>(null)
@@ -33,7 +39,7 @@ const result = computed(() =>
   rawText.value === null
     ? null
     : gemini.value
-      ? readGeminiResult(JSON.parse(rawText.value), config.value)
+      ? readResult(JSON.parse(rawText.value))
       : readImageResult(rawText.value, config.value, license.value?.version ?? '2.0.0'),
 )
 const samples = computed(() =>
@@ -81,7 +87,7 @@ async function testImage() {
     if (gemini.value) {
       const result = await testGemini(signal, file.value)
       if (!signal.aborted && result) {
-        readGeminiResult(result, config.value)
+        readResult(result)
         rawText.value = JSON.stringify(result, null, 2)
       }
     } else {
@@ -96,8 +102,8 @@ async function testImage() {
         gemini.value && cause instanceof Error
           ? cause.message
           : text(
-              'Unable to read this image. Choose a PNG, JPEG or WebP up to 10 MB and check your connection, then try again.',
-              'อ่านรูปไม่สำเร็จ เลือก PNG, JPEG หรือ WebP ไม่เกิน 10 MB ตรวจสอบการเชื่อมต่อ แล้วลองอีกครั้ง',
+              'Read failed. Check the file and connection, then retry.',
+              'อ่านไม่สำเร็จ ตรวจไฟล์และการเชื่อมต่อ แล้วลองอีกครั้ง',
             )
     if (cause instanceof Error && cause.name === 'AbortError') return
   } finally {
@@ -113,8 +119,8 @@ async function testImage() {
       :title="text('Test before saving', 'ทดสอบก่อนบันทึก')"
       :description="
         text(
-          'Uses your current draft. No settings are saved and no messages are sent to Discord.',
-          'ใช้ค่าที่กำลังแก้ไข โดยไม่บันทึกค่าและไม่ส่งข้อความเข้า Discord',
+          'Uses your draft without saving or posting to Discord.',
+          'ใช้ค่าที่แก้ไข โดยไม่บันทึกหรือส่งเข้า Discord',
         )
       "
     >
@@ -154,12 +160,12 @@ async function testImage() {
           {{
             gemini
               ? text(
-                  'This image is sent to Google Gemini using your draft or saved key and consumes your project quota. Nothing is posted to Discord. The bot may resize images before reading.',
-                  'รูปทดสอบจะถูกส่งไป Google Gemini ด้วย key ที่กรอกหรือบันทึกไว้ และใช้โควตาโปรเจกต์ของคุณ โดยไม่ส่งเข้า Discord บอทอาจปรับขนาดรูปก่อนอ่าน',
+                  'Sends the image to Google Gemini using your key and quota. The bot may resize it.',
+                  'ส่งรูปไป Google Gemini ด้วย key และโควตาของคุณ บอทอาจย่อรูปก่อนอ่าน',
                 )
               : text(
-                  'Images stay in this browser. The first run downloads OCR language files. Image preprocessing differs from the bot, so OCR results may differ; price matching and message rules are shared.',
-                  'รูปประมวลผลในเบราว์เซอร์ ครั้งแรกจะดาวน์โหลดไฟล์ภาษา OCR การเตรียมรูปต่างจากบอทจึงอาจอ่านได้ต่างกัน แต่ใช้กฎจับคู่ราคาและสร้างข้อความชุดเดียวกัน',
+                  'OCR runs locally, downloading languages on first use. Image preparation differs from the bot; matching and message rules are shared.',
+                  'OCR อ่านในเบราว์เซอร์และโหลดภาษาครั้งแรก เตรียมรูปต่างจากบอท แต่ใช้กฎจับคู่ราคาและข้อความเดียวกัน',
                 )
           }}
         </p>
@@ -178,6 +184,12 @@ async function testImage() {
         class="my-md grid gap-md tablet:grid-cols-3 text-sm"
         data-price-test-match
       >
+        <div v-if="classified">
+          <dt class="text-text-muted">
+            {{ text('Product type / pricing mode', 'ประเภทสินค้า / โหมดราคา') }}
+          </dt>
+          <dd>{{ result.item_type }} · {{ result.pricing_mode }}</dd>
+        </div>
         <div>
           <dt class="text-text-muted">{{ text('Detected price', 'ราคาที่อ่านได้') }}</dt>
           <dd>{{ result.discord_price }} {{ text('THB', 'บาท') }}</dd>

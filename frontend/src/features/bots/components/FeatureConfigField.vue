@@ -8,6 +8,7 @@ const props = defineProps<{
   label?: string
   supportText?: string
   unit?: string
+  formatError?: string
 }>()
 const {
   configuration,
@@ -68,7 +69,7 @@ const error = computed(() => {
   if (pattern.value && !new RegExp('^(?:' + pattern.value + ')$').test(raw.value))
     return ['CHANNEL_ID', 'ROLE_ID', 'USER_ID'].includes(field.value?.type ?? '')
       ? text('Discord ID must have 15–30 digits.', 'Discord ID ต้องเป็นตัวเลข 15–30 หลัก')
-      : text('Check the number format.', 'ตรวจสอบรูปแบบหมายเลข')
+      : (props.formatError ?? text('Check the number format.', 'ตรวจสอบรูปแบบหมายเลข'))
   return ''
 })
 const support = computed(() => {

@@ -1,6 +1,6 @@
 export const defaultGeminiModel = "gemini-3.5-flash-lite";
 export const geminiModelPattern = /^gemini-[a-z0-9][a-z0-9._-]{0,99}$/;
-export const geminiKeyPattern = /^[A-Za-z0-9_-]{20,512}$/;
+export const geminiKeyPattern = /^[A-Za-z0-9_.-]{20,512}$/;
 
 export interface GeminiPrice {
   itemName: string | null;

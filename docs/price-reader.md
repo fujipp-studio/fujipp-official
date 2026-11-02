@@ -35,6 +35,12 @@ endpoint with the key in `x-goog-api-key`; owners configure a model, not an API 
 Customer keys may use Free or Paid tiers; the application never changes Google
 billing or switches to a different key/model automatically.
 
+API key validation accepts both legacy keys and Google AI Studio auth keys with
+the `AQ.` prefix. Existing deployments must apply the append-only corrective
+migration `20261102000002_price_reader_auth_keys.sql` and release Backend, Runner
+and Frontend before testing these keys. The migration updates only the catalog
+validation pattern; saved credentials and customer configuration are preserved.
+
 ## Reading and failure behaviour
 
 Gemini returns a constrained JSON object containing the visible item name,
@@ -93,3 +99,58 @@ See [image input](https://ai.google.dev/gemini-api/docs/image-understanding),
 [structured output](https://ai.google.dev/gemini-api/docs/structured-output),
 [pricing](https://ai.google.dev/gemini-api/docs/pricing), and
 [project rate limits](https://ai.google.dev/gemini-api/docs/rate-limits).
+
+## Version 3.1.0: Nitro modes and product types
+
+The owner selects **Without Nitro** (`STANDARD`), **With Nitro** (`NITRO`) or **Both** (`BOTH`) in
+**Pricing → Shop pricing mode**. Gemini reads the current standard price and the
+explicit Nitro price independently, in the same API request as classification.
+The selected mode determines both the Discord amount used for lookup and the
+shop-price table. A missing Nitro price never falls back to standard or original
+prices; a missing standard price never falls back to Nitro.
+
+**Both** displays two labelled quotes for the same detected product type from
+one Gemini request. Each tier uses its own visible Discord price and shop table.
+If only one price is visible, the available tier is quoted and the other says
+“ไม่พบราคาในรูป”. A visible price without a matching rule uses the configured
+unmatched-price message for that tier. If neither price is visible, the image
+receives the normal not-found result. One image remains one result in the counts.
+
+There are four independently editable tables: single/standard, bundle/standard,
+single/Nitro and bundle/Nitro. Rows use `itemType`, `pricingMode`,
+`discordPriceSatang` and `shopPriceSatang`. Equal Discord prices may have different
+shop prices in different categories. Duplicate amounts inside one category are
+rejected; satang must be whole numbers. Up to 400 rows are supported in total.
+The existing tolerance applies only inside the selected category. An absent
+category never borrows another category's price.
+
+Gemini must identify one purchasable listing. A labelled bundle or several
+included components under one purchase price is `BUNDLE`, even though it contains
+multiple products. A clearly individual item is `SINGLE`. Insufficient evidence
+is `UNKNOWN` and receives an explanation instead of a quote. Multiple independent
+listings or conflicting prices remain ambiguous. Neither type nor membership is
+inferred from a price or a product name alone.
+
+The old `PRICE_READER_PRICE_MAP` remains preserved during upgrade. New category
+tables start empty because old rows do not identify a type or membership mode.
+Select the intended category and use **Import old prices into this table** for
+an empty category, then review its prices before saving. Import never overwrites
+a non-empty table or populates another category automatically.
+
+Results expose `item_type`, `item_type_key`, `pricing_mode`, `pricing_mode_key`,
+`standard_price` and `nitro_price`, plus `standard_shop_price`, `nitro_shop_price`
+and their `_text` variants. In Both mode `discord_price` and `shop_price_text`
+contain both labelled values, so the default template and existing blocks show
+both tiers. `shop_price`, `matched_discord_price` and `match_distance` are blank
+in Both mode because they describe a single quote; use the tier-specific fields
+in custom designs. `shop_price_found` is true only if both tiers match.
+The new default template names the product type and mode;
+upgraded custom templates and message designs are preserved. Browser rehearsal
+and Discord share classification validation and category matching.
+
+Apply `20261102000003_price_reader_pricing_modes.sql` and
+`20261102000004_price_reader_both_modes.sql` after all earlier pending
+migrations, release Backend and Runner together, then Frontend, and publish the
+new draft **3.1.0** version. The preview API selects its schema from the licensed
+configuration definitions; clients cannot opt a 3.0 license into the new contract.
+Versions 1.0, 2.0 and 3.0 retain their original price-selection behaviour.

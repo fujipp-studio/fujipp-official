@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 import PriceMapEditor from '../features/bots/components/PriceMapEditor.vue'
 import {
@@ -8,6 +9,10 @@ import {
 } from '../features/bots/config/price-reader'
 import PriceReaderResultEditor from '../features/bots/components/PriceReaderResultEditor.vue'
 import { priceReaderPresentationPreview } from '../features/bots/models/price-reader-presentation-preview'
+import FeatureConfigField from '../features/bots/components/FeatureConfigField.vue'
+import { featureEditorKey } from '../features/bots/composables/featureEditorContext'
+import { priceReaderFixture } from './fixtures/priceReader'
+import { validPriceRules } from '@price-reader/classified-pricing'
 const global = { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en: {} } })] }
 const original = [
   { discordPrice: 250, shopPrice: 55, future: { keep: true } },
@@ -17,6 +22,63 @@ const output = (wrapper: ReturnType<typeof mount>) =>
   JSON.parse(String(wrapper.emitted('update:modelValue')?.at(-1)?.[0]))
 
 describe('Price Reader', () => {
+  it('uses independent mode and category tables in v3.1 previews and blocks malformed rules', () => {
+    const { config } = priceReaderFixture('3.1.0')
+    const values = Object.fromEntries(
+      config.fields
+        .filter((field) => !field.secret)
+        .map((field) => [
+          field.key,
+          field.type === 'JSON' ? JSON.stringify(field.value) : field.value,
+        ]),
+    )
+    expect(validatePriceReaderDraft(values)).toBe(true)
+    expect(priceReaderSampleValues(values, '3.1.0').shop_price).toBe('55.00')
+    expect(
+      priceReaderSampleValues({ ...values, PRICE_READER_PRICING_MODE: 'NITRO' }, '3.1.0')
+        .shop_price,
+    ).toBe('45.00')
+    const both = { ...values, PRICE_READER_PRICING_MODE: 'BOTH' }
+    expect(validatePriceReaderDraft(both)).toBe(true)
+    const preview = priceReaderSampleValues(both, '3.1.0')
+    expect(preview.standard_price).toBe('250.00')
+    expect(preview.nitro_price).toBe('209.00')
+    expect(preview.standard_shop_price).toBe('55.00')
+    expect(preview.nitro_shop_price).toBe('45.00')
+    expect(preview.results_text).toContain('ไม่มี Nitro: 55.00 บาท / มี Nitro: 45.00 บาท')
+    expect(validPriceRules(JSON.parse(String(values.PRICE_READER_PRICE_RULES)))).toBe(true)
+    expect(validatePriceReaderDraft({ ...values, PRICE_READER_PRICE_RULES: '[{}]' })).toBe(false)
+    expect(validatePriceReaderDraft({ ...values, PRICE_READER_PRICING_MODE: 'AUTO' })).toBe(false)
+  })
+  it('accepts dotted Google auth keys and gives an API key error for malformed input', async () => {
+    const { config } = priceReaderFixture('3.0.0')
+    const secrets = ref({ GEMINI_API_KEY: 'AQ.synthetic-customer.gemini-key' })
+    const wrapper = mount(FeatureConfigField, {
+      props: { fieldKey: 'GEMINI_API_KEY', formatError: 'Check the API key format.' },
+      global: {
+        provide: {
+          [featureEditorKey as symbol]: {
+            configuration: ref(config),
+            values: ref({}),
+            secrets,
+            fieldOptions: () => [],
+            configFieldLabel: () => 'Gemini API key',
+            configFieldDescription: () => '',
+            text: (english: string) => english,
+          },
+        },
+      },
+    })
+    const input = wrapper.get('input')
+    expect(input.attributes('aria-invalid')).toBe('false')
+    await input.setValue('invalid key with spaces')
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.text()).toContain('Check the API key format.')
+    expect(wrapper.text()).not.toContain('number format')
+    await input.setValue('AIza-synthetic-legacy-google-key')
+    expect(input.attributes('aria-invalid')).toBe('false')
+    wrapper.unmount()
+  })
   it('keeps saved blocks when switching to a template and back', async () => {
     const blocks = JSON.stringify([
       { id: 'custom', enabled: true, text: 'My shop {{shop_price_text}}' },

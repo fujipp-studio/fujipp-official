@@ -17,7 +17,7 @@ class PriceReaderTestServiceTests {
     private final AdminBotRepository bots=mock(AdminBotRepository.class);
     private final PriceReaderTestService service=new PriceReaderTestService(repository,users,cipher,gemini,bots);
     private final UUID bot=UUID.randomUUID(), owner=UUID.randomUUID(), licenseId=UUID.randomUUID(), definition=UUID.randomUUID();
-    private final String key="synthetic-gemini-key-for-tests";
+    private final String key="AQ.synthetic-gemini.key-for-tests";
     private final StoreRepository.LicenseContext license=new StoreRepository.LicenseContext(licenseId,UUID.randomUUID(),UUID.randomUUID(),"ACTIVE",null,UUID.randomUUID(),1,bot);
     private PriceReaderTestController.Request request(String key) { return new PriceReaderTestController.Request(key,PriceReaderGeminiClient.DEFAULT_MODEL,null,null); }
     private void authorize() {
@@ -65,4 +65,13 @@ class PriceReaderTestServiceTests {
         assertThatThrownBy(()->service.testAdmin(bot,licenseId,request(key))).isInstanceOf(StoreConflictException.class);
         verifyNoInteractions(gemini);
     }
+    @Test void previewContractFollowsTheLicensedVersionRatherThanClientInput() {
+        authorize();
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+            new StoreRepository.ConfigDefinition(definition,"GEMINI_API_KEY","SECRET",true),
+            new StoreRepository.ConfigDefinition(UUID.randomUUID(),"PRICE_READER_PRICING_MODE","ENUM",false)));
+        service.testAdmin(bot,licenseId,request(key));
+        verify(gemini).test(key,PriceReaderGeminiClient.DEFAULT_MODEL,null,null,true);
+    }
+
 }

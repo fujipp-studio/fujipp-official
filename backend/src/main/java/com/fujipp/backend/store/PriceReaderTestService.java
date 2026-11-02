@@ -30,7 +30,8 @@ class PriceReaderTestService {
         var license=repository.findLicense(licenseId,owner).orElseThrow(()->new StoreNotFoundException("Feature license was not found"));
         if (!"ACTIVE".equals(license.status()) || license.expiresAt()!=null && !license.expiresAt().isAfter(OffsetDateTime.now()))
             throw new StoreConflictException("Feature license is not active");
-        var definition=repository.findConfigDefinitions(license.versionId()).stream()
+        var definitions=repository.findConfigDefinitions(license.versionId());
+        var definition=definitions.stream()
             .filter(d->d.secret() && d.key().equals("GEMINI_API_KEY")).findFirst()
             .orElseThrow(()->new StoreValidationException("Upgrade Price Reader to 3.0.0 before using Gemini"));
         String key=request.apiKey();
@@ -51,6 +52,8 @@ class PriceReaderTestService {
                 if (bytes.length==0 || bytes.length>10*1024*1024) throw new IllegalArgumentException();
             } catch (IllegalArgumentException error) { throw new StoreValidationException("Image must be valid base64 and at most 10 MB"); }
         }
-        return gemini.test(key,model,request.imageBase64(),request.mimeType());
+        boolean classified=definitions.stream().anyMatch(d->d.key().equals("PRICE_READER_PRICING_MODE"));
+        return classified ? gemini.test(key,model,request.imageBase64(),request.mimeType(),true)
+            : gemini.test(key,model,request.imageBase64(),request.mimeType());
     }
 }

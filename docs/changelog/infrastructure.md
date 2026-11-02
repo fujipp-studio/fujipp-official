@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Coordinated Price Reader extraction and pricing-mode contracts across Backend and Runner, with feature ownership, browser coverage and unchanged bundle limits. |
 | 2026-11-02 | Mapped Gemini Price Reader source ownership, preview APIs and contract checks across application and database delivery scopes. |
 | 2026-11-01 | Standardized Discord CI reports with English status labels, FUJIPP STUDIO branding, clear revision metadata and compatible updates to existing cards. |
 | 2026-11-01 | Consolidated CI/CD notifications into one Discord card per revision with durable message updates, failure links and recovery that avoids uncertain duplicate sends. |

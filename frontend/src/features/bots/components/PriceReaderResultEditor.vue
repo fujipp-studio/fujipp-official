@@ -13,6 +13,7 @@ const props = defineProps<{
   withMarkup: boolean
   canUseBlocks: boolean
   mode?: string
+  extraVariables?: string[]
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -55,6 +56,7 @@ const visual = computed(
 )
 const variables = computed(() => [
   ...itemVariables,
+  ...(props.extraVariables ?? []),
   ...(props.withMarkup ? ['no_nitro_markup'] : []),
 ])
 function commit(next: ResultBlock[]) {
