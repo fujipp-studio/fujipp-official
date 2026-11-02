@@ -17,6 +17,7 @@ its ownership and coverage when adding or moving code.
   Backend. Unknown files inside either service select that service conservatively.
 - Price Reader Gemini gateway changes pair Backend and Runner because dashboard
   extraction and Discord reads share a versioned schema and classification contract.
+  Pricing-mode validation changes also pair both services so saved mode enums remain compatible.
 - API controllers, request/response/status classes, Runtime/bootstrap/configuration,
   Runner API/types and delivery infrastructure select both services.
   This is deliberately broader than just DTO syntax; semantic contract changes

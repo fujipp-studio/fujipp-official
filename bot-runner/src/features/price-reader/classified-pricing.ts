@@ -1,5 +1,5 @@
 import { geminiPriceSchema, parseGeminiPrice, type GeminiPrice } from './gemini-contract.js';
-import { readGeminiResult, type ImageResult, type PriceReaderConfig } from './results.js';
+import { readGeminiResult, imageError, money, type ImageResult, type PriceReaderConfig } from './results.js';
 
 export type PricingMode = 'STANDARD' | 'NITRO';
 export type ItemType = 'SINGLE' | 'BUNDLE';
@@ -10,6 +10,8 @@ export interface PriceRule {
   discordPriceSatang: number;
   shopPriceSatang: number;
 }
+export const classifiedResultVariables = ['item_type', 'pricing_mode', 'standard_price', 'nitro_price',
+  'standard_shop_price', 'nitro_shop_price', 'standard_shop_price_text', 'nitro_shop_price_text'];
 export const classifiedGeminiPriceSchema = {
   ...geminiPriceSchema,
   properties: { ...geminiPriceSchema.properties, itemType: { type: 'string', enum: ['SINGLE', 'BUNDLE', 'UNKNOWN'] } },
@@ -50,15 +52,36 @@ export function readClassifiedGeminiResult(value: unknown, config: PriceReaderCo
   const fail = (message: string): ImageResult => ({ status: 'error', error_message: message });
   if (data.itemType === 'UNKNOWN') return fail('ระบุไม่ได้ว่าเป็นบันเดิลหรือชิ้นเดียว กรุณาส่งรูปที่เห็นประเภทสินค้าและราคาชัดเจน');
   const mode = config.PRICE_READER_PRICING_MODE;
-  if (mode !== 'STANDARD' && mode !== 'NITRO') return fail('กรุณาตั้งค่าโหมดราคาใน Price Reader');
-  if (!validPriceRules(config.PRICE_READER_PRICE_RULES)) return fail('กรุณาตรวจสอบตารางราคารับกดใน Price Reader');
-  const selected = mode === 'NITRO' ? data.nitroPriceSatang : data.standardPriceSatang;
-  if (selected === null) return fail(mode === 'NITRO'
+  if (mode !== 'STANDARD' && mode !== 'NITRO' && mode !== 'BOTH') return fail('กรุณาตั้งค่าโหมดราคาใน Price Reader');
+  const rules = config.PRICE_READER_PRICE_RULES;
+  if (!validPriceRules(rules)) return fail('กรุณาตรวจสอบตารางราคารับกดใน Price Reader');
+  if (data.ambiguous || data.currency !== 'THB') return imageError(config, 'not_found');
+  const quote = (tier: PricingMode, price: number | null) => price === null ? null : readGeminiResult(
+    { ...data, standardPriceSatang: price },
+    { ...config, PRICE_READER_PRICE_MAP: rules.filter(rule => rule.itemType === data.itemType && rule.pricingMode === tier) },
+  );
+  const standard = quote('STANDARD', data.standardPriceSatang);
+  const nitro = quote('NITRO', data.nitroPriceSatang);
+  const missing = 'ไม่พบราคาในรูป';
+  const shop = (result: ImageResult | null) => result?.shop_price_text ?? missing;
+  const vars = {
+    item_type: data.itemType === 'BUNDLE' ? 'บันเดิล' : 'ชิ้นเดียว', item_type_key: data.itemType,
+    pricing_mode: mode === 'BOTH' ? 'ไม่มี Nitro / มี Nitro' : mode === 'NITRO' ? 'มี Nitro' : 'ไม่มี Nitro', pricing_mode_key: mode,
+    standard_price: data.standardPriceSatang === null ? '' : money(data.standardPriceSatang),
+    nitro_price: data.nitroPriceSatang === null ? '' : money(data.nitroPriceSatang),
+    standard_shop_price: standard?.shop_price ?? '', nitro_shop_price: nitro?.shop_price ?? '',
+    standard_shop_price_text: shop(standard), nitro_shop_price_text: shop(nitro),
+  };
+  if (mode === 'BOTH') {
+    if (!standard && !nitro) return imageError(config, 'not_found');
+    return { ...(standard ?? nitro)!, ...vars,
+      discord_price: `ไม่มี Nitro: ${vars.standard_price || missing} / มี Nitro: ${vars.nitro_price || missing}`,
+      shop_price: '', shop_price_text: `ไม่มี Nitro: ${shop(standard)} / มี Nitro: ${shop(nitro)}`,
+      shop_price_found: String(standard?.shop_price_found === 'true' && nitro?.shop_price_found === 'true'),
+      matched_discord_price: '', match_distance: '' };
+  }
+  const result = mode === 'NITRO' ? nitro : standard;
+  return result ? { ...result, ...vars } : fail(mode === 'NITRO'
     ? 'ไม่พบราคา Nitro ที่อ่านได้ในรูป กรุณาส่งรูปที่แสดงราคา Nitro ชัดเจน'
     : 'ไม่พบราคาปกติที่อ่านได้ในรูป กรุณาส่งรูปที่แสดงราคาสำหรับผู้ไม่มี Nitro ชัดเจน');
-  const rows = config.PRICE_READER_PRICE_RULES.filter(rule => rule.itemType === data.itemType && rule.pricingMode === mode);
-  const result = readGeminiResult({ ...data, standardPriceSatang: selected }, { ...config, PRICE_READER_PRICE_MAP: rows });
-  return { ...result, item_type: data.itemType === 'BUNDLE' ? 'บันเดิล' : 'ชิ้นเดียว', item_type_key: data.itemType,
-    pricing_mode: mode === 'NITRO' ? 'มี Nitro' : 'ไม่มี Nitro', pricing_mode_key: mode,
-    standard_price: data.standardPriceSatang === null ? '' : (data.standardPriceSatang / 100).toFixed(2) };
 }

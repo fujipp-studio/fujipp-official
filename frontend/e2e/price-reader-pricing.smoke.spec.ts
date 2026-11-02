@@ -25,6 +25,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       await route.fulfill({ json: config })
     })
     let itemType = 'BUNDLE',
+      standard: number | null = 25000,
       nitro: number | null = 20900
     await page.route('**/price-reader/test', (route) =>
       route.fulfill({
@@ -35,7 +36,7 @@ for (const theme of ['LIGHT', 'DARK']) {
             itemType,
             itemName: 'Bundle',
             currency: 'THB',
-            standardPriceSatang: 25000,
+            standardPriceSatang: standard,
             nitroPriceSatang: nitro,
             originalPriceSatang: 29500,
             discountPercent: 15,
@@ -79,12 +80,15 @@ for (const theme of ['LIGHT', 'DARK']) {
     await select('ตารางที่กำลังแก้ไข', 'บันเดิล · มี Nitro')
     await expect(shop()).toHaveValue('70')
     await shop().fill('75')
+    await select('ราคาที่บอทใช้', 'ทั้งสองแบบ · ไม่มี Nitro และมี Nitro')
+    await expect(shop()).toHaveValue('75')
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await settings.screenshot({
       path: testInfo.outputPath(`pricing-${theme}.png`),
       animations: 'disabled',
       style: '.navbar, .admin-tools, .app-scroll-rail { visibility: hidden !important; }',
     })
+    await select('ราคาที่บอทใช้', 'มี Nitro · ใช้ราคา Nitro ในรูป')
     await category('ทดสอบ')
     const panel = settings.locator('[data-price-reader-test]')
     await panel.locator('input[type="file"]').setInputFiles({
@@ -115,6 +119,27 @@ for (const theme of ['LIGHT', 'DARK']) {
     await read.click()
     await expect(panel.locator('[data-price-test-match]')).toContainText('250.00')
     await expect(panel.locator('[data-price-test-match]')).toContainText('90.00 บาท')
+    await category('ตารางราคา')
+    await select('ราคาที่บอทใช้', 'ทั้งสองแบบ · ไม่มี Nitro และมี Nitro')
+    await category('ทดสอบ')
+    const match = panel.locator('[data-price-test-match]')
+    await expect(match).toContainText('ไม่มี Nitro: 90.00 บาท / มี Nitro: 75.00 บาท')
+    await expect(panel.locator('.preview-shell')).toContainText(
+      'ไม่มี Nitro: 90.00 บาท / มี Nitro: 75.00 บาท',
+    )
+    await settings.screenshot({
+      path: testInfo.outputPath(`both-result-${theme}.png`),
+      animations: 'disabled',
+    })
+    nitro = null
+    await read.click()
+    await expect(match).toContainText('ไม่มี Nitro: 90.00 บาท / มี Nitro: ไม่พบราคาในรูป')
+    nitro = 20900
+    standard = null
+    await read.click()
+    await expect(match).toContainText('ไม่มี Nitro: ไม่พบราคาในรูป / มี Nitro: 75.00 บาท')
+    standard = 25000
+    await read.click()
     const save = page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true })
     await save.click()
     await page
@@ -123,7 +148,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       .click()
     await expect(save).toBeDisabled()
     expect(saved?.values.PRICE_READER_PRICE_MAP).toEqual(legacy)
-    expect(saved?.values.PRICE_READER_PRICING_MODE).toBe('STANDARD')
+    expect(saved?.values.PRICE_READER_PRICING_MODE).toBe('BOTH')
     expect(saved?.values.PRICE_READER_PRICE_RULES).toEqual(
       expect.arrayContaining([
         {
@@ -142,6 +167,9 @@ for (const theme of ['LIGHT', 'DARK']) {
     )
     await page.reload()
     await category('ตารางราคา')
+    await expect(
+      editor.getByRole('combobox', { name: 'ราคาที่บอทใช้', exact: true }),
+    ).toContainText('ทั้งสองแบบ')
     await expect(shop()).toHaveValue('55')
     await select('ตารางที่กำลังแก้ไข', 'บันเดิล · มี Nitro')
     await expect(shop()).toHaveValue('75')

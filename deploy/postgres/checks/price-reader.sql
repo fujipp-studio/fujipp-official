@@ -40,5 +40,9 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_PRICE_MAP')
  THEN RAISE EXCEPTION 'Legacy prices must remain available for reviewed import'; END IF;
  IF NOT EXISTS(SELECT 1 FROM shop.feature_presentation_slots WHERE feature_version_id=target AND slot_key='result'
-   AND available_variables @> ARRAY['item_type','pricing_mode','standard_price','nitro_price']) THEN RAISE EXCEPTION 'Missing classified result variables'; END IF;
+   AND available_variables @> ARRAY['item_type','pricing_mode','standard_price','nitro_price','standard_shop_price','nitro_shop_price','standard_shop_price_text','nitro_shop_price_text']) THEN RAISE EXCEPTION 'Missing classified result variables'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_PRICING_MODE'
+   AND validation_schema->'enum' @> '["STANDARD","NITRO","BOTH"]'::jsonb
+   AND ui_metadata->'options' @> '["STANDARD","NITRO","BOTH"]'::jsonb)
+ THEN RAISE EXCEPTION 'Missing dual pricing mode'; END IF;
 END $$;

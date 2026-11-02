@@ -102,8 +102,8 @@ async function testImage() {
         gemini.value && cause instanceof Error
           ? cause.message
           : text(
-              'Unable to read this image. Choose a PNG, JPEG or WebP up to 10 MB and check your connection, then try again.',
-              'อ่านรูปไม่สำเร็จ เลือก PNG, JPEG หรือ WebP ไม่เกิน 10 MB ตรวจสอบการเชื่อมต่อ แล้วลองอีกครั้ง',
+              'Read failed. Check the file and connection, then retry.',
+              'อ่านไม่สำเร็จ ตรวจไฟล์และการเชื่อมต่อ แล้วลองอีกครั้ง',
             )
     if (cause instanceof Error && cause.name === 'AbortError') return
   } finally {
@@ -119,8 +119,8 @@ async function testImage() {
       :title="text('Test before saving', 'ทดสอบก่อนบันทึก')"
       :description="
         text(
-          'Uses your current draft. No settings are saved and no messages are sent to Discord.',
-          'ใช้ค่าที่กำลังแก้ไข โดยไม่บันทึกค่าและไม่ส่งข้อความเข้า Discord',
+          'Uses your draft without saving or posting to Discord.',
+          'ใช้ค่าที่แก้ไข โดยไม่บันทึกหรือส่งเข้า Discord',
         )
       "
     >
@@ -160,12 +160,12 @@ async function testImage() {
           {{
             gemini
               ? text(
-                  'This image is sent to Google Gemini using your draft or saved key and consumes your project quota. Nothing is posted to Discord. The bot may resize images before reading.',
-                  'รูปทดสอบจะถูกส่งไป Google Gemini ด้วย key ที่กรอกหรือบันทึกไว้ และใช้โควตาโปรเจกต์ของคุณ โดยไม่ส่งเข้า Discord บอทอาจปรับขนาดรูปก่อนอ่าน',
+                  'Sends the image to Google Gemini using your key and quota. The bot may resize it.',
+                  'ส่งรูปไป Google Gemini ด้วย key และโควตาของคุณ บอทอาจย่อรูปก่อนอ่าน',
                 )
               : text(
-                  'Images stay in this browser. The first run downloads OCR language files. Image preprocessing differs from the bot, so OCR results may differ; price matching and message rules are shared.',
-                  'รูปประมวลผลในเบราว์เซอร์ ครั้งแรกจะดาวน์โหลดไฟล์ภาษา OCR การเตรียมรูปต่างจากบอทจึงอาจอ่านได้ต่างกัน แต่ใช้กฎจับคู่ราคาและสร้างข้อความชุดเดียวกัน',
+                  'OCR runs locally, downloading languages on first use. Image preparation differs from the bot; matching and message rules are shared.',
+                  'OCR อ่านในเบราว์เซอร์และโหลดภาษาครั้งแรก เตรียมรูปต่างจากบอท แต่ใช้กฎจับคู่ราคาและข้อความเดียวกัน',
                 )
           }}
         </p>

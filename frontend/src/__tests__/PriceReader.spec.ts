@@ -38,6 +38,14 @@ describe('Price Reader', () => {
       priceReaderSampleValues({ ...values, PRICE_READER_PRICING_MODE: 'NITRO' }, '3.1.0')
         .shop_price,
     ).toBe('45.00')
+    const both = { ...values, PRICE_READER_PRICING_MODE: 'BOTH' }
+    expect(validatePriceReaderDraft(both)).toBe(true)
+    const preview = priceReaderSampleValues(both, '3.1.0')
+    expect(preview.standard_price).toBe('250.00')
+    expect(preview.nitro_price).toBe('209.00')
+    expect(preview.standard_shop_price).toBe('55.00')
+    expect(preview.nitro_shop_price).toBe('45.00')
+    expect(preview.results_text).toContain('ไม่มี Nitro: 55.00 บาท / มี Nitro: 45.00 บาท')
     expect(validPriceRules(JSON.parse(String(values.PRICE_READER_PRICE_RULES)))).toBe(true)
     expect(validatePriceReaderDraft({ ...values, PRICE_READER_PRICE_RULES: '[{}]' })).toBe(false)
     expect(validatePriceReaderDraft({ ...values, PRICE_READER_PRICING_MODE: 'AUTO' })).toBe(false)

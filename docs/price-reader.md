@@ -102,12 +102,19 @@ See [image input](https://ai.google.dev/gemini-api/docs/image-understanding),
 
 ## Version 3.1.0: Nitro modes and product types
 
-The owner selects **Without Nitro** (`STANDARD`) or **With Nitro** (`NITRO`) in
+The owner selects **Without Nitro** (`STANDARD`), **With Nitro** (`NITRO`) or **Both** (`BOTH`) in
 **Pricing → Shop pricing mode**. Gemini reads the current standard price and the
 explicit Nitro price independently, in the same API request as classification.
 The selected mode determines both the Discord amount used for lookup and the
 shop-price table. A missing Nitro price never falls back to standard or original
 prices; a missing standard price never falls back to Nitro.
+
+**Both** displays two labelled quotes for the same detected product type from
+one Gemini request. Each tier uses its own visible Discord price and shop table.
+If only one price is visible, the available tier is quoted and the other says
+“ไม่พบราคาในรูป”. A visible price without a matching rule uses the configured
+unmatched-price message for that tier. If neither price is visible, the image
+receives the normal not-found result. One image remains one result in the counts.
 
 There are four independently editable tables: single/standard, bundle/standard,
 single/Nitro and bundle/Nitro. Rows use `itemType`, `pricingMode`,
@@ -131,12 +138,18 @@ an empty category, then review its prices before saving. Import never overwrites
 a non-empty table or populates another category automatically.
 
 Results expose `item_type`, `item_type_key`, `pricing_mode`, `pricing_mode_key`,
-`standard_price` and `nitro_price`, plus the existing `discord_price` (selected
-mode) and `shop_price`. The new default template names the product type and mode;
+`standard_price` and `nitro_price`, plus `standard_shop_price`, `nitro_shop_price`
+and their `_text` variants. In Both mode `discord_price` and `shop_price_text`
+contain both labelled values, so the default template and existing blocks show
+both tiers. `shop_price`, `matched_discord_price` and `match_distance` are blank
+in Both mode because they describe a single quote; use the tier-specific fields
+in custom designs. `shop_price_found` is true only if both tiers match.
+The new default template names the product type and mode;
 upgraded custom templates and message designs are preserved. Browser rehearsal
 and Discord share classification validation and category matching.
 
-Apply `20261102000003_price_reader_pricing_modes.sql` after all earlier pending
+Apply `20261102000003_price_reader_pricing_modes.sql` and
+`20261102000004_price_reader_both_modes.sql` after all earlier pending
 migrations, release Backend and Runner together, then Frontend, and publish the
 new draft **3.1.0** version. The preview API selects its schema from the licensed
 configuration definitions; clients cannot opt a 3.0 license into the new contract.

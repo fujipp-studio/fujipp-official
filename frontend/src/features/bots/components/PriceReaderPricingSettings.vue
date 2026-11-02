@@ -15,9 +15,9 @@ const mode = computed({
     values.value.PRICE_READER_PRICING_MODE = value
   },
 })
-const selected = ref(`${mode.value}/SINGLE`)
+const selected = ref(`${mode.value === 'BOTH' ? 'STANDARD' : mode.value}/SINGLE`)
 watch(mode, (value) => {
-  selected.value = `${value}/${selected.value.split('/')[1] ?? 'SINGLE'}`
+  if (value !== 'BOTH') selected.value = `${value}/${selected.value.split('/')[1] ?? 'SINGLE'}`
 })
 const options = computed(() => [
   { value: 'STANDARD/SINGLE', label: text('Single · without Nitro', 'ชิ้นเดียว · ไม่มี Nitro') },
@@ -113,6 +113,10 @@ function importLegacy() {
         variant="dropdown"
         :options="[
           {
+            value: 'BOTH',
+            label: text('Both · without and with Nitro', 'ทั้งสองแบบ · ไม่มี Nitro และมี Nitro'),
+          },
+          {
             value: 'STANDARD',
             label: text(
               'Without Nitro · standard Discord price',
@@ -128,8 +132,8 @@ function importLegacy() {
       <p class="mt-sm text-sm text-text-secondary">
         {{
           text(
-            'Both prices are read independently. A missing selected price is reported; the bot never substitutes another price or product type.',
-            'อ่านราคาทั้งสองแบบแยกกัน หากไม่พบราคาของโหมดที่เลือก บอทจะแจ้งแทนการใช้ราคาอีกแบบหรือข้ามประเภทสินค้า',
+            'Both mode shows two independent quotes. Missing prices are marked; prices and product types are never substituted.',
+            'โหมดทั้งสองแบบแสดงราคาแยกกัน หากขาดราคาใดจะแจ้งเฉพาะด้านนั้น โดยไม่ใช้ราคาหรือประเภทอื่นแทน',
           )
         }}
       </p>

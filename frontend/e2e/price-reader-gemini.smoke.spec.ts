@@ -93,7 +93,7 @@ for (const theme of ['LIGHT', 'DARK']) {
     })
     await category('ทดสอบ')
     const panel = settings.locator('[data-price-reader-test]')
-    await expect(panel).toContainText('รูปทดสอบจะถูกส่งไป Google Gemini')
+    await expect(panel).toContainText('ส่งรูปไป Google Gemini ด้วย key และโควตาของคุณ')
     await panel.locator('input[type="file"]').setInputFiles({
       name: 'shop.png',
       mimeType: 'image/png',

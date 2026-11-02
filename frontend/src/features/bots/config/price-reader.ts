@@ -67,7 +67,8 @@ export function validatePriceReaderDraft(values: Record<string, unknown>): boole
   )
     return false
   if (values.PRICE_READER_PRICING_MODE !== undefined) {
-    if (!['STANDARD', 'NITRO'].includes(String(values.PRICE_READER_PRICING_MODE))) return false
+    if (!['STANDARD', 'NITRO', 'BOTH'].includes(String(values.PRICE_READER_PRICING_MODE)))
+      return false
     if (!validPriceRules(priceReaderRuntimeConfig(values).PRICE_READER_PRICE_RULES)) return false
   }
   const mode = values.PRICE_READER_RESULT_MODE
@@ -148,9 +149,15 @@ export function priceReaderSampleValues(
       ? config.PRICE_READER_PRICE_RULES
       : []
     const selected = rules
-      .filter((row) => row.pricingMode === config.PRICE_READER_PRICING_MODE)
+      .filter((row, index) =>
+        config.PRICE_READER_PRICING_MODE === 'BOTH'
+          ? rules.findIndex((rule) => rule.itemType === row.itemType) === index
+          : row.pricingMode === config.PRICE_READER_PRICING_MODE,
+      )
       .slice(0, 2)
-    const samples = selected.length ? selected : [{ itemType: 'SINGLE', discordPriceSatang: 25000 }]
+    const samples = selected.length
+      ? selected
+      : [{ itemType: 'SINGLE', pricingMode: 'STANDARD', discordPriceSatang: 25000 }]
     const results =
       scenario === 'error' || scenario === 'ocr_error'
         ? [imageError(config, scenario === 'error' ? 'not_found' : 'ocr_error')]
@@ -160,8 +167,23 @@ export function priceReaderSampleValues(
                 itemName: 'Discord Shop',
                 currency: 'THB',
                 itemType: row.itemType,
-                standardPriceSatang: scenario === 'unmatched' ? 99999900 : row.discordPriceSatang,
-                nitroPriceSatang: scenario === 'unmatched' ? 99999900 : row.discordPriceSatang,
+                standardPriceSatang:
+                  scenario === 'unmatched'
+                    ? 99999900
+                    : row.pricingMode === 'STANDARD'
+                      ? row.discordPriceSatang
+                      : (rules.find(
+                          (rule) =>
+                            rule.itemType === row.itemType && rule.pricingMode === 'STANDARD',
+                        )?.discordPriceSatang ?? null),
+                nitroPriceSatang:
+                  scenario === 'unmatched'
+                    ? 99999900
+                    : row.pricingMode === 'NITRO'
+                      ? row.discordPriceSatang
+                      : (rules.find(
+                          (rule) => rule.itemType === row.itemType && rule.pricingMode === 'NITRO',
+                        )?.discordPriceSatang ?? null),
                 originalPriceSatang: null,
                 discountPercent: null,
                 ambiguous: false,

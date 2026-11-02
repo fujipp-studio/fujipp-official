@@ -9,8 +9,8 @@ final class PriceReaderConfigurationValidator {
 
     static void validate(Map<String, JsonNode> values) {
         JsonNode pricingMode = values.get("PRICE_READER_PRICING_MODE");
-        if (pricingMode != null && (!pricingMode.isTextual() || !(pricingMode.asText().equals("STANDARD") || pricingMode.asText().equals("NITRO"))))
-            throw new StoreValidationException("Price Reader pricing mode must be STANDARD or NITRO");
+        if (pricingMode != null && (!pricingMode.isTextual() || !(pricingMode.asText().equals("STANDARD") || pricingMode.asText().equals("NITRO") || pricingMode.asText().equals("BOTH"))))
+            throw new StoreValidationException("Price Reader pricing mode must be STANDARD, NITRO or BOTH");
         validateRules(values.get("PRICE_READER_PRICE_RULES"));
         JsonNode model = values.get("PRICE_READER_GEMINI_MODEL");
         if (model != null && (!model.isTextual() || !model.asText().matches(PriceReaderGeminiClient.MODEL_PATTERN))) {

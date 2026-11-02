@@ -23,7 +23,8 @@
     "backend/src/main/java/com/fujipp/backend/roleshop/RoleShopPurchase.java",
     "backend/src/main/java/com/fujipp/backend/spending/MemberSpendingRepository.java",
     "backend/src/main/java/com/fujipp/backend/store/TicketRecordRepository.java",
-    "backend/src/main/java/com/fujipp/backend/store/PriceReaderGeminiClient.java"
+    "backend/src/main/java/com/fujipp/backend/store/PriceReaderGeminiClient.java",
+    "backend/src/main/java/com/fujipp/backend/store/PriceReaderConfigurationValidator.java"
   ],
   "pairedBackendSuffixes": [
     "Controller.java",

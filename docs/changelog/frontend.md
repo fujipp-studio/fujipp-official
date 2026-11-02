@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-11-02 | Added selectable Price Reader pricing modes and four editable single-item and bundle tables with explicit legacy imports and classified image previews. |
+| 2026-11-02 | Added three Price Reader pricing modes, including simultaneous Nitro quotes, with four category tables, reviewed legacy imports and classified image previews. |
 | 2026-11-02 | Accepted Gemini AQ. auth keys and replaced the misleading number-format error with API-key-specific validation feedback. |
 | 2026-11-02 | Added Gemini key and model settings with connection checks, image rehearsals and responsive Thai/English disclosure of customer quota and image processing. |
 | 2026-11-01 | Added administrator impersonation with a selected-user confirmation, persistent return controls, 15-minute expiry and Thai/English responsive layouts while preserving route bundle budgets. |

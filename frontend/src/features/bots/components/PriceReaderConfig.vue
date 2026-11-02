@@ -6,6 +6,7 @@ import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import FeatureConfigField from './FeatureConfigField.vue'
 import { priceReaderSampleValues, priceReaderPricePairs } from '../config/price-reader'
+import { classifiedResultVariables } from '@price-reader/classified-pricing'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
 const { text, values, configuration, license, previewBot } = useFeatureEditor()
@@ -255,9 +256,7 @@ const statusFields = computed(() =>
               field('PRICE_READER_RESULT_MODE') ? value('PRICE_READER_RESULT_MODE') : undefined
             "
             :with-markup="Boolean(license?.version.startsWith('1.'))"
-            :extra-variables="
-              classified ? ['item_type', 'pricing_mode', 'standard_price', 'nitro_price'] : []
-            "
+            :extra-variables="classified ? classifiedResultVariables : []"
             :can-use-blocks="Boolean(field('PRICE_READER_RESULT_BLOCKS'))"
             @update:model-value="values.PRICE_READER_RESULT_BLOCKS = $event"
             @update:template="values.PRICE_READER_RESULTS_ITEM_TEMPLATE = $event"
@@ -323,9 +322,14 @@ const statusFields = computed(() =>
               <dd class="mt-xs font-medium">
                 {{
                   classified
-                    ? value('PRICE_READER_PRICING_MODE') === 'NITRO'
-                      ? text('Nitro Discord price', 'ราคา Nitro ของ Discord')
-                      : text('Standard Discord price', 'ราคาปกติของ Discord')
+                    ? value('PRICE_READER_PRICING_MODE') === 'BOTH'
+                      ? text(
+                          'Standard and Nitro Discord prices',
+                          'ราคาปกติและราคา Nitro ของ Discord',
+                        )
+                      : value('PRICE_READER_PRICING_MODE') === 'NITRO'
+                        ? text('Nitro Discord price', 'ราคา Nitro ของ Discord')
+                        : text('Standard Discord price', 'ราคาปกติของ Discord')
                     : !license?.version.startsWith('1.')
                       ? text('Standard Discord price', 'ราคาปกติของ Discord')
                       : text('Detected Discord price', 'ราคา Discord ที่อ่านได้จากรูป')

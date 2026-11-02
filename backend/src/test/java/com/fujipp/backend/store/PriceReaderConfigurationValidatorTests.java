@@ -55,10 +55,12 @@ class PriceReaderConfigurationValidatorTests {
            {"itemType":"SINGLE","pricingMode":"NITRO","discordPriceSatang":25000,"shopPriceSatang":4500}]
           """);
         assertThatCode(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICING_MODE",mapper.valueToTree("NITRO"),"PRICE_READER_PRICE_RULES",rows))).doesNotThrowAnyException();
+        assertThatCode(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICING_MODE",mapper.valueToTree("BOTH"),"PRICE_READER_PRICE_RULES",rows))).doesNotThrowAnyException();
         ((tools.jackson.databind.node.ArrayNode) rows).add(rows.get(0).deepCopy());
         assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICE_RULES",rows))).isInstanceOf(StoreValidationException.class);
         for(String row:new String[]{"{}","{\"itemType\":\"UNKNOWN\",\"pricingMode\":\"NITRO\",\"discordPriceSatang\":25000,\"shopPriceSatang\":50}",
-            "{\"itemType\":\"SINGLE\",\"pricingMode\":\"NITRO\",\"discordPriceSatang\":25000,\"shopPriceSatang\":1.5}"})
+            "{\"itemType\":\"SINGLE\",\"pricingMode\":\"NITRO\",\"discordPriceSatang\":25000,\"shopPriceSatang\":1.5}",
+            "{\"itemType\":\"SINGLE\",\"pricingMode\":\"BOTH\",\"discordPriceSatang\":25000,\"shopPriceSatang\":50}"})
             assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICE_RULES",mapper.readTree("["+row+"]")))).isInstanceOf(StoreValidationException.class);
         assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICING_MODE",mapper.valueToTree("AUTO")))).isInstanceOf(StoreValidationException.class);
     }

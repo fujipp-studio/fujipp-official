@@ -42,7 +42,7 @@ export function priceReaderFixture(version = '2.0.0') {
               type: 'ENUM',
               value: 'STANDARD',
               required: true,
-              validation: { enum: ['STANDARD', 'NITRO'] },
+              validation: { enum: ['STANDARD', 'NITRO', 'BOTH'] },
             },
             {
               key: 'PRICE_READER_PRICE_RULES',
@@ -215,6 +215,18 @@ export function priceReaderFixture(version = '2.0.0') {
           'item_name',
           'order_url',
           'results_text',
+          ...(version === '3.1.0'
+            ? [
+                'item_type',
+                'pricing_mode',
+                'standard_price',
+                'nitro_price',
+                'standard_shop_price',
+                'nitro_shop_price',
+                'standard_shop_price_text',
+                'nitro_shop_price_text',
+              ]
+            : []),
           ...(legacy ? ['no_nitro_markup'] : []),
         ],
         defaultDefinition: {
