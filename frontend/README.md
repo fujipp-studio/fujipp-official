@@ -110,8 +110,12 @@ CI use the same impact information. See [frontend agent instructions](AGENTS.md)
 
 Price Reader 3.1.0 adds separate single-item/bundle tables for standard and Nitro
 prices, with an owner-selected mode and Gemini classification. Pricing, AI tests
-and result design load their controls on demand and each has a complete bundle
-budget profile. See [Price Reader](../docs/price-reader.md).
+and result design load their controls on demand. Channel settings render only
+while their category is active; status-message controls load on first use.
+Each screen's bundle profile includes its required asynchronous controls.
+The guard reports exact byte overages as well as rounded sizes. Check a build
+with CI's public `VITE_*` configuration or synthetic equivalents because these
+values can change bundled code and compression. See [Price Reader](../docs/price-reader.md).
 
 ## Verification
 

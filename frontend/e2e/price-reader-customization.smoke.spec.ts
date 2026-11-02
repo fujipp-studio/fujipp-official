@@ -50,6 +50,15 @@ for (const theme of ['LIGHT', 'DARK']) {
     }
     const save = page.getByRole('button', { name: 'บันทึกทั้งหมด', exact: true })
     await expect(save).toBeDisabled()
+    await category('ช่อง Discord')
+    const channel = settings.getByRole('textbox', { name: /ช่องอ่านราคา/ })
+    await channel.fill('234567890123456789')
+    await settings.screenshot({
+      path: testInfo.outputPath(`channels-${theme}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator { visibility: hidden !important; }',
+    })
     await category('ข้อความผลลัพธ์')
     await settings.getByRole('button', { name: 'ออกแบบด้วยบล็อก', exact: true }).click()
     await settings.getByRole('switch', { name: 'แสดงบล็อกที่ 2', exact: true }).click()
@@ -63,7 +72,8 @@ for (const theme of ['LIGHT', 'DARK']) {
       path: testInfo.outputPath('result-blocks.png'),
       animations: 'disabled',
       scale: 'css',
-      style: '.navbar, .admin-tools, .app-scroll-rail, .section-indicator { visibility: hidden !important; }',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator { visibility: hidden !important; }',
     })
     await category('ข้อความแต่ละสถานะ')
     await settings
@@ -72,6 +82,18 @@ for (const theme of ['LIGHT', 'DARK']) {
     await settings
       .getByRole('textbox', { name: 'ข้อความเมื่อไม่มีคู่ราคา', exact: true })
       .fill('สอบถามร้าน: {{discord_price}} บาท')
+    await settings.screenshot({
+      path: testInfo.outputPath(`status-messages-${theme}.png`),
+      animations: 'disabled',
+      style:
+        '.navbar, .admin-tools, .app-scroll-rail, .section-indicator { visibility: hidden !important; }',
+    })
+    await category('ช่อง Discord')
+    await expect(channel).toHaveValue('234567890123456789')
+    await category('ข้อความแต่ละสถานะ')
+    await expect(
+      settings.getByRole('textbox', { name: 'ข้อความเมื่ออ่านไม่พบราคา', exact: true }),
+    ).toHaveValue('ส่งรูปที่มีราคาอีกครั้งนะครับ')
     await category('ทดสอบ')
     const panel = settings.locator('[data-price-reader-test]')
     const scenario = panel.getByRole('combobox', { name: 'สถานะตัวอย่าง', exact: true })
@@ -82,16 +104,14 @@ for (const theme of ['LIGHT', 'DARK']) {
     await scenario.click()
     await page.getByRole('option', { name: 'อ่านไม่พบราคาทุกรูป', exact: true }).click()
     await expect(panel.locator('.preview-shell')).toContainText('ส่งรูปที่มีราคาอีกครั้งนะครับ')
-    await panel
-      .locator('input[type="file"]')
-      .setInputFiles({
-        name: 'shop.png',
-        mimeType: 'image/png',
-        buffer: Buffer.from(
-          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=',
-          'base64',
-        ),
-      })
+    await panel.locator('input[type="file"]').setInputFiles({
+      name: 'shop.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1cAAAAASUVORK5CYII=',
+        'base64',
+      ),
+    })
     await panel.getByRole('button', { name: 'อ่านรูปทดสอบ', exact: true }).click()
     await expect(panel.locator('[data-price-test-match]')).toContainText('251.00 บาท')
     await expect(panel.locator('[data-price-test-match]')).toContainText('55.00 บาท')
@@ -113,6 +133,7 @@ for (const theme of ['LIGHT', 'DARK']) {
       .click()
     await expect(save).toBeDisabled()
     expect(saves).toBe(1)
+    expect(saved!.values.PRICE_READER_CHANNEL_ID).toBe('234567890123456789')
     expect(saved!.values.PRICE_READER_MATCH_TOLERANCE_SATANG).toBe(100)
     expect(saved!.values.PRICE_READER_RESULTS_ITEM_TEMPLATE).toBe(template)
     expect(

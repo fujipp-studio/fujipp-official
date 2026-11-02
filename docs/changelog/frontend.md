@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Reduced Price Reader screen payloads with on-demand channel and status settings while preserving unsaved drafts across category changes. |
 | 2026-11-02 | Added three Price Reader pricing modes, including simultaneous Nitro quotes, with four category tables, reviewed legacy imports and classified image previews. |
 | 2026-11-02 | Accepted Gemini AQ. auth keys and replaced the misleading number-format error with API-key-specific validation feedback. |
 | 2026-11-02 | Added Gemini key and model settings with connection checks, image rehearsals and responsive Thai/English disclosure of customer quota and image processing. |

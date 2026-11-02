@@ -23,6 +23,12 @@ const PriceReaderPricingSettings = defineAsyncComponent(
   () => import('./PriceReaderPricingSettings.vue'),
 )
 const PriceMapEditor = defineAsyncComponent(() => import('./PriceMapEditor.vue'))
+const PriceReaderChannelSettings = defineAsyncComponent(
+  () => import('./PriceReaderChannelSettings.vue'),
+)
+const PriceReaderStatusSettings = defineAsyncComponent(
+  () => import('./PriceReaderStatusSettings.vue'),
+)
 const id = useId()
 const activeCategory = ref('channels')
 const resultsOpened = ref(false)
@@ -97,30 +103,6 @@ const resultPreview = computed(() =>
     previewBot.value?.discordGuildId,
   ),
 )
-const statusFields = computed(() =>
-  [
-    {
-      key: 'PRICE_READER_NOT_FOUND_TEXT',
-      label: text('No supported price detected', 'ข้อความเมื่ออ่านไม่พบราคา'),
-      variables: [],
-    },
-    {
-      key: 'PRICE_READER_OCR_ERROR_TEXT',
-      label: text('Image processing failed', 'ข้อความเมื่ออ่านรูปผิดพลาด'),
-      variables: [],
-    },
-    {
-      key: 'PRICE_READER_UNMATCHED_PRICE_TEXT',
-      label: text('No matching shop price', 'ข้อความเมื่อไม่มีคู่ราคา'),
-      variables: ['discord_price', 'item_name'],
-    },
-    {
-      key: 'PRICE_READER_ERROR_ITEM_TEMPLATE',
-      label: text('Failed image template', 'รูปแบบผลลัพธ์ต่อรูปที่ผิดพลาด'),
-      variables: ['result_index', 'error_message'],
-    },
-  ].filter((item) => field(item.key)),
-)
 </script>
 
 <template>
@@ -141,43 +123,9 @@ const statusFields = computed(() =>
         :aria-labelledby="id + '-tab-' + category.key"
         class="min-w-0"
       >
-        <FeatureSettingsCard
-          v-if="category.key === 'channels'"
-          :icon="Hash"
-          :title="text('Discord channels', 'ช่อง Discord')"
-          :description="
-            text(
-              'Choose where the bot reads screenshots and where members can order.',
-              'กำหนดช่องรับรูปอ่านราคาและช่องที่ลูกค้าสั่งซื้อ',
-            )
-          "
-        >
-          <div class="space-y-lg">
-            <FeatureConfigField field-key="PRICE_READER_CHANNEL_ID" />
-            <FeatureConfigField
-              field-key="PRICE_READER_ORDER_CHANNEL_ID"
-              :support-text="
-                text(
-                  'Optional · leave blank to omit the order link.',
-                  'ไม่บังคับ · เว้นว่างเพื่อไม่แสดงลิงก์สั่งซื้อ',
-                )
-              "
-            />
-          </div>
-          <details class="mt-lg border-t border-border-subtle pt-md">
-            <summary class="cursor-pointer text-sm font-medium">
-              {{ text('How to copy a channel ID', 'วิธีคัดลอก Channel ID') }}
-            </summary>
-            <p class="mt-sm text-sm text-text-secondary">
-              {{
-                text(
-                  'Enable Developer Mode in Discord, then right-click the channel and choose Copy Channel ID.',
-                  'เปิด Developer Mode ใน Discord แล้วคลิกขวาที่ช่อง เลือก Copy Channel ID',
-                )
-              }}
-            </p>
-          </details>
-        </FeatureSettingsCard>
+        <PriceReaderChannelSettings
+          v-if="category.key === 'channels' && activeCategory === 'channels'"
+        />
         <PriceReaderGeminiSettings v-else-if="category.key === 'gemini' && geminiOpened" />
         <div v-else-if="category.key === 'prices'" class="space-y-lg">
           <PriceReaderPricingSettings v-if="classified && pricesOpened" />
@@ -275,30 +223,7 @@ const statusFields = computed(() =>
             />
           </div>
         </FeatureSettingsCard>
-        <FeatureSettingsCard
-          v-else-if="category.key === 'states' && statesOpened"
-          :icon="MessageSquare"
-          :title="text('Status messages', 'ข้อความแต่ละสถานะ')"
-          :description="
-            text(
-              'Applies both when all images fail and when only some fail. Design the outer message in Message design.',
-              'ใช้ได้ทั้งกรณีอ่านไม่สำเร็จทุกรูปและบางรูป ส่วนกรอบข้อความแก้ได้ในออกแบบข้อความ',
-            )
-          "
-        >
-          <div class="space-y-lg">
-            <PriceReaderTemplateField
-              v-for="item in statusFields"
-              :key="item.key"
-              :model-value="value(item.key)"
-              :label="item.label"
-              :variables="item.variables"
-              :maxlength="item.key === 'PRICE_READER_ERROR_ITEM_TEMPLATE' ? 4000 : 1000"
-              :rows="3"
-              @update:model-value="values[item.key] = $event"
-            />
-          </div>
-        </FeatureSettingsCard>
+        <PriceReaderStatusSettings v-else-if="category.key === 'states' && statesOpened" />
         <PriceReaderTestPanel v-else-if="category.key === 'test' && testOpened" />
       </section>
       <template #summary>

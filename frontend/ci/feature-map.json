@@ -477,6 +477,8 @@
     "price-reader": {
       "paths": [
         "frontend/src/features/bots/components/PriceReader*",
+        "frontend/src/features/bots/components/PriceReaderChannelSettings.vue",
+        "frontend/src/features/bots/components/PriceReaderStatusSettings.vue",
         "frontend/src/features/bots/components/PriceMapEditor.vue",
         "frontend/src/features/bots/config/price-reader.ts",
         "frontend/src/features/bots/config/price-reader-keys.ts",
