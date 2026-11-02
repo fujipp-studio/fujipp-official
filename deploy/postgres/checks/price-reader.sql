@@ -11,6 +11,13 @@ BEGIN
         RAISE EXCEPTION 'Gemini key must be a required secret without a default';
     END IF;
     IF NOT EXISTS (SELECT 1 FROM shop.feature_config_definitions
+        WHERE feature_version_id=version_id AND config_key='GEMINI_API_KEY'
+          AND 'AQ.synthetic-customer.gemini-key' ~ (validation_schema->>'pattern')
+          AND 'AIza-synthetic-legacy-google-key' ~ (validation_schema->>'pattern')
+          AND NOT ('invalid key with spaces' ~ (validation_schema->>'pattern'))) THEN
+        RAISE EXCEPTION 'Gemini key validation must accept auth and legacy keys without whitespace';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM shop.feature_config_definitions
         WHERE feature_version_id=version_id AND config_key='PRICE_READER_GEMINI_MODEL' AND NOT is_secret AND is_required) THEN
         RAISE EXCEPTION 'Missing Gemini model configuration';
     END IF;

@@ -35,6 +35,12 @@ endpoint with the key in `x-goog-api-key`; owners configure a model, not an API 
 Customer keys may use Free or Paid tiers; the application never changes Google
 billing or switches to a different key/model automatically.
 
+API key validation accepts both legacy keys and Google AI Studio auth keys with
+the `AQ.` prefix. Existing deployments must apply the append-only corrective
+migration `20261102000002_price_reader_auth_keys.sql` and release Backend, Runner
+and Frontend before testing these keys. The migration updates only the catalog
+validation pattern; saved credentials and customer configuration are preserved.
+
 ## Reading and failure behaviour
 
 Gemini returns a constrained JSON object containing the visible item name,

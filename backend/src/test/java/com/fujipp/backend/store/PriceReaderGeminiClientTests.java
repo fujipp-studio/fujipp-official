@@ -16,7 +16,7 @@ class PriceReaderGeminiClientTests {
     private final RestClient.Builder builder=RestClient.builder();
     private final MockRestServiceServer server=MockRestServiceServer.bindTo(builder).build();
     private final PriceReaderGeminiClient client=new PriceReaderGeminiClient(json,builder.build());
-    private static final String KEY="synthetic-gemini-key-for-tests";
+    private static final String KEY="AQ.synthetic-gemini.key-for-tests";
     private static final String VALUE="""
         {"itemName":"Test item","currency":"THB","standardPriceSatang":25000,"originalPriceSatang":null,
          "nitroPriceSatang":20900,"discountPercent":null,"ambiguous":false}

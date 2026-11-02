@@ -61,7 +61,10 @@ async function testConnection() {
     "
   >
     <div class="space-y-lg" data-price-reader-gemini>
-      <FeatureConfigField field-key="GEMINI_API_KEY" />
+      <FeatureConfigField
+        field-key="GEMINI_API_KEY"
+        :format-error="text('Check the API key format.', 'ตรวจสอบรูปแบบ API key')"
+      />
       <FeatureConfigField field-key="PRICE_READER_GEMINI_MODEL" />
       <a
         href="https://aistudio.google.com/apikey"

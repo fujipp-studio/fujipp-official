@@ -24,7 +24,7 @@ export function priceReaderFixture(version = '2.0.0') {
               defaultValue: null,
               required: true,
               configured: true,
-              validation: { minLength: 20, maxLength: 512 },
+              validation: { minLength: 20, maxLength: 512, pattern: '^[A-Za-z0-9_.\\-]+$' },
             },
             {
               key: 'PRICE_READER_GEMINI_MODEL',

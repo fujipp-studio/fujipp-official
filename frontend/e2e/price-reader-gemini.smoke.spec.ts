@@ -67,8 +67,15 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect(ai.getByRole('status')).toContainText('เชื่อมต่อสำเร็จ')
     expect(requests[0]?.apiKey).toBeUndefined()
     expect(requests[0]?.model).toBe('gemini-3.5-flash-lite')
-    const syntheticKey = 'synthetic-customer-gemini-key'
+    await key.fill('invalid key with spaces')
+    await expect(key).toHaveAttribute('aria-invalid', 'true')
+    expect(await key.evaluate((element: HTMLInputElement) => element.checkValidity())).toBe(false)
+    await expect(ai).toContainText('ตรวจสอบรูปแบบ API key')
+    await expect(ai).not.toContainText('ตรวจสอบรูปแบบหมายเลข')
+    const syntheticKey = 'AQ.synthetic-customer.gemini-key'
     await key.fill(syntheticKey)
+    await expect(key).toHaveAttribute('aria-invalid', 'false')
+    expect(await key.evaluate((element: HTMLInputElement) => element.checkValidity())).toBe(true)
     await expect(ai.getByRole('status')).toHaveCount(0)
     quota = true
     await connection.click()

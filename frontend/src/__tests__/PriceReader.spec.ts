@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { ref } from 'vue'
 import { describe, expect, it } from 'vitest'
 import PriceMapEditor from '../features/bots/components/PriceMapEditor.vue'
 import {
@@ -8,6 +9,9 @@ import {
 } from '../features/bots/config/price-reader'
 import PriceReaderResultEditor from '../features/bots/components/PriceReaderResultEditor.vue'
 import { priceReaderPresentationPreview } from '../features/bots/models/price-reader-presentation-preview'
+import FeatureConfigField from '../features/bots/components/FeatureConfigField.vue'
+import { featureEditorKey } from '../features/bots/composables/featureEditorContext'
+import { priceReaderFixture } from './fixtures/priceReader'
 const global = { plugins: [createI18n({ legacy: false, locale: 'en', messages: { en: {} } })] }
 const original = [
   { discordPrice: 250, shopPrice: 55, future: { keep: true } },
@@ -17,6 +21,35 @@ const output = (wrapper: ReturnType<typeof mount>) =>
   JSON.parse(String(wrapper.emitted('update:modelValue')?.at(-1)?.[0]))
 
 describe('Price Reader', () => {
+  it('accepts dotted Google auth keys and gives an API key error for malformed input', async () => {
+    const { config } = priceReaderFixture('3.0.0')
+    const secrets = ref({ GEMINI_API_KEY: 'AQ.synthetic-customer.gemini-key' })
+    const wrapper = mount(FeatureConfigField, {
+      props: { fieldKey: 'GEMINI_API_KEY', formatError: 'Check the API key format.' },
+      global: {
+        provide: {
+          [featureEditorKey as symbol]: {
+            configuration: ref(config),
+            values: ref({}),
+            secrets,
+            fieldOptions: () => [],
+            configFieldLabel: () => 'Gemini API key',
+            configFieldDescription: () => '',
+            text: (english: string) => english,
+          },
+        },
+      },
+    })
+    const input = wrapper.get('input')
+    expect(input.attributes('aria-invalid')).toBe('false')
+    await input.setValue('invalid key with spaces')
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.text()).toContain('Check the API key format.')
+    expect(wrapper.text()).not.toContain('number format')
+    await input.setValue('AIza-synthetic-legacy-google-key')
+    expect(input.attributes('aria-invalid')).toBe('false')
+    wrapper.unmount()
+  })
   it('keeps saved blocks when switching to a template and back', async () => {
     const blocks = JSON.stringify([
       { id: 'custom', enabled: true, text: 'My shop {{shop_price_text}}' },

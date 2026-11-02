@@ -9,7 +9,7 @@ import { readGeminiResult } from '../src/features/price-reader/results.js';
 import { getFeature } from '../src/feature-registry.js';
 import type { FeatureContext } from '../src/types.js';
 
-const key = 'synthetic-gemini-key-for-tests';
+const key = 'AQ.synthetic-gemini.key-for-tests';
 const price = { itemName: 'ดาวโปรยปราย', currency: 'THB', standardPriceSatang: 25000,
   originalPriceSatang: 29500, nitroPriceSatang: 20900, discountPercent: 15, ambiguous: false };
 const config = { PRICE_READER_PRICE_MAP: [{ discordPrice: 250, shopPrice: 55 }], PRICE_READER_MATCH_TOLERANCE_SATANG: 0 };

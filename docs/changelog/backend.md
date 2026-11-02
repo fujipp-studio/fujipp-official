@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Accepted dotted Gemini auth keys in Price Reader requests, encrypted configuration saves and Runner reads while preserving legacy key support. |
 | 2026-11-02 | Added Gemini-powered Price Reader 3.0.0 with customer-owned API keys, deterministic shop price matching, safe quota handling and authenticated dashboard tests while preserving OCR versions. |
 | 2026-11-01 | Added administrator-bound impersonation capabilities with live account checks, target-only permissions, revocation and mandatory audit records before user operations. |
 | 2026-11-01 | Made TrueMoney Wallet receipts recoverable without re-redeeming, enforced single-recipient preflight and exact amounts, and added owner-scoped Money APIs with faster customer receipts. |

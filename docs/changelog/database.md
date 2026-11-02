@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-02 | Corrected the Price Reader key validation pattern through an append-only migration without changing stored credentials or customer settings. |
 | 2026-11-02 | Added a draft Price Reader 3.0.0 catalog version with an encrypted Gemini key definition and inherited pricing and message settings without changing existing installations. |
 | 2026-11-01 | Added immutable TrueMoney fee snapshots, atomic receipt-to-Wallet settlement and append-only member ledgers while excluding historical attempts from automatic credits. |
 | 2026-11-01 | Added transactional VPS migration delivery with immutable history checksums, feature checks, backup/restore rehearsal and metadata-only adoption of existing migrations. |
