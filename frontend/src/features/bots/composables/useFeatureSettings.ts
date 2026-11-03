@@ -1,8 +1,5 @@
 import {
-  walletConfigCopy,
-  robloxConfigCopy,
   priceReaderConfigCopy,
-  robloxPresentationCopy,
   priceReaderPresentationCopy,
   presentationModeOptions,
   componentStyleOptions,
@@ -139,7 +136,7 @@ export function useFeatureSettings() {
       )
     }
     const copy = isRobloxPayoutFeature.value
-      ? robloxPresentationCopy[slot.key]
+      ? robloxCopy.value?.robloxPresentationCopy[slot.key]
       : isPriceReaderFeature.value
         ? priceReaderPresentationCopy[slot.key]
         : isMemberSpendingFeature.value
@@ -176,7 +173,7 @@ export function useFeatureSettings() {
       )
     }
     const copy = isRobloxPayoutFeature.value
-      ? robloxPresentationCopy[slot.key]
+      ? robloxCopy.value?.robloxPresentationCopy[slot.key]
       : isPriceReaderFeature.value
         ? priceReaderPresentationCopy[slot.key]
         : isMemberSpendingFeature.value
@@ -193,9 +190,9 @@ export function useFeatureSettings() {
       return text('Default Robux rate', 'อัตรา Robux เริ่มต้น')
     }
     const copy = isWalletTopupFeature.value
-      ? walletConfigCopy[field.key]
+      ? walletCopy.value?.[field.key]
       : isRobloxPayoutFeature.value
-        ? robloxConfigCopy[field.key]
+        ? robloxCopy.value?.robloxConfigCopy[field.key]
         : isPriceReaderFeature.value
           ? priceReaderConfigCopy[field.key]
           : undefined
@@ -209,9 +206,9 @@ export function useFeatureSettings() {
       )
     }
     const copy = isWalletTopupFeature.value
-      ? walletConfigCopy[field.key]
+      ? walletCopy.value?.[field.key]
       : isRobloxPayoutFeature.value
-        ? robloxConfigCopy[field.key]
+        ? robloxCopy.value?.robloxConfigCopy[field.key]
         : isPriceReaderFeature.value
           ? priceReaderConfigCopy[field.key]
           : undefined
@@ -270,7 +267,23 @@ export function useFeatureSettings() {
   const presentationJson = ref<Record<string, string>>({})
   const advancedSlots = ref(new Set<string>())
   const walletExpandedSlots = ref(new Set<string>())
-  const priceReaderHelpers = shallowRef<Pick<typeof import('../config/price-reader'), 'validatePriceReaderDraft' | 'priceReaderSampleValues' | 'priceReaderBuildResultValues' | 'readPriceReaderResult' | 'priceReaderVariables' | 'priceReaderConfiguredPairs'> & { readPriceReaderOcrResult?: typeof import('../config/price-reader')['readPriceReaderOcrResult'] }>()
+  type PriceHelpers = Pick<typeof import('../config/price-reader'), 'validatePriceReaderDraft' | 'priceReaderConfiguredPairs'> & Partial<Pick<typeof import('../config/price-reader'), 'priceReaderSampleValues' | 'priceReaderBuildResultValues' | 'readPriceReaderResult' | 'priceReaderVariables' | 'readPriceReaderOcrResult'>> & { priceReaderProcessingValues?: (values: Record<string, unknown>) => Record<string, string> }
+  const priceReaderHelpers = shallowRef<PriceHelpers>()
+  async function loadPriceReaderOutput() {
+    const current = license.value
+    if (current?.version !== '3.2.0' || priceReaderHelpers.value?.readPriceReaderResult) return
+    try {
+      const output = await import('../config/price-reader-counted')
+      if (license.value?.id === current.id && license.value.version === current.version)
+        priceReaderHelpers.value = { ...priceReaderHelpers.value!, ...output }
+    } catch {
+      error.value = t('botSettings.unableToLoadFeatureConfiguration')
+      throw new Error(error.value)
+    }
+  }
+
+  const walletCopy = shallowRef<typeof import('../config/wallet-copy')['walletConfigCopy']>()
+  const robloxCopy = shallowRef<typeof import('../config/roblox-copy')>()
   const featureValidator = shallowRef<(draft: Record<string, EditableValue>) => boolean>()
   const featurePreview =
     shallowRef<(definition: Record<string, unknown>, slotKey: string) => Record<string, unknown>>()
@@ -594,9 +607,14 @@ export function useFeatureSettings() {
         ? { ...sample, fee_amount: '0', total_amount: sample.paid_amount }
         : sample
     }
+    if (isPriceReaderFeature.value && slotKey === 'processing' && priceReaderHelpers.value?.priceReaderProcessingValues)
+      return priceReaderHelpers.value.priceReaderProcessingValues(values.value)
+    if (isPriceReaderFeature.value && !priceReaderHelpers.value?.priceReaderSampleValues) {
+      void loadPriceReaderOutput().catch(() => undefined)
+    }
     if (isPriceReaderFeature.value)
       return (
-        priceReaderHelpers.value?.priceReaderSampleValues(
+        priceReaderHelpers.value?.priceReaderSampleValues?.(
           values.value,
           license.value?.version ?? '',
           previewBot.value?.discordGuildId,
@@ -629,6 +647,7 @@ export function useFeatureSettings() {
   }
 
   async function openPresentation(mode: 'EMBED' | 'COMPONENTS_V2', slotKey?: string) {
+    if (isPriceReaderFeature.value) await loadPriceReaderOutput()
     const name = adminMode.value
       ? mode === 'EMBED'
         ? 'admin-bot-feature-embed-settings'
@@ -838,11 +857,14 @@ export function useFeatureSettings() {
             values.value.TICKET_BEHAVIOR,
           )
       }
+      if (isRobloxPayoutFeature.value || config.fields.some(field => field.key === 'ROBLOX_GROUPS')) robloxCopy.value = await import('../config/roblox-copy')
       if (isWalletTopupFeature.value) {
-        const [preview, watermark] = await Promise.all([
+        const [preview, watermark, copy] = await Promise.all([
           import('../models/wallet-presentation-preview'),
           import('../models/wallet-qr-watermark'),
+          import('../config/wallet-copy'),
         ])
+        walletCopy.value = copy.walletConfigCopy
         featurePreview.value = preview.walletPresentationPreview
         featureValidator.value = (draft) =>
           watermark.walletQrWatermarkValid(draft.PROMPTPAY_QR_WATERMARK)
@@ -862,7 +884,7 @@ export function useFeatureSettings() {
         const [{ priceReaderPresentationPreview }, helpers] = await Promise.all([
           import('../models/price-reader-presentation-preview'),
           license.value?.version === '3.2.0'
-            ? import('../config/price-reader-counted')
+            ? import('../config/price-reader-counted-core')
             : import('../config/price-reader'),
         ])
         priceReaderHelpers.value = helpers
@@ -885,6 +907,7 @@ export function useFeatureSettings() {
       )
       configuration.value = config
       hydrate(config)
+      if (presentationMode.value && isPriceReaderFeature.value) await loadPriceReaderOutput()
       if (license.value?.featureCode === 'bot-permissions') {
         const { hasPermissionCommandSuggestions, needsCommandConfiguration, permissionCommands } =
           await import('../config/permission-commands')
@@ -1084,6 +1107,7 @@ export function useFeatureSettings() {
     editablePresentationSlots,
     isPriceReaderFeature,
     priceReaderHelpers,
+    loadPriceReaderOutput,
     isMemberSpendingFeature,
     isRuntimeAlertFeature,
     isMessageTriggersFeature,

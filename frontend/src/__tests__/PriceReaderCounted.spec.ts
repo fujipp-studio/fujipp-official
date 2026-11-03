@@ -63,4 +63,37 @@ describe('Counted Price Reader settings', () => {
     expect(readPriceReaderResult(image, config, 2).shop_price_text).toBe('100.00 THB')
     expect(readPriceReaderResult(image, config, 3).shop_price_text).toBe('140.00 THB')
   })
+  it('previews custom tier text and validates the three formatting controls', () => {
+    const values = {
+      ...draft('EN'),
+      PRICE_READER_BOTH_DISCORD_TEMPLATE: '💎 {{nitro_price_text}}\nRegular {{standard_price_text}}',
+      PRICE_READER_BOTH_SHOP_TEMPLATE: 'Nitro ฿{{nitro_shop_amount_text}} · Regular ฿{{standard_shop_amount_text}}',
+      PRICE_READER_MISSING_PRICE_TEXT: 'Ask us',
+      PRICE_READER_RESULTS_ITEM_TEMPLATE: '{{discord_price}}\n{{shop_price_text}}',
+    }
+    expect(validatePriceReaderDraft(values)).toBe(true)
+    const preview = priceReaderSampleValues(values, '3.2.0')
+    expect(preview.results_text).toContain('💎 209.00\nRegular 250.00')
+    expect(preview.results_text).toContain('Nitro ฿55.00 · Regular ฿65.00')
+    for (const key of ['PRICE_READER_BOTH_DISCORD_TEMPLATE', 'PRICE_READER_BOTH_SHOP_TEMPLATE', 'PRICE_READER_MISSING_PRICE_TEXT']) {
+      for (const invalid of ['', ' ', 'x'.repeat(1001), 1])
+        expect(validatePriceReaderDraft({ ...values, [key]: invalid })).toBe(false)
+      expect(validatePriceReaderDraft({ ...values, [key]: '{{default}}' })).toBe(true)
+    }
+  })
+  it('selects AUTO by visible tier and formats owner-entered Gift without altering numeric shop values', () => {
+    const values = draft('EN')
+    const rows = JSON.parse(String(values.PRICE_READER_COUNT_PRICE_RULES)) as Array<Record<string, unknown>>
+    rows.find(row => row.itemCount === 1 && row.pricingMode === 'NITRO' && row.discordPriceSatang === 29500)!.giftPriceSatang = 10000
+    const settings = { ...values, PRICE_READER_PRICING_MODE: 'AUTO', PRICE_READER_OFFER_MODE: 'BOTH', PRICE_READER_COUNT_PRICE_RULES: JSON.stringify(rows) }
+    expect(validatePriceReaderDraft(settings)).toBe(true)
+    const result = readPriceReaderResult({itemName:'Item',currency:'THB',itemType:'SINGLE',itemCount:1,standardPriceSatang:38000,nitroPriceSatang:29500,originalPriceSatang:38000,discountPercent:null,ambiguous:false}, {...settings,PRICE_READER_COUNT_PRICE_RULES:rows})
+    expect(result.pricing_mode_key).toBe('NITRO')
+    expect(result.shop_price).toBe('75.00')
+    expect(result.gift_price).toBe('100.00')
+    expect(result.shop_price_text).toContain('100.00 THB')
+    expect(validatePriceReaderDraft({...settings,PRICE_READER_OFFER_MODE:'AUTO'})).toBe(false)
+    expect(validatePriceReaderDraft({...settings,PRICE_READER_COUNT_PRICE_RULES:JSON.stringify(rows.map(row=>({...row,giftPriceSatang:1.5})))})).toBe(false)
+  })
+
 })

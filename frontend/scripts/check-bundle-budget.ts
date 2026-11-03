@@ -54,9 +54,10 @@ const requiredFeatureControls: Record<string, string[]> = {
 }
 const featurePreviews: Record<string, string[]> = {
   BotPermissionsConfig: ['src/features/bots/config/permission-commands.ts'],
+  RobloxPayoutConfig: ['src/features/bots/config/roblox-copy.ts'],
   ShopStatusConfig: ['src/features/bots/config/shop-status-validation.ts'],
   TicketConfig: ['src/features/bots/models/ticket-presentation-preview.ts', 'src/features/bots/config/ticket-config.ts'],
-  WalletTopupConfig: ['src/features/bots/models/wallet-presentation-preview.ts', 'src/features/bots/models/wallet-qr-watermark.ts'],
+  WalletTopupConfig: ['src/features/bots/config/wallet-copy.ts', 'src/features/bots/models/wallet-presentation-preview.ts', 'src/features/bots/models/wallet-qr-watermark.ts'],
   PaymentTriggerConfig: ['src/features/bots/models/payment-trigger-presentation-preview.ts'],
   PriceReaderConfig: ['src/features/bots/models/price-reader-presentation-preview.ts', 'src/features/bots/config/price-reader.ts'],
 }
@@ -78,13 +79,15 @@ const profiles = [
   {name:'Price Reader pricing', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderPricingSettings.vue', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Price Reader status messages', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderStatusSettings.vue', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   ...[
-    { name: 'channels', controls: ['PriceReaderChannelSettings'] },
-    { name: 'pricing', controls: ['PriceReaderCountedPricingSettings'] },
-    { name: 'Gemini', controls: ['PriceReaderGeminiSettings'] },
+    { name: 'channels', controls: ['PriceReaderChannelSettings'], output: false },
+    { name: 'pricing', controls: ['PriceReaderCountedPricingSettings'], output: false },
+    { name: 'quote options and Gift', controls: ['PriceReaderOfferSettings'], output: false },
+    { name: 'Gemini', controls: ['PriceReaderGeminiSettings'], output: false },
     { name: 'test and count selection', controls: ['PriceReaderTestPanel', 'PriceReaderCountConfirmation', 'PriceReaderPreview'] },
     { name: 'result design', controls: ['PriceReaderResultSettings', 'PriceReaderTemplateField', 'PriceReaderPreview'] },
-    { name: 'status messages', controls: ['PriceReaderStatusSettings', 'PriceReaderTemplateField'] },
-  ].map(screen => ({name: `Price Reader 3.2 ${screen.name}`, keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/config/price-reader-counted.ts', ...screen.controls.map(name => `src/features/bots/components/${name}.vue`), 'src/features/bots/models/price-reader-presentation-preview.ts', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50})),
+    { name: 'status messages', controls: ['PriceReaderStatusSettings', 'PriceReaderTemplateField', 'PriceReaderPreview'] },
+  ].map(screen => ({name: `Price Reader 3.2 ${screen.name}`, keys: [...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/config/price-reader-counted-core.ts', ...(screen.output === false ? [] : ['src/features/bots/config/price-reader-counted.ts']), ...screen.controls.map(name => `src/features/bots/components/${name}.vue`), 'src/features/bots/models/price-reader-presentation-preview.ts', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50})),
+  {name:'Price Reader 3.2 presentation editor', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/FeaturePresentationEditor.vue', 'src/features/bots/config/price-reader-counted-core.ts', 'src/features/bots/config/price-reader-counted.ts', 'src/features/bots/models/price-reader-presentation-preview.ts', 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:260, css:50},
   {name:'Price Reader legacy pricing', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderLegacyPricingSettings.vue', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Price Reader OCR test', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/PriceReaderConfig.vue', 'src/features/bots/components/PriceReaderTestPanel.vue', 'src/features/bots/models/price-reader-ocr.ts', ...featurePreviews.PriceReaderConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},
   {name:'Ticket numbers', keys:[...settings, 'src/features/bots/components/FeatureConfigFields.vue', 'src/features/bots/components/TicketConfig.vue', 'src/features/bots/components/TicketCounterSettings.vue', ...featurePreviews.TicketConfig!, ...requiredFeatureControls.TicketConfig!, 'src/lib/supabase.ts', ...translations('myBots','botSettings')], js:250, css:50},

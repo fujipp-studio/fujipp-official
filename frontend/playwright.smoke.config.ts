@@ -30,6 +30,7 @@ export default defineConfig({
     'price-reader-gemini.smoke.spec.ts',
     'price-reader-pricing.smoke.spec.ts',
     'price-reader-counted.smoke.spec.ts',
+    'price-reader-auto-gift.smoke.spec.ts',
     'message-sets.smoke.spec.ts',
     'shop-status.smoke.spec.ts',
     'discord-markdown.smoke.spec.ts',

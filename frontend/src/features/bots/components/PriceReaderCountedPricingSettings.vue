@@ -1,29 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import AppModal from '@/shared/ui/dialogs/AppModal.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import PriceMapEditor from './PriceMapEditor.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
-import { validCountedPriceRules, type CountedPriceRule } from '@price-reader/counted-pricing'
-import { countedItemTemplate, countedErrorTemplate } from '@price-reader/counted-text'
+import { validCountedPriceRules, type CountedPriceRule } from '@price-reader/counted-rules'
 import { priceReaderPricePairs } from '../config/price-reader-base'
 
-const { values, text, configuration, presentations, presentationJson, advancedSlots } =
-  useFeatureEditor()
-const mode = computed({
-  get: () => String(values.value.PRICE_READER_PRICING_MODE ?? 'STANDARD'),
-  set: (value) => {
-    values.value.PRICE_READER_PRICING_MODE = value
-  },
-})
-const language = computed({
-  get: () => String(values.value.PRICE_READER_LANGUAGE ?? 'TH'),
-  set: (value) => {
-    values.value.PRICE_READER_LANGUAGE = value
-  },
-})
+const { values, text } = useFeatureEditor()
 const selected = ref('STANDARD/1')
 const options = computed(() =>
   ['STANDARD', 'NITRO'].flatMap((tier) =>
@@ -99,13 +85,12 @@ function update(raw: string) {
     ),
   ])
 }
-const fileId = useId()
 const fileInput = ref<HTMLInputElement>()
 const file = ref<File | null>(null),
   imported = ref<CountedPriceRule[] | null>(null),
   error = ref(''),
   loading = ref(false)
-const confirm = ref<'import' | 'reset' | 'legacy' | null>(null)
+const confirm = ref<'import' | 'legacy' | null>(null)
 let generation = 0
 watch(file, async (value) => {
   const version = ++generation
@@ -128,8 +113,8 @@ watch(file, async (value) => {
   } catch {
     if (version === generation)
       error.value = text(
-        'Invalid price file: use counts 1–5, integer satang and unique prices per table.',
-        'ไฟล์ราคาไม่ถูกต้อง ใช้จำนวน 1–5 ชิ้น ราคาเป็นสตางค์ ไม่ซ้ำในตารางเดียวกัน',
+        'Invalid price file: check counts, satang and duplicates.',
+        'ไฟล์ราคาไม่ถูกต้อง ตรวจจำนวนชิ้น สตางค์ และราคาซ้ำ',
       )
   } finally {
     if (version === generation) loading.value = false
@@ -176,66 +161,13 @@ function apply() {
       })),
     ])
   }
-  if (confirm.value === 'reset') {
-    values.value.PRICE_READER_RESULTS_ITEM_TEMPLATE = countedItemTemplate
-    values.value.PRICE_READER_ERROR_ITEM_TEMPLATE = countedErrorTemplate
-    values.value.PRICE_READER_RESULT_MODE = 'TEMPLATE'
-    for (const key of [
-      'PRICE_READER_NOT_FOUND_TEXT',
-      'PRICE_READER_OCR_ERROR_TEXT',
-      'PRICE_READER_UNMATCHED_PRICE_TEXT',
-    ])
-      values.value[key] = '{{default}}'
-    for (const slot of configuration.value?.presentations ?? []) {
-      presentations.value[slot.key] = JSON.parse(JSON.stringify(slot.defaultDefinition))
-      presentationJson.value[slot.key] = JSON.stringify(slot.defaultDefinition, null, 2)
-      advancedSlots.value.delete(slot.key)
-    }
-  }
   confirm.value = null
 }
 </script>
 
 <template>
   <div class="space-y-lg" data-price-reader-counted-pricing>
-    <FeatureSettingsCard :title="text('Shop pricing and language', 'โหมดราคาและภาษา')">
-      <div class="space-y-lg">
-        <AppTextField
-          v-model="mode"
-          :label="text('Price used by the bot', 'ราคาที่บอทใช้')"
-          variant="dropdown"
-          :options="[
-            {
-              value: 'BOTH',
-              label: text('Both · without and with Nitro', 'ทั้งสองแบบ · ไม่มี Nitro และมี Nitro'),
-            },
-            { value: 'STANDARD', label: text('Without Nitro', 'ไม่มี Nitro') },
-            { value: 'NITRO', label: text('With Nitro', 'มี Nitro') },
-          ]"
-        />
-        <AppTextField
-          v-model="language"
-          :label="text('Bot response language', 'ภาษาที่บอทตอบ')"
-          variant="dropdown"
-          :options="[
-            { value: 'TH', label: 'ไทย' },
-            { value: 'EN', label: 'English' },
-          ]"
-        />
-        <p class="text-xs text-text-muted">
-          {{
-            text(
-              'Reset messages to use the bot language. Custom wording stays unchanged.',
-              'รีเซ็ตเพื่อใช้ภาษาที่เลือก ข้อความที่เขียนเองคงเดิม',
-            )
-          }}
-        </p>
-        <AppButton variant="secondary" class="!w-auto" @click="confirm = 'reset'">{{
-          text('Reset standard messages', 'รีเซ็ตข้อความมาตรฐาน')
-        }}</AppButton>
-      </div>
-    </FeatureSettingsCard>
-    <FeatureSettingsCard :title="text('Ten independent price tables', 'ตารางราคาแยก 10 กลุ่ม')">
+    <FeatureSettingsCard :title="text('10 independent tables · exact prices', '10 ตารางราคา · จับคู่ตรงราคา')">
       <div class="space-y-lg">
         <AppTextField
           v-model="selected"
@@ -243,9 +175,6 @@ function apply() {
           variant="dropdown"
           :options="options"
         />
-        <p class="text-sm text-text-secondary">
-          {{ text('Exact prices only.', 'จับคู่ตรงราคาเท่านั้น') }}
-        </p>
         <PriceMapEditor
           v-if="!repair"
           :key="selected"
@@ -292,11 +221,7 @@ function apply() {
     </FeatureSettingsCard>
     <FeatureSettingsCard :title="text('Import price tables', 'นำเข้าตารางราคา')">
       <div class="space-y-md">
-        <label :for="fileId" class="block text-sm font-medium">{{
-          text('Price tables JSON file', 'ไฟล์ JSON ตารางราคา')
-        }}</label>
         <input
-          :id="fileId"
           ref="fileInput"
           type="file"
           accept="application/json,.json"
@@ -328,8 +253,8 @@ function apply() {
         <p v-if="imported" role="status" class="text-sm">
           {{
             text(
-              `${imported.length} price pairs · ${importGroups} tables ready for review`,
-              `พร้อมตรวจทาน ${imported.length} คู่ราคา · ${importGroups} ตาราง`,
+              `${imported.length} price pairs · ${importGroups} tables`,
+              `${imported.length} คู่ราคา · ${importGroups} ตาราง`,
             )
           }}
         </p>
@@ -353,17 +278,12 @@ function apply() {
         {{
           confirm === 'import'
             ? text(
-                `Replace all ten price tables with ${imported?.length ?? 0} pairs? Save all to apply.`,
-                `แทนที่ตารางราคาทั้ง 10 กลุ่มด้วย ${imported?.length ?? 0} คู่ราคา? บันทึกทั้งหมดเพื่อใช้จริง`,
+                `Replace all ten price tables with ${imported?.length ?? 0} pairs, including Gift values? Save all to apply.`,
+                `แทนที่ตารางราคาทั้ง 10 กลุ่มด้วย ${imported?.length ?? 0} คู่ราคา รวมราคา Gift? บันทึกทั้งหมดเพื่อใช้จริง`,
               )
-            : confirm === 'reset'
-              ? text(
-                  'Reset text and designs? Keys/prices stay. Save all to apply.',
-                  'รีเซ็ตข้อความ/ดีไซน์? key และราคาคงเดิม ต้องบันทึกทั้งหมด',
-                )
-              : text(
-                  'Import this table only. Check counts and prices before saving.',
-                  'นำเข้าเฉพาะตารางนี้ ตรวจจำนวนชิ้นและราคาทุกคู่ก่อนบันทึก',
+            : text(
+                  'Import only this table? Review before saving.',
+                  'นำเข้าเฉพาะตารางนี้? ตรวจราคาก่อนบันทึก',
                 )
         }}
       </p>
