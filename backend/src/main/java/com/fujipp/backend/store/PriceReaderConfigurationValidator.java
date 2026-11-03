@@ -31,10 +31,11 @@ final class PriceReaderConfigurationValidator {
         }
         for (var key : new String[]{"PRICE_READER_NOT_FOUND_TEXT", "PRICE_READER_OCR_ERROR_TEXT",
                 "PRICE_READER_UNMATCHED_PRICE_TEXT", "PRICE_READER_ERROR_ITEM_TEMPLATE",
-                "PRICE_READER_RESULTS_ITEM_TEMPLATE", "PRICE_READER_RESULTS_SEPARATOR"}) {
+                "PRICE_READER_RESULTS_ITEM_TEMPLATE", "PRICE_READER_RESULTS_SEPARATOR",
+                "PRICE_READER_BOTH_DISCORD_TEMPLATE", "PRICE_READER_BOTH_SHOP_TEMPLATE", "PRICE_READER_MISSING_PRICE_TEXT"}) {
             JsonNode value = values.get(key);
             if (value == null) continue;
-            int maximum = key.endsWith("SEPARATOR") ? 100 : key.endsWith("TEMPLATE") ? 4000 : 1000;
+            int maximum = key.endsWith("SEPARATOR") ? 100 : key.endsWith("TEMPLATE") && !key.contains("BOTH_") ? 4000 : 1000;
             if (!value.isTextual() || value.asText().length() > maximum
                     || (!key.endsWith("SEPARATOR") && value.asText().isBlank())) {
                 throw new StoreValidationException("Invalid text length for " + key);

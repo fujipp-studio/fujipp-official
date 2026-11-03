@@ -65,4 +65,12 @@ BEGIN
  THEN RAISE EXCEPTION 'Missing count and language presentation variables'; END IF;
  IF EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_MATCH_TOLERANCE_SATANG')
  THEN RAISE EXCEPTION 'Counted pricing must use exact matches'; END IF;
+ IF (SELECT count(*) FROM shop.feature_config_definitions WHERE feature_version_id=target
+   AND config_key IN ('PRICE_READER_BOTH_DISCORD_TEMPLATE','PRICE_READER_BOTH_SHOP_TEMPLATE','PRICE_READER_MISSING_PRICE_TEXT')
+   AND NOT is_secret AND is_required AND default_value='"{{default}}"'::jsonb
+   AND (validation_schema->>'maxLength')::integer=1000)<>3
+ THEN RAISE EXCEPTION 'Missing compatible price text controls'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_presentation_slots WHERE feature_version_id=target AND slot_key='result'
+   AND available_variables @> ARRAY['standard_price_text','nitro_price_text','standard_shop_amount_text','nitro_shop_amount_text'])
+ THEN RAISE EXCEPTION 'Missing editable tier price variables'; END IF;
 END $$;

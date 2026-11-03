@@ -138,7 +138,7 @@ const resultPreview = computed(
       </section>
       <template #summary>
         <FeatureSettingsCard
-          v-if="activeCategory === 'results'"
+          v-if="activeCategory === 'results' || (activeCategory === 'states' && field('PRICE_READER_BOTH_DISCORD_TEMPLATE'))"
           :title="text('Live preview', 'ตัวอย่างทันที')"
           compact
         >

@@ -63,4 +63,22 @@ describe('Counted Price Reader settings', () => {
     expect(readPriceReaderResult(image, config, 2).shop_price_text).toBe('100.00 THB')
     expect(readPriceReaderResult(image, config, 3).shop_price_text).toBe('140.00 THB')
   })
+  it('previews custom tier text and validates the three formatting controls', () => {
+    const values = {
+      ...draft('EN'),
+      PRICE_READER_BOTH_DISCORD_TEMPLATE: '💎 {{nitro_price_text}}\nRegular {{standard_price_text}}',
+      PRICE_READER_BOTH_SHOP_TEMPLATE: 'Nitro ฿{{nitro_shop_amount_text}} · Regular ฿{{standard_shop_amount_text}}',
+      PRICE_READER_MISSING_PRICE_TEXT: 'Ask us',
+      PRICE_READER_RESULTS_ITEM_TEMPLATE: '{{discord_price}}\n{{shop_price_text}}',
+    }
+    expect(validatePriceReaderDraft(values)).toBe(true)
+    const preview = priceReaderSampleValues(values, '3.2.0')
+    expect(preview.results_text).toContain('💎 209.00\nRegular 250.00')
+    expect(preview.results_text).toContain('Nitro ฿55.00 · Regular ฿65.00')
+    for (const key of ['PRICE_READER_BOTH_DISCORD_TEMPLATE', 'PRICE_READER_BOTH_SHOP_TEMPLATE', 'PRICE_READER_MISSING_PRICE_TEXT']) {
+      for (const invalid of ['', ' ', 'x'.repeat(1001), 1])
+        expect(validatePriceReaderDraft({ ...values, [key]: invalid })).toBe(false)
+      expect(validatePriceReaderDraft({ ...values, [key]: '{{default}}' })).toBe(true)
+    }
+  })
 })

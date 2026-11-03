@@ -206,3 +206,9 @@ counts, and a separate TH/EN bot response setting. Counted helpers, pricing and
 confirmation controls load only for the counted version. Each screen and the
 remaining OCR test flow keep explicit bundle coverage within the existing limits.
 See [Price Reader 3.2](../docs/price-reader.md#version-32-counted-bundles-and-thaienglish-replies).
+
+
+Price Reader 3.2 Status messages includes editable Both-mode Discord/shop formats
+and missing-image-price wording, with a live preview and individual automatic resets.
+The confirmed full standard-message reset is grouped there as well. Per-image
+layout and wrapping remain in Result text; formats never alter numeric matching.
