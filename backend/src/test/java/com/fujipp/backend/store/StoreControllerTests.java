@@ -32,6 +32,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(value = {
+        FeatureHealthController.class,
+        AdminFeatureHealthController.class,
         StoreCatalogController.class,
         BotController.class,
         BotMoneyController.class,
@@ -63,6 +65,8 @@ class StoreControllerTests {
     @MockitoBean
     private StoreService storeService;
     @MockitoBean
+    private FeatureHealthService featureHealth;
+    @MockitoBean
     private PriceReaderTestService priceReaderTests;
     @MockitoBean
     private BotMoneyService money;
@@ -90,6 +94,34 @@ class StoreControllerTests {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @Test
+    void featureHealthRequiresAuthenticationAndAdminRoutesRequireAdminRole() throws Exception {
+        UUID botId=UUID.randomUUID(),installation=UUID.randomUUID();
+        String route="/api/v1/bots/"+botId+"/feature-health";
+        mockMvc.perform(get(route)).andExpect(status().isUnauthorized());
+        authorizeUser();
+        mockMvc.perform(get(route).with(jwt().jwt(j->j.subject("owner")))).andExpect(status().isOk());
+        verify(featureHealth).list("owner",botId);
+        mockMvc.perform(post("/api/v1/bots/"+botId+"/installations/"+installation+"/retry").with(jwt().jwt(j->j.subject("owner"))))
+            .andExpect(status().isNoContent());
+        verify(featureHealth).retry("owner",botId,installation);
+        mockMvc.perform(get("/api/v1/admin/bots/"+botId+"/feature-health").with(jwt()))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void featureRetryReturnsActionableValidationInsteadOfServerErrors() throws Exception {
+        authorizeUser(); UUID botId=UUID.randomUUID(),installation=UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new StoreValidationException("Missing View Channel permission"))
+            .when(featureHealth).retry("owner",botId,installation);
+        mockMvc.perform(post("/api/v1/bots/"+botId+"/installations/"+installation+"/retry").with(jwt().jwt(j->j.subject("owner"))))
+            .andExpect(status().isBadRequest()).andExpect(jsonPath("$.detail").value("Missing View Channel permission"));
+        authorizeAs(AppRole.ADMIN);
+        mockMvc.perform(post("/api/v1/admin/bots/"+botId+"/installations/"+installation+"/retry").with(jwt()))
+            .andExpect(status().isNoContent());
+        verify(featureHealth).retryAsAdmin(botId,installation);
+    }
 
     @Test
     void featureCatalogIsPublic() throws Exception {

@@ -552,3 +552,7 @@ Customer PostgreSQL connections are resolved before use, reject private and
 special-use networks, and pin sockets to the validated public IP addresses.
 Production hosts should additionally enforce outbound firewall rules because
 application validation is not a replacement for infrastructure egress control.
+
+Bot Packages settings expose feature diagnostics and validated startup recovery.
+Transient startup retries are bounded and exclude financial features and operation
+failures. See [Feature health](feature-health.md) for the complete policy.

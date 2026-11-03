@@ -1,3 +1,4 @@
+import { countedGeminiPricePrompt, countedGeminiPriceSchema, parseCountedGeminiPrice, type CountedGeminiPrice } from "./counted-contract.js";
 import { geminiKeyPattern, geminiModelPattern, geminiPricePrompt, geminiPriceSchema, parseGeminiPrice, type GeminiPrice } from "./gemini-contract.js";
 import { classifiedGeminiPricePrompt, classifiedGeminiPriceSchema, parseClassifiedGeminiPrice, type ClassifiedGeminiPrice } from "./classified-pricing.js";
 
@@ -5,7 +6,7 @@ export class GeminiReadError extends Error {
   constructor(public readonly code: string, public readonly retryAfterMs = 0) { super(code); }
 }
 
-export async function readGeminiImage(apiKey: string, model: string, image: Buffer, mimeType: string, signal?: AbortSignal, classified = false): Promise<GeminiPrice | ClassifiedGeminiPrice> {
+export async function readGeminiImage(apiKey: string, model: string, image: Buffer, mimeType: string, signal?: AbortSignal, classified: boolean | "COUNTED" = false): Promise<GeminiPrice | ClassifiedGeminiPrice | CountedGeminiPrice> {
   if (!geminiKeyPattern.test(apiKey)) throw new GeminiReadError("GEMINI_KEY_INVALID");
   if (!geminiModelPattern.test(model)) throw new GeminiReadError("GEMINI_MODEL_UNAVAILABLE");
   if (!image.length || image.length > 10 * 1024 * 1024 || !["image/png", "image/jpeg", "image/webp"].includes(mimeType)) {
@@ -17,9 +18,9 @@ export async function readGeminiImage(apiKey: string, model: string, image: Buff
       headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
       signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000),
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: classified ? classifiedGeminiPricePrompt : geminiPricePrompt }] },
+        systemInstruction: { parts: [{ text: classified === "COUNTED" ? countedGeminiPricePrompt : classified ? classifiedGeminiPricePrompt : geminiPricePrompt }] },
         contents: [{ role: "user", parts: [{ inlineData: { mimeType, data: image.toString("base64") } }] }],
-        generationConfig: { temperature: 0, maxOutputTokens: 1024, responseMimeType: "application/json", responseJsonSchema: classified ? classifiedGeminiPriceSchema : geminiPriceSchema },
+        generationConfig: { temperature: 0, maxOutputTokens: 1024, responseMimeType: "application/json", responseJsonSchema: classified === "COUNTED" ? countedGeminiPriceSchema : classified ? classifiedGeminiPriceSchema : geminiPriceSchema },
       }),
     });
     if (!response.ok) {
@@ -55,7 +56,7 @@ export async function readGeminiImage(apiKey: string, model: string, image: Buff
     if (!Array.isArray(candidate.content?.parts)) throw new GeminiReadError("GEMINI_INVALID_RESPONSE");
     const text = candidate.content?.parts?.filter(part => !part.thought).map(part => part.text ?? "").join("") ?? "";
     if (text.length > 10_000) throw new GeminiReadError("GEMINI_INVALID_RESPONSE");
-    try { return classified ? parseClassifiedGeminiPrice(JSON.parse(text)) : parseGeminiPrice(JSON.parse(text)); }
+    try { return classified === "COUNTED" ? parseCountedGeminiPrice(JSON.parse(text)) : classified ? parseClassifiedGeminiPrice(JSON.parse(text)) : parseGeminiPrice(JSON.parse(text)); }
     catch { throw new GeminiReadError("GEMINI_INVALID_RESPONSE"); }
   } catch (error) {
     if (error instanceof GeminiReadError) throw error;

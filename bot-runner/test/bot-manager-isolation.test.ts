@@ -62,7 +62,7 @@ test("recoverable errors retain diagnostics without disabling the feature; fatal
   await manager.reconcile([bot("a")]);
   await context.reportFeatureError("MESSAGE_SET_SEND_FAILED", new Error("Invalid row"), { recoverable: true });
   assert.deepEqual(statuses.at(-1), {
-    botId: "a", installationId: "install-a", status: "ACTIVE", errorCode: "MESSAGE_SET_SEND_FAILED", errorMessage: "Invalid row",
+    botId: "a", installationId: "install-a", status: "ACTIVE", errorCode: "MESSAGE_SET_SEND_FAILED", errorMessage: "Invalid row", errorCategory: "CONFIGURATION",
   });
   await context.reportFeatureError("FATAL_ERROR", new Error("Fatal"));
   assert.equal(statuses.at(-1)?.status, "ERROR");

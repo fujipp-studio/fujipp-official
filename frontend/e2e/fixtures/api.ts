@@ -212,6 +212,7 @@ export function fixtureResponse(path: string, method: string, input: Record<stri
       completedAt: bot.createdAt,
       createdAt: bot.createdAt,
     }
+  if (path.endsWith('/feature-health')) return []
   if (path.endsWith('/configuration'))
     return method === 'PUT' ? { ...configuration, revision: 2 } : configuration
   if (path.endsWith('/settings')) return method === 'PUT' ? { ...bot, ...input } : bot

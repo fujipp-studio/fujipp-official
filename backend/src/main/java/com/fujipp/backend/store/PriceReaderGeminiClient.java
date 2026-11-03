@@ -49,6 +49,13 @@ class PriceReaderGeminiClient {
             Never infer type from price or an item name alone; use UNKNOWN without sufficient evidence.
             Set ambiguous=true for multiple independent listings or conflicting prices, otherwise false. Return only requested JSON.
             """;
+    static final String COUNTED_PROMPT = CLASSIFIED_PROMPT + """
+            Read Thai and English text. itemCount is the number of distinct products INCLUDED in this single purchase.
+            Use explicit included-item text (includes 3 items, bundle of 3, บันเดิลประกอบไปด้วยไอเทม 3 รายการ) or a complete unambiguous included-product list.
+            Never count screenshots, preview tabs, backgrounds, variants or decorative thumbnails. Never infer count from price or membership.
+            SINGLE requires itemCount=1. BUNDLE requires itemCount>=2 if visibly supported, otherwise null. UNKNOWN requires null.
+            Keep explicit counts above 5, up to 100, so unsupported bundles can be rejected safely. Partial lists require null.
+            """;
     private final RestClient client;
     private final ObjectMapper json;
 
@@ -68,6 +75,9 @@ class PriceReaderGeminiClient {
         return test(apiKey,model,imageBase64,mimeType,false);
     }
     Result test(String apiKey, String model, String imageBase64, String mimeType, boolean classified) {
+        return test(apiKey,model,imageBase64,mimeType,classified,false);
+    }
+    Result test(String apiKey, String model, String imageBase64, String mimeType, boolean classified, boolean counted) {
         Object part = imageBase64 == null
                 ? Map.of("text", "Connection test: extract this single item: Test item, Buy THB 250.00. No Nitro or original price. This is a single individual product.")
                 : Map.of("inlineData", Map.of("mimeType", mimeType, "data", imageBase64));
@@ -78,9 +88,14 @@ class PriceReaderGeminiClient {
                     json.readTree("{\"type\":\"string\",\"enum\":[\"SINGLE\",\"BUNDLE\",\"UNKNOWN\"]}"));
                 ((tools.jackson.databind.node.ArrayNode) schema.path("required")).add("itemType");
             }
+            if (counted) {
+                ((tools.jackson.databind.node.ObjectNode) schema.path("properties")).set("itemCount",
+                    json.readTree("{\"type\":[\"integer\",\"null\"],\"minimum\":1,\"maximum\":100}"));
+                ((tools.jackson.databind.node.ArrayNode) schema.path("required")).add("itemCount");
+            }
             return client.post().uri("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent")
                 .header("x-goog-api-key", apiKey).contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("systemInstruction", Map.of("parts", List.of(Map.of("text", classified ? CLASSIFIED_PROMPT : PROMPT))),
+                .body(Map.of("systemInstruction", Map.of("parts", List.of(Map.of("text", counted ? COUNTED_PROMPT : classified ? CLASSIFIED_PROMPT : PROMPT))),
                     "contents", List.of(Map.of("role", "user", "parts", List.of(part))),
                     "generationConfig", Map.of("temperature", 0, "maxOutputTokens", 1024,
                         "responseMimeType", "application/json", "responseJsonSchema", schema)))
@@ -99,7 +114,7 @@ class PriceReaderGeminiClient {
                     for (var value : candidate.path("content").path("parts"))
                         if (!value.path("thought").asBoolean(false)) text.append(value.path("text").asText(""));
                     JsonNode result=json.readTree(text.toString());
-                    if (!validResult(result,classified)) return new Result(false,"GEMINI_INVALID_RESPONSE",null);
+                    if (!validResult(result,classified,counted)) return new Result(false,"GEMINI_INVALID_RESPONSE",null);
                     return new Result(true,null,imageBase64 == null ? null : result);
                 });
         } catch (Exception error) {
@@ -109,9 +124,17 @@ class PriceReaderGeminiClient {
     }
 
     static boolean validResult(JsonNode result) { return validResult(result,false); }
-    static boolean validResult(JsonNode result, boolean classified) {
-        if (result == null || !result.isObject() || result.size()!=(classified ? 8 : 7) || !result.path("ambiguous").isBoolean()) return false;
+    static boolean validResult(JsonNode result, boolean classified) { return validResult(result,classified,false); }
+    static boolean validResult(JsonNode result, boolean classified, boolean counted) {
+        if (result == null || !result.isObject() || result.size()!=(counted ? 9 : classified ? 8 : 7) || !result.path("ambiguous").isBoolean()) return false;
         if (classified && (!result.path("itemType").isTextual() || !List.of("SINGLE","BUNDLE","UNKNOWN").contains(result.path("itemType").asText()))) return false;
+        if (counted) {
+            JsonNode count=result.path("itemCount"); String type=result.path("itemType").asText();
+            if (!(count.isNull() || count.isIntegralNumber() && count.canConvertToInt() && count.asInt()>=1 && count.asInt()<=100)
+                || type.equals("SINGLE") && (count.isNull() || count.asInt()!=1)
+                || type.equals("BUNDLE") && !count.isNull() && count.asInt()<2
+                || type.equals("UNKNOWN") && !count.isNull()) return false;
+        }
         JsonNode name=result.path("itemName"), currency=result.path("currency"), discount=result.path("discountPercent");
         if (!(name.isNull() || name.isTextual() && name.asText().length()<=200)
                 || !(currency.isNull() || currency.isTextual() && currency.asText().equals("THB"))

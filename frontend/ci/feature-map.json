@@ -491,7 +491,12 @@
         "frontend/src/features/bots/price-reader-api.ts",
         "frontend/src/features/bots/composables/usePriceReaderGeminiTest.ts",
         "frontend/e2e/price-reader-gemini.smoke.spec.ts",
-        "frontend/e2e/price-reader-pricing.smoke.spec.ts"
+        "frontend/e2e/price-reader-pricing.smoke.spec.ts",
+        "frontend/src/features/bots/config/price-reader-counted.ts",
+        "frontend/src/__tests__/fixtures/priceReaderCounted.ts",
+        "frontend/src/__tests__/PriceReaderCounted.spec.ts",
+        "frontend/e2e/price-reader-counted.smoke.spec.ts",
+        "frontend/src/features/bots/config/price-reader-base.ts"
       ],
       "routes": [
         "/my-bot/:botId/settings/packages/:licenseId",
@@ -502,11 +507,13 @@
         "price-reader",
         "price-reader-customization",
         "price-reader-gemini",
-        "price-reader-pricing"
+        "price-reader-pricing",
+        "price-reader-counted"
       ],
       "unit": [
         "src/__tests__/PriceReader.spec.ts",
-        "src/__tests__/PriceReaderOcr.spec.ts"
+        "src/__tests__/PriceReaderOcr.spec.ts",
+        "src/__tests__/PriceReaderCounted.spec.ts"
       ],
       "guides": [
         "frontend/README.md",
@@ -644,6 +651,28 @@
       "guides": [
         "docs/wallet-topup.md",
         "frontend/README.md"
+      ]
+    },
+    "feature-health": {
+      "paths": [
+        "frontend/src/features/bots/feature-health/",
+        "frontend/src/__tests__/FeatureHealth.spec.ts",
+        "frontend/e2e/feature-health.smoke.spec.ts"
+      ],
+      "routes": [
+        "/my-bot/:botId/settings/packages",
+        "/admin/bots/:botId/settings/packages"
+      ],
+      "dependsOn": [],
+      "smoke": [
+        "feature-health"
+      ],
+      "unit": [
+        "src/__tests__/FeatureHealth.spec.ts"
+      ],
+      "guides": [
+        "frontend/README.md",
+        "docs/feature-health.md"
       ]
     }
   }

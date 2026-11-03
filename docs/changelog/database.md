@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-03 | Added feature recovery metadata and draft Price Reader 3.2 count/tier and language definitions without changing customer settings or installed versions. |
 | 2026-11-02 | Added draft Price Reader 3.1.0 pricing controls, including Both mode and per-tier quote variables, while preserving existing installations and customer settings. |
 | 2026-11-02 | Corrected the Price Reader key validation pattern through an append-only migration without changing stored credentials or customer settings. |
 | 2026-11-02 | Added a draft Price Reader 3.0.0 catalog version with an encrypted Gemini key definition and inherited pricing and message settings without changing existing installations. |

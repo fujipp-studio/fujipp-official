@@ -75,4 +75,18 @@ class PriceReaderGeminiClientTests {
         server.verify();
     }
 
+    @Test void countedRehearsalPreservesUnknownCountsAndRejectsContradictions() {
+        String counted=VALUE.strip().replace("\"ambiguous\":false}","\"ambiguous\":false,\"itemType\":\"BUNDLE\",\"itemCount\":null}");
+        server.expect(anything()).andExpect(jsonPath("$.generationConfig.responseJsonSchema.required[8]").value("itemCount"))
+            .andExpect(jsonPath("$.generationConfig.responseJsonSchema.properties.itemCount.maximum").value(100))
+            .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("Thai and English")))
+            .andRespond(withSuccess(response(counted),MediaType.APPLICATION_JSON));
+        var result=client.test(KEY,PriceReaderGeminiClient.DEFAULT_MODEL,"dGVzdA==","image/png",true,true);
+        assertThat(result.connected()).isTrue();assertThat(result.result().path("itemCount").isNull()).isTrue();
+        for (String invalid:new String[]{counted.replace("\"itemCount\":null","\"itemCount\":1"),counted.replace("\"itemCount\":null","\"itemCount\":2.5"),counted.replace("BUNDLE","SINGLE")})
+            assertThat(PriceReaderGeminiClient.validResult(json.readTree(invalid),true,true)).isFalse();
+        assertThat(PriceReaderGeminiClient.validResult(json.readTree(counted.replace("\"itemCount\":null","\"itemCount\":6")),true,true)).isTrue();
+        server.verify();
+    }
+
 }

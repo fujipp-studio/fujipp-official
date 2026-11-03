@@ -5,7 +5,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-vue-next'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import AppToggle from '@/shared/ui/buttons/AppToggle.vue'
 import PriceReaderTemplateField from './PriceReaderTemplateField.vue'
-import { itemVariables, type ResultBlock } from '@price-reader/results'
+import { itemVariables, type ResultBlock } from '@price-reader/result-presentation'
 
 const props = defineProps<{
   modelValue: string

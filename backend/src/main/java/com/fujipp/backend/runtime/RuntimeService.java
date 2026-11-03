@@ -185,8 +185,10 @@ public class RuntimeService {
         if (!allowed.contains(request.status())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid runtime status");
         }
+        if (request.errorCategory() != null && !com.fujipp.backend.store.FeatureFailurePolicy.CATEGORIES.contains(request.errorCategory()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid feature error category");
         repository.updateStatus(request);
-        if (request.installationId() != null && java.util.Set.of("DISABLED", "ERROR").contains(request.status())) {
+        if (request.installationId() != null && java.util.Set.of("INSTALLING", "DISABLED", "ERROR").contains(request.status())) {
             invalidateSnapshot();
         }
     }

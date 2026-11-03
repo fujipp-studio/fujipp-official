@@ -34,6 +34,7 @@ export function safeErrorText(value: string, limit = 1800): string {
     .replace(/(https?:\/\/)[^\s/@]+:[^\s/@]+@/gi, "$1[credentials]@")
     .replace(/\b(Bearer|Bot)\s+[A-Za-z0-9._-]{20,}/gi, "$1 [redacted]")
     .replace(/\b[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}\b/g, "[redacted]")
+    .replace(/(?:AIza|AQ\.)[A-Za-z0-9_.-]+/g, "[redacted]")
     .replace(/((?:password|token|secret|cookie|authorization|api[_-]?key)\s*[=:]\s*)[^\s,;]+/gi, "$1[redacted]")
     .replace(/([?&](?:key|token|secret|password|api[_-]?key)=)[^\s&#]+/gi, "$1[redacted]")
     .slice(0, limit);
