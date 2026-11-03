@@ -75,6 +75,28 @@ class PriceReaderGeminiClientTests {
         server.verify();
     }
 
+    @Test void classifiedAndCountedGatewaysSendNitroBadgeRulesAndPreserveBothPrices() {
+        for (boolean counted : new boolean[]{false,true}) {
+            String value="""
+                {"itemName":"Venom (ไม่มีโลโก้)","currency":"THB","standardPriceSatang":38000,
+                 "originalPriceSatang":38000,"nitroPriceSatang":29500,"discountPercent":null,
+                 "ambiguous":false,"itemType":"SINGLE"}
+                """;
+            if (counted) value=value.strip().replace("\"itemType\":\"SINGLE\"}","\"itemType\":\"SINGLE\",\"itemCount\":1}");
+            server.expect(anything())
+                .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("Nitro logo/badge (comet/speed-wheel icon)")))
+                .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("standardPriceSatang=38000, originalPriceSatang=38000 and nitroPriceSatang=29500")))
+                .andExpect(jsonPath("$.systemInstruction.parts[0].text").value(org.hamcrest.Matchers.containsString("Ordinary sale without a Nitro badge or label")))
+                .andRespond(withSuccess(response(value),MediaType.APPLICATION_JSON));
+            var result=client.test(KEY,PriceReaderGeminiClient.DEFAULT_MODEL,"dGVzdA==","image/png",true,counted);
+            assertThat(result.connected()).isTrue();
+            assertThat(result.result().path("standardPriceSatang").asInt()).isEqualTo(38000);
+            assertThat(result.result().path("originalPriceSatang").asInt()).isEqualTo(38000);
+            assertThat(result.result().path("nitroPriceSatang").asInt()).isEqualTo(29500);
+            server.verify(); server.reset();
+        }
+    }
+
     @Test void countedRehearsalPreservesUnknownCountsAndRejectsContradictions() {
         String counted=VALUE.strip().replace("\"ambiguous\":false}","\"ambiguous\":false,\"itemType\":\"BUNDLE\",\"itemCount\":null}");
         server.expect(anything()).andExpect(jsonPath("$.generationConfig.responseJsonSchema.required[8]").value("itemCount"))
