@@ -11,6 +11,7 @@ import {
   countedItemTemplate,
   countedErrorTemplate,
   languageValues,
+  priceTextVariables,
 } from '@price-reader/counted-text'
 
 export const readPriceReaderResult = readCountedGeminiResult
@@ -95,21 +96,15 @@ export function priceReaderBuildResultValues(
 }
 
 export const priceReaderVariables = [
+  ...priceTextVariables,
   'item_type',
   'item_type_key',
   'item_count',
   'pricing_mode',
   'pricing_mode_key',
-  'standard_price',
-  'nitro_price',
-  'standard_shop_price',
-  'nitro_shop_price',
-  'standard_shop_price_text',
-  'nitro_shop_price_text',
   'image_label',
   'discord_price_label',
   'shop_price_label',
-  'currency_label',
 ]
 export function priceReaderConfiguredPairs(values: Record<string, unknown>) {
   return priceReaderPricePairs(values.PRICE_READER_COUNT_PRICE_RULES)

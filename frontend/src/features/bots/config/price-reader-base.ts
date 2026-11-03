@@ -79,10 +79,13 @@ export function validatePriceReaderCommonDraft(values: Record<string, unknown>):
     'PRICE_READER_ERROR_ITEM_TEMPLATE',
     'PRICE_READER_RESULTS_ITEM_TEMPLATE',
     'PRICE_READER_RESULTS_SEPARATOR',
+    'PRICE_READER_BOTH_DISCORD_TEMPLATE',
+    'PRICE_READER_BOTH_SHOP_TEMPLATE',
+    'PRICE_READER_MISSING_PRICE_TEXT',
   ]) {
     if (values[key] === undefined) continue
     const value = values[key]
-    const max = key.endsWith('SEPARATOR') ? 100 : key.endsWith('TEMPLATE') ? 4000 : 1000
+    const max = key.endsWith('SEPARATOR') ? 100 : key.endsWith('ITEM_TEMPLATE') ? 4000 : 1000
     if (
       typeof value !== 'string' ||
       value.length > max ||

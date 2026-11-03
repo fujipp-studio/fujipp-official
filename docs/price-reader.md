@@ -192,7 +192,7 @@ selection. The dashboard follows its own selected language. New standard templat
 use language variables (`image_label`, `discord_price_label`, `shop_price_label`,
 `currency_label`, `results_heading`, `processing_text`, `images_label`, `order_label`)
 and `item_count`. Owner-written messages/designs are preserved on upgrade and are
-not automatically translated. The pricing screen offers an explicit confirmed
+not automatically translated. The Status messages screen offers an explicit confirmed
 **Reset standard messages** action in the draft; Save all applies it.
 
 The JSON file importer validates and previews rule/table counts before explicitly
@@ -214,3 +214,49 @@ whether to keep custom messages or reset to bilingual standard designs.
 Tests cover all supplied pairs, conflicting prices across counts, missing prices,
 non-substitution, malformed extraction, count confirmation ownership/expiry/stale
 clicks, bilingual previews, import/save isolation and responsive Light/Dark screens.
+
+
+## Editable price wording in 3.2
+
+In **Status messages**, choose **Write custom text** for **Discord prices · Both mode**
+and **Shop prices · Both mode**. The editors control the labels, Nitro/standard order,
+separator, emoji and line breaks used by `{{discord_price}}` and `{{shop_price_text}}`
+in Both mode. They do not change extraction, numeric quotes, table selection or match
+flags. Single-tier modes retain their existing amount output.
+
+`PRICE_READER_BOTH_DISCORD_TEMPLATE` and `PRICE_READER_BOTH_SHOP_TEMPLATE` accept up to
+1,000 characters each. `PRICE_READER_MISSING_PRICE_TEXT` controls the message for an
+absent image price, independently from the existing unmatched-shop-price message.
+All three default to `{{default}}`, preserving the previous output and following
+TH/EN. **Use automatic text** resets one field; **Reset standard messages** in the
+same screen confirms a reset of all text and designs in the draft. **Save all** is
+still required. Custom wording stays unchanged when the response language changes.
+
+Use `standard_price_text` / `nitro_price_text` for an amount or the configured missing
+message. The raw `standard_price` / `nitro_price` variables remain blank when absent.
+`standard_shop_price_text` / `nitro_shop_price_text` include the normal currency unit
+when matched, while `standard_shop_amount_text` / `nitro_shop_amount_text` omit it
+for custom currency notation. Both shop text variants retain missing and unmatched
+messages; a zero shop price remains `0.00`. `standard_label`, `nitro_label` and
+`currency_label` follow the bot language. These variables also work in per-image
+blocks/templates and Message design.
+
+For example, write the following Discord price format:
+
+```text
+💎 Nitro: {{nitro_price_text}}
+👤 Standard: {{standard_price_text}}
+```
+
+The outer per-image template controls the code styling and units surrounding
+`{{discord_price}}`. Remove its backticks to render Markdown, and remove an outer
+currency suffix when the custom format already supplies units. Both **Status
+messages** and **Result text** have a live draft preview. The Test panel reuses the
+last image extraction when formatting changes and does not call Gemini again.
+
+Apply `20261103000003_price_reader_price_text.sql` through ordered database delivery,
+then release Backend and Runner together before Frontend. This compatible addition
+extends 3.2.0 without a catalog publication/version upgrade or changes to saved
+customer values, prices, secrets or designs. Earlier Price Reader versions keep
+their existing controls and output. Ownership and mapped coverage remain under the
+existing Price Reader source folders, test patterns and migration filename rules.

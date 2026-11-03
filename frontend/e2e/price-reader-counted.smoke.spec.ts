@@ -123,11 +123,13 @@ for (const theme of ['LIGHT', 'DARK'])
       )
       expect(saves).toBe(0)
       await modal.getByRole('button', { name: text('Apply to draft', 'ใช้กับฉบับแก้ไข') }).click()
-      await pricing
+      await category(text('Status messages', 'ข้อความแต่ละสถานะ'))
+      await settings
         .getByRole('button', { name: text('Reset standard messages', 'รีเซ็ตข้อความมาตรฐาน') })
         .click()
-      await modal.getByRole('button', { name: text('Apply to draft', 'ใช้กับฉบับแก้ไข') }).click()
+      await page.getByRole('dialog', { name: text('Reset standard messages?', 'รีเซ็ตข้อความมาตรฐาน?'), exact: true }).getByRole('button', { name: text('Apply to draft', 'ใช้กับฉบับแก้ไข') }).click()
       expect(saves).toBe(0)
+      await category(text('Pricing', 'ตารางราคา'))
       await pricing.screenshot({
         path: info.outputPath(`counted-pricing-${locale}-${theme}.png`),
         animations: 'disabled',
@@ -184,5 +186,86 @@ for (const theme of ['LIGHT', 'DARK'])
       expect(saved?.values.PRICE_READER_LANGUAGE).toBe(locale === 'en' ? 'EN' : 'TH')
       expect(saved?.secrets.GEMINI_API_KEY).toBeUndefined()
       expect(errors.filter((error) => !error.includes('ResizeObserver loop'))).toEqual([])
+    })
+  }
+
+for (const theme of ['LIGHT', 'DARK'])
+  for (const locale of ['th', 'en']) {
+    test(`Custom price text saves and previews in ${locale} ${theme}`, async ({ page, isMobile }, info) => {
+      if (isMobile) await page.setViewportSize({ width: 320, height: 900 })
+      const text = (en: string, th: string) => locale === 'en' ? en : th
+      await page.addInitScript(value => localStorage.setItem('fujipp-theme-mode', value), theme)
+      const { priceLicense, config } = priceReaderCountedFixture(locale === 'en' ? 'EN' : 'TH')
+      await page.route('**/api/v1/feature-licenses', route => route.fulfill({ json: [priceLicense] }))
+      await page.route('**/api/v2/feature-licenses*', route => route.fulfill({ json: { items: [priceLicense], hasMore: false, nextCursor: null } }))
+      let saved: { values: Record<string, unknown>; secrets: Record<string, unknown> } | undefined
+      await page.route('**/configuration', route => {
+        if (route.request().method() === 'PUT') {
+          saved = route.request().postDataJSON()
+          for (const field of config.fields) if (saved?.values[field.key] !== undefined) field.value = saved.values[field.key]
+        }
+        return route.fulfill({ json: config })
+      })
+      let calls = 0
+      await page.route('**/price-reader/test', route => {
+        calls++
+        return route.fulfill({ json: { connected: true, errorCode: null, result: {
+          itemName: 'Single item', itemType: 'SINGLE', itemCount: 1, currency: 'THB',
+          standardPriceSatang: 38000, nitroPriceSatang: null, originalPriceSatang: null, discountPercent: null, ambiguous: false,
+        } } })
+      })
+      await page.goto(`/my-bot/fixture-bot/settings/packages/fixture-license?locale=${locale}`)
+      const settings = page.locator('[data-price-reader-config]')
+      async function category(name: string) {
+        if (isMobile) {
+          await settings.getByRole('combobox', { name: text('Settings category', 'หมวดการตั้งค่า'), exact: true }).click()
+          await page.getByRole('option', { name, exact: true }).click()
+        } else await settings.getByRole('tab', { name, exact: true }).click()
+      }
+      await category(text('Status messages', 'ข้อความแต่ละสถานะ'))
+      const details = settings.locator('[role=tabpanel]:visible')
+      const discord = settings.locator('[data-price-format-key="PRICE_READER_BOTH_DISCORD_TEMPLATE"]')
+      const shop = settings.locator('[data-price-format-key="PRICE_READER_BOTH_SHOP_TEMPLATE"]')
+      const missing = settings.locator('[data-price-format-key="PRICE_READER_MISSING_PRICE_TEXT"]')
+      const discordText = '💎 VIP {{nitro_price_text}}\n👤 {{standard_price_text}}'
+      const shopText = 'VIP ฿{{nitro_shop_amount_text}}\nMember ฿{{standard_shop_amount_text}}'
+      const missingText = text('Ask us', 'สอบถามร้าน')
+      for (const field of [discord, shop, missing]) await field.getByRole('button', { name: text('Write custom text', 'เขียนข้อความเอง'), exact: true }).click()
+      await discord.getByRole('textbox').fill(discordText)
+      await shop.getByRole('textbox').fill(shopText)
+      await missing.getByRole('textbox').fill(missingText)
+      await category(text('Result text', 'ข้อความผลลัพธ์'))
+      await settings.getByRole('textbox', { name: text('Result item template', 'รูปแบบผลลัพธ์ต่อรูป'), exact: true }).fill('{{discord_price}}\n{{shop_price_text}}')
+      await expect(settings).toContainText('💎 VIP 209.00')
+      expect(calls).toBe(0)
+      await category(text('Status messages', 'ข้อความแต่ละสถานะ'))
+      await discord.getByRole('button', { name: text('Use automatic text', 'ใช้ข้อความอัตโนมัติ'), exact: true }).click()
+      await discord.getByRole('button', { name: text('Write custom text', 'เขียนข้อความเอง'), exact: true }).click()
+      await expect(discord.getByRole('textbox')).toHaveValue('{{standard_label}}: {{standard_price_text}} / {{nitro_label}}: {{nitro_price_text}}')
+      await discord.getByRole('textbox').fill(discordText)
+      await details.screenshot({ path: info.outputPath(`price-text-editor-${locale}-${theme}.png`), animations: 'disabled', style: '.navbar, .admin-tools, .app-scroll-rail, .section-indicator { visibility: hidden !important; }' })
+      await category(text('Test', 'ทดสอบ'))
+      const panel = settings.locator('[data-price-reader-test]')
+      await panel.locator('input[type="file"]').setInputFiles({ name: 'shop.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jC3sAAAAASUVORK5CYII=', 'base64') })
+      await panel.getByRole('button', { name: text('Read test image', 'อ่านรูปทดสอบ'), exact: true }).click()
+      await expect(panel.locator('[data-price-test-match]')).toContainText(`💎 VIP ${missingText}`)
+      await expect(panel.locator('[data-price-test-match]')).toContainText('👤 380.00')
+      await expect(panel.locator('[data-price-test-match]')).toContainText('Member ฿115.00')
+      expect(calls).toBe(1)
+      await panel.screenshot({ path: info.outputPath(`price-text-preview-${locale}-${theme}.png`), animations: 'disabled', style: '.navbar, .admin-tools, .app-scroll-rail, .section-indicator { visibility: hidden !important; }' })
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      await page.getByRole('button', { name: text('Save all', 'บันทึกทั้งหมด'), exact: true }).first().click()
+      const modal = page.getByRole('dialog', { name: text('Confirm save', 'ยืนยันการบันทึก') })
+      await modal.getByRole('button', { name: text('Confirm save', 'ยืนยันการบันทึก'), exact: true }).click()
+      await expect.poll(() => saved?.values.PRICE_READER_BOTH_DISCORD_TEMPLATE).toBe(discordText)
+      expect(saved?.values.PRICE_READER_BOTH_SHOP_TEMPLATE).toBe(shopText)
+      expect(saved?.values.PRICE_READER_MISSING_PRICE_TEXT).toBe(missingText)
+      expect(saved?.values.PRICE_READER_COUNT_PRICE_RULES).toEqual(providedRules)
+      expect(saved?.secrets.GEMINI_API_KEY).toBeUndefined()
+      await page.reload()
+      await category(text('Status messages', 'ข้อความแต่ละสถานะ'))
+      await expect(settings.locator('[data-price-format-key="PRICE_READER_BOTH_DISCORD_TEMPLATE"]').getByRole('textbox')).toHaveValue(discordText)
+      await expect(settings.locator('[data-price-format-key="PRICE_READER_MISSING_PRICE_TEXT"]').getByRole('textbox')).toHaveValue(missingText)
+      expect(calls).toBe(1)
     })
   }

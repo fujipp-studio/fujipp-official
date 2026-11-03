@@ -63,22 +63,24 @@ export function readCountedGeminiResult(value: unknown, input: PriceReaderConfig
     return result;
   };
   const standard = quote('STANDARD', data.standardPriceSatang), nitro = quote('NITRO', data.nitroPriceSatang);
-  const unit = en ? 'THB' : 'บาท', missing = en ? 'Not visible in image' : 'ไม่พบราคาในรูป';
+  const labels = languageValues(config);
+  const unit = labels.currency_label, missing = String(config.PRICE_READER_MISSING_PRICE_TEXT);
   const shop = (result: ImageResult | null) => !result ? missing : result.shop_price_found === 'true' ? `${result.shop_price} ${unit}` : result.shop_price_text!;
-  const vars = {
-    ...languageValues(config), discount_text: data.discountPercent ? en ? ` (${data.discountPercent}% off)` : ` (ลด ${data.discountPercent}%)` : '', item_count: String(count), item_type_key: kind,
+  const vars: Record<string, string> = {
+    ...labels, discount_text: data.discountPercent ? en ? ` (${data.discountPercent}% off)` : ` (ลด ${data.discountPercent}%)` : '', item_count: String(count), item_type_key: kind,
     item_type: count === 1 ? en ? 'Single item' : 'ชิ้นเดียว' : en ? `Bundle · ${count} items` : `บันเดิล ${count} ชิ้น`,
-    pricing_mode_key: String(mode), pricing_mode: mode === 'BOTH' ? en ? 'Without Nitro / With Nitro' : 'ไม่มี Nitro / มี Nitro' : mode === 'NITRO' ? en ? 'With Nitro' : 'มี Nitro' : en ? 'Without Nitro' : 'ไม่มี Nitro',
-    standard_price: data.standardPriceSatang === null ? '' : (data.standardPriceSatang / 100).toFixed(2),
-    nitro_price: data.nitroPriceSatang === null ? '' : (data.nitroPriceSatang / 100).toFixed(2),
+    pricing_mode_key: String(mode), pricing_mode: mode === 'BOTH' ? `${labels.standard_label} / ${labels.nitro_label}` : mode === 'NITRO' ? labels.nitro_label! : labels.standard_label!,
+    standard_price: standard?.discord_price ?? '', nitro_price: nitro?.discord_price ?? '',
+    standard_price_text: standard?.discord_price ?? missing, nitro_price_text: nitro?.discord_price ?? missing,
     standard_shop_price: standard?.shop_price ?? '', nitro_shop_price: nitro?.shop_price ?? '',
     standard_shop_price_text: shop(standard), nitro_shop_price_text: shop(nitro),
+    standard_shop_amount_text: standard?.shop_price_text ?? missing, nitro_shop_amount_text: nitro?.shop_price_text ?? missing,
   };
   if (mode === 'BOTH') return { ...(standard ?? nitro)!, ...vars,
-    discord_price: `${en ? 'Without Nitro' : 'ไม่มี Nitro'}: ${vars.standard_price || missing} / ${en ? 'With Nitro' : 'มี Nitro'}: ${vars.nitro_price || missing}`,
-    shop_price: '', shop_price_text: `${en ? 'Without Nitro' : 'ไม่มี Nitro'}: ${shop(standard)} / ${en ? 'With Nitro' : 'มี Nitro'}: ${shop(nitro)}`,
+    discord_price: replaceVariables(String(config.PRICE_READER_BOTH_DISCORD_TEMPLATE), vars),
+    shop_price: '', shop_price_text: replaceVariables(String(config.PRICE_READER_BOTH_SHOP_TEMPLATE), vars),
     shop_price_found: String(standard?.shop_price_found === 'true' && nitro?.shop_price_found === 'true'), matched_discord_price: '', match_distance: '' };
   const result = mode === 'NITRO' ? nitro : standard;
   if (!result) return fail(mode === 'NITRO' ? 'No visible Nitro price. Send a screenshot showing it.' : 'No visible standard price. Send a screenshot showing it.', mode === 'NITRO' ? 'ไม่พบราคา Nitro ในรูป กรุณาส่งรูปที่เห็นราคา Nitro' : 'ไม่พบราคาปกติในรูป กรุณาส่งรูปที่เห็นราคาสำหรับผู้ไม่มี Nitro');
-  return { ...result, ...vars, discount_text: data.discountPercent ? en ? ` (${data.discountPercent}% off)` : ` (ลด ${data.discountPercent}%)` : '', shop_price_text: shop(result) };
+  return { ...result, ...vars, shop_price_text: shop(result) };
 }

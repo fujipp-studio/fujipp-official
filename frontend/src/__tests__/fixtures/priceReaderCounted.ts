@@ -30,6 +30,7 @@ export function priceReaderCountedFixture(language = 'TH') {
   result.config.fields.push(
     field('PRICE_READER_LANGUAGE', 'ENUM', language),
     field('PRICE_READER_COUNT_PRICE_RULES', 'JSON', providedRules),
+    ...['PRICE_READER_BOTH_DISCORD_TEMPLATE', 'PRICE_READER_BOTH_SHOP_TEMPLATE', 'PRICE_READER_MISSING_PRICE_TEXT'].map(key => field(key, 'TEXT', '{{default}}')),
   )
   for (const row of result.config.fields) {
     if (row.key === 'PRICE_READER_PRICING_MODE') row.value = 'BOTH'
