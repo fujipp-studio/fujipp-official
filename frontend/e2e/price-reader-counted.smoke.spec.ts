@@ -231,6 +231,9 @@ for (const theme of ['LIGHT', 'DARK'])
       const shopText = 'VIP ฿{{nitro_shop_amount_text}}\nMember ฿{{standard_shop_amount_text}}'
       const missingText = text('Ask us', 'สอบถามร้าน')
       for (const field of [discord, shop, missing]) await field.getByRole('button', { name: text('Write custom text', 'เขียนข้อความเอง'), exact: true }).click()
+      // Inner price formats cannot reference the final combined offer they build.
+      await expect(discord.getByRole('button', {name: text('Insert offer_price_text','แทรก offer_price_text'), exact:true})).toHaveCount(0)
+      await expect(shop.getByRole('button', {name: text('Insert shop_offer_text','แทรก shop_offer_text'), exact:true})).toHaveCount(0)
       await discord.getByRole('textbox').fill(discordText)
       await shop.getByRole('textbox').fill(shopText)
       await missing.getByRole('textbox').fill(missingText)

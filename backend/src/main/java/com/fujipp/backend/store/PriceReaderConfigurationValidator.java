@@ -9,8 +9,11 @@ final class PriceReaderConfigurationValidator {
 
     static void validate(Map<String, JsonNode> values) {
         JsonNode pricingMode = values.get("PRICE_READER_PRICING_MODE");
-        if (pricingMode != null && (!pricingMode.isTextual() || !(pricingMode.asText().equals("STANDARD") || pricingMode.asText().equals("NITRO") || pricingMode.asText().equals("BOTH"))))
-            throw new StoreValidationException("Price Reader pricing mode must be STANDARD, NITRO or BOTH");
+        if (pricingMode != null && (!pricingMode.isTextual() || !(pricingMode.asText().equals("STANDARD") || pricingMode.asText().equals("NITRO") || pricingMode.asText().equals("BOTH") || pricingMode.asText().equals("AUTO"))))
+            throw new StoreValidationException("Price Reader pricing mode must be STANDARD, NITRO, BOTH or AUTO");
+        JsonNode offerMode=values.get("PRICE_READER_OFFER_MODE");
+        if (offerMode!=null && (!offerMode.isTextual() || !java.util.Set.of("SHOP","GIFT","BOTH").contains(offerMode.asText())))
+            throw new StoreValidationException("Price Reader offer mode must be SHOP, GIFT or BOTH");
         validateRules(values.get("PRICE_READER_PRICE_RULES"), false);
         validateRules(values.get("PRICE_READER_COUNT_PRICE_RULES"), true);
         JsonNode language=values.get("PRICE_READER_LANGUAGE");
@@ -32,10 +35,10 @@ final class PriceReaderConfigurationValidator {
         for (var key : new String[]{"PRICE_READER_NOT_FOUND_TEXT", "PRICE_READER_OCR_ERROR_TEXT",
                 "PRICE_READER_UNMATCHED_PRICE_TEXT", "PRICE_READER_ERROR_ITEM_TEMPLATE",
                 "PRICE_READER_RESULTS_ITEM_TEMPLATE", "PRICE_READER_RESULTS_SEPARATOR",
-                "PRICE_READER_BOTH_DISCORD_TEMPLATE", "PRICE_READER_BOTH_SHOP_TEMPLATE", "PRICE_READER_MISSING_PRICE_TEXT"}) {
+                "PRICE_READER_BOTH_DISCORD_TEMPLATE", "PRICE_READER_BOTH_SHOP_TEMPLATE", "PRICE_READER_MISSING_PRICE_TEXT", "PRICE_READER_GIFT_UNAVAILABLE_TEXT", "PRICE_READER_BOTH_GIFT_TEMPLATE", "PRICE_READER_OFFER_TEMPLATE"}) {
             JsonNode value = values.get(key);
             if (value == null) continue;
-            int maximum = key.endsWith("SEPARATOR") ? 100 : key.endsWith("TEMPLATE") && !key.contains("BOTH_") ? 4000 : 1000;
+            int maximum = key.endsWith("SEPARATOR") ? 100 : key.endsWith("ITEM_TEMPLATE") ? 4000 : 1000;
             if (!value.isTextual() || value.asText().length() > maximum
                     || (!key.endsWith("SEPARATOR") && value.asText().isBlank())) {
                 throw new StoreValidationException("Invalid text length for " + key);
@@ -73,6 +76,9 @@ final class PriceReaderConfigurationValidator {
             if (counted && (!count.isIntegralNumber() || !count.canConvertToInt() || count.asInt()<1 || count.asInt()>5 || kind.equals("SINGLE") != (count.asInt()==1)))
                 throw new StoreValidationException("Single items require itemCount 1; bundles require itemCount 2–5");
             JsonNode discord=rule.path("discordPriceSatang"), shop=rule.path("shopPriceSatang");
+            JsonNode gift=rule.path("giftPriceSatang");
+            if (counted && !(gift.isMissingNode() || gift.isNull() || gift.isIntegralNumber() && gift.canConvertToLong() && gift.asLong()>=0 && gift.asLong()<=100_000_000))
+                throw new StoreValidationException("Gift price must be an integer satang amount or unset");
             if (!rule.isObject() || !(kind.equals("SINGLE") || kind.equals("BUNDLE")) || !(tier.equals("STANDARD") || tier.equals("NITRO"))
                     || !discord.isIntegralNumber() || !discord.canConvertToLong() || discord.asLong()<1 || discord.asLong()>100_000_000
                     || !shop.isIntegralNumber() || !shop.canConvertToLong() || shop.asLong()<0 || shop.asLong()>100_000_000

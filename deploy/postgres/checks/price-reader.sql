@@ -73,4 +73,21 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM shop.feature_presentation_slots WHERE feature_version_id=target AND slot_key='result'
    AND available_variables @> ARRAY['standard_price_text','nitro_price_text','standard_shop_amount_text','nitro_shop_amount_text'])
  THEN RAISE EXCEPTION 'Missing editable tier price variables'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_PRICING_MODE'
+   AND validation_schema->'enum' @> '["AUTO"]'::jsonb AND ui_metadata->'options' @> '["AUTO"]'::jsonb AND default_value='"BOTH"'::jsonb)
+ THEN RAISE EXCEPTION 'AUTO must be available without changing the existing default tier mode'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_OFFER_MODE'
+   AND default_value='"SHOP"'::jsonb AND validation_schema->'enum' @> '["SHOP","GIFT","BOTH"]'::jsonb)
+ THEN RAISE EXCEPTION 'Gift offers must default to existing shop-only output'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_COUNT_PRICE_RULES'
+   AND NOT(validation_schema->'items'->'required' @> '["giftPriceSatang"]'::jsonb)
+   AND validation_schema->'items'->'properties'->'giftPriceSatang'->'type' @> '["integer","null"]'::jsonb)
+ THEN RAISE EXCEPTION 'Gift prices must remain optional whole satang values'; END IF;
+ IF (SELECT count(*) FROM shop.feature_config_definitions WHERE feature_version_id=target
+   AND config_key IN ('PRICE_READER_GIFT_UNAVAILABLE_TEXT','PRICE_READER_BOTH_GIFT_TEMPLATE','PRICE_READER_OFFER_TEMPLATE')
+   AND default_value='"{{default}}"'::jsonb AND (validation_schema->>'maxLength')::integer=1000)<>3
+ THEN RAISE EXCEPTION 'Missing configurable Gift wording'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_presentation_slots WHERE feature_version_id=target AND slot_key='result'
+   AND available_variables @> ARRAY['gift_price_text','offer_price_text','pricing_selection_key'])
+ THEN RAISE EXCEPTION 'Missing Gift quote variables'; END IF;
 END $$;

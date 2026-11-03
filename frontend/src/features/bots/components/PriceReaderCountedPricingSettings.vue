@@ -6,22 +6,10 @@ import AppModal from '@/shared/ui/dialogs/AppModal.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import PriceMapEditor from './PriceMapEditor.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
-import { validCountedPriceRules, type CountedPriceRule } from '@price-reader/counted-pricing'
+import { validCountedPriceRules, type CountedPriceRule } from '@price-reader/counted-rules'
 import { priceReaderPricePairs } from '../config/price-reader-base'
 
 const { values, text } = useFeatureEditor()
-const mode = computed({
-  get: () => String(values.value.PRICE_READER_PRICING_MODE ?? 'STANDARD'),
-  set: (value) => {
-    values.value.PRICE_READER_PRICING_MODE = value
-  },
-})
-const language = computed({
-  get: () => String(values.value.PRICE_READER_LANGUAGE ?? 'TH'),
-  set: (value) => {
-    values.value.PRICE_READER_LANGUAGE = value
-  },
-})
 const selected = ref('STANDARD/1')
 const options = computed(() =>
   ['STANDARD', 'NITRO'].flatMap((tier) =>
@@ -179,34 +167,6 @@ function apply() {
 
 <template>
   <div class="space-y-lg" data-price-reader-counted-pricing>
-    <FeatureSettingsCard :title="text('Shop pricing and language', 'โหมดราคาและภาษา')">
-      <div class="space-y-lg">
-        <AppTextField
-          v-model="mode"
-          :label="text('Price used by the bot', 'ราคาที่บอทใช้')"
-          variant="dropdown"
-          :options="[
-            {
-              value: 'BOTH',
-              label: text('Both tiers', 'ทั้งสองราคา'),
-            },
-            { value: 'STANDARD', label: text('Without Nitro', 'ไม่มี Nitro') },
-            { value: 'NITRO', label: text('With Nitro', 'มี Nitro') },
-          ]"
-        />
-        <AppTextField
-          v-model="language"
-          :label="text('Bot response language', 'ภาษาที่บอทตอบ')"
-          variant="dropdown"
-          :options="[
-            { value: 'TH', label: 'ไทย' },
-            { value: 'EN', label: 'English' },
-          ]"
-        />
-
-
-      </div>
-    </FeatureSettingsCard>
     <FeatureSettingsCard :title="text('10 independent tables · exact prices', '10 ตารางราคา · จับคู่ตรงราคา')">
       <div class="space-y-lg">
         <AppTextField
@@ -318,8 +278,8 @@ function apply() {
         {{
           confirm === 'import'
             ? text(
-                `Replace all ten price tables with ${imported?.length ?? 0} pairs? Save all to apply.`,
-                `แทนที่ตารางราคาทั้ง 10 กลุ่มด้วย ${imported?.length ?? 0} คู่ราคา? บันทึกทั้งหมดเพื่อใช้จริง`,
+                `Replace all ten price tables with ${imported?.length ?? 0} pairs, including Gift values? Save all to apply.`,
+                `แทนที่ตารางราคาทั้ง 10 กลุ่มด้วย ${imported?.length ?? 0} คู่ราคา รวมราคา Gift? บันทึกทั้งหมดเพื่อใช้จริง`,
               )
             : text(
                   'Import only this table? Review before saving.',

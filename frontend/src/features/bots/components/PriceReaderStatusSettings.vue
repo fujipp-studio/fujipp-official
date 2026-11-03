@@ -14,7 +14,7 @@ function reset() {
   values.value.PRICE_READER_RESULTS_ITEM_TEMPLATE = countedItemTemplate
   values.value.PRICE_READER_ERROR_ITEM_TEMPLATE = countedErrorTemplate
   values.value.PRICE_READER_RESULT_MODE = 'TEMPLATE'
-  for (const key of ['PRICE_READER_NOT_FOUND_TEXT', 'PRICE_READER_OCR_ERROR_TEXT', 'PRICE_READER_UNMATCHED_PRICE_TEXT', 'PRICE_READER_BOTH_DISCORD_TEMPLATE', 'PRICE_READER_BOTH_SHOP_TEMPLATE', 'PRICE_READER_MISSING_PRICE_TEXT'])
+  for (const key of ['PRICE_READER_NOT_FOUND_TEXT', 'PRICE_READER_OCR_ERROR_TEXT', 'PRICE_READER_UNMATCHED_PRICE_TEXT', 'PRICE_READER_BOTH_DISCORD_TEMPLATE', 'PRICE_READER_BOTH_SHOP_TEMPLATE', 'PRICE_READER_MISSING_PRICE_TEXT', 'PRICE_READER_GIFT_UNAVAILABLE_TEXT', 'PRICE_READER_BOTH_GIFT_TEMPLATE', 'PRICE_READER_OFFER_TEMPLATE'])
     if (field(key)) values.value[key] = '{{default}}'
   for (const slot of configuration.value?.presentations ?? []) {
     presentations.value[slot.key] = JSON.parse(JSON.stringify(slot.defaultDefinition))
@@ -28,8 +28,11 @@ const value = (key: string) => String(values.value[key] ?? '')
 const defaults = computed(() => localizedCountedConfig({ PRICE_READER_LANGUAGE: values.value.PRICE_READER_LANGUAGE }))
 const statusFields = computed(() =>
   [
-    { key: 'PRICE_READER_BOTH_DISCORD_TEMPLATE', label: text('Discord prices · Both mode', 'รูปแบบราคา Discord · ทั้งสองแบบ'), variables: priceTextVariables.filter(key => !key.includes('shop')) },
-    { key: 'PRICE_READER_BOTH_SHOP_TEMPLATE', label: text('Shop prices · Both mode', 'รูปแบบราคารับกด · ทั้งสองแบบ'), variables: priceTextVariables.filter(key => key.includes('shop') || key.endsWith('label')) },
+    {key:'PRICE_READER_GIFT_UNAVAILABLE_TEXT',label:text('Gift price not configured', 'ข้อความเมื่อยังไม่ตั้งราคา Gift'),variables:[]},
+    {key:'PRICE_READER_BOTH_GIFT_TEMPLATE',label:text('Gift prices · Both tiers', 'รูปแบบราคา Gift · ทั้งสองฝั่ง'),variables:priceTextVariables.filter(key => key === 'currency_label' || (key.startsWith('standard_') || key.startsWith('nitro_')) && (key.includes('gift') || key.endsWith('label')))},
+    {key:'PRICE_READER_OFFER_TEMPLATE',label:text('Shop and Gift layout', 'รูปแบบรับกดและ Gift'),variables:['shop_label','gift_label','shop_offer_text','gift_price_text','gift_price','currency_label']},
+    { key: 'PRICE_READER_BOTH_DISCORD_TEMPLATE', label: text('Discord prices · Both mode', 'รูปแบบราคา Discord · ทั้งสองแบบ'), variables: ['standard_label','nitro_label','standard_price','nitro_price','standard_price_text','nitro_price_text','currency_label'] },
+    { key: 'PRICE_READER_BOTH_SHOP_TEMPLATE', label: text('Shop prices · Both mode', 'รูปแบบราคารับกด · ทั้งสองแบบ'), variables: ['standard_label','nitro_label','standard_shop_price','nitro_shop_price','standard_shop_price_text','nitro_shop_price_text','standard_shop_amount_text','nitro_shop_amount_text','currency_label'] },
     { key: 'PRICE_READER_MISSING_PRICE_TEXT', label: text('Price not visible', 'ข้อความเมื่อไม่พบราคาในรูป'), variables: [] },
     {
       key: 'PRICE_READER_NOT_FOUND_TEXT',

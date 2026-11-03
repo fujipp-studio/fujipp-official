@@ -11,7 +11,7 @@ import { priceReaderRuntimeConfig } from '../config/price-reader-base'
 import { buildResultValues } from '@price-reader/result-presentation'
 import { usePriceReaderGeminiTest } from '../composables/usePriceReaderGeminiTest'
 
-const { text, values, license, previewBot, secrets, priceReaderHelpers } = useFeatureEditor()
+const { text, values, license, previewBot, secrets, priceReaderHelpers, loadPriceReaderOutput } = useFeatureEditor()
 const gemini = computed(() => license.value?.version.startsWith('3.'))
 const classified = computed(() => Boolean(values.value.PRICE_READER_PRICING_MODE))
 const selectedCount = ref('')
@@ -19,7 +19,7 @@ const PriceReaderCountConfirmation = defineAsyncComponent(
   () => import('./PriceReaderCountConfirmation.vue'),
 )
 const readResult = (data: unknown) =>
-  priceReaderHelpers.value?.readPriceReaderResult(
+  priceReaderHelpers.value?.readPriceReaderResult?.(
     data,
     config.value,
     selectedCount.value ? Number(selectedCount.value) : undefined,
@@ -59,7 +59,7 @@ const samples = computed<Record<string, string>>(() => {
       previewBot.value?.discordGuildId,
     )
   return (
-    priceReaderHelpers.value?.priceReaderSampleValues(
+    priceReaderHelpers.value?.priceReaderSampleValues?.(
       values.value,
       license.value?.version ?? '',
       previewBot.value?.discordGuildId,
@@ -96,6 +96,7 @@ async function testImage() {
   rawText.value = null
   selectedCount.value = ''
   try {
+    await loadPriceReaderOutput()
     if (gemini.value) {
       const result = await testGemini(signal, file.value)
       if (!signal.aborted && result) {
@@ -219,7 +220,7 @@ async function testImage() {
           <dd>{{ result.matched_discord_price || '—' }}</dd>
         </div>
         <div>
-          <dt class="text-text-muted">{{ text('Shop price', 'ราคาร้าน') }}</dt>
+          <dt class="text-text-muted">{{ samples.shop_price_label || text('Shop price', 'ราคาร้าน') }}</dt>
           <dd>{{ result.shop_price_text }}</dd>
         </div>
       </dl>

@@ -276,3 +276,69 @@ extends 3.2.0 without a catalog publication/version upgrade or changes to saved
 customer values, prices, secrets or designs. Earlier Price Reader versions keep
 their existing controls and output. Ownership and mapped coverage remain under the
 existing Price Reader source folders, test patterns and migration filename rules.
+
+
+## AUTO source and owner-set Gift offers in 3.2
+
+**Quote options** separates the Discord price source from the shop offer type.
+Choose **Auto · Nitro when visible** to use an explicitly extracted Nitro price
+when present, otherwise the standard price. With both visible, AUTO picks Nitro;
+it does not infer account membership or choose by amount size. A missing shop or
+Gift rule never switches AUTO to the other tier. The standard, Nitro and Both-tier
+source modes remain available. Existing source settings/defaults stay unchanged;
+select AUTO explicitly when ready.
+
+**Prices to show** selects SHOP, GIFT or BOTH. SHOP is the compatible default.
+Each of the same ten count/tier tables can contain an optional `giftPriceSatang`
+for every existing Discord/shop row. In Quote options, select a Gift table and
+enter Gift amounts in baht. Blank removes the Gift value, null also means unset,
+and zero is valid. At most two decimal places and 1,000,000 THB are allowed. Add
+new Discord rows in Pricing; editing their shop amounts preserves their Gift
+values. JSON imports validate the optional integer-satang field and their confirmed
+replacement includes Gift values. The original 50-price file has no Gift amounts;
+importing it replaces those amounts with unset values as disclosed by the dialog.
+
+An example row (not an automatically installed customer price) is:
+
+```json
+{"itemType":"SINGLE","itemCount":1,"pricingMode":"NITRO","discordPriceSatang":29500,"shopPriceSatang":7500,"giftPriceSatang":10000}
+```
+
+That row quotes Discord 295, shop 75 and Gift 100. A standard 380 screenshot uses
+its own standard row, including its own optional Gift amount. Unset Gift values
+show `PRICE_READER_GIFT_UNAVAILABLE_TEXT` (automatically “สอบถามราคา Gift” or “Ask
+for Gift price”). They never reuse a shop amount or another count/tier's Gift.
+Gemini does not set Gift amounts. Source/offer selection and preview changes reuse
+the same extraction without extra Gemini requests.
+
+`gift_price` / `gift_price_text` expose the chosen Gift amount/display; raw Gift
+is blank for Both-tier source. Per-tier `standard_gift_price`, `nitro_gift_price`,
+`standard_gift_price_text`, `nitro_gift_price_text` and their `_amount_text` forms
+support custom layouts. `gift_price_found` and `offer_price_found` report availability.
+`shop_offer_text` always retains the ordinary shop display, while `shop_price_text`
+and `offer_price_text` follow the selected SHOP/GIFT/BOTH offer choice so existing
+result templates continue working. Raw shop numeric fields stay unchanged. The
+`shop_price_label` variable follows the offer choice; owner-written fixed headings
+remain under owner control. `PRICE_READER_BOTH_GIFT_TEMPLATE` formats Gift for
+Both-tier source, and `PRICE_READER_OFFER_TEMPLATE` combines shop and Gift. Edit
+these and the unset-Gift message in Status messages. Automatic defaults follow
+TH/EN; custom text remains unchanged. Save all applies the reviewed draft.
+
+One failed image, including a Gemini service or connection error, does not discard
+other images' successful quotes. No automatic retry was added. The generic temporary
+error does not identify its HTTP code: distinguish quota/rate-limit 429 from service
+unavailable 503 using diagnostics, not the screenshot alone. See
+[Google API errors](https://ai.google.dev/gemini-api/docs/api-errors).
+
+Apply ordered migration `20261103000004_price_reader_auto_gift.sql` after the price
+text migration, release Backend and Runner together, then Frontend. No feature
+version upgrade/publication is needed. Customer prices, saved modes, designs and
+secrets are preserved; no Gift prices are invented or copied automatically.
+
+Frontend validation/table editing and the default processing preview use the thin
+counted core. Quote calculation loads on Test, Result text, Status messages or a
+result/error message preview. A direct message-editor visit loads it before editing.
+Wallet and Robux label/description data load only for their own screens. Explicit bundle profiles
+cover these version/feature-specific imports, including the counted message editor,
+without changing existing limits. Browser coverage verifies deferred requests,
+AUTO and offer switching, edit/save/reload, prior versions and Robux controls.

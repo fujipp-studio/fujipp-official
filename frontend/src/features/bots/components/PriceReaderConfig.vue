@@ -6,7 +6,9 @@ import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
-const { text, values, configuration, license, previewBot, priceReaderHelpers } = useFeatureEditor()
+const { text, values, configuration, license, previewBot, priceReaderHelpers, loadPriceReaderOutput } = useFeatureEditor()
+const PriceReaderOfferSettings = defineAsyncComponent(() => import('./PriceReaderOfferSettings.vue'))
+const offersOpened = ref(false)
 const PriceReaderResultSettings = defineAsyncComponent(
   () => import('./PriceReaderResultSettings.vue'),
 )
@@ -38,6 +40,8 @@ const geminiOpened = ref(false)
 const testOpened = ref(false)
 const pricesOpened = ref(false)
 watch(activeCategory, (key) => {
+  if (['test', 'results', 'states'].includes(key)) void loadPriceReaderOutput().catch(() => undefined)
+  if (key === 'offers') offersOpened.value = true
   if (key === 'test') testOpened.value = true
   if (key === 'gemini') geminiOpened.value = true
   if (key === 'results') resultsOpened.value = true
@@ -60,6 +64,7 @@ const categories = computed(() =>
       icon: Hash,
       show: ['PRICE_READER_CHANNEL_ID', 'PRICE_READER_ORDER_CHANNEL_ID'].some((key) => field(key)),
     },
+    {key:'offers',label:text('Quote options', 'รูปแบบเสนอราคา'),icon:Table2,show:Boolean(field('PRICE_READER_COUNT_PRICE_RULES'))},
     {
       key: 'prices',
       label: text('Pricing', 'ตารางราคา'),
@@ -97,7 +102,7 @@ const pairs = computed(
 )
 const resultPreview = computed(
   () =>
-    priceReaderHelpers.value?.priceReaderSampleValues(
+    priceReaderHelpers.value?.priceReaderSampleValues?.(
       values.value,
       license.value?.version ?? '',
       previewBot.value?.discordGuildId,
@@ -126,6 +131,7 @@ const resultPreview = computed(
         <PriceReaderChannelSettings
           v-if="category.key === 'channels' && activeCategory === 'channels'"
         />
+        <PriceReaderOfferSettings v-else-if="category.key === 'offers' && offersOpened" />
         <PriceReaderGeminiSettings v-else-if="category.key === 'gemini' && geminiOpened" />
         <div v-else-if="category.key === 'prices' && pricesOpened">
           <PriceReaderCountedPricingSettings v-if="license?.version === '3.2.0'" />
@@ -157,7 +163,9 @@ const resultPreview = computed(
               <dd class="mt-xs font-medium">
                 {{
                   classified
-                    ? value('PRICE_READER_PRICING_MODE') === 'BOTH'
+                    ? value('PRICE_READER_PRICING_MODE') === 'AUTO'
+                      ? text('Auto · Nitro when visible', 'อัตโนมัติ · ใช้ Nitro เมื่อเห็นในรูป')
+                      : value('PRICE_READER_PRICING_MODE') === 'BOTH'
                       ? text(
                           'Standard and Nitro Discord prices',
                           'ราคาปกติและราคา Nitro ของ Discord',

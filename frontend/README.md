@@ -212,3 +212,10 @@ Price Reader 3.2 Status messages includes editable Both-mode Discord/shop format
 and missing-image-price wording, with a live preview and individual automatic resets.
 The confirmed full standard-message reset is grouped there as well. Per-image
 layout and wrapping remain in Result text; formats never alter numeric matching.
+
+
+Price Reader Quote options selects AUTO/standard/Nitro/Both independently from
+SHOP/GIFT/BOTH output and edits optional Gift amounts on the existing ten tables.
+Counted validation and processing samples load first; quote helpers load when a
+quote or result preview is requested. Wallet and Robux editor copy load only for their own licenses.
+All required providers remain included in their corresponding bundle profiles.

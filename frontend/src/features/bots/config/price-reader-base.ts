@@ -82,6 +82,9 @@ export function validatePriceReaderCommonDraft(values: Record<string, unknown>):
     'PRICE_READER_BOTH_DISCORD_TEMPLATE',
     'PRICE_READER_BOTH_SHOP_TEMPLATE',
     'PRICE_READER_MISSING_PRICE_TEXT',
+    'PRICE_READER_GIFT_UNAVAILABLE_TEXT',
+    'PRICE_READER_BOTH_GIFT_TEMPLATE',
+    'PRICE_READER_OFFER_TEMPLATE',
   ]) {
     if (values[key] === undefined) continue
     const value = values[key]

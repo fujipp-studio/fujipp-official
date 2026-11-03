@@ -282,7 +282,8 @@
         "frontend/src/features/bots/models/wallet-qr-watermark.ts",
         "frontend/src/__tests__/fixtures/walletTopup.ts",
         "frontend/src/__tests__/walletPresentationPreview.spec.ts",
-        "frontend/src/__tests__/walletQrWatermark.spec.ts"
+        "frontend/src/__tests__/walletQrWatermark.spec.ts",
+        "frontend/src/features/bots/config/wallet-copy.ts"
       ],
       "routes": [
         "/my-bot/:botId/settings/packages/:licenseId"
@@ -335,7 +336,8 @@
         "frontend/src/features/bots/config/roblox-payout.ts",
         "frontend/src/__tests__/fixtures/robloxPayout.ts",
         "frontend/src/__tests__/RobloxPayoutEditors.spec.ts",
-        "frontend/src/__tests__/RobuxPanelsEditor.spec.ts"
+        "frontend/src/__tests__/RobuxPanelsEditor.spec.ts",
+        "frontend/src/features/bots/config/roblox-copy.ts"
       ],
       "routes": [
         "/my-bot/:botId/settings/packages/:licenseId"
@@ -496,7 +498,9 @@
         "frontend/src/__tests__/fixtures/priceReaderCounted.ts",
         "frontend/src/__tests__/PriceReaderCounted.spec.ts",
         "frontend/e2e/price-reader-counted.smoke.spec.ts",
-        "frontend/src/features/bots/config/price-reader-base.ts"
+        "frontend/src/features/bots/config/price-reader-base.ts",
+        "frontend/src/features/bots/config/price-reader-counted-core.ts",
+        "frontend/e2e/price-reader-auto-gift.smoke.spec.ts"
       ],
       "routes": [
         "/my-bot/:botId/settings/packages/:licenseId",
@@ -508,7 +512,8 @@
         "price-reader-customization",
         "price-reader-gemini",
         "price-reader-pricing",
-        "price-reader-counted"
+        "price-reader-counted",
+        "price-reader-auto-gift"
       ],
       "unit": [
         "src/__tests__/PriceReader.spec.ts",

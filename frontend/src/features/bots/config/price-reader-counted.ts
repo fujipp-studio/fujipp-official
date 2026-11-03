@@ -1,11 +1,10 @@
-export * from './price-reader-base'
+export * from './price-reader-counted-core'
 import {
   priceReaderRuntimeConfig,
-  priceReaderPricePairs,
-  validatePriceReaderCommonDraft,
 } from './price-reader-base'
 import { buildResultValues, imageError } from '@price-reader/result-presentation'
-import { readCountedGeminiResult, validCountedPriceRules } from '@price-reader/counted-pricing'
+import { readCountedGeminiResult } from '@price-reader/counted-pricing'
+import { validCountedPriceRules } from '@price-reader/counted-rules'
 import {
   localizedCountedConfig,
   countedItemTemplate,
@@ -15,14 +14,6 @@ import {
 } from '@price-reader/counted-text'
 
 export const readPriceReaderResult = readCountedGeminiResult
-export function validatePriceReaderDraft(values: Record<string, unknown>): boolean {
-  return (
-    ['TH', 'EN'].includes(String(values.PRICE_READER_LANGUAGE)) &&
-    validCountedPriceRules(priceReaderRuntimeConfig(values).PRICE_READER_COUNT_PRICE_RULES) &&
-    validatePriceReaderCommonDraft(values) &&
-    ['STANDARD', 'NITRO', 'BOTH'].includes(String(values.PRICE_READER_PRICING_MODE))
-  )
-}
 export function priceReaderSampleValues(
   values: Record<string, unknown>,
   version: string,
@@ -39,7 +30,7 @@ export function priceReaderSampleValues(
     : []
   const selected = rules
     .filter((row, index) =>
-      config.PRICE_READER_PRICING_MODE === 'BOTH'
+      ['BOTH','AUTO'].includes(String(config.PRICE_READER_PRICING_MODE))
         ? rules.findIndex((other) => other.itemCount === row.itemCount) === index
         : row.pricingMode === config.PRICE_READER_PRICING_MODE,
     )
@@ -106,6 +97,3 @@ export const priceReaderVariables = [
   'discord_price_label',
   'shop_price_label',
 ]
-export function priceReaderConfiguredPairs(values: Record<string, unknown>) {
-  return priceReaderPricePairs(values.PRICE_READER_COUNT_PRICE_RULES)
-}

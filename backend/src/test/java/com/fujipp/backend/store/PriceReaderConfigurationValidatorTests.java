@@ -62,7 +62,7 @@ class PriceReaderConfigurationValidatorTests {
             "{\"itemType\":\"SINGLE\",\"pricingMode\":\"NITRO\",\"discordPriceSatang\":25000,\"shopPriceSatang\":1.5}",
             "{\"itemType\":\"SINGLE\",\"pricingMode\":\"BOTH\",\"discordPriceSatang\":25000,\"shopPriceSatang\":50}"})
             assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICE_RULES",mapper.readTree("["+row+"]")))).isInstanceOf(StoreValidationException.class);
-        assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICING_MODE",mapper.valueToTree("AUTO")))).isInstanceOf(StoreValidationException.class);
+        assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICING_MODE",mapper.valueToTree("GUESS")))).isInstanceOf(StoreValidationException.class);
     }
 
     @Test void countedRulesAllowEqualPricesAcrossCountsButRejectDuplicatesAndInvalidCounts() {
@@ -81,6 +81,16 @@ class PriceReaderConfigurationValidatorTests {
             for (var value:new tools.jackson.databind.JsonNode[]{mapper.valueToTree(" "),mapper.valueToTree("x".repeat(1001)),mapper.valueToTree(1),mapper.nullNode()})
                 assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of(key,value))).isInstanceOf(StoreValidationException.class);
         }
+    }
+
+    @Test void acceptsOptionalGiftPricesAndAutoButRejectsInvalidGiftAndOfferValues() {
+        String row="{\"itemType\":\"SINGLE\",\"itemCount\":1,\"pricingMode\":\"NITRO\",\"discordPriceSatang\":29500,\"shopPriceSatang\":7500";
+        for (String gift:new String[]{"",",\"giftPriceSatang\":null",",\"giftPriceSatang\":0",",\"giftPriceSatang\":10000"})
+            assertThatCode(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_COUNT_PRICE_RULES",mapper.readTree("["+row+gift+"}]"),"PRICE_READER_PRICING_MODE",mapper.valueToTree("AUTO"),"PRICE_READER_OFFER_MODE",mapper.valueToTree("GIFT")))).doesNotThrowAnyException();
+        for (String gift:new String[]{"-1","1.5","100000001","\"10000\"","true"})
+            assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_COUNT_PRICE_RULES",mapper.readTree("["+row+",\"giftPriceSatang\":"+gift+"}]")))).isInstanceOf(StoreValidationException.class);
+        for (String mode:new String[]{"NITRO","AUTO",""})
+            assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_OFFER_MODE",mapper.valueToTree(mode)))).isInstanceOf(StoreValidationException.class);
     }
 
 }
