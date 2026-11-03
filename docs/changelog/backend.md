@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-03 | Taught Gemini Price Reader 3.1/3.2 extraction to distinguish icon-only Nitro comparisons from ordinary sales, preserving separate non-Nitro and Nitro prices in dashboard and Runner requests. |
 | 2026-11-03 | Added bounded feature startup recovery and health checks alongside Price Reader 3.2 counted extraction, exact bundle pricing and Thai/English replies. |
 | 2026-11-02 | Added Price Reader 3.1.0 with independent Nitro and standard extraction, optional simultaneous quotes, and separate single-item and bundle matching without price substitution. |
 | 2026-11-02 | Accepted dotted Gemini auth keys in Price Reader requests, encrypted configuration saves and Runner reads while preserving legacy key support. |

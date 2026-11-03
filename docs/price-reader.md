@@ -116,6 +116,22 @@ The selected mode determines both the Discord amount used for lookup and the
 shop-price table. A missing Nitro price never falls back to standard or original
 prices; a missing standard price never falls back to Nitro.
 
+Versions 3.1 and 3.2 recognize a Discord Nitro logo/badge beside a price even when
+the word Nitro is absent. In the mobile comparison layout, crossed-out THB 380.00
+followed by the Nitro badge and THB 295.00 identifies 380 as the non-Nitro price and
+295 as the Nitro price. The crossed-out reference remains `originalPriceSatang`
+and also supplies `standardPriceSatang` only with this explicit comparison evidence.
+An ordinary sale without a Nitro marker instead uses the current sale amount as
+standard and leaves Nitro absent. Additional promotions or unclear comparison
+evidence leave the non-Nitro amount unknown; the matcher never promotes an
+unclassified original amount into a missing tier. Header Shop-credit balances,
+gift icons and variant counts are not purchase-price evidence. With the provided
+single-item example table, the 380/295 comparison quotes 115/75 baht respectively.
+Deploy Backend and Runner together for this extraction correction; no configuration,
+catalog upgrade, database migration or Frontend release is required. Prompt contract
+and mocked gateway tests verify request parity and matching, not live model accuracy;
+retest representative screenshots using the customer's configured model after release.
+
 **Both** displays two labelled quotes for the same detected product type from
 one Gemini request. Each tier uses its own visible Discord price and shop table.
 If only one price is visible, the available tier is quoted and the other says

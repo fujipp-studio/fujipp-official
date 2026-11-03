@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-03 | Documented Nitro badge and crossed-out reference interpretation, uncertain sale handling and coordinated deployment of the Price Reader extraction correction. |
 | 2026-11-03 | Documented feature recovery and counted Price Reader setup, bilingual replies and coordinated delivery with a reviewed 50-price import example. |
 | 2026-11-02 | Documented deferred Price Reader settings and production-like configuration checks for frontend bundle budgets. |
 | 2026-11-02 | Documented Price Reader 3.1.0 single and dual pricing modes, category tables, missing-price handling and the draft publication and upgrade workflow. |
