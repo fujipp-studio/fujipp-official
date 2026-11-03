@@ -200,3 +200,9 @@ server/CDN; the current deployment uploads static files over FTPS.
 Feature health is available in bot Packages settings for owners and admins, with
 diagnostics, configuration links and validated startup retry. See
 [Feature health](../docs/feature-health.md) for recovery limits and coverage.
+
+Price Reader 3.2 adds ten count-specific tables, sender confirmation for unclear
+counts, and a separate TH/EN bot response setting. Counted helpers, pricing and
+confirmation controls load only for the counted version. Each screen and the
+remaining OCR test flow keep explicit bundle coverage within the existing limits.
+See [Price Reader 3.2](../docs/price-reader.md#version-32-counted-bundles-and-thaienglish-replies).

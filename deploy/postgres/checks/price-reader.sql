@@ -46,3 +46,23 @@ BEGIN
    AND ui_metadata->'options' @> '["STANDARD","NITRO","BOTH"]'::jsonb)
  THEN RAISE EXCEPTION 'Missing dual pricing mode'; END IF;
 END $$;
+
+DO $$
+DECLARE target uuid;
+BEGIN
+ SELECT v.id INTO target FROM shop.feature_versions v JOIN shop.feature_products p ON p.id=v.feature_product_id
+ WHERE p.code='price-reader' AND v.version='3.2.0' AND v.runtime_key='price-reader';
+ IF target IS NULL THEN RAISE EXCEPTION 'Missing counted Price Reader version'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_COUNT_PRICE_RULES'
+   AND is_required AND default_value='[]'::jsonb AND validation_schema->'items'->'required' @> '["itemCount"]'::jsonb
+   AND (validation_schema->'items'->'properties'->'itemCount'->>'maximum')::integer=5)
+ THEN RAISE EXCEPTION 'Missing bounded counted pricing schema'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_LANGUAGE'
+   AND validation_schema->'enum' @> '["TH","EN"]'::jsonb)
+ THEN RAISE EXCEPTION 'Missing bilingual response configuration'; END IF;
+ IF (SELECT count(*) FROM shop.feature_presentation_slots WHERE feature_version_id=target
+   AND available_variables @> ARRAY['item_count','image_label','order_label'])<>3
+ THEN RAISE EXCEPTION 'Missing count and language presentation variables'; END IF;
+ IF EXISTS(SELECT 1 FROM shop.feature_config_definitions WHERE feature_version_id=target AND config_key='PRICE_READER_MATCH_TOLERANCE_SATANG')
+ THEN RAISE EXCEPTION 'Counted pricing must use exact matches'; END IF;
+END $$;

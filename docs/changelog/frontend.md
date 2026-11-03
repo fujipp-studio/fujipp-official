@@ -2,7 +2,7 @@
 
 | Date | Change |
 | --- | --- |
-| 2026-11-03 | Added per-bot feature health with actionable diagnostics, configuration shortcuts and confirmed startup checks for owners and administrators across responsive Light/Dark layouts. |
+| 2026-11-03 | Added feature health and validated retry controls alongside ten Price Reader pricing tables, reviewed imports and Thai/English count-confirmation previews. |
 | 2026-11-02 | Reduced Price Reader screen payloads with on-demand channel and status settings while preserving unsaved drafts across category changes. |
 | 2026-11-02 | Added three Price Reader pricing modes, including simultaneous Nitro quotes, with four category tables, reviewed legacy imports and classified image previews. |
 | 2026-11-02 | Accepted Gemini AQ. auth keys and replaced the misleading number-format error with API-key-specific validation feedback. |

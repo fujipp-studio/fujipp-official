@@ -65,4 +65,13 @@ class PriceReaderConfigurationValidatorTests {
         assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_PRICING_MODE",mapper.valueToTree("AUTO")))).isInstanceOf(StoreValidationException.class);
     }
 
+    @Test void countedRulesAllowEqualPricesAcrossCountsButRejectDuplicatesAndInvalidCounts() {
+        var json=new tools.jackson.databind.ObjectMapper();
+        String row="{\"itemType\":\"BUNDLE\",\"itemCount\":2,\"pricingMode\":\"NITRO\",\"discordPriceSatang\":47500,\"shopPriceSatang\":10000}";
+        assertThatCode(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_COUNT_PRICE_RULES",json.readTree("["+row+","+row.replace("\"itemCount\":2","\"itemCount\":3")+"]")))).doesNotThrowAnyException();
+        for (String invalid:new String[]{"["+row+","+row+"]","["+row.replace("\"itemCount\":2","\"itemCount\":1")+"]","["+row.replace("\"itemCount\":2","\"itemCount\":6")+"]"})
+            assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_COUNT_PRICE_RULES",json.readTree(invalid)))).isInstanceOf(StoreValidationException.class);
+        assertThatThrownBy(()->PriceReaderConfigurationValidator.validate(Map.of("PRICE_READER_LANGUAGE",json.valueToTree("FR")))).isInstanceOf(StoreValidationException.class);
+    }
+
 }

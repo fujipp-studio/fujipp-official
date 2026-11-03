@@ -53,6 +53,8 @@ class PriceReaderTestService {
             } catch (IllegalArgumentException error) { throw new StoreValidationException("Image must be valid base64 and at most 10 MB"); }
         }
         boolean classified=definitions.stream().anyMatch(d->d.key().equals("PRICE_READER_PRICING_MODE"));
+        boolean counted=definitions.stream().anyMatch(d->d.key().equals("PRICE_READER_COUNT_PRICE_RULES"));
+        if (counted) return gemini.test(key,model,request.imageBase64(),request.mimeType(),true,true);
         return classified ? gemini.test(key,model,request.imageBase64(),request.mimeType(),true)
             : gemini.test(key,model,request.imageBase64(),request.mimeType());
     }

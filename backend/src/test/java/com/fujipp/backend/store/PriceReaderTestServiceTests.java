@@ -74,4 +74,13 @@ class PriceReaderTestServiceTests {
         verify(gemini).test(key,PriceReaderGeminiClient.DEFAULT_MODEL,null,null,true);
     }
 
+    @Test void itemCountsAreRequestedOnlyForTheCountedLicenseDefinition() {
+        authorize();
+        when(repository.findConfigDefinitions(license.versionId())).thenReturn(List.of(
+            new StoreRepository.ConfigDefinition(definition,"GEMINI_API_KEY","SECRET",true),
+            new StoreRepository.ConfigDefinition(UUID.randomUUID(),"PRICE_READER_COUNT_PRICE_RULES","JSON",false)));
+        service.testAdmin(bot,licenseId,request(key));
+        verify(gemini).test(key,PriceReaderGeminiClient.DEFAULT_MODEL,null,null,true,true);
+    }
+
 }

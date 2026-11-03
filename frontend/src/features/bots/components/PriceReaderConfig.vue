@@ -4,25 +4,26 @@ import { Hash, Table2, TextCursorInput, FlaskConical, MessageSquare } from 'luci
 import FeatureSettingsCategories from './FeatureSettingsCategories.vue'
 import FeatureSettingsLayout from './FeatureSettingsLayout.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
-import FeatureConfigField from './FeatureConfigField.vue'
-import { priceReaderSampleValues, priceReaderPricePairs } from '../config/price-reader'
-import { classifiedResultVariables } from '@price-reader/classified-pricing'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
-const { text, values, configuration, license, previewBot } = useFeatureEditor()
-const PriceReaderResultEditor = defineAsyncComponent(() => import('./PriceReaderResultEditor.vue'))
-const PriceReaderTemplateField = defineAsyncComponent(
-  () => import('./PriceReaderTemplateField.vue'),
+const { text, values, configuration, license, previewBot, priceReaderHelpers } = useFeatureEditor()
+const PriceReaderResultSettings = defineAsyncComponent(
+  () => import('./PriceReaderResultSettings.vue'),
+)
+const PriceReaderLegacyPricingSettings = defineAsyncComponent(
+  () => import('./PriceReaderLegacyPricingSettings.vue'),
 )
 const PriceReaderPreview = defineAsyncComponent(() => import('./PriceReaderPreview.vue'))
 const PriceReaderGeminiSettings = defineAsyncComponent(
   () => import('./PriceReaderGeminiSettings.vue'),
 )
 const PriceReaderTestPanel = defineAsyncComponent(() => import('./PriceReaderTestPanel.vue'))
+const PriceReaderCountedPricingSettings = defineAsyncComponent(
+  () => import('./PriceReaderCountedPricingSettings.vue'),
+)
 const PriceReaderPricingSettings = defineAsyncComponent(
   () => import('./PriceReaderPricingSettings.vue'),
 )
-const PriceMapEditor = defineAsyncComponent(() => import('./PriceMapEditor.vue'))
 const PriceReaderChannelSettings = defineAsyncComponent(
   () => import('./PriceReaderChannelSettings.vue'),
 )
@@ -91,17 +92,16 @@ watch(
   { immediate: true },
 )
 const classified = computed(() => Boolean(field('PRICE_READER_PRICING_MODE')))
-const pairs = computed(() =>
-  priceReaderPricePairs(
-    classified.value ? values.value.PRICE_READER_PRICE_RULES : values.value.PRICE_READER_PRICE_MAP,
-  ),
+const pairs = computed(
+  () => priceReaderHelpers.value?.priceReaderConfiguredPairs(values.value) ?? [],
 )
-const resultPreview = computed(() =>
-  priceReaderSampleValues(
-    values.value,
-    license.value?.version ?? '',
-    previewBot.value?.discordGuildId,
-  ),
+const resultPreview = computed(
+  () =>
+    priceReaderHelpers.value?.priceReaderSampleValues(
+      values.value,
+      license.value?.version ?? '',
+      previewBot.value?.discordGuildId,
+    ) ?? {},
 )
 </script>
 
@@ -127,102 +127,12 @@ const resultPreview = computed(() =>
           v-if="category.key === 'channels' && activeCategory === 'channels'"
         />
         <PriceReaderGeminiSettings v-else-if="category.key === 'gemini' && geminiOpened" />
-        <div v-else-if="category.key === 'prices'" class="space-y-lg">
-          <PriceReaderPricingSettings v-if="classified && pricesOpened" />
-          <FeatureSettingsCard
-            v-if="!classified && field('PRICE_READER_PRICE_MAP')"
-            :icon="Table2"
-            :title="text('Shop prices', 'จับคู่ราคาขายของร้าน')"
-            :description="
-              text(
-                'Enter Discord and shop prices in THB.',
-                'กำหนดราคา Discord และราคาขายของร้าน หน่วยเป็นบาท',
-              )
-            "
-          >
-            <PriceMapEditor
-              v-if="pricesOpened"
-              :model-value="value('PRICE_READER_PRICE_MAP')"
-              @update:model-value="values.PRICE_READER_PRICE_MAP = $event"
-            />
-            <p class="mt-md text-xs text-text-muted">
-              {{
-                text(
-                  'The nearest price within the configured tolerance is used. Equal distances use the first row.',
-                  'ใช้คู่ราคาที่ใกล้ที่สุดภายในช่วงที่ตั้งไว้ หากห่างเท่ากันจะใช้แถวแรก',
-                )
-              }}
-            </p>
-          </FeatureSettingsCard>
-          <FeatureSettingsCard
-            v-if="field('PRICE_READER_MATCH_TOLERANCE_SATANG')"
-            :title="text('Price matching', 'กฎจับคู่ราคา')"
-            compact
-          >
-            <FeatureConfigField
-              field-key="PRICE_READER_MATCH_TOLERANCE_SATANG"
-              :label="text('Allowed difference', 'ความคลาดเคลื่อนที่ยอมรับ')"
-            />
-            <p class="mt-sm text-xs text-text-muted">
-              {{
-                text(
-                  'Set 0 for exact matches. Maximum ±50 THB.',
-                  'ตั้ง 0 เพื่อจับคู่ตรงราคาเท่านั้น สูงสุด ±50 บาท',
-                )
-              }}
-            </p>
-          </FeatureSettingsCard>
-          <FeatureSettingsCard
-            v-if="field('PRICE_READER_NO_NITRO_MARKUP_SATANG')"
-            :title="text('Non-Nitro markup', 'ค่าบวกเมื่อไม่มี Nitro')"
-            :description="
-              text(
-                'Additional amount displayed per item for buyers without Nitro.',
-                'จำนวนเงินเพิ่มต่อชิ้นที่แสดงสำหรับผู้ซื้อไม่มี Nitro',
-              )
-            "
-            compact
-          >
-            <FeatureConfigField field-key="PRICE_READER_NO_NITRO_MARKUP_SATANG" />
-          </FeatureSettingsCard>
+        <div v-else-if="category.key === 'prices' && pricesOpened">
+          <PriceReaderCountedPricingSettings v-if="license?.version === '3.2.0'" />
+          <PriceReaderPricingSettings v-else-if="classified" />
+          <PriceReaderLegacyPricingSettings v-else />
         </div>
-        <FeatureSettingsCard
-          v-else-if="category.key === 'results' && resultsOpened"
-          :icon="TextCursorInput"
-          :title="text('Text for each image', 'ข้อความผลลัพธ์ต่อรูป')"
-          :description="
-            text(
-              'Customize the information shown for every successfully read image.',
-              'แต่งข้อมูลที่แสดงสำหรับแต่ละรูปที่อ่านราคาสำเร็จ',
-            )
-          "
-        >
-          <PriceReaderResultEditor
-            :model-value="value('PRICE_READER_RESULT_BLOCKS')"
-            :template="value('PRICE_READER_RESULTS_ITEM_TEMPLATE')"
-            :mode="
-              field('PRICE_READER_RESULT_MODE') ? value('PRICE_READER_RESULT_MODE') : undefined
-            "
-            :with-markup="Boolean(license?.version.startsWith('1.'))"
-            :extra-variables="classified ? classifiedResultVariables : []"
-            :can-use-blocks="Boolean(field('PRICE_READER_RESULT_BLOCKS'))"
-            @update:model-value="values.PRICE_READER_RESULT_BLOCKS = $event"
-            @update:template="values.PRICE_READER_RESULTS_ITEM_TEMPLATE = $event"
-            @update:mode="
-              field('PRICE_READER_RESULT_MODE') && (values.PRICE_READER_RESULT_MODE = $event)
-            "
-          />
-          <div v-if="field('PRICE_READER_RESULTS_SEPARATOR')" class="mt-lg">
-            <PriceReaderTemplateField
-              :model-value="value('PRICE_READER_RESULTS_SEPARATOR')"
-              :label="text('Separator between images', 'ตัวคั่นระหว่างรูป')"
-              :required="false"
-              :maxlength="100"
-              :rows="3"
-              @update:model-value="values.PRICE_READER_RESULTS_SEPARATOR = $event"
-            />
-          </div>
-        </FeatureSettingsCard>
+        <PriceReaderResultSettings v-else-if="category.key === 'results' && resultsOpened" />
         <PriceReaderStatusSettings v-else-if="category.key === 'states' && statesOpened" />
         <PriceReaderTestPanel v-else-if="category.key === 'test' && testOpened" />
       </section>
@@ -277,8 +187,8 @@ const resultPreview = computed(() =>
           <p class="mt-lg border-t border-border-subtle pt-md text-xs text-text-secondary">
             {{
               text(
-                'Members send screenshots in the reader channel. The bot reads image attachments automatically; no slash command is needed.',
-                'สมาชิกส่งรูปในช่องอ่านราคา บอทอ่านไฟล์รูปที่แนบมาโดยอัตโนมัติ',
+                'Send images in the reader channel for automatic quotes; no command is needed.',
+                'ส่งรูปในช่องอ่านราคา บอทอ่านให้อัตโนมัติ ไม่ต้องใช้คำสั่ง',
               )
             }}
           </p>
@@ -289,8 +199,8 @@ const resultPreview = computed(() =>
             <p class="mt-sm text-xs text-text-secondary">
               {{
                 text(
-                  'Enable Message Content Intent. Allow View Channel, Send Messages and Read Message History in the reader channel; Embed messages also need Embed Links.',
-                  'เปิด Message Content Intent ให้สิทธิ์ View Channel, Send Messages และ Read Message History ในช่องอ่านราคา ข้อความ Embed ต้องมี Embed Links ด้วย',
+                  'Enable Message Content Intent and allow View Channel, Send Messages, Read Message History and Embed Links in the reader channel.',
+                  'เปิด Message Content Intent และให้สิทธิ์ View Channel, Send Messages, Read Message History และ Embed Links ในช่องอ่านราคา',
                 )
               }}
             </p>
