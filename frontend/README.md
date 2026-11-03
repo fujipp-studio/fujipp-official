@@ -196,3 +196,9 @@ Production hosting should serve hashed `/assets/*` with
 `Cache-Control: public, max-age=31536000, immutable`, `index.html` with
 `Cache-Control: no-cache`, and enable Brotli/gzip. These headers belong to the web
 server/CDN; the current deployment uploads static files over FTPS.
+
+Price Reader 3.2 adds ten count-specific tables, sender confirmation for unclear
+counts, and a separate TH/EN bot response setting. Counted helpers, pricing and
+confirmation controls load only for the counted version. Each screen and the
+remaining OCR test flow keep explicit bundle coverage within the existing limits.
+See [Price Reader 3.2](../docs/price-reader.md#version-32-counted-bundles-and-thaienglish-replies).

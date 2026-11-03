@@ -1,0 +1,352 @@
+[
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 20900,
+    "shopPriceSatang": 5500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 25000,
+    "shopPriceSatang": 6500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 29500,
+    "shopPriceSatang": 7500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 33900,
+    "shopPriceSatang": 9000
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 35900,
+    "shopPriceSatang": 10000
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 38000,
+    "shopPriceSatang": 11500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 42500,
+    "shopPriceSatang": 14000
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 45900,
+    "shopPriceSatang": 16500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 25000,
+    "shopPriceSatang": 6500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 29500,
+    "shopPriceSatang": 7500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 33900,
+    "shopPriceSatang": 9000
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 38000,
+    "shopPriceSatang": 11500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 42500,
+    "shopPriceSatang": 14500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 44000,
+    "shopPriceSatang": 15900
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 45900,
+    "shopPriceSatang": 16900
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 47500,
+    "shopPriceSatang": 18500
+  },
+  {
+    "itemType": "SINGLE",
+    "itemCount": 1,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 53900,
+    "shopPriceSatang": 23000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 38000,
+    "shopPriceSatang": 10000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 42500,
+    "shopPriceSatang": 12900
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 44000,
+    "shopPriceSatang": 12000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 47500,
+    "shopPriceSatang": 10000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 49000,
+    "shopPriceSatang": 15000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 53900,
+    "shopPriceSatang": 18500
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 58900,
+    "shopPriceSatang": 26500
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 68900,
+    "shopPriceSatang": 31500
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 44000,
+    "shopPriceSatang": 12000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 47500,
+    "shopPriceSatang": 21000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 51000,
+    "shopPriceSatang": 16000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 56000,
+    "shopPriceSatang": 19900
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 58900,
+    "shopPriceSatang": 27000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 63900,
+    "shopPriceSatang": 29000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 73900,
+    "shopPriceSatang": 34000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 2,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 86000,
+    "shopPriceSatang": 42000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 47500,
+    "shopPriceSatang": 14000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 53900,
+    "shopPriceSatang": 16000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 58900,
+    "shopPriceSatang": 19500
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 71000,
+    "shopPriceSatang": 28000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 78900,
+    "shopPriceSatang": 38000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 53900,
+    "shopPriceSatang": 16000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 66000,
+    "shopPriceSatang": 23000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 73900,
+    "shopPriceSatang": 27000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 86000,
+    "shopPriceSatang": 36000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 101000,
+    "shopPriceSatang": 50000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 3,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 114000,
+    "shopPriceSatang": 28500
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 4,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 56000,
+    "shopPriceSatang": 18000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 4,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 71000,
+    "shopPriceSatang": 26000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 4,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 66000,
+    "shopPriceSatang": 22000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 4,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 152000,
+    "shopPriceSatang": 38000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 5,
+    "pricingMode": "NITRO",
+    "discordPriceSatang": 68900,
+    "shopPriceSatang": 22000
+  },
+  {
+    "itemType": "BUNDLE",
+    "itemCount": 5,
+    "pricingMode": "STANDARD",
+    "discordPriceSatang": 81000,
+    "shopPriceSatang": 27000
+  }
+]

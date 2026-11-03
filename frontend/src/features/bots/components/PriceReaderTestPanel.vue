@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { FlaskConical } from 'lucide-vue-next'
 import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import AppFileField from '@/shared/ui/fields/AppFileField.vue'
@@ -7,19 +7,23 @@ import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import PriceReaderPreview from './PriceReaderPreview.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
-import { priceReaderRuntimeConfig, priceReaderSampleValues } from '../config/price-reader'
-import { recognizePriceReaderImage } from '../models/price-reader-ocr'
-import { buildResultValues, readImageResult, readGeminiResult } from '@price-reader/results'
-import { readClassifiedGeminiResult } from '@price-reader/classified-pricing'
+import { priceReaderRuntimeConfig } from '../config/price-reader-base'
+import { buildResultValues } from '@price-reader/result-presentation'
 import { usePriceReaderGeminiTest } from '../composables/usePriceReaderGeminiTest'
 
-const { text, values, license, previewBot, secrets } = useFeatureEditor()
+const { text, values, license, previewBot, secrets, priceReaderHelpers } = useFeatureEditor()
 const gemini = computed(() => license.value?.version.startsWith('3.'))
-const classified = computed(() => license.value?.version === '3.1.0')
+const classified = computed(() => Boolean(values.value.PRICE_READER_PRICING_MODE))
+const selectedCount = ref('')
+const PriceReaderCountConfirmation = defineAsyncComponent(
+  () => import('./PriceReaderCountConfirmation.vue'),
+)
 const readResult = (data: unknown) =>
-  classified.value
-    ? readClassifiedGeminiResult(data, config.value)
-    : readGeminiResult(data, config.value)
+  priceReaderHelpers.value?.readPriceReaderResult(
+    data,
+    config.value,
+    selectedCount.value ? Number(selectedCount.value) : undefined,
+  )
 const testGemini = usePriceReaderGeminiTest()
 const file = ref<File | null>(null)
 const rawText = ref<string | null>(null)
@@ -40,23 +44,29 @@ const result = computed(() =>
     ? null
     : gemini.value
       ? readResult(JSON.parse(rawText.value))
-      : readImageResult(rawText.value, config.value, license.value?.version ?? '2.0.0'),
+      : priceReaderHelpers.value?.readPriceReaderOcrResult?.(
+          rawText.value,
+          config.value,
+          license.value?.version ?? '2.0.0',
+        ),
 )
-const samples = computed(() =>
-  result.value
-    ? buildResultValues(
-        [result.value],
-        config.value,
-        license.value?.version ?? '',
-        previewBot.value?.discordGuildId,
-      )
-    : priceReaderSampleValues(
-        values.value,
-        license.value?.version ?? '',
-        previewBot.value?.discordGuildId,
-        scenario.value,
-      ),
-)
+const samples = computed<Record<string, string>>(() => {
+  if (result.value)
+    return (priceReaderHelpers.value?.priceReaderBuildResultValues ?? buildResultValues)(
+      [result.value],
+      config.value,
+      license.value?.version ?? '',
+      previewBot.value?.discordGuildId,
+    )
+  return (
+    priceReaderHelpers.value?.priceReaderSampleValues(
+      values.value,
+      license.value?.version ?? '',
+      previewBot.value?.discordGuildId,
+      scenario.value,
+    ) ?? {}
+  )
+})
 let controller: AbortController | undefined
 function cancel() {
   controller?.abort()
@@ -71,6 +81,7 @@ watch(
   () => {
     cancel()
     rawText.value = null
+    selectedCount.value = ''
     error.value = ''
   },
 )
@@ -83,6 +94,7 @@ async function testImage() {
   error.value = ''
   progress.value = 0
   rawText.value = null
+  selectedCount.value = ''
   try {
     if (gemini.value) {
       const result = await testGemini(signal, file.value)
@@ -91,6 +103,7 @@ async function testImage() {
         rawText.value = JSON.stringify(result, null, 2)
       }
     } else {
+      const { recognizePriceReaderImage } = await import('../models/price-reader-ocr')
       const result = await recognizePriceReaderImage(file.value, signal, (value) => {
         progress.value = value
       })
@@ -171,6 +184,11 @@ async function testImage() {
         </p>
       </div>
     </FeatureSettingsCard>
+    <PriceReaderCountConfirmation
+      v-if="result?.pending_read || selectedCount"
+      v-model="selectedCount"
+      :raw-text="rawText || '{}'"
+    />
     <FeatureSettingsCard :title="text('Message preview', 'ตัวอย่างข้อความ')" compact>
       <AppTextField
         v-if="rawText === null"

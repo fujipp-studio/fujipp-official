@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-03 | Extended Price Reader CI ownership, browser coverage, database checks and bundle profiles to counted pricing while preserving existing payload limits. |
 | 2026-11-02 | Kept complete Price Reader bundle coverage for deferred controls and added exact byte overages to budget failures without raising limits. |
 | 2026-11-02 | Coordinated Price Reader extraction and pricing-mode contracts across Backend and Runner, with feature ownership, browser coverage and unchanged bundle limits. |
 | 2026-11-02 | Mapped Gemini Price Reader source ownership, preview APIs and contract checks across application and database delivery scopes. |

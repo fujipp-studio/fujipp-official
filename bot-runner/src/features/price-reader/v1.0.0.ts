@@ -1,3 +1,4 @@
+import { languageValues, localizedCountedConfig } from "./counted-text.js";
 import { featureErrorPayload } from "../errors.js";
 import {
   ActionRowBuilder,
@@ -10,9 +11,14 @@ import type { FeatureContext, FeatureModule } from "../../types.js";
 import { downloadImage, preprocessImage } from "./image-processor.js";
 import { buildResultValues, imageError, readImageResult, type ImageResult } from "./results.js";
 
+export interface PriceReaderReader {
+  read(raw: Buffer): Promise<ImageResult>;
+  stop(): void | Promise<void>;
+  handleResults?(source: Message, processing: Message, results: ImageResult[], images: import("discord.js").Attachment[]): Promise<boolean>;
+}
 interface PriceReaderVersionOptions {
   version: string;
-  createReader?: (context: FeatureContext) => { read(raw: Buffer): Promise<ImageResult>; stop(): void };
+  createReader?: (context: FeatureContext) => PriceReaderReader;
 }
 
 // ── Tesseract lazy singleton ────────────────────────────────────────────────
@@ -69,7 +75,7 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
         );
         if (images.length === 0) return;
         if (reader && pending >= 20) {
-          void message.reply({ content: "คิวอ่านรูปเต็ม กรุณาลองภายหลัง", allowedMentions: { parse: [] } }).catch(() => undefined);
+          void message.reply({ content: context.config.PRICE_READER_LANGUAGE === "EN" ? "The image queue is full. Please try later." : "คิวอ่านรูปเต็ม กรุณาลองภายหลัง", allowedMentions: { parse: [] } }).catch(() => undefined);
           return;
         }
 
@@ -78,7 +84,7 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
           .then(() => stopped ? undefined : processImages(context, message, images, options.version, reader))
           .catch(async (error) => {
             logError(context, "image processing")(error);
-            await message.reply(featureErrorPayload("price-reader", error)).catch(() => undefined);
+            await message.reply(context.config.PRICE_READER_LANGUAGE === "EN" ? { content: "Unable to read the images. Please try again.", allowedMentions: { parse: [] } } : featureErrorPayload("price-reader", error)).catch(() => undefined);
           }).finally(() => { pending--; });
       };
 
@@ -89,7 +95,7 @@ export function createPriceReaderFeature(options: PriceReaderVersionOptions): Fe
       return async () => {
         stopped = true;
         context.client.off("messageCreate", enqueue);
-        reader?.stop();
+        await reader?.stop();
         await queue;
         if (!reader) await terminateWorker();
       };
@@ -108,10 +114,10 @@ async function processImages(
   message: Message,
   attachments: import("discord.js").Attachment[],
   version: string,
-  reader?: { read(raw: Buffer): Promise<ImageResult> },
+  reader?: Pick<PriceReaderReader, "read" | "handleResults">,
 ): Promise<void> {
   const processing = await message.reply(
-    { ...render(context, "processing", { image_count: String(attachments.length) }), ...(reader ? { allowedMentions: { parse: [] } } : {}) },
+    { ...render(context, "processing", { ...languageValues(context.config), image_count: String(attachments.length) }), ...(reader ? { allowedMentions: { parse: [] } } : {}) },
   );
 
   const perImageResults: ImageResult[] = [];
@@ -129,10 +135,11 @@ async function processImages(
       perImageResults.push(readImageResult(data.text, context.config, version));
     } catch (error) {
       console.error(`Price Reader OCR failed for attachment ${attachment.id}:`, error);
-      perImageResults.push(imageError(context.config, "ocr_error"));
+      perImageResults.push(imageError(context.config.PRICE_READER_LANGUAGE === undefined ? context.config : localizedCountedConfig(context.config), "ocr_error"));
     }
   }
 
+  if (reader?.handleResults && await reader.handleResults(message, processing, perImageResults, attachments)) return;
   const payload = priceReaderResultPayload(context, perImageResults, version);
   if (reader) payload.allowedMentions = { parse: [] };
   if (perImageResults.every(result => result.status === "error") && processing.flags.has(MessageFlags.IsComponentsV2) && !payload.flags) {
@@ -142,11 +149,11 @@ async function processImages(
 }
 
 export function priceReaderResultPayload(context: FeatureContext, results: ImageResult[], version: string): Record<string, unknown> {
-  const vars = buildResultValues(results, context.config, version, context.guildId);
+  const vars = buildResultValues(results, context.config, version, context.guildId, languageValues(context.config));
   if (vars.success_count === "0") {
     return hasPresentation(context, "error")
       ? render(context, "error", vars)
-      : defaultErrorRender([vars.results_text ?? ""]);
+      : vars.results_heading ? { embeds: [{ title: vars.results_heading, description: vars.results_text, color: 0xed4245 }], components: [] } : defaultErrorRender([vars.results_text ?? ""]);
   }
   const orderUrl = vars.order_url;
 
@@ -157,7 +164,7 @@ export function priceReaderResultPayload(context: FeatureContext, results: Image
     const button = new ButtonBuilder()
       .setStyle(ButtonStyle.Link)
       .setURL(orderUrl)
-      .setLabel("สั่งซื้อคลิก")
+      .setLabel(vars.order_label ?? "สั่งซื้อคลิก")
       .setEmoji("🍃");
     const existing = Array.isArray(payload.components) ? payload.components : [];
     payload.components = [...existing, new ActionRowBuilder<ButtonBuilder>().addComponents(button).toJSON()];
@@ -301,11 +308,11 @@ function hasPresentation(context: FeatureContext, slot: string): boolean {
 /** Default rendering when no presentation is configured. */
 function defaultRender(slot: string, values: Record<string, string>): Record<string, unknown> {
   if (slot === "processing") {
-    return { content: `⏳ กำลังอ่านราคาจากรูป... (${values.image_count ?? "?"} รูป)` };
+    return { content: `⏳ ${values.processing_text ?? "กำลังอ่านราคาจากรูป..."} (${values.image_count ?? "?"} ${values.images_label ?? "รูป"})` };
   }
 
   // ── Default result embed ────────────────────────────────────────────────
-  const header = `💗 **ผลการอ่าน ( จำนวน ${values.image_count ?? "?"} รูป )**`;
+  const header = values.results_heading ? `💗 **${values.results_heading} ( ${values.image_count ?? "?"} ${values.images_label} )**` : `💗 **ผลการอ่าน ( จำนวน ${values.image_count ?? "?"} รูป )**`;
   const body = values.results_text ?? "";
   const footer = "🟡 🟢 🩷 🟣 🔵 🩷 🔴 🟡 🟢 🔵 🔴 🩷 🟡 🟣 🔵 🟢 🔴 🩷 🟡 🟣";
 

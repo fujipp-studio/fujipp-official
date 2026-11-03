@@ -5,14 +5,20 @@ import AppButton from '@/shared/ui/buttons/AppButton.vue'
 import FeatureSettingsCard from './FeatureSettingsCard.vue'
 import PriceMapEditor from './PriceMapEditor.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
-import { priceReaderPricePairs } from '../config/price-reader'
+import { priceReaderPricePairs } from '../config/price-reader-base'
 import { validPriceRules } from '@price-reader/classified-pricing'
 
-const { values, text } = useFeatureEditor()
+const { values, text, configuration } = useFeatureEditor()
 const mode = computed({
   get: () => String(values.value.PRICE_READER_PRICING_MODE ?? 'STANDARD'),
   set: (value) => {
     values.value.PRICE_READER_PRICING_MODE = value
+  },
+})
+const tolerance = computed({
+  get: () => String(values.value.PRICE_READER_MATCH_TOLERANCE_SATANG ?? 500),
+  set: (value) => {
+    values.value.PRICE_READER_MATCH_TOLERANCE_SATANG = value
   },
 })
 const selected = ref(`${mode.value === 'BOTH' ? 'STANDARD' : mode.value}/SINGLE`)
@@ -138,6 +144,32 @@ function importLegacy() {
         }}
       </p>
     </FeatureSettingsCard>
+    <FeatureSettingsCard
+      v-if="
+        configuration?.fields.some((item) => item.key === 'PRICE_READER_MATCH_TOLERANCE_SATANG')
+      "
+      :title="text('Price matching', 'กฎจับคู่ราคา')"
+      compact
+    >
+      <AppTextField
+        v-model="tolerance"
+        input-type="number"
+        :min="0"
+        :max="5000"
+        :step="1"
+        required
+        :label="text('Allowed difference (satang)', 'ความคลาดเคลื่อนที่ยอมรับ (สตางค์)')"
+      />
+      <p class="mt-sm text-xs text-text-muted">
+        {{
+          text(
+            'Set 0 for exact matches. Maximum ±50 THB.',
+            'ตั้ง 0 เพื่อจับคู่ตรงราคาเท่านั้น สูงสุด ±50 บาท',
+          )
+        }}
+      </p>
+    </FeatureSettingsCard>
+
     <FeatureSettingsCard :title="text('Prices by product type', 'ราคารับกดแยกประเภท')">
       <div class="space-y-lg">
         <AppTextField

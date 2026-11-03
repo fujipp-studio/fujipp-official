@@ -270,7 +270,7 @@ export function useFeatureSettings() {
   const presentationJson = ref<Record<string, string>>({})
   const advancedSlots = ref(new Set<string>())
   const walletExpandedSlots = ref(new Set<string>())
-  const priceReaderHelpers = shallowRef<typeof import('../config/price-reader')>()
+  const priceReaderHelpers = shallowRef<Pick<typeof import('../config/price-reader'), 'validatePriceReaderDraft' | 'priceReaderSampleValues' | 'priceReaderBuildResultValues' | 'readPriceReaderResult' | 'priceReaderVariables' | 'priceReaderConfiguredPairs'> & { readPriceReaderOcrResult?: typeof import('../config/price-reader')['readPriceReaderOcrResult'] }>()
   const featureValidator = shallowRef<(draft: Record<string, EditableValue>) => boolean>()
   const featurePreview =
     shallowRef<(definition: Record<string, unknown>, slotKey: string) => Record<string, unknown>>()
@@ -861,7 +861,9 @@ export function useFeatureSettings() {
       if (isPriceReaderFeature.value) {
         const [{ priceReaderPresentationPreview }, helpers] = await Promise.all([
           import('../models/price-reader-presentation-preview'),
-          import('../config/price-reader'),
+          license.value?.version === '3.2.0'
+            ? import('../config/price-reader-counted')
+            : import('../config/price-reader'),
         ])
         priceReaderHelpers.value = helpers
         featurePreview.value = (definition, slotKey) =>
@@ -976,8 +978,8 @@ export function useFeatureSettings() {
         saveConfirmationOpen.value = false
         throw new Error(
           text(
-            'Check Price Reader text, price tolerance (0–5000 satang), result blocks and pricing tables. Prices must be unique within each product type and Nitro mode.',
-            'ตรวจสอบข้อความ ความคลาดเคลื่อนราคา (0–5000 สตางค์) บล็อกผลลัพธ์ และตารางราคารับกด ห้ามราคา Discord ซ้ำภายในประเภทสินค้าและโหมด Nitro เดียวกัน',
+            'Check Price Reader text, price tolerance (0–5000 satang), result blocks and pricing tables. Prices must be unique within each item count and Nitro mode.',
+            'ตรวจสอบข้อความ ความคลาดเคลื่อนราคา (0–5000 สตางค์) บล็อกผลลัพธ์ และตารางราคารับกด ห้ามราคา Discord ซ้ำภายในจำนวนชิ้นและโหมด Nitro เดียวกัน',
           ),
         )
       }
@@ -1081,6 +1083,7 @@ export function useFeatureSettings() {
     visiblePresentationSlots,
     editablePresentationSlots,
     isPriceReaderFeature,
+    priceReaderHelpers,
     isMemberSpendingFeature,
     isRuntimeAlertFeature,
     isMessageTriggersFeature,

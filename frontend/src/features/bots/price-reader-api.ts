@@ -1,12 +1,13 @@
 import type { Session } from '@supabase/supabase-js'
 import { apiFetch, authenticatedHeaders, backendUrl, readJson } from '@/shared/api/http'
 import type { GeminiPrice } from '@price-reader/gemini-contract'
+import type { CountedGeminiPrice } from '@price-reader/counted-pricing'
 import type { ClassifiedGeminiPrice } from '@price-reader/classified-pricing'
 
 export interface PriceReaderTestResult {
   connected: boolean
   errorCode: string | null
-  result: GeminiPrice | ClassifiedGeminiPrice | null
+  result: GeminiPrice | ClassifiedGeminiPrice | CountedGeminiPrice | null
 }
 
 export async function testPriceReaderGemini(

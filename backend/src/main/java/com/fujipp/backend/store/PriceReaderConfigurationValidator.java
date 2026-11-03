@@ -11,7 +11,11 @@ final class PriceReaderConfigurationValidator {
         JsonNode pricingMode = values.get("PRICE_READER_PRICING_MODE");
         if (pricingMode != null && (!pricingMode.isTextual() || !(pricingMode.asText().equals("STANDARD") || pricingMode.asText().equals("NITRO") || pricingMode.asText().equals("BOTH"))))
             throw new StoreValidationException("Price Reader pricing mode must be STANDARD, NITRO or BOTH");
-        validateRules(values.get("PRICE_READER_PRICE_RULES"));
+        validateRules(values.get("PRICE_READER_PRICE_RULES"), false);
+        validateRules(values.get("PRICE_READER_COUNT_PRICE_RULES"), true);
+        JsonNode language=values.get("PRICE_READER_LANGUAGE");
+        if (language!=null && (!language.isTextual() || !java.util.Set.of("TH","EN").contains(language.asText())))
+            throw new StoreValidationException("Price Reader language must be TH or EN");
         JsonNode model = values.get("PRICE_READER_GEMINI_MODEL");
         if (model != null && (!model.isTextual() || !model.asText().matches(PriceReaderGeminiClient.MODEL_PATTERN))) {
             throw new StoreValidationException("Invalid Gemini model name");
@@ -58,17 +62,20 @@ final class PriceReaderConfigurationValidator {
             throw new StoreValidationException("Enable at least one result block; combined text must be at most 4000 characters");
         }
     }
-    private static void validateRules(JsonNode rules) {
+    private static void validateRules(JsonNode rules, boolean counted) {
         if (rules==null) return;
         if (!rules.isArray() || rules.size()>400) throw new StoreValidationException("Price Reader supports at most 400 price rules");
         var keys=new HashSet<String>();
         for (JsonNode rule:rules) {
             String kind=rule.path("itemType").asText(""), tier=rule.path("pricingMode").asText("");
+            JsonNode count=rule.path("itemCount");
+            if (counted && (!count.isIntegralNumber() || !count.canConvertToInt() || count.asInt()<1 || count.asInt()>5 || kind.equals("SINGLE") != (count.asInt()==1)))
+                throw new StoreValidationException("Single items require itemCount 1; bundles require itemCount 2–5");
             JsonNode discord=rule.path("discordPriceSatang"), shop=rule.path("shopPriceSatang");
             if (!rule.isObject() || !(kind.equals("SINGLE") || kind.equals("BUNDLE")) || !(tier.equals("STANDARD") || tier.equals("NITRO"))
                     || !discord.isIntegralNumber() || !discord.canConvertToLong() || discord.asLong()<1 || discord.asLong()>100_000_000
                     || !shop.isIntegralNumber() || !shop.canConvertToLong() || shop.asLong()<0 || shop.asLong()>100_000_000
-                    || !keys.add(kind+"/"+tier+"/"+discord.asLong()))
+                    || !keys.add(kind+"/"+(counted ? count.asInt() : "legacy")+"/"+tier+"/"+discord.asLong()))
                 throw new StoreValidationException("Each price rule needs a type, mode and valid satang amounts; duplicate prices within the same type and mode are not allowed");
         }
     }

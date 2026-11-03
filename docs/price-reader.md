@@ -154,3 +154,56 @@ migrations, release Backend and Runner together, then Frontend, and publish the
 new draft **3.1.0** version. The preview API selects its schema from the licensed
 configuration definitions; clients cannot opt a 3.0 license into the new contract.
 Versions 1.0, 2.0 and 3.0 retain their original price-selection behaviour.
+
+## Version 3.2: counted bundles and Thai/English replies
+
+Version 3.2.0 adds ten independent price tables: single items and bundles containing
+2, 3, 4 or 5 products, each with STANDARD (without Nitro) and NITRO prices. The rule
+key is `(itemType, itemCount, pricingMode, discordPriceSatang)`; amounts remain
+integer satang. Counts and modes never substitute for one another, and matching
+is exact. Generic legacy bundle rows cannot identify a count and are never copied
+into every bundle table automatically. The old tables remain available for explicit
+reviewed import into one selected table. No license upgrades automatically.
+
+Gemini reads Thai and English evidence of the number of products included in one
+purchase, such as “includes 3 items” or “บันเดิลประกอบไปด้วยไอเทม 3 รายการ”. Preview
+thumbnails, screenshots, backgrounds and variants are not item counts. An explicit
+unsupported bundle count (above 5) is rejected. Ambiguous listings or unreadable
+prices require a better screenshot instead of a count guess.
+
+When a valid listing has readable THB prices but its included count is unknown,
+the bot asks the original sender to select a count. A known bundle offers 2–5;
+an unknown product type also offers single item. Each image is confirmed in order.
+Selections are bound to the sender, channel, guild, message, installation, nonce
+and image index. Sessions expire five minutes after the first prompt and are
+cancelled on feature stop/restart. There are at most 30 pending sessions per
+installation. Confirmation reuses extracted prices without another Gemini call or
+retaining image bytes. Unresolved images never receive a shop quote.
+
+`PRICE_READER_LANGUAGE` selects TH or EN for standard bot replies and count
+selection. The dashboard follows its own selected language. New standard templates
+use language variables (`image_label`, `discord_price_label`, `shop_price_label`,
+`currency_label`, `results_heading`, `processing_text`, `images_label`, `order_label`)
+and `item_count`. Owner-written messages/designs are preserved on upgrade and are
+not automatically translated. The pricing screen offers an explicit confirmed
+**Reset standard messages** action in the draft; Save all applies it.
+
+The JSON file importer validates and previews rule/table counts before explicitly
+replacing the draft's counted tables. Saving remains a separate action. The
+[provided shop price file](examples/price-reader-count-prices.json) contains all
+50 supplied pairs across ten tables, with O normalized to 0. It preserves the
+supplied 1,140 → 285 standard three-item bundle entry exactly; no formula or
+monotonic-price correction is applied. This file is an owner-reviewed import,
+not a global default and not an automatic production configuration change.
+
+Apply `20261103000002_price_reader_bundle_counts.sql` via the normal ordered
+PostgreSQL gate, deploy Backend and Runner together, then Frontend. The release
+starts DRAFT; publish it and upgrade through Admin Packages after deploying the
+matching runtime. New counted tables start empty, the response language defaults
+to Thai and the pricing mode defaults to Both. Existing keys and matching config
+keys can carry over, but the owner must review/import counted prices and choose
+whether to keep custom messages or reset to bilingual standard designs.
+
+Tests cover all supplied pairs, conflicting prices across counts, missing prices,
+non-substitution, malformed extraction, count confirmation ownership/expiry/stale
+clicks, bilingual previews, import/save isolation and responsive Light/Dark screens.
