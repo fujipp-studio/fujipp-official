@@ -628,6 +628,8 @@
         ]
       },
       "routes": [
+        "/api/v1/bots/{botId}/**",
+        "/api/v1/admin/bots/{botId}/**",
         "/api/v1/bots/{botId}/feature-health",
         "/api/v1/bots/{botId}/installations/{installationId}/retry",
         "/api/v1/admin/bots/{botId}/feature-health",
