@@ -602,6 +602,41 @@
         "docs/backend-delivery.md",
         "docs/auth-api.md"
       ]
+    },
+    "feature-health": {
+      "paths": [
+        "backend/src/main/java/com/fujipp/backend/store/FeatureHealth*",
+        "backend/src/main/java/com/fujipp/backend/store/AdminFeatureHealthController.java",
+        "backend/src/main/java/com/fujipp/backend/store/FeatureRecoveryService.java",
+        "backend/src/main/java/com/fujipp/backend/store/FeatureFailurePolicy.java",
+        "backend/src/main/java/com/fujipp/backend/store/FeatureConfigurationChecks.java",
+        "backend/src/main/java/com/fujipp/backend/store/FeaturePermissionProbe.java",
+        "backend/src/main/java/com/fujipp/backend/store/FeatureDiscordClient.java",
+        "bot-runner/src/feature-diagnostics.ts"
+      ],
+      "dependsOn": [],
+      "backendAffectsRunner": true,
+      "tests": {
+        "backend": [
+          "backend/src/test/java/com/fujipp/backend/store/Feature*Tests.java",
+          "backend/src/test/java/com/fujipp/backend/store/StoreControllerTests.java",
+          "backend/src/test/java/com/fujipp/backend/store/StoreServiceTests.java"
+        ],
+        "bot-runner": [
+          "bot-runner/test/feature-diagnostics.test.ts",
+          "bot-runner/test/bot-manager-isolation.test.ts"
+        ]
+      },
+      "routes": [
+        "/api/v1/bots/{botId}/feature-health",
+        "/api/v1/bots/{botId}/installations/{installationId}/retry",
+        "/api/v1/admin/bots/{botId}/feature-health",
+        "/api/v1/admin/bots/{botId}/installations/{installationId}/retry"
+      ],
+      "guides": [
+        "docs/backend-delivery.md",
+        "docs/feature-health.md"
+      ]
     }
   }
 }

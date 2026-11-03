@@ -35,6 +35,13 @@ endpoint with the key in `x-goog-api-key`; owners configure a model, not an API 
 Customer keys may use Free or Paid tiers; the application never changes Google
 billing or switches to a different key/model automatically.
 
+If activation previously failed before a key or channel was configured, saving a
+corrected Gemini key, model, reader channel or order channel requeues that
+license's failed Price Reader installation. The retry follows the normal runtime
+poll and changes `ERROR` to `INSTALLING`, then to `ACTIVE` only after startup
+succeeds. Disabled or removed installations and other error codes are untouched.
+A request saving only presentations does not trigger an activation retry.
+
 API key validation accepts both legacy keys and Google AI Studio auth keys with
 the `AQ.` prefix. Existing deployments must apply the append-only corrective
 migration `20261102000002_price_reader_auth_keys.sql` and release Backend, Runner

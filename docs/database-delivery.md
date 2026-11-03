@@ -135,3 +135,7 @@ The transaction and locking behavior follows the PostgreSQL 17
 [psql](https://www.postgresql.org/docs/17/app-psql.html) and
 [locking](https://www.postgresql.org/docs/17/explicit-locking.html) documentation.
 Backup/rehearsal uses [pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html).
+
+Feature diagnostic metadata and the Presence catalog minimum are owned by the
+`feature-health` database scope. The migration does not reset saved customer config
+or replay operations. See [Feature health](feature-health.md).

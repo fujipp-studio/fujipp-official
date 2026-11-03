@@ -1136,21 +1136,6 @@ public class StoreRepository {
         return Map.copyOf(slots);
     }
 
-    public void retryTicketActivation(UUID licenseId) {
-        // Failed installations are excluded from runtime bootstrap. Retry only
-        // after a validated topic configuration has been saved by its owner.
-        jdbcTemplate.update("""
-                UPDATE private.bot_feature_installations AS installation
-                   SET status = 'INSTALLING', last_error_code = NULL, last_error_message = NULL
-                  FROM shop.feature_products AS product
-                 WHERE installation.license_id = ?
-                   AND installation.feature_product_id = product.id AND product.code = 'ticket'
-                   AND installation.status = 'ERROR'
-                   AND installation.last_error_code = 'FEATURE_ACTIVATION_FAILED'
-                   AND installation.removed_at IS NULL
-                """, licenseId);
-    }
-
     public void bumpConfigRevision(UUID configSetId) {
         jdbcTemplate.update(
                 """
@@ -1162,6 +1147,16 @@ public class StoreRepository {
                 """,
                 configSetId
         );
+    }
+
+    public void retryFailedActivation(UUID licenseId) {
+        jdbcTemplate.update("""
+                UPDATE private.bot_feature_installations
+                   SET status='INSTALLING', last_error_code=NULL, last_error_message=NULL,
+                       last_error_category=NULL, recovery_attempts=0, next_retry_at=NULL
+                 WHERE license_id=? AND removed_at IS NULL AND status='ERROR'
+                   AND last_error_code='FEATURE_ACTIVATION_FAILED'
+                """, licenseId);
     }
 
     private FeatureRow mapFeatureRow(ResultSet resultSet, int rowNumber) throws SQLException {
