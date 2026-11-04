@@ -1,19 +1,9 @@
+import botRuntime from './botRuntime'
+
 export default {
   title: 'บอทของฉัน',
   addBot: 'เพิ่มบอท',
-  avatarAlt: 'รูปโปรไฟล์ของ {name}',
-  online: 'ออนไลน์',
-  offline: 'ออฟไลน์',
-  runtimeStateStarting: 'กำลังเริ่มทำงาน…',
-  runtimeStateStopping: 'กำลังหยุดทำงาน…',
-  runtimeStateRestarting: 'กำลังเริ่มใหม่…',
-  runtimeStateRunning: 'กำลังทำงาน',
-  runtimeStateStopped: 'หยุดทำงาน',
-  runtimeStateCrashed: 'การทำงานขัดข้อง',
-  runtimeStateOffline: 'ออฟไลน์',
-  start: 'เริ่ม',
-  stop: 'หยุด',
-  restart: 'เริ่มใหม่',
+  ...botRuntime,
   settings: 'ตั้งค่า',
   noBots: 'ไม่พบบอท',
   signInToViewBots: 'เข้าสู่ระบบเพื่อดูและจัดการบอทของคุณ',

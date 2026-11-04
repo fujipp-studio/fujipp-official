@@ -1,0 +1,15 @@
+export default {
+  avatarAlt: '{name} avatar',
+  online: 'Online',
+  offline: 'Offline',
+  runtimeStateStarting: 'Starting…',
+  runtimeStateStopping: 'Stopping…',
+  runtimeStateRestarting: 'Restarting…',
+  runtimeStateRunning: 'Running',
+  runtimeStateStopped: 'Stopped',
+  runtimeStateCrashed: 'Crashed',
+  runtimeStateOffline: 'Offline',
+  start: 'Start',
+  stop: 'Stop',
+  restart: 'Restart',
+} as const

@@ -1,0 +1,15 @@
+export default {
+  avatarAlt: 'รูปโปรไฟล์ของ {name}',
+  online: 'ออนไลน์',
+  offline: 'ออฟไลน์',
+  runtimeStateStarting: 'กำลังเริ่มทำงาน…',
+  runtimeStateStopping: 'กำลังหยุดทำงาน…',
+  runtimeStateRestarting: 'กำลังเริ่มใหม่…',
+  runtimeStateRunning: 'กำลังทำงาน',
+  runtimeStateStopped: 'หยุดทำงาน',
+  runtimeStateCrashed: 'การทำงานขัดข้อง',
+  runtimeStateOffline: 'ออฟไลน์',
+  start: 'เริ่ม',
+  stop: 'หยุด',
+  restart: 'เริ่มใหม่',
+} as const

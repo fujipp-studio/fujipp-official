@@ -1,19 +1,9 @@
+import botRuntime from './botRuntime'
+
 export default {
   title: 'My Bot',
   addBot: 'Add bot',
-  avatarAlt: '{name} avatar',
-  online: 'Online',
-  offline: 'Offline',
-  runtimeStateStarting: 'Starting…',
-  runtimeStateStopping: 'Stopping…',
-  runtimeStateRestarting: 'Restarting…',
-  runtimeStateRunning: 'Running',
-  runtimeStateStopped: 'Stopped',
-  runtimeStateCrashed: 'Crashed',
-  runtimeStateOffline: 'Offline',
-  start: 'Start',
-  stop: 'Stop',
-  restart: 'Restart',
+  ...botRuntime,
   settings: 'Settings',
   noBots: 'No bots found',
   signInToViewBots: 'Sign in to view and manage your bots',
