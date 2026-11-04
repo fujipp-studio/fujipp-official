@@ -10,7 +10,7 @@ import {
   fetchAdminBotSettings,
   removeAdminBotFeature,
 } from '@/features/admin/api/bots'
-import { fetchBots, fetchBot, fetchFeatureLicenses, type FeatureLicense } from '@/features/bots/api'
+import { fetchBots, fetchBot, fetchFeatureLicenses, setFeatureEnabled, type FeatureLicense } from '@/features/bots/api'
 import {
   fetchRuntimeSubscriptions,
   renewRuntime,
@@ -24,6 +24,7 @@ vi.mock('@/features/bots/api', async (importOriginal) => {
   return {
     ...actual,
     fetchBots: vi.fn<typeof actual.fetchBots>(),
+    setFeatureEnabled: vi.fn<typeof actual.setFeatureEnabled>(),
     fetchBot: vi.fn<typeof actual.fetchBot>(),
     fetchFeatureLicenses: vi.fn<typeof actual.fetchFeatureLicenses>(),
   }
@@ -148,6 +149,70 @@ describe('Bot package settings', () => {
       expect(feature.text()).not.toContain('· ACTIVE')
     } finally { wrapper.unmount() }
   })
+
+  it.each([false, true])(
+    'saves feature switches for admin=%s and keeps state after a failed save',
+    async (admin) => {
+      vi.mocked(fetchFeatureLicenses).mockResolvedValue([structuredClone(license)])
+      vi.mocked(fetchAdminBotLicenses).mockResolvedValue([structuredClone(license)])
+      const pinia = createPinia()
+      setActivePinia(pinia)
+      const auth = useAuthStore()
+      auth.session = { access_token: 'test-token', user: { id: 'test-user' } } as Session
+      auth.initialized = true
+      const prefix = admin ? 'admin/bots' : 'my-bot'
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routes: [
+          {
+            path: `/${prefix}/:botId/settings/packages`,
+            name: admin ? 'admin-bot-package-settings' : 'bot-package-settings',
+            component: BotSettingsView,
+          },
+        ],
+      })
+      await router.push(`/${prefix}/${bot.id}/settings/packages`)
+      const wrapper = mount(BotSettingsView, { global: { plugins: [pinia, router, i18n] } })
+      try {
+        await flushPromises()
+        const toggle = wrapper.get('[role="switch"]')
+        expect(toggle.attributes('aria-checked')).toBe('true')
+        let complete!: (value: { status: string }) => void
+        vi.mocked(setFeatureEnabled).mockReturnValueOnce(
+          new Promise((resolve) => {
+            complete = resolve
+          }),
+        )
+        await toggle.trigger('click')
+        expect(toggle.attributes('disabled')).toBeDefined()
+        expect(toggle.attributes('aria-checked')).toBe('true')
+        complete({ status: 'DISABLED' })
+        await flushPromises()
+        expect(toggle.attributes('aria-checked')).toBe('false')
+        expect(wrapper.get('.setting-item').text()).toContain('DISABLED')
+        expect(setFeatureEnabled).toHaveBeenLastCalledWith(
+          bot.id,
+          license.installations[0]!.id,
+          false,
+          admin,
+          auth.session,
+          expect.any(AbortSignal),
+        )
+        vi.mocked(setFeatureEnabled).mockRejectedValueOnce(new Error('License changed'))
+        await toggle.trigger('click')
+        await flushPromises()
+        expect(toggle.attributes('aria-checked')).toBe('false')
+        expect(toggle.attributes('disabled')).toBeUndefined()
+        vi.mocked(setFeatureEnabled).mockResolvedValueOnce({ status: 'INSTALLING' })
+        await toggle.trigger('click')
+        await flushPromises()
+        expect(toggle.attributes('aria-checked')).toBe('true')
+        expect(wrapper.get('.setting-item').text()).toContain('INSTALLING')
+      } finally {
+        wrapper.unmount()
+      }
+    },
+  )
 
   it('confirms an active Runtime top-up and shows the extended period before charging', async () => {
     vi.mocked(fetchRuntimeSubscriptions).mockResolvedValue([runtimeSubscription])

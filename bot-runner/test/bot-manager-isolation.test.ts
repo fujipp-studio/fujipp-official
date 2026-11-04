@@ -68,3 +68,33 @@ test("recoverable errors retain diagnostics without disabling the feature; fatal
   assert.equal(statuses.at(-1)?.status, "ERROR");
   await manager.shutdown();
 });
+
+test("a disabled feature is cleaned up and can be enabled again from the next bootstrap", async () => {
+  const active = new Set<string>();
+  const clients: FakeClient[] = [];
+  const manager = new BotManager(
+    { reportStatus: async () => undefined } as unknown as RuntimeApiClient,
+    () => { const client = new FakeClient(); clients.push(client); return client as unknown as Client; },
+    () => ({
+      runtimeKey: "broken-feature", version: "1.0.0", intents: [],
+      async activate(context) {
+        const id = context.installationId;
+        active.add(id);
+        return () => { active.delete(id); };
+      },
+    }),
+  );
+  const first = bot("a"), other = bot("b");
+  first.features.push({ ...first.features[0]!, installationId: "keep-a" });
+  try {
+    await manager.reconcile([first, other]);
+    assert.deepEqual([...active].sort(), ["install-a", "install-b", "keep-a"]);
+    // Backend excludes DISABLED installations while keeping their configuration in storage.
+    await manager.reconcile([{ ...first, features: first.features.filter(feature => feature.installationId !== "install-a") }, other]);
+    assert.deepEqual([...active].sort(), ["install-b", "keep-a"]);
+    assert.equal(clients[1]!.destroyed, false);
+    await manager.reconcile([first, other]);
+    assert.deepEqual([...active].sort(), ["install-a", "install-b", "keep-a"]);
+    assert.equal(clients[1]!.destroyed, false);
+  } finally { await manager.shutdown(); }
+});

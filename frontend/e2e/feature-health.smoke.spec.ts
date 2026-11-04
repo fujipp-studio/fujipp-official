@@ -106,3 +106,63 @@ for (const theme of ['LIGHT', 'DARK']) {
     await expect(page.locator('[data-feature-health]')).toContainText('Starting')
   })
 }
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`Feature switches save, recover from failure and persist in ${theme}`, async ({
+    page,
+    isMobile,
+  }, info) => {
+    if (isMobile) await page.setViewportSize({ width: 320, height: 900 })
+    await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+    let status = 'ACTIVE'
+    let fail = false
+    const requests: boolean[] = []
+    await page.route('**/api/v1/feature-licenses', async (route) => {
+      const response = await route.fetch()
+      const licenses = await response.json()
+      licenses[0].installations[0].status = status
+      await route.fulfill({ json: licenses })
+    })
+    await page.route('**/installations/*/enabled', (route) => {
+      expect(route.request().method()).toBe('PUT')
+      expect(route.request().headers()['content-type']).toContain('application/json')
+      const { enabled } = route.request().postDataJSON()
+      requests.push(enabled)
+      if (fail)
+        return route.fulfill({
+          status: 409,
+          json: { detail: 'License changed; refresh and try again' },
+        })
+      status = enabled ? 'INSTALLING' : 'DISABLED'
+      return route.fulfill({ json: { status } })
+    })
+    await page.goto('/my-bot/fixture-bot/settings/packages?locale=en&role=USER')
+    const row = page.locator('.setting-item').first()
+    const toggle = row.getByRole('switch')
+    await expect(toggle).toBeChecked()
+    await toggle.click()
+    await expect(toggle).not.toBeChecked()
+    await expect(row).toContainText('DISABLED')
+    await page.reload()
+    await expect(toggle).not.toBeChecked()
+    fail = true
+    await toggle.click()
+    await expect(page.getByRole('alert')).toContainText('License changed')
+    await expect(toggle).not.toBeChecked()
+    fail = false
+    await toggle.focus()
+    await page.keyboard.press('Space')
+    await expect(toggle).toBeChecked()
+    await expect(row).toContainText('INSTALLING')
+    expect(requests).toEqual([false, true, true])
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    await row.screenshot({
+      path: info.outputPath(`feature-toggle-${theme}.png`),
+      animations: 'disabled',
+    })
+    await page.locator('.items-card').screenshot({
+      path: info.outputPath(`feature-toggle-settings-${theme}.png`),
+      animations: 'disabled',
+    })
+  })
+}

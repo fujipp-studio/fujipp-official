@@ -53,6 +53,21 @@ class FeatureHealthRepository {
                 """,installationId,botId,owner)==1;
     }
 
+    boolean setEnabled(UUID botId, UUID installationId, UUID owner, String previousStatus, String status) {
+        return jdbc.update("""
+                UPDATE private.bot_feature_installations i
+                   SET status=?::private.feature_installation_status,
+                       last_error_code=NULL,last_error_message=NULL,last_error_category=NULL,
+                       recovery_attempts=0,next_retry_at=NULL
+                 WHERE i.id=? AND i.bot_id=? AND i.owner_user_id=?
+                   AND i.status::text=? AND i.removed_at IS NULL
+                   AND EXISTS(SELECT 1 FROM private.feature_licenses l,bots.bot_instances b
+                    WHERE l.id=i.license_id AND l.status='ACTIVE'
+                   AND (l.expires_at IS NULL OR l.expires_at>now())
+                   AND b.id=i.bot_id AND b.owner_user_id=i.owner_user_id AND b.status<>'DECOMMISSIONED')
+                """,status,installationId,botId,owner,previousStatus)==1;
+    }
+
     int retryDue() {
         return jdbc.update("""
                 UPDATE private.bot_feature_installations i

@@ -7,6 +7,14 @@ export default {
   sectionsLabel: 'Bot settings sections',
   botOverview: 'Bot',
   featureFallback: 'Feature',
+  featureToggleHint:
+    'Turn features on or off without losing their settings or licenses. Changes apply on the next bot sync and may briefly reconnect the bot.',
+  toggleFeature: 'Enable {feature}',
+  featureOn: 'On',
+  featureOff: 'Off',
+  featureEnabled: '{feature} enabled. The bot will apply the change automatically.',
+  featureDisabled: '{feature} disabled. Your settings are saved.',
+  unableToToggleFeature: 'Unable to update feature status.',
 
   addRemoveAndReorderBlocks: 'Add, remove, and reorder blocks',
   messageBlocks: 'Message blocks',

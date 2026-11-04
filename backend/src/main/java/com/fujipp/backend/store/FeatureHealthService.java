@@ -38,6 +38,28 @@ class FeatureHealthService {
         if (!repository.botExists(botId)) throw new StoreNotFoundException("Bot was not found");
         retryChecked(botId,installationId);
     }
+    @Transactional
+    public String setEnabled(String subject,UUID botId,UUID installationId,boolean enabled) {
+        authorize(subject,botId);
+        return setEnabledChecked(botId,installationId,enabled);
+    }
+    @Transactional
+    public String setEnabledAsAdmin(UUID botId,UUID installationId,boolean enabled) {
+        if (!repository.botExists(botId)) throw new StoreNotFoundException("Bot was not found");
+        return setEnabledChecked(botId,installationId,enabled);
+    }
+    private String setEnabledChecked(UUID botId,UUID installationId,boolean enabled) {
+        var target=repository.list(botId).stream().filter(row->row.id().equals(installationId)).findFirst()
+                .orElseThrow(()->new StoreNotFoundException("Feature installation was not found"));
+        if (!java.util.Set.of("INSTALLING","ACTIVE","ERROR","DISABLED").contains(target.status()))
+            throw new StoreConflictException("Feature installation is no longer available");
+        if (enabled == !target.status().equals("DISABLED")) return target.status();
+        String status=enabled?"INSTALLING":"DISABLED";
+        if (!repository.setEnabled(botId,installationId,target.owner(),target.status(),status))
+            throw new StoreConflictException("Feature status or license changed; refresh and try again");
+        runtime.invalidateBootstrap();
+        return status;
+    }
     private void retryChecked(UUID botId,UUID installationId) {
         var target=repository.list(botId).stream().filter(row->row.id().equals(installationId)).findFirst()
                 .orElseThrow(()->new StoreNotFoundException("Feature installation was not found"));

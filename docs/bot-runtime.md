@@ -556,3 +556,28 @@ application validation is not a replacement for infrastructure egress control.
 Bot Packages settings expose feature diagnostics and validated startup recovery.
 Transient startup retries are bounded and exclude financial features and operation
 failures. See [Feature health](feature-health.md) for the complete policy.
+
+## Feature on/off controls
+
+Owners can switch each installed feature on or off in **Bot settings → Packages**.
+Administrators have the same control in the bot's Packages settings. The switch
+calls `PUT /api/v1/bots/{botId}/installations/{installationId}/enabled` (or the
+`/api/v1/admin/bots/...` equivalent) with `{ "enabled": true | false }` and receives
+`{ "status": "INSTALLING" | "ACTIVE" | "ERROR" | "DISABLED" }`.
+
+Disabling sets only that installation to `DISABLED`, clears pending startup
+recovery, and retains the license, configuration, secrets, presentations and runtime
+state. Disabled installations still occupy their license slot; expiry and billing
+continue normally. An active, unexpired license is required to change the switch.
+Enabling a disabled installation sets it to `INSTALLING`; repeating an enable request
+on an already enabled installation preserves its current status and diagnostics.
+Bot ownership and installation membership are checked on the Backend, including
+conditional writes to reject concurrent ownership, license or status changes.
+
+Both changes invalidate bootstrap. The existing Runner reconciliation applies the
+new feature list on its next poll (normally within 30 seconds), with the normal bot
+reconnection for a changed feature list. Other bots stay connected. Late Runner
+status reports cannot overwrite `DISABLED` or queue automatic recovery for it.
+This change uses the existing installation status enum and needs no migration.
+Release Backend and Runner together through the paired API/runtime checks before
+publishing the Frontend switch.

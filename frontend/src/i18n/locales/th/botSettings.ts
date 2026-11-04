@@ -1,4 +1,12 @@
 export default {
+  featureToggleHint:
+    'เปิด–ปิดฟีเจอร์ได้โดยเก็บค่าตั้งค่าและสิทธิ์ใช้งานเดิมไว้ การเปลี่ยนแปลงจะมีผลเมื่อบอทซิงก์ครั้งถัดไป และอาจเชื่อมต่อใหม่ชั่วคราว',
+  toggleFeature: 'เปิดใช้งาน {feature}',
+  featureOn: 'เปิด',
+  featureOff: 'ปิด',
+  featureEnabled: 'เปิดใช้งาน {feature} แล้ว บอทจะปรับการทำงานให้อัตโนมัติ',
+  featureDisabled: 'ปิดใช้งาน {feature} แล้ว โดยเก็บค่าตั้งค่าเดิมไว้',
+  unableToToggleFeature: 'เปลี่ยนสถานะฟีเจอร์ไม่สำเร็จ',
   shellTitle: 'ตั้งค่าบอท',
   ticketHistory: 'ประวัติแชท Ticket',
   back: 'ย้อนกลับ',

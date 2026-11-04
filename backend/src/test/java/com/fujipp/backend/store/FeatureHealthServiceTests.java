@@ -62,4 +62,52 @@ class FeatureHealthServiceTests {
         assertThatThrownBy(()->service.retryAsAdmin(bot,installation)).isInstanceOf(StoreNotFoundException.class);
         verifyNoInteractions(permissions,runtime);
     }
+    private FeatureHealthRepository.Row installation(String status) {
+        var original=row("FEATURE_ACTIVATION_FAILED",false);
+        return new FeatureHealthRepository.Row(installation,license,owner,status,original.errorCode(),"required",null,null,0,null,
+                "voice-keeper","Voice Keeper","1.0.0","ACTIVE",null,"STOPPED",null,false);
+    }
+    @Test void ownerCanDisableAndEnableWithoutRunningBotOrRuntime() {
+        authorize();
+        for (String previous:List.of("ACTIVE","INSTALLING","ERROR","DISABLED")) {
+            boolean enabled=previous.equals("DISABLED");
+            String next=enabled?"INSTALLING":"DISABLED";
+            when(repository.list(bot)).thenReturn(List.of(installation(previous)));
+            when(repository.setEnabled(bot,installation,owner,previous,next)).thenReturn(true);
+            assertThat(service.setEnabled("subject",bot,installation,enabled)).isEqualTo(next);
+            verify(repository).setEnabled(bot,installation,owner,previous,next);
+        }
+        verify(runtime,times(4)).invalidateBootstrap();
+        verifyNoInteractions(permissions);
+    }
+    @Test void repeatedEnableDoesNotResetAnExistingFailure() {
+        authorize();when(repository.list(bot)).thenReturn(List.of(installation("ERROR")));
+        assertThat(service.setEnabled("subject",bot,installation,true)).isEqualTo("ERROR");
+        verify(repository,never()).setEnabled(any(),any(),any(),anyString(),anyString());
+        verifyNoInteractions(runtime);
+    }
+    @Test void disabledStateIsIdempotent() {
+        authorize();when(repository.list(bot)).thenReturn(List.of(installation("DISABLED")));
+        assertThat(service.setEnabled("subject",bot,installation,false)).isEqualTo("DISABLED");
+        verify(repository,never()).setEnabled(any(),any(),any(),anyString(),anyString());
+        verifyNoInteractions(runtime);
+    }
+    @Test void foreignOwnerAndForeignInstallationCannotToggle() {
+        authorize();when(store.botBelongsTo(bot,owner)).thenReturn(false);
+        assertThatThrownBy(()->service.setEnabled("subject",bot,installation,false)).isInstanceOf(StoreNotFoundException.class);
+        verifyNoInteractions(repository,runtime);
+        when(store.botBelongsTo(bot,owner)).thenReturn(true);
+        when(repository.list(bot)).thenReturn(List.of());
+        assertThatThrownBy(()->service.setEnabled("subject",bot,installation,false)).isInstanceOf(StoreNotFoundException.class);
+        when(repository.botExists(bot)).thenReturn(true);
+        assertThatThrownBy(()->service.setEnabledAsAdmin(bot,installation,false)).isInstanceOf(StoreNotFoundException.class);
+        verifyNoInteractions(runtime);
+    }
+    @Test void concurrentStatusOrLicenseChangeDoesNotInvalidateRuntime() {
+        authorize();when(repository.list(bot)).thenReturn(List.of(installation("ACTIVE")));
+        when(repository.setEnabled(bot,installation,owner,"ACTIVE","DISABLED")).thenReturn(false);
+        assertThatThrownBy(()->service.setEnabled("subject",bot,installation,false)).isInstanceOf(StoreConflictException.class);
+        verifyNoInteractions(runtime);
+    }
+
 }
