@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-04 | Added bot feature switches, an About photo card carousel and rotating technology orbits, plus guest access to My Bot and Store with sign-in prompts for account actions. |
 | 2026-11-04 | Added AUTO price selection, owner-set Gift quotes and editable Thai/English price layouts with responsive previews and verified save/reload flows. |
 | 2026-11-03 | Added feature health and validated retry controls alongside ten Price Reader pricing tables, reviewed imports and Thai/English count-confirmation previews. |
 | 2026-11-02 | Reduced Price Reader screen payloads with on-demand channel and status settings while preserving unsaved drafts across category changes. |

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { Bot, Clock3, Search } from 'lucide-vue-next'
@@ -39,6 +39,9 @@ import {
   type PackageInventoryGroup,
 } from '../package-inventory'
 import { filterRuntimeInventory, runtimeBotSelections } from '../runtime-inventory'
+import type { AuthDialogMode } from '@/shared/ui/dialogs/types'
+
+const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/AppAuthDialog.vue'))
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -65,6 +68,17 @@ const createForm = ref({ name: '', discordApplicationId: '', discordGuildId: '',
 const showAutoRenewModal = ref(false)
 const selectedAutoRenewRuntime = ref<RuntimeSubscription | null>(null)
 const updatingAutoRenew = ref(false)
+const authDialogOpen = ref(false)
+const authDialogLoaded = ref(false)
+const authDialogMode = ref<AuthDialogMode>('login')
+
+function requireSession() {
+  if (session.value) return true
+  authDialogMode.value = 'login'
+  authDialogLoaded.value = true
+  authDialogOpen.value = true
+  return false
+}
 
 const showInstallModal = ref(false)
 const pendingInstall = ref<{
@@ -90,6 +104,7 @@ let dashboardController: AbortController | undefined
 const botPolling = useVisibilityPolling(refreshBots)
 
 function openCreateDialog() {
+  if (!requireSession()) return
   showCreate.value = true
 }
 
@@ -298,6 +313,7 @@ async function submitBot() {
 }
 
 function beginEdit(bot: UserBot) {
+  if (!requireSession()) return
   void router.push({ name: 'bot-settings', params: { botId: bot.id } })
 }
 
@@ -331,6 +347,7 @@ async function runControl(bot: UserBot, action: BotControlAction) {
 }
 
 function handlePackageBotSelect(group: PackageInventoryGroup, newBotId: string) {
+  if (!requireSession()) return
   if (!newBotId) return
   const license = nextInstallableLicense(group)
   if (!license) return
@@ -374,6 +391,7 @@ async function confirmInstallPackage() {
 }
 
 function handleBotSelectChange(runtime: RuntimeSubscription, newBotId: string) {
+  if (!requireSession()) return
   const oldBotId = targetBotByRuntime.value[runtime.id] ?? runtime.botId ?? ''
   if (newBotId === oldBotId) return
 
@@ -419,6 +437,7 @@ async function confirmBindBot() {
 }
 
 function openAutoRenewModal(runtime: RuntimeSubscription) {
+  if (!requireSession()) return
   selectedAutoRenewRuntime.value = runtime
   showAutoRenewModal.value = true
 }
@@ -472,6 +491,7 @@ watch(() => session.value?.user?.id, (id) => {
   licenses.value = []
   runtimeSubscriptions.value = []
   botPolling.stop()
+  loading.value = Boolean(id)
   if (id && !disposed) void loadDashboard(false)
 })
 
@@ -479,7 +499,7 @@ onMounted(async () => {
   if (!initialized.value) await authStore.initialize()
   await loadDashboard(false)
   await syncMissingBotProfiles()
-  botPolling.start()
+  if (session.value) botPolling.start()
 })
 
 onBeforeUnmount(() => {
@@ -501,7 +521,6 @@ onBeforeUnmount(() => {
             {{ t('myBots.title') }}
           </h1>
           <AppButton
-            v-if="session"
             class="tablet:!w-auto"
             :left-icon="icons.base.add"
             @click="openCreateDialog"
@@ -584,7 +603,8 @@ onBeforeUnmount(() => {
           v-if="!loading && !bots.length"
           class="rounded-xl border border-dashed border-border-default p-2xl text-center text-text-muted"
         >
-          <Bot :size="36" class="mx-auto mb-sm" />{{ t('myBots.noBots') }}
+          <Bot :size="36" class="mx-auto mb-sm" />
+          {{ t(session ? 'myBots.noBots' : 'myBots.signInToViewBots') }}
         </div>
       </section>
 
@@ -667,7 +687,7 @@ onBeforeUnmount(() => {
                 </tr>
                 <tr v-if="!loading && !packageInventory.length">
                   <td colspan="5" class="h-40 text-center text-text-muted">
-                    {{ t('myBots.noPackages') }}
+                    {{ t(session ? 'myBots.noPackages' : 'myBots.signInToViewPackages') }}
                   </td>
                 </tr>
               </tbody>
@@ -755,7 +775,7 @@ onBeforeUnmount(() => {
                 </tr>
                 <tr v-if="!loading && !visibleRuntimeSubscriptions.length">
                   <td colspan="5" class="h-40 text-center text-text-muted">
-                    {{ t('myBots.noRuntime') }}
+                    {{ t(session ? 'myBots.noRuntime' : 'myBots.signInToViewRuntime') }}
                   </td>
                 </tr>
               </tbody>
@@ -946,6 +966,11 @@ onBeforeUnmount(() => {
         </AppButton>
       </template>
     </AppModal>
+    <AppAuthDialog
+      v-if="authDialogLoaded"
+      v-model:open="authDialogOpen"
+      v-model:mode="authDialogMode"
+    />
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
   </main>
 </template>

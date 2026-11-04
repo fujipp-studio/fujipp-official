@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { Clock3, Search } from 'lucide-vue-next'
@@ -19,6 +19,9 @@ import {
 import { icons } from '../../../config'
 import { useAuthStore } from '../../../stores'
 import { AppButton, AppIcon, AppModal, AppToast } from '../../../shared/ui'
+import type { AuthDialogMode } from '@/shared/ui/dialogs/types'
+
+const AppAuthDialog = defineAsyncComponent(() => import('@/shared/ui/dialogs/AppAuthDialog.vue'))
 
 type StoreSection = 'menu' | 'packages' | 'runtime'
 
@@ -55,6 +58,9 @@ const buyingOfferId = ref('')
 const purchaseIdempotencyKey = ref('')
 const transitionName = ref('store-forward')
 const sectionScrollY = ref(0)
+const authDialogOpen = ref(false)
+const authDialogLoaded = ref(false)
+const authDialogMode = ref<AuthDialogMode>('login')
 
 const toastOpen = ref(false)
 const toastMessage = ref('')
@@ -176,9 +182,9 @@ function requestBuy(card: ProductCard) {
   notice.value = ''
   if (buyingOfferId.value) return
   if (!session.value) {
-    const msg = t('store.signInNotice')
-    notice.value = msg
-    showToast(msg, 'info')
+    authDialogMode.value = 'login'
+    authDialogLoaded.value = true
+    authDialogOpen.value = true
     return
   }
   selectedCard.value = card
@@ -428,7 +434,8 @@ async function confirmBuy() {
                   <AppButton
                     :disabled="
                       Boolean(buyingOfferId) ||
-                      (isRuntime(card.feature) &&
+                      (isAuthenticated &&
+                        isRuntime(card.feature) &&
                         (!runtimeAvailability || runtimeAvailability.availableSlots <= 0))
                     "
                     @click="requestBuy(card)"
@@ -491,6 +498,11 @@ async function confirmBuy() {
       </template>
     </AppModal>
 
+    <AppAuthDialog
+      v-if="authDialogLoaded"
+      v-model:open="authDialogOpen"
+      v-model:mode="authDialogMode"
+    />
     <AppToast v-model:open="toastOpen" :message="toastMessage" :variant="toastVariant" />
   </main>
 </template>

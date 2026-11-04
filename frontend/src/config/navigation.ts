@@ -17,12 +17,6 @@ export const guestNavbarLinks = [
   { label: 'Home', path: '/', icon: icons.navigation.home },
   { label: 'Portfolio', path: '/work', icon: icons.navigation.work },
   { label: 'About', path: '/about', icon: icons.navigation.about },
-] satisfies readonly NavbarLink[]
-
-export const authenticatedNavbarLinks = [
-  { label: 'Home', path: '/', icon: icons.navigation.home },
-  { label: 'Portfolio', path: '/work', icon: icons.navigation.work },
-  { label: 'About', path: '/about', icon: icons.navigation.about },
   {
     label: 'My bot',
     path: '/my-bot',
@@ -34,3 +28,5 @@ export const authenticatedNavbarLinks = [
     ],
   },
 ] satisfies readonly NavbarLink[]
+
+export const authenticatedNavbarLinks = guestNavbarLinks

@@ -220,6 +220,14 @@ function navigateToPath(path: string, label: string) {
   const targetRoute = router.resolve(path)
   if (targetRoute.matched.length === 0) return
 
+  if (
+    !resolvedAuthenticated.value &&
+    targetRoute.matched.some((record) => record.meta.requiresAuth)
+  ) {
+    void openAuthDialog('login')
+    return
+  }
+
   selectedItem.value = label
   if (
     router.currentRoute.value.path !== targetRoute.path ||
