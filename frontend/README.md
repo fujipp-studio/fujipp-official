@@ -186,6 +186,9 @@ check. CI also runs the budget check against the normal build. Initial JS must s
 or below 180 KiB gzip and CSS at or below 50 KiB gzip. Route JS limits are Home 150,
 Work 160, My Bot 230, Feature config 250 and Presentation editor 260 KiB gzip; each
 includes both languages, required async components and the session SDK where needed.
+Bot settings load the compact `botRuntime` namespace for their shared status and
+control labels; the complete `myBots` inventory and guest copy loads only on the
+Dashboard. Bundle profiles include both languages of the namespaces each screen uses.
 The check also keeps the Auth dialog out of the initial bundle. Images, fonts, API
 payloads and browser responsiveness need separate measurement.
 

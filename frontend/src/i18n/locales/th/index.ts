@@ -8,6 +8,7 @@ import admin from './admin'
 import botSettings from './botSettings'
 import common from './common'
 import myBots from './myBots'
+import botRuntime from './botRuntime'
 import donation from './donation'
 import account from './account'
 import privacy from './privacy'
@@ -24,5 +25,6 @@ export default {
   admin,
   botSettings,
   myBots,
+  botRuntime,
   common,
 }

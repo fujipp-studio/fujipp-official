@@ -33,13 +33,13 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const online = computed(() => Boolean(props.bot && isBotOnline(props.bot)))
 const runtimeLabels: Record<BotRuntimeDisplayState, string> = {
-  starting: 'myBots.runtimeStateStarting',
-  stopping: 'myBots.runtimeStateStopping',
-  restarting: 'myBots.runtimeStateRestarting',
-  running: 'myBots.runtimeStateRunning',
-  stopped: 'myBots.runtimeStateStopped',
-  crashed: 'myBots.runtimeStateCrashed',
-  offline: 'myBots.runtimeStateOffline',
+  starting: 'botRuntime.runtimeStateStarting',
+  stopping: 'botRuntime.runtimeStateStopping',
+  restarting: 'botRuntime.runtimeStateRestarting',
+  running: 'botRuntime.runtimeStateRunning',
+  stopped: 'botRuntime.runtimeStateStopped',
+  crashed: 'botRuntime.runtimeStateCrashed',
+  offline: 'botRuntime.runtimeStateOffline',
 }
 
 function runtimeLabel() {
@@ -61,7 +61,7 @@ function runtimeLabel() {
         v-if="bot.discordAvatarUrl"
         class="bot-shell-avatar"
         :src="bot.discordAvatarUrl"
-        :alt="t('myBots.avatarAlt', { name: bot.name })"
+        :alt="t('botRuntime.avatarAlt', { name: bot.name })"
         decoding="async"
         fetchpriority="high"
       />
@@ -71,7 +71,7 @@ function runtimeLabel() {
       <div class="min-w-0">
         <h2>{{ bot.name }}</h2>
         <strong :class="online ? 'bot-shell-online' : 'bot-shell-offline'">{{
-          t(online ? 'myBots.online' : 'myBots.offline')
+          t(online ? 'botRuntime.online' : 'botRuntime.offline')
         }}</strong>
         <p><Clock3 :size="16" />{{ runtimeLabel() }}</p>
       </div>
@@ -83,7 +83,7 @@ function runtimeLabel() {
         :left-icon="bot.desiredState === 'RUNNING' ? icons.action.pause : icons.action.play"
         :disabled="controlling"
         @click="emit('control', bot.desiredState === 'RUNNING' ? 'stop' : 'start')"
-        >{{ t(bot.desiredState === 'RUNNING' ? 'myBots.stop' : 'myBots.start') }}</AppButton
+        >{{ t(bot.desiredState === 'RUNNING' ? 'botRuntime.stop' : 'botRuntime.start') }}</AppButton
       >
       <AppButton
         class="bot-shell-hug"
@@ -91,7 +91,7 @@ function runtimeLabel() {
         :left-icon="icons.action.restart"
         :disabled="controlling || bot.desiredState !== 'RUNNING'"
         @click="emit('control', 'restart')"
-        >{{ t('myBots.restart') }}</AppButton
+        >{{ t('botRuntime.restart') }}</AppButton
       >
     </div>
   </section>

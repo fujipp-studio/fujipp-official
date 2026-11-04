@@ -11,6 +11,7 @@ export const messageNamespaces = [
   'topup',
   'admin',
   'botSettings',
+  'botRuntime',
   'myBots',
   'donation',
   'account',
@@ -73,9 +74,10 @@ function namespacesForPath(path: string): MessageNamespace[] {
     path === '/auth/callback'
   )
     return [...messageNamespaces]
-  if (path.startsWith('/admin/bots/')) return ['admin', 'botSettings', 'myBots']
+  if (path.startsWith('/admin/bots/')) return ['admin', 'botSettings', 'botRuntime']
   if (path.startsWith('/admin')) return ['admin', 'donation']
-  if (path.startsWith('/my-bot')) return ['myBots', 'botSettings']
+  if (path === '/my-bot' || path === '/my-bot/') return ['myBots', 'botSettings']
+  if (path.startsWith('/my-bot/')) return ['botRuntime', 'botSettings']
   if (path.startsWith('/store')) return ['store']
   if (path.startsWith('/add-credit')) return ['topup', 'donation']
   if (path.startsWith('/account')) return ['account']
