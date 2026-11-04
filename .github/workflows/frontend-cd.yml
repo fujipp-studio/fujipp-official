@@ -92,6 +92,12 @@ jobs:
         run: bun scripts/ci-affected.ts plan
       - name: Configure bounded HTTPS downloads for browser dependencies
         run: |
+          # Chromium dependencies use Ubuntu packages, not the runner's Microsoft feeds.
+          for source_file in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            if [ -f "$source_file" ] && grep -q 'packages\.microsoft\.com' "$source_file"; then
+              sudo rm -- "$source_file"
+            fi
+          done
           # Avoid the Azure HTTP mirror that can stall during apt updates.
           if [ -f /etc/apt/apt-mirrors.txt ]; then
             printf '%s\n' 'https://archive.ubuntu.com/ubuntu/' \
@@ -192,7 +198,15 @@ jobs:
           name: frontend-production
           path: frontend/dist
       - name: Install FTPS client
-        run: sudo apt-get update && sudo apt-get install --yes lftp
+        run: |
+          # lftp also comes from Ubuntu; unrelated Microsoft feeds can return 403.
+          for source_file in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+            if [ -f "$source_file" ] && grep -q 'packages\.microsoft\.com' "$source_file"; then
+              sudo rm -- "$source_file"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install --yes lftp
         working-directory: .
       - name: Rehearse FTPS commands locally
         run: python3 scripts/verify-ftps-commands.py

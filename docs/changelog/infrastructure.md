@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-04 | Prevented unrelated Microsoft APT feed errors from blocking Chromium dependency and FTPS client installation on Frontend CI runners. |
 | 2026-11-04 | Covered complete Price Reader quote and message-editor screens while deferring feature-specific copy and preserving existing production bundle limits. |
 | 2026-11-03 | Coordinated feature health and counted Price Reader delivery coverage with complete controller route ownership, database contracts and browser checks while preserving bundle limits. |
 | 2026-11-02 | Kept complete Price Reader bundle coverage for deferred controls and added exact byte overages to budget failures without raising limits. |
