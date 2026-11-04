@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-04 | Documented feature switches, the About gallery and technology orbits, and guest access to My Bot and Store. |
 | 2026-11-04 | Documented AUTO and Gift setup, editable price layouts, Nitro comparisons, partial failures and coordinated delivery without a feature version upgrade. |
 | 2026-11-03 | Documented feature recovery and counted Price Reader setup, bilingual replies and coordinated delivery with a reviewed 50-price import example. |
 | 2026-11-02 | Documented deferred Price Reader settings and production-like configuration checks for frontend bundle budgets. |

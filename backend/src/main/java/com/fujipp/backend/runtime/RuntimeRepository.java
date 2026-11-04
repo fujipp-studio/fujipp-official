@@ -234,17 +234,20 @@ public class RuntimeRepository {
             );
             return;
         }
-        jdbcTemplate.update(
+        int updated = jdbcTemplate.update(
                 """
                 UPDATE private.bot_feature_installations
                    SET status = ?::private.feature_installation_status,
                        last_error_code = ?,
                        last_error_message = ?
-                 WHERE id = ? AND bot_id = ? AND removed_at IS NULL
+                 WHERE id = ? AND bot_id = ? AND removed_at IS NULL AND status <> 'DISABLED'
                 """,
                 request.status(), request.errorCode(), com.fujipp.backend.store.FeatureFailurePolicy.safeMessage(request.errorMessage()),
                 request.installationId(), request.botId()
         );
+        // A user may have disabled this installation while an older worker was
+        // still reporting. Do not restore its status or queue recovery.
+        if (updated == 0) return;
         String category = com.fujipp.backend.store.FeatureFailurePolicy.category(request.errorCategory(), request.errorCode(), request.errorMessage());
         jdbcTemplate.update("""
                 UPDATE private.bot_feature_installations i
@@ -256,7 +259,7 @@ public class RuntimeRepository {
                          THEN now()+make_interval(secs=>CASE recovery_attempts WHEN 0 THEN 30 WHEN 1 THEN 120 ELSE 300 END)
                          ELSE NULL END
                   FROM shop.feature_products p
-                 WHERE i.feature_product_id=p.id AND i.id=? AND i.bot_id=? AND i.removed_at IS NULL
+                 WHERE i.feature_product_id=p.id AND i.id=? AND i.bot_id=? AND i.removed_at IS NULL AND i.status <> 'DISABLED'
                 """, category, request.errorCode(), request.status(), request.errorCode(), request.status(), category,
                 request.errorCode(), request.installationId(), request.botId());
     }

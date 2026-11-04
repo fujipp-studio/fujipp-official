@@ -35,7 +35,10 @@
     },
     "about": {
       "paths": [
-        "frontend/src/features/about/"
+        "frontend/src/features/about/",
+        "frontend/src/features/about/components/TechnologyOrbit.vue",
+        "frontend/src/features/about/components/AboutPortraitGallery.vue",
+        "frontend/public/images/about/gallery/"
       ],
       "routes": [
         "/about"
@@ -150,7 +153,9 @@
       "routes": [
         "/store/**"
       ],
-      "dependsOn": [],
+      "dependsOn": [
+        "auth"
+      ],
       "smoke": [
         "frontend",
         "account-topup"
@@ -255,16 +260,21 @@
     },
     "bots-core": {
       "paths": [
-        "frontend/src/features/bots/"
+        "frontend/src/features/bots/",
+        "frontend/src/__tests__/BotSettingsView.spec.ts"
       ],
       "routes": [
         "/my-bot/**"
       ],
-      "dependsOn": [],
+      "dependsOn": [
+        "auth"
+      ],
       "smoke": [
         "*"
       ],
-      "unit": [],
+      "unit": [
+        "src/__tests__/BotSettingsView.spec.ts"
+      ],
       "guides": [
         "frontend/README.md",
         "docs/bot-runtime.md"

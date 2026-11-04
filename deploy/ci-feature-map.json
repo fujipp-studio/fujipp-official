@@ -612,7 +612,8 @@
         "backend/src/main/java/com/fujipp/backend/store/FeatureConfigurationChecks.java",
         "backend/src/main/java/com/fujipp/backend/store/FeaturePermissionProbe.java",
         "backend/src/main/java/com/fujipp/backend/store/FeatureDiscordClient.java",
-        "bot-runner/src/feature-diagnostics.ts"
+        "bot-runner/src/feature-diagnostics.ts",
+        "backend/src/main/java/com/fujipp/backend/store/SetFeatureEnabledRequest.java"
       ],
       "dependsOn": [],
       "backendAffectsRunner": true,
@@ -633,11 +634,14 @@
         "/api/v1/bots/{botId}/feature-health",
         "/api/v1/bots/{botId}/installations/{installationId}/retry",
         "/api/v1/admin/bots/{botId}/feature-health",
-        "/api/v1/admin/bots/{botId}/installations/{installationId}/retry"
+        "/api/v1/admin/bots/{botId}/installations/{installationId}/retry",
+        "/api/v1/bots/{botId}/installations/{installationId}/enabled",
+        "/api/v1/admin/bots/{botId}/installations/{installationId}/enabled"
       ],
       "guides": [
         "docs/backend-delivery.md",
-        "docs/feature-health.md"
+        "docs/feature-health.md",
+        "docs/bot-runtime.md"
       ]
     }
   }

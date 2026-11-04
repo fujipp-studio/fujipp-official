@@ -1,33 +1,19 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
+import { ArrowUpRight, Github, Linkedin, Mail } from 'lucide-vue-next'
 
 import { AppFooter } from '../../../shared/layout'
-import { AppButton, AppProgressiveImage } from '../../../shared/ui'
-import { icons } from '../../../config'
-import { useThemeStore } from '../../../stores'
 import { DonationSupportSection } from '../../donation/components'
 import {
   AboutContactSection,
   AboutExperienceSection,
   AboutSectionNavigation,
-  SkillGroupCard,
+  AboutPortraitGallery,
+  TechnologyOrbit,
 } from '../components'
-import { skillGroups } from '../config'
 
-const { isDarkTheme } = storeToRefs(useThemeStore())
 const { t } = useI18n()
-const profileImageSrc = computed(() =>
-  isDarkTheme.value
-    ? '/images/about/anawat-grudtoop-profile-cropped-768.webp'
-    : '/images/about/anawat-grudtoop-profile-512.webp',
-)
-const profilePlaceholderSrc = computed(() =>
-  isDarkTheme.value
-    ? '/images/about/anawat-grudtoop-profile-cropped-lqip.webp'
-    : '/images/about/anawat-grudtoop-profile-512-lqip.webp',
-)
 const birthDate = { year: 2003, month: 10, day: 26 }
 const ageClock = ref(new Date())
 const liveAge = computed(() => formatLiveAge(ageClock.value))
@@ -73,47 +59,40 @@ onBeforeUnmount(() => {
         <div class="about-profile__grid">
           <div class="about-copy about-profile__content">
             <h1>{{ t('about.profile.name') }}</h1>
-            <p class="about-profile__introduction">{{ t('about.profile.introduction') }}</p>
             <nav class="about-profile__links" :aria-label="t('about.profile.contactLinks')">
-              <AppButton
+              <a
+                class="about-profile__link"
                 href="https://github.com/Fujipp"
                 target="_blank"
                 rel="noopener noreferrer"
-                :left-icon="icons.social.github"
               >
-                GitHub
-              </AppButton>
-              <AppButton
+                <Github class="about-profile__link-icon" aria-hidden="true" />
+                <span class="about-profile__link-label">GitHub</span>
+                <ArrowUpRight class="about-profile__link-arrow" aria-hidden="true" />
+              </a>
+              <a
+                class="about-profile__link"
                 href="https://www.linkedin.com/in/anawat-boripakhirun-aa1799426"
                 target="_blank"
                 rel="noopener noreferrer"
-                :left-icon="icons.social.linkedin"
               >
-                LinkedIn
-              </AppButton>
-              <AppButton
+                <Linkedin class="about-profile__link-icon" aria-hidden="true" />
+                <span class="about-profile__link-label">LinkedIn</span>
+                <ArrowUpRight class="about-profile__link-arrow" aria-hidden="true" />
+              </a>
+              <a
+                class="about-profile__link"
                 href="mailto:anawat.boripakhirun@gmail.com"
-                :left-icon="icons.social.email"
               >
-                {{ t('about.profile.mail') }}
-              </AppButton>
+                <Mail class="about-profile__link-icon" aria-hidden="true" />
+                <span class="about-profile__link-label">{{ t('about.profile.mail') }}</span>
+                <ArrowUpRight class="about-profile__link-arrow" aria-hidden="true" />
+              </a>
             </nav>
           </div>
 
           <div class="about-profile__portrait">
-            <div class="about-profile__image">
-              <AppProgressiveImage
-                class="about-profile__picture"
-                :class="{ 'about-profile__picture--dark': isDarkTheme }"
-                :src="profileImageSrc"
-                :placeholder-src="profilePlaceholderSrc"
-                :alt="t('about.profile.portraitAlt')"
-                width="512"
-                height="512"
-                loading="eager"
-                fetchpriority="high"
-              />
-            </div>
+            <AboutPortraitGallery />
           </div>
         </div>
 
@@ -131,17 +110,12 @@ onBeforeUnmount(() => {
 
       <AboutExperienceSection />
 
-      <section id="about-skills" class="about-section about-skills">
-        <header class="about-skills__heading">
-          <h2>{{ t('about.skills.title') }}</h2>
-          <p class="about-skills__statement">
-            {{ t('about.skills.description') }}
-          </p>
-        </header>
-
-        <div class="about-skills__grid">
-          <SkillGroupCard v-for="group in skillGroups" :key="group.titleKey" :group="group" />
-        </div>
+      <section
+        id="about-skills"
+        class="about-section about-skills"
+        :aria-label="t('about.sections.skills')"
+      >
+        <TechnologyOrbit class="about-skills__visual" />
       </section>
 
       <AboutContactSection />
@@ -191,7 +165,7 @@ onBeforeUnmount(() => {
 
 .about-profile__grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 23rem);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 28rem);
   align-items: center;
   gap: clamp(var(--space-2xl), 6vw, var(--space-5xl));
 }
@@ -200,35 +174,10 @@ onBeforeUnmount(() => {
   max-width: 45rem;
 }
 
-.about-profile__introduction {
-  max-width: 35rem;
-}
-
 .about-profile__portrait {
   position: relative;
   isolation: isolate;
   width: 100%;
-}
-
-.about-profile__image {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  aspect-ratio: 4 / 5;
-  border: 1px solid var(--semantic-color-border-border-default);
-  border-radius: var(--corner-radius-sm);
-  background: var(--semantic-color-background-bg-surface);
-}
-
-.about-profile__picture {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.about-profile__picture--dark {
-  filter: grayscale(1) brightness(1.6) contrast(0.95);
 }
 
 .about-profile__details {
@@ -268,18 +217,74 @@ onBeforeUnmount(() => {
 }
 
 .about-profile__links {
-  display: grid;
-  width: min(100%, 30rem);
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-sm);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs) var(--space-sm);
   margin-top: var(--space-sm);
+}
+
+.about-profile__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding-block: var(--space-xs);
+  color: var(--semantic-color-text-text-primary);
+  font-size: var(--font-size-label-medium);
+  font-weight: var(--typography-font-weight-medium);
+  line-height: var(--line-height-body);
+  text-decoration: none;
+}
+
+.about-profile__link-icon {
+  width: var(--icon-size-24);
+  height: var(--icon-size-24);
+  flex: 0 0 var(--icon-size-24);
+  stroke-width: 1.75;
+}
+
+.about-profile__link-arrow {
+  width: var(--icon-size-16);
+  height: var(--icon-size-16);
+  stroke-width: 1.75;
+}
+
+.about-profile__link-label {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: var(--space-xxs);
+  transition: text-decoration-color 160ms ease;
+}
+
+.about-profile__link:hover .about-profile__link-label,
+.about-profile__link:focus-visible .about-profile__link-label {
+  text-decoration-color: currentColor;
+}
+
+.about-profile__link:focus-visible {
+  border-radius: var(--corner-radius-sm);
+  outline: 2px solid var(--semantic-color-action-borders-border-focus);
+  outline-offset: var(--space-xxs);
+}
+
+@media (min-width: 48rem) {
+  .about-profile__links {
+    column-gap: var(--space-lg);
+  }
+
+  .about-profile__link {
+    font-size: var(--font-size-heading-h4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-profile__link-label {
+    transition: none;
+  }
 }
 
 .about-copy h1,
 .about-copy h2,
-.about-copy p,
-.about-skills__heading h2,
-.about-skills__heading p {
+.about-copy p {
   margin: 0;
 }
 
@@ -320,40 +325,14 @@ onBeforeUnmount(() => {
 
 .about-skills {
   display: grid;
-  gap: var(--space-3xl);
+  justify-items: center;
+  padding-block: calc(var(--space-3xl) + var(--space-md)) var(--space-2xl);
+  scroll-margin-block-start: var(--space-md);
 }
 
-.about-skills__heading,
-.about-skills__grid {
-  width: min(100%, 72rem);
+.about-skills__visual {
+  max-width: var(--layout-reading-max-width);
   margin-inline: auto;
-}
-
-.about-skills__heading h2 {
-  margin: 0;
-  max-width: 18ch;
-  font-size: clamp(2.75rem, 6vw, 5rem);
-  font-weight: var(--typography-font-weight-bold);
-  letter-spacing: -0.055em;
-  line-height: 1.05;
-}
-
-.about-skills__heading h2:lang(th) {
-  letter-spacing: 0;
-  line-height: 1.2;
-}
-
-.about-skills__statement {
-  max-width: 40rem;
-  margin: var(--space-lg) 0 0;
-  color: var(--semantic-color-text-text-secondary);
-  font-size: var(--font-size-body-large);
-  line-height: var(--line-height-body);
-}
-
-.about-skills__grid {
-  display: grid;
-  border-bottom: 1px solid var(--semantic-color-border-border-default);
 }
 
 @media (max-width: 63.99rem) {
@@ -362,7 +341,7 @@ onBeforeUnmount(() => {
   }
 
   .about-profile__portrait {
-    width: min(100%, 23rem);
+    width: min(100%, 28rem);
     justify-self: center;
   }
 
@@ -377,12 +356,9 @@ onBeforeUnmount(() => {
   }
 
   .about-skills {
-    gap: var(--space-2xl);
+    padding-block: calc(var(--space-3xl) + var(--space-md)) var(--space-2xl);
   }
 
-  .about-skills__heading h2 {
-    font-size: clamp(2.75rem, 10vw, 4.5rem);
-  }
 
 
 

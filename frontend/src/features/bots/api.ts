@@ -40,6 +40,26 @@ export interface FeatureLicense {
 
 export type FeatureConfigValue = string | number | boolean | string[] | Record<string, unknown>
 
+export async function setFeatureEnabled(
+  botId: string,
+  installationId: string,
+  enabled: boolean,
+  admin: boolean,
+  session: Session,
+  signal?: AbortSignal,
+): Promise<{ status: string }> {
+  const response = await apiFetch(
+    `${backendUrl}/api/v1/${admin ? 'admin/' : ''}bots/${encodeURIComponent(botId)}/installations/${encodeURIComponent(installationId)}/enabled`,
+    {
+      method: 'PUT',
+      headers: authenticatedHeaders(session, true),
+      body: JSON.stringify({ enabled }),
+      signal,
+    },
+  )
+  return readJson(response, 'Unable to update feature status.')
+}
+
 export interface FeatureConfiguration {
   licenseId: string
   revision: number

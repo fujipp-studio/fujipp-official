@@ -124,6 +124,30 @@ class StoreControllerTests {
     }
 
     @Test
+    void featureToggleRequiresOwnerAuthenticationAndBooleanInput() throws Exception {
+        UUID botId=UUID.randomUUID(),installation=UUID.randomUUID();
+        String route="/api/v1/bots/"+botId+"/installations/"+installation+"/enabled";
+        mockMvc.perform(put(route).contentType("application/json").content("{\"enabled\":false}"))
+            .andExpect(status().isUnauthorized());
+        authorizeUser();
+        mockMvc.perform(put(route).with(jwt().jwt(j->j.subject("owner"))).contentType("application/json").content("{}"))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(put(route).with(jwt().jwt(j->j.subject("owner"))).contentType("application/json").content("{\"enabled\":null}"))
+            .andExpect(status().isBadRequest());
+        when(featureHealth.setEnabled("owner",botId,installation,false)).thenReturn("DISABLED");
+        mockMvc.perform(put(route).with(jwt().jwt(j->j.subject("owner"))).contentType("application/json").content("{\"enabled\":false}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("DISABLED"));
+        verify(featureHealth).setEnabled("owner",botId,installation,false);
+        String adminRoute="/api/v1/admin/bots/"+botId+"/installations/"+installation+"/enabled";
+        mockMvc.perform(put(adminRoute).with(jwt()).contentType("application/json").content("{\"enabled\":true}"))
+            .andExpect(status().isForbidden());
+        authorizeAs(AppRole.ADMIN);
+        when(featureHealth.setEnabledAsAdmin(botId,installation,true)).thenReturn("INSTALLING");
+        mockMvc.perform(put(adminRoute).with(jwt()).contentType("application/json").content("{\"enabled\":true}"))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("INSTALLING"));
+    }
+
+    @Test
     void featureCatalogIsPublic() throws Exception {
         when(storeService.listFeatures()).thenReturn(List.of());
 

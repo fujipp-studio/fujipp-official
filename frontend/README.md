@@ -84,6 +84,10 @@ CI use the same impact information. See [frontend agent instructions](AGENTS.md)
 - Session bootstrap stays in the shared auth store; impersonation controls load
   on demand. Backend API transport installs the impersonation boundary
   only when this mode is opened, while tracking pending requests from initial load.
+- Guests can open My Bot from Desktop and Mobile navigation and browse the dashboard
+  and Store catalog. Add bot, purchase, and Top up actions open the existing Sign in /
+  Sign up dialog. Guest dashboards do not fetch account inventories or poll bots;
+  bot settings, wallet pages, and all account mutations still require a session.
 - Bot settings **Money** (`/my-bot/:botId/settings/money`, plus the Admin equivalent)
   uses one Wallet per Discord customer per bot, with provider-filtered TrueMoney/SlipOK
   history and read-only review statuses. Lists load by cursor only for the active tab;
@@ -219,3 +223,25 @@ SHOP/GIFT/BOTH output and edits optional Gift amounts on the existing ten tables
 Counted validation and processing samples load first; quote helpers load when a
 quote or result preview is requested. Wallet and Robux editor copy load only for their own licenses.
 All required providers remain included in their corresponding bundle profiles.
+
+About's technology section groups the existing tools into three concentric orbits.
+Adjacent rings rotate in opposite directions while logos stay upright. Hovering or
+focusing a logo pauses the rings; the explicit pause/resume button works independently.
+Reduced-motion preferences render a static diagram. The shared animation visibility
+helper pauses all transforms offscreen and in hidden tabs. Logos expose their tool
+names to keyboard and screen-reader users, with the selected name shown below the
+orbits. The About browser coverage in `frontend.smoke.spec.ts` checks motion controls,
+visibility, opposing rotations and the Desktop/Mobile Light/Dark layouts.
+
+About's profile gallery uses 20 optimized WebP images under
+`public/images/about/gallery/`, listed in the feature's `config/profile-photos.ts`.
+The portrait uses a centered card deck: the active card is largest, and three
+progressively smaller cards remain visible on each side. Changing photos transforms
+each complete card, including its image, border and shadow. Clicking or tapping an
+exposed card brings that specific photo to the center. Swipes and arrow keys also
+navigate the deck; dragging does not trigger a second click selection.
+Photos advance every five seconds while visible and pause on
+hover/focus; Space pauses or resumes playback. The gallery has no visible control
+bar, counter or thumbnail strip. Reduced motion disables automatic advancement
+and card transitions. Progressive loading keeps the first portrait eager and
+warms adjacent cards as needed; tall photos and illustrations retain their full framing.

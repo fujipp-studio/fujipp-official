@@ -153,19 +153,19 @@ export function createAppRouter(
         path: '/store',
         name: 'store',
         component: () => import('../features/store/views/StoreView.vue'),
-        meta: { requiresAuth: true, seo: pageSeo.store },
+        meta: { seo: pageSeo.store },
       },
       {
         path: '/store/packages',
         name: 'store-packages',
         component: () => import('../features/store/views/StoreView.vue'),
-        meta: { requiresAuth: true, seo: { ...pageSeo.store, title: 'Bot Packages' } },
+        meta: { seo: { ...pageSeo.store, title: 'Bot Packages' } },
       },
       {
         path: '/store/runtime',
         name: 'store-runtime',
         component: () => import('../features/store/views/StoreView.vue'),
-        meta: { requiresAuth: true, seo: { ...pageSeo.store, title: 'Managed Runtime' } },
+        meta: { seo: { ...pageSeo.store, title: 'Managed Runtime' } },
       },
       {
         path: '/add-credit',
@@ -177,7 +177,6 @@ export function createAppRouter(
         path: '/my-bot',
         name: 'my-bot',
         component: () => import('../features/bots/views/MyBotsView.vue'),
-        meta: { requiresAuth: true },
       },
       {
         path: '/my-bot/:botId/settings',

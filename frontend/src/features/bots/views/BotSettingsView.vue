@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useBotSettingsData } from '../composables/useBotSettingsData'
 import { Ticket, Wallet } from 'lucide-vue-next'
-import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onScopeDispose, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useQueryClient } from '@tanstack/vue-query'
 import { accountKeys, invalidateBotAccount } from '../queries'
@@ -13,6 +13,7 @@ import {
   updateBot,
   updateBotDiscordToken,
   upgradeFeatureLicense,
+  setFeatureEnabled,
   type FeatureLicense,
 } from '@/features/bots/api'
 import { removeAdminBotFeature, updateAdminBotSettings } from '@/features/admin/api/bots'
@@ -52,6 +53,9 @@ const saving = ref(false)
 const runtimeBusy = ref(false)
 const upgradingLicenseId = ref('')
 const removingInstallationId = ref('')
+const togglingInstallationId = ref('')
+const featureHealthRevision = ref(0)
+let featureToggleController: AbortController | undefined
 const showFeatureRemovalModal = ref(false)
 const featureRemovalTarget = ref<FeatureRemovalTarget | null>(null)
 const toastOpen = ref(false)
@@ -82,6 +86,65 @@ function installationStatus(license: FeatureLicense) {
     license.installations.find((installation) => installation.botId === botId.value)?.status ?? '—'
   )
 }
+
+function canToggleFeature(license: FeatureLicense) {
+  return (
+    license.status === 'ACTIVE' &&
+    (!license.expiresAt || new Date(license.expiresAt).getTime() > Date.now()) &&
+    ['INSTALLING', 'ACTIVE', 'ERROR', 'DISABLED'].includes(installationStatus(license))
+  )
+}
+
+async function toggleFeature(license: FeatureLicense, enabled: boolean) {
+  const activeSession = session.value
+  const targetBotId = botId.value
+  const admin = adminMode.value
+  const installation = license.installations.find((item) => item.botId === targetBotId)
+  if (!activeSession || !installation || togglingInstallationId.value || !canToggleFeature(license))
+    return
+  const controller = new AbortController()
+  featureToggleController = controller
+  togglingInstallationId.value = installation.id
+  try {
+    const result = await setFeatureEnabled(
+      targetBotId,
+      installation.id,
+      enabled,
+      admin,
+      activeSession,
+      controller.signal,
+    )
+    if (controller.signal.aborted) return
+    licenses.value = licenses.value.map((item) => ({
+      ...item,
+      installations: item.installations.map((entry) =>
+        entry.id === installation.id ? { ...entry, status: result.status } : entry,
+      ),
+    }))
+    data.syncCache(activeSession.user.id)
+    featureHealthRevision.value++
+    showToast(
+      t(enabled ? 'botSettings.featureEnabled' : 'botSettings.featureDisabled', {
+        feature: license.featureName,
+      }),
+      'success',
+    )
+  } catch (cause) {
+    if (!controller.signal.aborted)
+      showToast(
+        cause instanceof Error ? cause.message : t('botSettings.unableToToggleFeature'),
+        'error',
+      )
+  } finally {
+    if (featureToggleController === controller) togglingInstallationId.value = ''
+  }
+}
+
+watch([botId, adminMode, () => session.value?.user.id], () => {
+  featureToggleController?.abort()
+  togglingInstallationId.value = ''
+})
+onScopeDispose(() => featureToggleController?.abort())
 
 function showToast(message: string, variant: 'info' | 'success' | 'error' = 'info') {
   toastMessage.value = message
@@ -547,7 +610,13 @@ onMounted(async () => {
 
       <section v-else class="items-card">
         <h2 class="text-2xl font-bold">{{ t('botSettings.packageSettings') }}</h2>
-        <FeatureHealthPanel :bot-id="botId" :admin="adminMode" @configure="openFeature" />
+        <p class="mb-md mt-sm text-sm text-text-secondary">{{ t('botSettings.featureToggleHint') }}</p>
+        <FeatureHealthPanel
+          :key="featureHealthRevision"
+          :bot-id="botId"
+          :admin="adminMode"
+          @configure="openFeature"
+        />
         <div v-if="packageLicenses.length" class="item-list">
           <article v-for="license in packageLicenses" :key="license.id" class="setting-item">
             <div>
@@ -557,6 +626,22 @@ onMounted(async () => {
               </p>
             </div>
             <div class="setting-item-actions">
+              <AppToggle
+                :model-value="installationStatus(license) !== 'DISABLED'"
+                :label="
+                  t(
+                    installationStatus(license) === 'DISABLED'
+                      ? 'botSettings.featureOff'
+                      : 'botSettings.featureOn',
+                  )
+                "
+                :aria-label="t('botSettings.toggleFeature', { feature: license.featureName })"
+                :disabled="
+                  !canToggleFeature(license) ||
+                  Boolean(togglingInstallationId || removingInstallationId || upgradingLicenseId)
+                "
+                @change="toggleFeature(license, $event)"
+              />
               <AppButton
                 class="settings-hug"
                 variant="secondary"
@@ -569,7 +654,7 @@ onMounted(async () => {
                 v-if="adminMode && !coreFeatureCodes.has(license.featureCode)"
                 class="remove-feature-button settings-hug"
                 variant="secondary"
-                :disabled="Boolean(removingInstallationId)"
+                :disabled="Boolean(removingInstallationId || togglingInstallationId)"
                 @click="openFeatureRemoval(license)"
               >
                 {{ t('botSettings.removeFeature') }}
@@ -577,7 +662,7 @@ onMounted(async () => {
               <AppButton
                 v-if="!adminMode && license.upgradeAvailable"
                 class="settings-hug"
-                :disabled="Boolean(upgradingLicenseId)"
+                :disabled="Boolean(upgradingLicenseId || togglingInstallationId)"
                 @click="upgradeLicense(license)"
               >
                 {{

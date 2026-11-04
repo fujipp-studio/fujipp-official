@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-04 | Added owner and administrator feature enable/disable controls while retaining settings and licenses and keeping disabled installations inactive in the Runner. |
 | 2026-11-04 | Added exact count/tier AUTO and Gift quotes, editable bilingual price text and Nitro-badge extraction while preserving partial image results. |
 | 2026-11-03 | Added bounded feature startup recovery and health checks alongside Price Reader 3.2 counted extraction, exact bundle pricing and Thai/English replies. |
 | 2026-11-02 | Added Price Reader 3.1.0 with independent Nitro and standard extraction, optional simultaneous quotes, and separate single-item and bundle matching without price substitution. |
