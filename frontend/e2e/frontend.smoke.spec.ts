@@ -1242,3 +1242,61 @@ for (const theme of ['LIGHT', 'DARK']) {
     },
   )
 }
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`About technology orbits alternate direction and support motion controls in ${theme}`, async ({ page, isMobile }, info) => {
+    await page.addInitScript(value => localStorage.setItem('fujipp-theme-mode', value), theme)
+    await page.emulateMedia({ reducedMotion: 'no-preference' })
+    await page.goto('/about?role=GUEST&locale=en')
+    await page.getByRole('button', { name: 'Go to Skills', exact: true }).click()
+    const rings = page.locator('.orbit-ring')
+    await expect(rings).toHaveCount(3)
+    await expect(page.locator('.orbit-badge')).toHaveCount(20)
+    await page.mouse.move(0, 0)
+    await expect(rings.first()).toHaveCSS('animation-play-state', 'running')
+    expect(await rings.evaluateAll(elements => elements.map(el => getComputedStyle(el).animationDirection))).toEqual(['normal', 'reverse', 'normal'])
+    // Opposite transforms keep each logo upright while its ring rotates.
+    const upright = await rings.first().evaluate(el => {
+      const ring = new DOMMatrix(getComputedStyle(el).transform)
+      const counter = new DOMMatrix(getComputedStyle(el.querySelector('.orbit-counter-rotation')!).transform)
+      const combined = ring.multiply(counter)
+      return { a: combined.a, b: combined.b }
+    })
+    expect(upright.a).toBeCloseTo(1, 2)
+    expect(upright.b).toBeCloseTo(0, 2)
+    await page.getByRole('button', { name: 'Pause rotation', exact: true }).click()
+    await expect(rings.first()).toHaveCSS('animation-play-state', 'paused')
+    // Exercise real pointer hit testing on every layer, not only programmatic focus.
+    for (const badge of await page.locator('.orbit-badge').all()) {
+      const name = await badge.getAttribute('aria-label')
+      if (isMobile) await badge.tap({ timeout: 2000 })
+      else await badge.hover({ timeout: 2000 })
+      await expect(page.locator('.orbit-caption')).toHaveText(name!)
+    }
+    await page.getByRole('button', { name: 'Resume rotation', exact: true }).click()
+    await expect(rings.first()).toHaveCSS('animation-play-state', 'running')
+    const javascript = page.getByRole('img', { name: 'JavaScript', exact: true })
+    await javascript.focus()
+    await expect(javascript).toBeFocused()
+    await expect(page.locator('.orbit-caption')).toHaveText('JavaScript')
+    await expect(rings.first()).toHaveCSS('animation-play-state', 'paused')
+    await javascript.evaluate(el => (el as HTMLElement).blur())
+    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }))
+    await expect(rings.first()).toHaveCSS('animation-play-state', 'paused')
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.getByRole('button', { name: 'Go to Skills', exact: true }).click()
+    await expect(rings.first()).toHaveCSS('animation-name', 'none')
+    await expect(page.locator('.orbit-toggle')).toBeHidden()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+    const positions = await page.locator('.orbit-badge').evaluateAll(elements => elements.map(el => {
+      const rect = el.getBoundingClientRect()
+      return { left: rect.left, right: rect.right }
+    }))
+    const width = page.viewportSize()!.width
+    expect(positions.every(position => position.left >= 0 && position.right <= width)).toBe(true)
+    await page.locator('#about-skills').screenshot({
+      path: info.outputPath(`about-orbits-${theme}.png`), animations: 'disabled',
+      style: '.section-indicator, .app-scroll-rail { visibility: hidden !important; }',
+    })
+  })
+}
