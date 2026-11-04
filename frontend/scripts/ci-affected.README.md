@@ -18,6 +18,12 @@ sharding preserves the existing execution order inside each test file. The
 aggregate `verify` check requires every shard to pass; a failing shard does not
 cancel the others. No tests, retries or production checks are removed.
 
+Browser dependency setup and FTPS client installation remove Microsoft APT feed
+files from their disposable GitHub runners before updating package indexes.
+Chromium dependencies and `lftp` come from Ubuntu repositories; a `403` from an
+unrelated Microsoft feed must not prevent their installation. Both `.list` and
+`.sources` feed formats are handled, and Ubuntu package signature checks remain enabled.
+
 This trades more concurrent runners and repeated setup for less elapsed time.
 Runner availability and uneven test-file durations can limit the speedup. The
 2026-10-31 main run `41171490933` took 18m 04s: smoke execution alone took
