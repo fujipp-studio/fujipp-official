@@ -203,7 +203,7 @@ jobs:
           tar --extract --gzip --no-same-owner --file "$IMAGE_CONTEXT/runner-dist.tar.gz" --directory "$IMAGE_CONTEXT"
           rm "$IMAGE_CONTEXT/runner-dist.tar.gz"
       - uses: docker/setup-buildx-action@v4.4.1
-      - uses: docker/login-action@v4.7.0
+      - uses: docker/login-action@v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
