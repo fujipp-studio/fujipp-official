@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { ApplicationFlagsBitField, ChannelType, Collection, OverwriteType, PermissionFlagsBits, PermissionsBitField } from "discord.js";
+import { ApplicationFlagsBitField, ChannelType, Collection, OverwriteType, PermissionFlagsBits, PermissionsBitField, RESTJSONErrorCodes } from "discord.js";
 import type { FeatureContext } from "../src/types.js";
 import { ticketFeature } from "../src/features/ticket/v1.0.0.js";
 import { getFeature } from "../src/feature-registry.js";
@@ -27,6 +27,7 @@ function fixture(rows = [category()], historyEnabled = false) {
   const creations: any[] = [], overwrites: any[] = [], errors: any[] = [], saves: any[] = [], commands = new Collection<string, any>();
   const records = new Map<string, { channelId: string; name: string; state: TicketState; archived: boolean }>();
   const archives: any[] = [], deleted: string[] = [];
+  const overwriteErrors = new Map<string, Error>();
   let archiveFails = false, deleteFails = false, registryFails = false, readAllowed = true, intentEnabled = true;
   let latest = Date.now(), historyFails = false, permissionsFail = false, sendsFail = false;
   const makeChannel = (id: string, topic: string | null = null) => {
@@ -36,7 +37,7 @@ function fixture(rows = [category()], historyEnabled = false) {
       isSendable: () => true, isDMBased: () => false, fetch: async () => channel,
       setTopic: async (next: string | null) => { channel.topic = next; return channel; },
       delete: async () => { if (deleteFails) throw Error("Delete failure"); assert.equal(records.get(id)?.archived, true); deleted.push(id); channels.delete(id); },
-      permissionOverwrites: { edit: async (id: string, patch: any, options: unknown) => { if (permissionsFail) throw Error("Permission failure"); if (patch.ViewChannel) invited.add(id); overwrites.push({ id, patch, options }); } },
+      permissionOverwrites: { edit: async (id: string, patch: any, options: unknown) => { if (permissionsFail) throw Error("Permission failure"); if (overwriteErrors.has(id)) throw overwriteErrors.get(id); if (patch.ViewChannel) invited.add(id); overwrites.push({ id, patch, options }); } },
       messages: { fetch: async (options: any) => { if (historyFails) throw Error("History unavailable"); return options.limit === 1 ? new Collection([["last", { createdTimestamp: latest }]]) : new Collection(); } },
       send: async (payload: any) => { if (sendsFail) throw Error("Send failure"); channel.sent.push(payload); return { id: "message" }; },
     };
@@ -101,7 +102,7 @@ function fixture(rows = [category()], historyEnabled = false) {
     };
     return { value, replies, send: async () => { client.emit("interactionCreate", value); await flush(); } };
   }
-  return { context, client, channels, panel, creations, overwrites, errors, saves, commands, makeChannel, interaction, records, archives, deleted,
+  return { context, client, channels, panel, creations, overwrites, overwriteErrors, errors, saves, commands, makeChannel, interaction, records, archives, deleted,
     allowArchiveRead: (value: boolean) => { readAllowed = value; }, enableContentIntent: (value: boolean) => { intentEnabled = value; }, failRegistry: (value: boolean) => { registryFails = value; }, failArchive: () => { archiveFails = true; }, failDelete: (value: boolean) => { deleteFails = value; },
     setLatest: (time: number) => { latest = time; }, failHistory: () => { historyFails = true; },
     failPermissions: (value: boolean) => { permissionsFail = value; }, failSends: () => { sendsFail = true; } };
@@ -348,6 +349,49 @@ test("an explicit closing role or user can delete directly when confirmation is 
     assert.deepEqual(f.deleted, [room.id]);
     assert.equal(f.archives.length, 1);
     assert.equal(f.records.get(room.id)?.state.status, 'CLOSED');
+  }
+});
+
+test("manual, timed and resumed closing archive and delete tickets after members leave", async t => {
+  for (const code of [RESTJSONErrorCodes.UnknownMember, RESTJSONErrorCodes.UnknownUser]) {
+    for (const mode of ["manual", "timed", "resumed"] as const) {
+      await t.test(`${mode}: ${code}`, async t => {
+        const f = fixture();
+        const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({
+          participantIds: [stranger, staff], autoCloseMinutes: mode === 'timed' ? 60 : 0,
+          autoCloseMode: 'OPENED', status: mode === 'resumed' ? 'CLOSING' : 'OPEN',
+        })));
+        for (const id of [owner, stranger]) f.overwriteErrors.set(id, Object.assign(new Error('Departed member'), { code }));
+        t.after(await ticketFeature.activate(f.context)); await flush();
+        if (mode === 'manual') {
+          assert.equal(f.deleted.length, 0);
+          await f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}confirm-close` }).send();
+        }
+        assert.deepEqual(f.overwrites.map(entry => entry.id), [staff]);
+        assert.equal(f.overwrites[0].patch.SendMessages, false);
+        assert.equal(f.archives.length, 1);
+        assert.deepEqual(f.deleted, [room.id]);
+        assert.equal(f.records.get(room.id)?.state.status, 'CLOSED');
+        assert.equal(f.errors.length, 0);
+      });
+    }
+  }
+});
+
+test("other overwrite failures retain the room and closing intent without archiving", async t => {
+  for (const code of [RESTJSONErrorCodes.MissingPermissions, RESTJSONErrorCodes.MissingAccess, RESTJSONErrorCodes.UnknownChannel, 'ECONNRESET']) {
+    await t.test(String(code), async t => {
+      const f = fixture();
+      const room = f.makeChannel('999999999999999999', ticketTopic(installation, state({ autoCloseMinutes: 0 })));
+      f.overwriteErrors.set(owner, Object.assign(new Error('Overwrite failed'), { code }));
+      t.after(await ticketFeature.activate(f.context)); await flush();
+      await f.interaction('button', { channelId: room.id, user: { id: administrator }, customId: `${prefix}confirm-close` }).send();
+      assert.equal(f.archives.length, 0);
+      assert.equal(f.deleted.length, 0);
+      assert.equal(f.channels.has(room.id), true);
+      assert.equal(f.records.get(room.id)?.state.status, 'CLOSING');
+      assert.ok(f.errors.length > 0);
+    });
   }
 });
 

@@ -1,6 +1,6 @@
 import {
   ActionRowBuilder, ApplicationFlagsBitField, ButtonBuilder, ButtonStyle, ChannelType, ComponentType, MessageFlags,
-  ModalBuilder, LabelBuilder, OverwriteType, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder,
+  ModalBuilder, LabelBuilder, OverwriteType, PermissionFlagsBits, RESTJSONErrorCodes, SlashCommandBuilder, StringSelectMenuBuilder, UserSelectMenuBuilder,
   TextInputBuilder, TextInputStyle, escapeMarkdown,
   type Interaction, type TextChannel, type MessageCreateOptions, type GuildBasedChannel,
   type ModalSubmitInteraction, type StringSelectMenuInteraction, type ButtonInteraction,
@@ -120,7 +120,10 @@ export const ticketFeature: FeatureModule = {
       await Promise.all([...new Set([state.ownerId, ...(state.participantIds ?? [])])].map(id => channel.permissionOverwrites.edit(id, {
         SendMessages: false, AddReactions: false, CreatePublicThreads: false,
         CreatePrivateThreads: false, SendMessagesInThreads: false,
-      }, { type: OverwriteType.Member, reason: "Ticket closing" })));
+      }, { type: OverwriteType.Member, reason: "Ticket closing" }).catch(error => {
+        // Departed members cannot write; Discord may reject their stale overwrites.
+        if (error.code !== RESTJSONErrorCodes.UnknownMember && error.code !== RESTJSONErrorCodes.UnknownUser) throw error;
+      })));
       const messages = await ticketArchive(channel, () => stopped);
       await context.tickets.archive(channel.id, messages);
       tickets.get(channel.id)!.archived = true;

@@ -124,6 +124,9 @@ who cannot close.
 `/ticket close`. When disabled, an authorized action begins closing immediately.
 The Runner stores `CLOSING`, locks the opener's and added participants' writing permissions, fetches and
 saves the conversation, deletes the Discord channel, then records `CLOSED`.
+If Discord reports an unknown member/user while locking permissions, that member
+is skipped so departed openers or participants do not block closing. Other
+permission errors still stop closing and keep the room for retry.
 The bot refreshes its channel permissions and application Message Content Intent
 flags before archiving, refusing deletion if it cannot read the full content.
 If archiving or deletion fails, it retains the room/closing intent for retry.
