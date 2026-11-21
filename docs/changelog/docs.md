@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-21 | Documented Ticket closing behavior for departed members and retry handling for permission errors. |
 | 2026-11-21 | Documented Member Spending backup contents, permissions, daily limits, deployment requirements and verification. |
 | 2026-11-04 | Documented Ubuntu-only package dependencies for Frontend browser setup and FTPS publication. |
 | 2026-11-04 | Documented route-specific bot translation loading and the matching bundle profiles. |

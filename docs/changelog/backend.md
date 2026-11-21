@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-21 | Fixed Ticket closing when openers or participants have left Discord, including automatic closing and recovery of pending closes. |
 | 2026-11-21 | Added owner/admin Member Spending ZIP exports with exact CSV/JSON balances and a shared five-per-day quota enforced across concurrent requests. |
 | 2026-11-04 | Added owner and administrator feature enable/disable controls while retaining settings and licenses and keeping disabled installations inactive in the Runner. |
 | 2026-11-04 | Added exact count/tier AUTO and Gift quotes, editable bilingual price text and Nitro-badge extraction while preserving partial image results. |
