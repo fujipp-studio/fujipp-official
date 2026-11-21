@@ -128,7 +128,8 @@
       "objects": [
         "private.member_spending",
         "private.member_spending_monthly",
-        "private.member_spending_operations"
+        "private.member_spending_operations",
+        "private.member_spending_backup_quotas"
       ],
       "dependsOn": [],
       "checks": [
@@ -136,7 +137,8 @@
       ],
       "guides": [
         "docs/database-delivery.md",
-        "docs/bot-runtime.md"
+        "docs/bot-runtime.md",
+        "docs/member-spending-backup.md"
       ]
     },
     "portfolio": {

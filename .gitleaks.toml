@@ -16,3 +16,11 @@ condition = "AND"
 regexTarget = "line"
 regexes = ['''memberDiscordId:\s*"123456789012345678"''']
 paths = ['''^bot-runner/test/payment-voucher-api\.test\.ts$''']
+
+[[allowlists]]
+description = "Known synthetic Discord member ID in the Member Spending backup archive test"
+targetRules = ["discord-client-id"]
+condition = "AND"
+regexTarget = "line"
+regexes = ['''"memberDiscordId"\s*:\s*"123456789012345678"''']
+paths = ['''^backend/src/test/java/com/fujipp/backend/spending/MemberSpendingBackupTests\.java$''']

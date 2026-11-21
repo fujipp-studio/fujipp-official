@@ -18,7 +18,11 @@ import AppTextField from '@/shared/ui/fields/AppTextField.vue'
 import FeatureSettingToggle from './FeatureSettingToggle.vue'
 import { useFeatureEditor } from '../composables/featureEditorContext'
 
-const CommandPermissionsEditor = defineAsyncComponent(() => import('./CommandPermissionsEditor.vue'))
+const MemberSpendingBackup = defineAsyncComponent(() => import('./MemberSpendingBackup.vue'))
+
+const CommandPermissionsEditor = defineAsyncComponent(
+  () => import('./CommandPermissionsEditor.vue'),
+)
 
 const { configuration, values, secrets, text } = useFeatureEditor()
 const id = useId()
@@ -570,6 +574,7 @@ const categories = computed(() =>
             "
             @update:model-value="secrets.SPENDING_DB_URL = $event"
           />
+          <MemberSpendingBackup v-if="activeCategory === 'storage' && !ownDatabase" />
         </div>
       </section>
 
