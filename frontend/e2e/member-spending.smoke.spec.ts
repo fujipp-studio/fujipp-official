@@ -1080,3 +1080,64 @@ for (const theme of ['LIGHT', 'DARK']) {
     },
   )
 }
+
+for (const theme of ['LIGHT', 'DARK']) {
+  test(`downloads Member Spending backup in ${theme}`, async ({ page, isMobile }, testInfo) => {
+    await page.addInitScript((value) => localStorage.setItem('fujipp-theme-mode', value), theme)
+    await page.route('**/api/v1/feature-licenses', (route) =>
+      route.fulfill({ json: [memberSpendingLicense] }),
+    )
+    await page.route('**/api/v2/feature-licenses*', (route) =>
+      route.fulfill({ json: { items: [memberSpendingLicense], nextCursor: null, hasMore: false } }),
+    )
+    await page.route('**/configuration', (route) =>
+      route.fulfill({ json: memberSpendingConfiguration }),
+    )
+    let remaining = 1
+    let failed = true
+    let downloads = 0
+    const filename = 'fujipp_member-spending_123_abc_2026-11-21_12-00-00_ICT.zip'
+    await page.route('**/member-spending/backup', (route) => {
+      if (route.request().method() === 'POST') {
+        downloads++
+        if (failed) {
+          failed = false
+          return route.fulfill({ status: 500, json: { detail: 'Unable to create backup' } })
+        }
+        remaining--
+        return route.fulfill({
+          contentType: 'application/zip',
+          headers: { 'Content-Disposition': `attachment; filename="${filename}"` },
+          body: Buffer.from([80, 75, 3, 4]),
+        })
+      }
+      return route.fulfill({
+        json: { remaining, limit: 5, resetsAt: new Date(Date.now() + 3_600_000).toISOString() },
+      })
+    })
+    await page.goto('/my-bot/fixture-bot/settings/packages/fixture-license?locale=th')
+    const config = page.locator('#feature-config')
+    if (isMobile) {
+      await config.getByRole('combobox', { name: 'หมวดการตั้งค่า', exact: true }).click()
+      await page.getByRole('option', { name: 'ฐานข้อมูล', exact: true }).click()
+    } else await config.getByRole('tab', { name: 'ฐานข้อมูล', exact: true }).click()
+    const backup = config.locator('[data-spending-backup]')
+    await expect(backup.getByText(/1\/5 ครั้งวันนี้/)).toBeVisible()
+    const download = backup.getByRole('button', { name: 'ดาวน์โหลดไฟล์สำรอง', exact: true })
+    await download.click()
+    await expect(backup.getByRole('alert')).toBeVisible()
+    await expect(download).toBeEnabled()
+    const saved = page.waitForEvent('download')
+    await download.click()
+    expect((await saved).suggestedFilename()).toBe(filename)
+    await expect(backup.getByText(/0\/5 ครั้งวันนี้/)).toBeVisible()
+    await expect(download).toBeDisabled()
+    expect(downloads).toBe(2)
+    await backup.screenshot({
+      path: testInfo.outputPath(`member-spending-backup-${theme.toLowerCase()}.png`),
+    })
+    await config.getByRole('switch', { name: 'ใช้ฐานข้อมูลของร้าน' }).click()
+    await expect(backup).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  })
+}

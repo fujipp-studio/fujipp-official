@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-21 | Added Member Spending backup downloads with remaining daily quota, failure recovery and responsive Light/Dark controls. |
 | 2026-11-04 | Kept the Presentation editor within its existing bundle budget by loading only shared runtime labels in bot settings and reserving dashboard copy for My Bot. |
 | 2026-11-04 | Added bot feature switches, an About photo card carousel and rotating technology orbits, plus guest access to My Bot and Store with sign-in prompts for account actions. |
 | 2026-11-04 | Added AUTO price selection, owner-set Gift quotes and editable Thai/English price layouts with responsive previews and verified save/reload flows. |

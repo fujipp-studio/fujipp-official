@@ -544,18 +544,26 @@
       "paths": [
         "frontend/src/features/bots/components/MemberSpendingConfig.vue",
         "frontend/src/features/bots/config/member-spending.ts",
-        "frontend/src/__tests__/fixtures/memberSpending.ts"
+        "frontend/src/__tests__/fixtures/memberSpending.ts",
+        "frontend/src/features/bots/components/MemberSpendingBackup.vue",
+        "frontend/src/features/bots/member-spending-backup-api.ts",
+        "frontend/src/__tests__/MemberSpendingBackupApi.spec.ts"
       ],
       "routes": [
-        "/my-bot/:botId/settings/packages/:licenseId"
+        "/my-bot/:botId/settings/packages/:licenseId",
+        "/admin/bots/:botId/settings/packages/:licenseId",
+        "/my-bot/features/:licenseId"
       ],
       "dependsOn": [],
       "smoke": [
         "member-spending"
       ],
-      "unit": [],
+      "unit": [
+        "src/__tests__/MemberSpendingBackupApi.spec.ts"
+      ],
       "guides": [
-        "frontend/README.md"
+        "frontend/README.md",
+        "docs/member-spending-backup.md"
       ]
     },
     "bot-presence": {

@@ -231,11 +231,14 @@
         ]
       },
       "routes": [
-        "/internal/v1/member-spending/**"
+        "/internal/v1/member-spending/**",
+        "/api/v1/bots/{botId}/licenses/{licenseId}/member-spending/backup/**",
+        "/api/v1/admin/bots/{botId}/licenses/{licenseId}/member-spending/backup/**"
       ],
       "guides": [
         "docs/backend-delivery.md",
-        "docs/bot-runtime.md"
+        "docs/bot-runtime.md",
+        "docs/member-spending-backup.md"
       ]
     },
     "payment-trigger": {

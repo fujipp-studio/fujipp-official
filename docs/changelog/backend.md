@@ -2,6 +2,7 @@
 
 | Date | Change |
 | --- | --- |
+| 2026-11-21 | Added owner/admin Member Spending ZIP exports with exact CSV/JSON balances and a shared five-per-day quota enforced across concurrent requests. |
 | 2026-11-04 | Added owner and administrator feature enable/disable controls while retaining settings and licenses and keeping disabled installations inactive in the Runner. |
 | 2026-11-04 | Added exact count/tier AUTO and Gift quotes, editable bilingual price text and Nitro-badge extraction while preserving partial image results. |
 | 2026-11-03 | Added bounded feature startup recovery and health checks alongside Price Reader 3.2 counted extraction, exact bundle pricing and Thai/English replies. |
